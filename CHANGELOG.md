@@ -6,119 +6,153 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+## 0.1.0-alpha.11 (2026-10-21)
+
 ### Added
 
-- Raise the advertised MCP schema ceiling from 38,000 to 40,000 compact bytes, with
-  maintainer approval, to make room for the sheet-size preferences.
-- Add `impact` and stable repeat-cause `group` labels to every problem and lint finding,
-  including serve, WASM and compact MCP results. Review includes per-impact and per-group
-  counts, also forwarded by the MCP review tool. Severity, finding order and drawings
-  are unchanged. See [finding impact](docs/finding-impact.md) for the full classification.
-- Automatic layout preferences: `sheet/preferred_max_size` (A4–A0, default A3)
-  and `sheet/preferred_max_sheets` (integer ≥ 1, default 2). Try single sheets,
-  then annotated whole-view allocations before larger paper. `sheets.max` stays
-  hard. A candidate is never clipped and never below the readable floor; otherwise
-  it is disqualified only by unreadable, error or loss findings the automatic
-  baseline does not have (error-severity layout findings, overlapping text, leader
-  through text or along an extension, a view frame on the title block, lost or
-  unreported items). No sheet carries only the isometric. Other warnings never
-  choose larger paper, so a crowded but readable small sheet is kept (mfcadpp 10190
-  stays A4 at 1:1). One
-  `sheet_preference_exceeded` info/advisory notice explains any exceeded size or
-  count preference. Explicit layout choices win. A fresh automatic plan carries no
-  `layout_replanned` notice.
+- **Preferred sheet size and count.** `sheet/preferred_max_size` (A4–A0, default A3) and
+  `sheet/preferred_max_sheets` (integer ≥ 1, default 2) steer automatic paper choice:
+  - The search tries one sheet from A4 up to the preferred size, then more sheets at that
+    size, then one paper size up at a time.
+  - A candidate is never chosen if it clips a view or prints below a readable scale.
+  - Otherwise it is refused only for unreadable ink, errors or lost information that the
+    automatic first plan does not already have. So a crowded but readable small sheet beats
+    a blow-up.
+  - No sheet carries only the isometric unless the author put it there. A split onto more
+    sheets is also refused if it adds leader runs or hidden-edge crossings.
+  - Going past a preference reports one `sheet_preference_exceeded` info notice, and a fresh
+    automatic plan no longer carries a `layout_replanned` notice.
+  - An explicit size, scale or count, `sheet/keep_layout` and `sheets/max` still win.
+  - Drawings that change: CTC-02 goes from A0 to A1, 1013 and string_post_tapped from two A4
+    sheets to one A3, cgb243 from one A1 to two A2 sheets, and bracket_positions from A1 2:1
+    to A2 1:1.
+- **Finding impact and groups.** Every plan problem, lint finding and structural finding
+  carries an additive `impact` (`incomplete`, `decision`, `readability` or `advisory`) and a
+  stable repeat-cause `group`. These appear in serve, WASM and compact MCP results.
+  - Review adds per-impact and per-group counts, also returned by the MCP review tool.
+  - Severity, finding order and drawings are unchanged, and gaps are never promoted to errors.
+  - On NIST CTC-01 (`nist_ctc_01_asme1_rd`), review shows 8 incomplete findings in 3 groups,
+    1 decision, 1 readability, and 13 advisory findings in 4 groups.
+  - See `docs/finding-impact.md` (#152).
+- **Interior callouts.** Feature callouts, leader-attached GD&T frames and AP242 surface
+  labels that cross other ink are retried over blank face inside their own view, where the
+  geometry confirms there is room. This includes inward diameter and thread leaders over hole
+  floors.
+  - Text height stays 3 mm, and equal costs favour exterior routes.
+  - GD&T frames now route around neighbouring views.
+  - On NIST CTC-01 AP242, leader-crossing warnings fall from 25 to 10 (53 → 38 problems in
+    total), with no other problem code changing.
+  - Across 68 parts there were no regressions in other problem codes, sheet size, scale or
+    retained information (#147).
+- **Frameless datums are drawn.** Datums declared in STEP AP242 or the Spec are drawn even
+  when no control frame cites them.
+  - `sheet/uncited_datums: false` hides uncited symbols, and `annotations/<id>/omit` hides one.
+    Omitted symbols keep their provenance in the plan.
+  - Datum leaders that end on the frame border are no longer reported as
+    `leader_line_through_text` errors; a shaft through the datum letter still is. This removes
+    95 false errors on cited datums across 31 test parts (#141).
+- **Leader crossing kinds.** Retained crossings are classified, in additive `crossing_kinds`
+  metadata, by what they cross: a leader, dimension line, extension line or arrow.
+  - Leader-through-text is marked `ink_is_leader`.
+  - Crossed linear dimension lines are reported as `dimension_line_crossing` warnings.
+  - Drawings are unchanged (#144).
+- **Local fixes keep the layout.** A fix with local scope keeps its sheet size, scale and
+  count, and `sheet/keep_layout: true` states the same intent for any edit. No page
+  coordinates or item lists enter the Spec.
+  - An offer discloses any new findings that applying it would introduce.
+  - Conflicts are refused, and moved views are named.
+  - An edit that does change paper, scale or count reports `layout_replanned`.
+  - A later explicit paper, scale or sheet-count edit lifts the hold.
+  - See `docs/local-fixes.md` (#126).
 
 ### Changed
 
-- Remove `sheet/preferred_printer`; Specs carrying it are refused with guidance
-  to use `sheet/preferred_max_size` (A4 printer → `"A4"`, A3 printer → `"A3"`).
+- `sheet/preferred_printer` is removed. A Spec that still carries it is refused with guidance:
+  an A4 printer becomes `sheet/preferred_max_size: "A4"`, an A3 printer `"A3"`.
+- **Radius leaders are radial.** The arrow meets the middle half of the arc within 15° of
+  radial, from whichever side gives the clearer route (ISO 129), so a small fillet on a cutout
+  can be called out from the surrounding face.
+  - A blocked case keeps its callout and reports one `radius_leader_not_radial` warning (new).
+  - Sections the engine cannot verify stay informational (`radius_leader_target_unverifiable`)
+    (#145, #146).
+- **Datum leaders leave square to the face.** Datum frames are placed on the face normal
+  through the triangle. Failing that, they take one bend after a square stub, and an oblique
+  leader is only a reported last resort.
+  - A drawn datum leader, automatic or pinned, that does not leave square is reported as the
+    lint warning `datum_leader_not_normal` (new).
+  - Datum survey (33 parts): crossings 1,063 → 1,040, overlaps 27 → 23 (#146).
+- **Fix descriptions in drawing language.** Each fix says in one sentence what applying it
+  changes, for example "Move the M14×1.5 callout above the front view, nearest the view."
+  Sheet-wide fixes add what happens to placements already moved by hand. Fix operations are
+  unchanged (#138).
+- **Pinned group callouts** point at the member nearest their elbow, keeping the automatic
+  member on ties. Existing pins keep their label positions; only the member the arrow lands on
+  can change (#149).
+- **Messages.**
+  - PMI that Specify wrote is credited to Specify rather than the STEP file, and a compatible
+    Spec thread designation refines it.
+  - Override and lint messages no longer show internal entity IDs or Spec paths.
+  - `unclaimed_geometry` is informational (#102, #25).
+- **Verbose MCP problems** keep their code and subjects inline, plus the preferred fix, its
+  scope and the full trade description when they fit. `detail_ref` keeps every full
+  alternative, and no offer hides a trade (#151).
+- The advertised MCP schema ceiling is 40,000 compact bytes (was 38,000), to make room for the
+  sheet-size preference keys.
 
 ### Fixed
 
-- Per-face surface finishes (#98): a cylinder's symbol starts in the front view's strip that
-  carries no dimension lanes, tries compact tiers beside its face, and takes the other
-  silhouette only when its own strip has no clear place; the leader's bend no longer sits on
-  the symbol's box (`leader_line_through_text`), and its leader keeps 3 mm from any
-  dimension or extension line it runs alongside. The finish with fewest sites in a strip goes
-  first. A cylinder trimmed by flats, which has no
-  silhouette, is reached head-on with a dot-terminated leader instead of `pmi_not_lowered`;
-  the same applies to AP242 face finishes. `annotations/<id>/place/side` may name either
-  proven strip. GD&T only left of the front and plan column no longer pins the section row,
-  and the front's bottom band follows the side's only when GD&T widened it. Two finishes on
-  `string_post` now stay on A4 (was A3, five crossings, one leader through text, one finish
-  undrawn).
-- Unclaimed geometry is informational and advisory on single-solid parts too, retaining
-  the unclaimed faces as subjects (#25).
-- Attribute marked PMI to Specify; compatible Spec thread designations refine its thread
-  and retain its stated length. Override and lint-only lowering messages omit internal
-  entity IDs and Spec paths (#102).
-- Explicit view placements outside the drawing area report a plan error with a fix that
-  removes the placement, including relations without the pin flag (#95).
-- Spec surface finishes on `string_post` no longer activate the dimensional location audit
-  and invent missing-location warnings.
-- #147: retry crossing feature callouts, leader-attached GD&T frames and AP242 surface labels
-  against the complete printed inventory, including proven blank face in their own view.
-  Include inward diameter/thread leaders over proven hole floors, while keeping 3 mm text,
-  existing radius attachment producers and datum face normals; equal costs
-  favour exterior routes. AP242 CTC/FTC fixtures join the per-kind crossing ratchet in
-  CI's `quality-pins` job. Final radius alternatives use #153's proven arc sites and
-  middle-arc/radial/open-side predicate. Bare pins retain the complete finished automatic
-  route, including interior repair.
-
-- Radius callouts (#145) try the middle half of a proven circular arc, within 15° of
-  radial from the non-material side: towards the centre for concave fillets, away from it
-  for convex outside corners. End-on toroidal meridians are supported where proven.
-  A blocked case keeps its callout and has one drawn-lint finding; unreadable sections
-  use informational `radius_leader_target_unverifiable`, with no duplicate fallback warning.
-  Unrelated omission and tolerance edits retain finished radius routes and their existing
-  findings; the final collision audit preserves remedies for authored pins, and repeated
-  pin audits keep findings unique for lossless session replay.
-- Verbose MCP problems retain their code and subjects inline, plus the preferred fix,
-  scope and complete trade description when they fit. `detail_ref` retains every full
-  alternative without offering an undisclosed trade (#151). Explicit paper, scale and sheet-count edits release an inherited local-layout
-  guard; setting `sheet/keep_layout` in the same batch retains the local promise.
-
-- Local fixes retain their sheet size, scale and count (#126, alpha.11).
-  Existing paper/scale/count fields and boolean `sheet/keep_layout` express intent,
-  without page coordinates or item inventories. Preview, commit and stateless edits compare
-  required information; conflicts are refused. Moved views are named in edit notices.
-  Bounded placement trials disclose new findings and prefer a clean alternative within
-  their search budget. Multi-sheet remedies remain sheet scope.
-  Edits that change paper, scale or count now report `layout_replanned` against the drawing
-  being edited, even when the new planner run did not itself perform recovery.
-- Pinned group callouts attach to the member nearest their elbow, retaining the automatic
-  member on ties (#149). Offsets still use the automatic tip; existing label positions stay put.
-
-- Declared STEP AP242 and Spec datums draw without a control-frame citation (#141, alpha.11),
-  using the existing datum-symbol placer. `sheet/uncited_datums: false` hides uncited symbols;
-  `annotations/<id>/omit` hides individual symbols. Omitted symbols retain provenance in the
-  plan and drawing, and unresolved PMI always explains why it is not drawn.
-  Datum leader records have no callout elbow; structural lint accepts frame-border
-  attachments while still reporting a shaft through the datum letter.
-- Classify retained leader crossings by leader, dimension line, extension line and arrow
-  using additive `crossing_kinds` problem metadata; mark leader-through-text with
-  `ink_is_leader`. Report linear dimension-line crossings as `dimension_line_crossing`
-  warnings. The CI `quality-pins` job ratchets all six counts on each quality part
-  against a tool-recorded origin/main baseline. The text gate also reads placed
-  geometry when an overlapping-label warning suppresses the duplicate ink warning.
-  Placement and routing are unchanged.
-
-- Browser input refusals (#134, alpha.11): reject over-deep edit paths before recursive JSON
-  construction and gutters beyond the largest supported sheet before layout allocation.
-  Conflicting dimension ownership returns an Invalid error; malformed projected spline
-  arrays use the existing `edges_not_drawn` Problem. Hostile requests and subsequent valid
-  edits/renders run in the browser parity job.
+- **Per-face surface finishes** place beside their face, clear of the dimensions, and no
+  longer force a larger sheet.
+  - A finish leader stays a text height away from lines it runs alongside.
+  - A cylinder trimmed by flats gets a dot-ended leader on its face (ISO 128-22).
+  - `annotations/<id>/place/side` picks either side.
+  - GD&T placed only left of the front/plan column no longer pins the section row.
+  - string_post with two Spec finishes: A3 → A4, crossings 3 → 0, no undrawn finishes (#98).
+- An explicit view placement outside the drawing area is a plan error, with a fix that removes
+  the placement (#95).
+- Spec surface finishes no longer trigger the dimensional location audit and invent
+  missing-location warnings (string_post with Spec finishes: 18 → 15 problems).
+- Malformed browser requests no longer abort the WASM module, which keeps answering
+  afterwards (#134).
+  - Edit paths over 64 components and view gutters over 1189 mm are refused before work
+    starts.
+  - Conflicting dimension ownership returns an error.
+  - A malformed projected spline returns an `edges_not_drawn` problem.
 
 ### WASM API
 
-- Intended Spec API change: remove `sheet/preferred_printer`, add `sheet/preferred_max_size`
-  (A4–A0, default A3), `sheet/preferred_max_sheets` (default 2), and the
-  `sheet_preference_exceeded` advisory. Unreleased `sheet/max_size` is removed
-  without migration. Method signatures stay unchanged.
+- `calloutOffset` and `Session::callout_offset` return `members: [{centre: [x,y], radius,
+  span?: {start, sweep}}]` (#149). Sites are paper mm, y up; arc spans are counterclockwise
+  radians. Existing fields are unchanged.
+- **Spec:** `sheet/preferred_printer` is removed (refused with guidance), and
+  `sheet/preferred_max_size`, `sheet/preferred_max_sheets`, `sheet/keep_layout` and
+  `sheet/uncited_datums` are added.
+- **Findings:**
+  - Every finding gains additive `impact` and `group`.
+  - Leader crossings gain `crossing_kinds`, and `annotation_ink_overlap` gains `ink_is_leader`.
+  - Review gains per-impact and per-group counts.
+  - New codes: `dimension_line_crossing`, `radius_leader_not_radial`,
+    `datum_leader_not_normal`, `sheet_preference_exceeded`.
+- Method signatures are unchanged.
 
-- Add `members: [{centre: [x,y], radius, span?: {start, sweep}}]` to `calloutOffset`
-  and `Session::callout_offset` (#149). Sites use paper mm, y up; arc spans are
-  counterclockwise radians. Existing fields and WASM method signatures are unchanged.
+### Performance
+
+Ratio of retired CPU instructions for `draftwright plan`, alpha.11 ÷ alpha.10, from
+interleaved runs; below 1 is faster:
+
+| Part | Ratio |
+|---|---|
+| NIST CTC-01 AP242 | 0.89 |
+| string_post | 1.00 |
+| MFCAD++ part 1000 | 1.01 |
+| cgb243 | 1.03 |
+| NIST CTC-01 (native STEP) | 1.08 |
+| NIST CTC-02 | 1.11 |
+| NIST FTC-09 | 1.89 |
+
+- FTC-09's cost is the preferred-size search: its A2 candidates fit by footprint, so they are
+  planned and judged before A1 is kept.
+- On native CTC-01, #146's leader search measured +9% on its own PR.
 
 ## 0.1.0-alpha.10 (2026-10-20)
 
