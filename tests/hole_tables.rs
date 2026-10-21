@@ -206,10 +206,8 @@ fn ctc02_capped_hole_items_are_drawn_or_reported() {
     check_part("ctc02", true);
 }
 
-/// Its one off-sheet hole location (`d:f:hole_pattern:2/location.length.x`, 480) has had
-/// a place since the items merged away stopped holding lanes of their own: two x locations that
-/// fell through below the plan now fit above it, and it takes the first lane below. Nothing of
-/// ctc04's is dropped either.
+/// The capped CTC-04 baseline must report each hole item lost by escalation,
+/// preserving the callout/location distinction and the original severities.
 #[test]
 fn ctc04_capped_hole_items_are_drawn_or_reported() {
     check_part("ctc04", true);

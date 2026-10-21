@@ -746,7 +746,10 @@ fn generated_hole_schedules_state_each_size_and_coordinate_without_extra_locator
     .read_to_end(&mut step)
     .unwrap();
     let a = analysed(&step);
-    let p = plan(&a, &Spec::default());
+    let p = plan(
+        &a,
+        &serde_json::from_value(serde_json::json!({"sheet":{"size":"A1"}})).unwrap(),
+    );
     let tables: std::collections::BTreeSet<_> = p
         .hole_table
         .iter()

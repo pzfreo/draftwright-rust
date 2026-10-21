@@ -1318,6 +1318,7 @@ fn oblique_pmi_draws_its_exact_projected_station_span() {
         };
         for places in [None, Some(3)] {
             let mut spec = Spec::default();
+            spec.sheet.size = Some("A1".into());
             if let Some(places) = places {
                 spec.precision.insert(format!("d:{id}/linear"), places);
             }

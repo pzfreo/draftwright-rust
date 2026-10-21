@@ -32,6 +32,18 @@ fn setting(value: &str) -> Spec {
     )
     .unwrap()
 }
+// Complete schedule geometry fixtures author their historical paper. Default
+// capped drawings and their required-loss states are audited in items/hole_tables.
+fn schedule_paper(name: &str) -> Spec {
+    let name = Path::new(name).file_stem().unwrap().to_str().unwrap();
+    let size = match name {
+        "nist_ctc_02_asme1_rc" => "A0",
+        "nist_ctc_05_asme1_rd" | "cgb245" => "A2",
+        "nist_ctc_04_asme1_rd" | "nist_ftc_06_asme1_rd" | "nist_ftc_08_asme1_rc" => "A1",
+        _ => panic!("author the paper for schedule fixture {name}"),
+    };
+    serde_json::from_value(serde_json::json!({"sheet":{"size":size}})).unwrap()
+}
 fn tables(p: &Plan) -> serde_json::Value {
     serde_json::to_value(p)
         .unwrap()
@@ -122,7 +134,7 @@ fn the_dense_acceptance_parts_have_no_hole_location_tower(name: &str) {
     let Some(corpus) = corpus::dir() else { return };
 
     let (_, analysis) = cache::native(&Path::new(&corpus).join(format!("nist/{name}.stp")));
-    let p = model::plan_escalated(&analysis, &Spec::default()).unwrap();
+    let p = model::plan_escalated(&analysis, &schedule_paper(name)).unwrap();
     assert!(
         tables(&p).as_array().is_some_and(|t| !t.is_empty()),
         "{name}"
@@ -349,7 +361,8 @@ fn a_bare_pin_on_a_table_covered_location_does_not_restore_the_ladder() {
 fn non_hole_pins_keep_the_settled_schedule_and_isometric_frame() {
     let Some(corpus) = corpus::dir() else { return };
     let (_, analysis) = cache::native(&Path::new(&corpus).join("nist/nist_ftc_08_asme1_rc.stp"));
-    let base = cache::default_plan(&analysis, true);
+    let intent = schedule_paper("nist_ftc_08_asme1_rc");
+    let base = model::plan_recovered(&analysis, &intent).unwrap();
     assert!(!tables(&base).as_array().unwrap().is_empty());
     let ops: Vec<_> = [
         "d:f:slot:3/slot_width.length",
@@ -359,7 +372,7 @@ fn non_hole_pins_keep_the_settled_schedule_and_isometric_frame() {
     .iter()
     .map(|id| serde_json::json!({"op":"set","path":format!("dimensions/{}/place",draftwright::items::key(id)),"value":{"pinned":true}}))
     .collect();
-    let spec = model::edit(&Spec::default(), &serde_json::json!(ops)).unwrap();
+    let spec = model::edit(&intent, &serde_json::json!(ops)).unwrap();
     let after = model::plan_recovered(&analysis, &spec).unwrap();
     let before = tables(&base);
     let after_tables = tables(&after);
@@ -403,7 +416,7 @@ fn non_hole_pins_keep_the_settled_schedule_and_isometric_frame() {
 fn table_recess_and_depth_symbols_are_drawn_inside_the_size_cell() {
     let Some(corpus) = corpus::dir() else { return };
     let (part, analysis) = cache::native(&Path::new(&corpus).join("nist/nist_ftc_06_asme1_rd.stp"));
-    let plan = cache::default_plan(&analysis, true);
+    let plan = model::plan_recovered(&analysis, &schedule_paper("nist_ftc_06_asme1_rd")).unwrap();
     let table = tables(&plan);
     assert!(
         table[0]["rows"][0]["cells"][1]
@@ -500,7 +513,8 @@ fn held_labels_do_not_remove_the_canonical_schedule() {
 fn the_cgb245_view_pin_reproducer_keeps_its_schedule() {
     let Some(corpus) = corpus::dir() else { return };
     let (_, analysis) = cache::native(&corpus.join("cadgenbench_inputs/cgb245.step"));
-    let base = cache::default_plan(&analysis, true);
+    let intent = schedule_paper("cgb245");
+    let base = model::plan_recovered(&analysis, &intent).unwrap();
     assert!(!tables(&base).as_array().unwrap().is_empty());
     let ordinary = model::plan_recovered(&analysis, &setting("never")).unwrap();
     let iso = base.views.iter().find(|v| v.id == "v:iso").unwrap();
@@ -532,7 +546,7 @@ fn the_cgb245_view_pin_reproducer_keeps_its_schedule() {
     {
         ops.push(serde_json::json!({"op":"set", "path":format!("views/{view}/place"), "value":{"relative_to":"front", "side":side, "align":align, "gap":gap, "pinned":true}}));
     }
-    let spec = model::edit(&Spec::default(), &serde_json::json!(ops)).unwrap();
+    let spec = model::edit(&intent, &serde_json::json!(ops)).unwrap();
     let after = model::plan_recovered(&analysis, &spec).unwrap();
     assert_eq!(tables(&base)[0]["rows"], tables(&after)[0]["rows"]);
     for id in spec.dimensions.keys() {
@@ -558,7 +572,7 @@ fn rounded_datums_and_stacked_openings_are_unambiguous(name: &str) {
     let Some(corpus) = corpus::dir() else { return };
 
     let (_, analysis) = cache::native(&corpus.join(format!("nist/{name}.stp")));
-    let plan = cache::default_plan(&analysis, true);
+    let plan = model::plan_recovered(&analysis, &schedule_paper(name)).unwrap();
     assert!(!plan.hole_tables.is_empty(), "{name}");
     for table in &plan.hole_tables {
         assert_eq!(table.origin, Some(analysis.envelope[0]));
@@ -601,7 +615,7 @@ fn rounded_datums_and_stacked_openings_are_unambiguous(name: &str) {
 fn an_incomplete_bolt_circle_states_pcd_and_each_angle() {
     let Some(corpus) = corpus::dir() else { return };
     let (_, analysis) = cache::native(&corpus.join("nist/nist_ctc_05_asme1_rd.stp"));
-    let plan = cache::default_plan(&analysis, true);
+    let plan = model::plan_recovered(&analysis, &schedule_paper("nist_ctc_05_asme1_rd")).unwrap();
     let table = plan
         .hole_tables
         .iter()
@@ -726,7 +740,7 @@ fn each_tag_is_beside_or_leadered_to_its_own_hole(name: &str) {
     };
 
     let (_, analysis) = cache::native(&Path::new(&corpus).join(format!("nist/{name}.stp")));
-    let p = cache::default_plan(&analysis, true);
+    let p = model::plan_recovered(&analysis, &schedule_paper(name)).unwrap();
     assert!(!p.hole_tables.is_empty(), "{name}");
     for t in &p.hole_tables {
         let view = p
@@ -812,7 +826,7 @@ fn entry_cells_use_the_view_frame_and_lint_checks_it(name: &str) {
     .unwrap();
 
     let (part, analysis) = cache::native(&Path::new(&corpus).join(format!("nist/{name}.stp")));
-    let p = cache::default_plan(&analysis, true);
+    let p = model::plan_recovered(&analysis, &schedule_paper(name)).unwrap();
     let off_plan: Vec<_> = p
         .hole_tables
         .iter()
