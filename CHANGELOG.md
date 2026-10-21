@@ -17,11 +17,13 @@ All notable changes to draftwright-rust are recorded here, in the style of
 - Automatic layout preferences: `sheet/preferred_max_size` (A4–A0, default A3)
   and `sheet/preferred_max_sheets` (integer ≥ 1, default 2). Try single sheets,
   then annotated whole-view allocations before larger paper. `sheets.max` stays
-  hard. A candidate is usable by an absolute test of itself: nothing clipped, a
-  readable scale, no required information lost or dropped unreported, and no new
-  unreadable ink (error-severity layout findings, overlapping text, leader through
-  text, along an extension or model line, or a view frame on the title block). Other warnings never choose larger paper, so a
-  crowded but readable small sheet is kept (mfcadpp 10190 stays A4 at 1:1). One
+  hard. A candidate is never clipped and never below the readable floor; otherwise
+  it is disqualified only by unreadable, error or loss findings the automatic
+  baseline does not have (error-severity layout findings, overlapping text, leader
+  through text or along an extension, a view frame on the title block, lost or
+  unreported items). No sheet carries only the isometric. Other warnings never
+  choose larger paper, so a crowded but readable small sheet is kept (mfcadpp 10190
+  stays A4 at 1:1). One
   `sheet_preference_exceeded` info/advisory notice explains any exceeded size or
   count preference. Explicit layout choices win. A fresh automatic plan carries no
   `layout_replanned` notice.

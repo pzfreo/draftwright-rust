@@ -401,12 +401,10 @@ const UNREADABLE: &[&str] = &[
     "table_not_placed",
 ];
 
-/// An absolute test of the candidate itself: nothing clipped; every scale at or above the
-/// readable floor; no required information lost or dropped unreported; and no unreadable
-/// ink. The roomiest automatic reference is consulted only for what the part cannot avoid
-/// on any paper: an identical finding (code + subjects), printed steps already illegible
-/// there, or a drop it shares. It never makes a crowded-but-readable drawing lose to a
-/// blow-up because the reference has fewer warnings.
+/// Usable relative to the automatic baseline: never clipped and never below the readable
+/// floor; otherwise disqualified only by unreadable, error or loss findings (code + subjects,
+/// printed-step breaches, drops) that the automatic baseline does not have. Warnings the
+/// baseline shares never make a crowded-but-readable drawing lose to an enlargement.
 fn usable(analysis: &Analysis, plan: &Plan, reference: &Plan, floor: f64) -> bool {
     let drops = |p: &Plan| {
         p.problems
@@ -427,6 +425,7 @@ fn usable(analysis: &Analysis, plan: &Plan, reference: &Plan, floor: f64) -> boo
         || !drops(plan).is_subset(&drops(reference))
         || model::undrawn_gdt(plan) > model::undrawn_gdt(reference)
         || !unreported_losses(plan).is_subset(&unreported_losses(reference))
+        || pictorial_only_sheet(plan)
     {
         return false;
     }
@@ -441,19 +440,12 @@ fn usable(analysis: &Analysis, plan: &Plan, reference: &Plan, floor: f64) -> boo
         .iter()
         .filter(|p| unreadable(&p.code, &p.severity))
         .map(problem_key);
-    // Measured from final ink rather than reported: a leader running on an extension line
-    // or along model ink reads as that line. Hidden-edge crossings and route lengths stay
-    // advisory.
+    // Measured from final ink rather than reported: a leader on an extension line reads as
+    // that line. Leader runs beside model ink, hidden-edge crossings and route lengths are
+    // reported route quality and stay advisory.
     let mut measured: Vec<_> = failures(analysis, plan, floor)
         .into_iter()
-        .filter(|(code, _)| {
-            [
-                "leader_on_extension",
-                "leader_ink_run",
-                "annotation_off_sheet",
-            ]
-            .contains(&code.as_str())
-        })
+        .filter(|(code, _)| code == "leader_on_extension" || code == "annotation_off_sheet")
         .collect();
     measured.extend(frame_conflicts(plan));
     inherited.extend(frame_conflicts(reference));
@@ -484,6 +476,19 @@ fn frame_conflicts(plan: &Plan) -> Vec<(String, Vec<String>)> {
         }
     }
     out
+}
+
+// A sheet that carries only the freely fitted isometric is not a meaningful split: the
+// orientation view belongs beside the views it explains, shrunk if need be.
+fn pictorial_only_sheet(plan: &Plan) -> bool {
+    plan.sheets.iter().any(|sheet| {
+        let mut on = plan
+            .views
+            .iter()
+            .filter(|v| v.sheet == sheet.number)
+            .peekable();
+        on.peek().is_some() && on.all(|v| v.id == "v:iso")
+    })
 }
 
 // A dimension that could not be drawn must be stated by a problem naming it.
@@ -638,7 +643,13 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
                         continue;
                     }
                 };
-                if max > 1 && !plan.sheet.basis.contains("blocked by sheets.max") {
+                // A complete single sheet is what a larger count permission returns too
+                // (the planner's max-only shortcut), so later counts reuse it unplanned.
+                let complete = max == 1
+                    && model::findings(&plan).clean()
+                    && model::undrawn_gdt(&plan) == 0
+                    && sheet_fit::inside_frames(fit, &plan);
+                if (max > 1 && !plan.sheet.basis.contains("blocked by sheets.max")) || complete {
                     unblocked.insert(key, plan.clone());
                 }
                 // Only a lack of room (clipping, hard layout findings or space drops)

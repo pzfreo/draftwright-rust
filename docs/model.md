@@ -523,29 +523,29 @@ individual views, their complete annotated blocks are planned on roomy paper bef
 transport; a small-sheet plan that already dropped items is not used to manufacture
 a fit. The search stops at the first usable candidate.
 
-A candidate is usable by an absolute test of the candidate itself:
+A candidate is usable relative to the automatic baseline (the planner's own
+unrestricted drawing). It is never clipped: every view outline keeps its whole stroke
+inside its own sheet's frame, and thinner ink (witness, centre and crop lines) may end
+on the frame line but not beyond it. It is never below the readable floor (the existing
+0.8 mm minimum feature opening, 20 mm overall span, printed-step limits, the 1:10
+absolute floor and any authored `sheets.smallest_scale`). Otherwise it is disqualified
+only by unreadable, error or loss findings that the baseline does not have (compared by
+code and subjects):
 
-- nothing is clipped: every view outline keeps its whole stroke inside its own
-  sheet's frame, and thinner ink (witness, centre and crop lines) may end on the
-  frame line but not beyond it;
-- every principal scale meets the readable floor (the existing 0.8 mm minimum
-  feature opening, 20 mm overall span, printed-step limits, the 1:10 absolute floor
-  and any authored `sheets.smallest_scale`);
-- no required information is lost: the candidate carries every item the automatic
-  reference carries, adds no dropped item or undrawn GD&T, and every undrawable
-  item is reported;
-- no unreadable ink is new to it: an error-severity layout finding; a warning for
-  overlapping text, leader-through-text, ink off the sheet, outside its view's area
-  or over the title block, views that do not fit, or unplaced notes and tables; a
-  measured leader running on an extension line or along model ink; or a view frame
-  on the title block or on another view.
+- an error-severity layout finding;
+- a warning for overlapping text, leader-through-text, ink off the sheet, outside its
+  view's area or over the title block, views that do not fit, or unplaced notes and
+  tables;
+- a measured leader running on an extension line, or a view frame on the title block
+  or on another view;
+- a required item the baseline carries that it does not, a new drop or undrawn GD&T
+  item, an unreported undrawable item, or printed steps illegible beyond the baseline's.
 
-The planner's own unrestricted drawing serves only to exempt what the candidate
-shares with it: an identical finding (code and subjects), printed steps already
-illegible there, or the same drop.
-Other warnings (extension or feature crossings, hidden-edge crossings, route lengths,
-crowded but legible location ordinates) are reported but never choose larger paper, so a crowded but
-readable small sheet does not lose to an enlargement with fewer warnings.
+A sheet that would carry only pictorial views (the isometric) is not a usable split.
+Other warnings (extension, feature and hidden-edge crossings, leader runs beside model
+ink, route lengths, crowded but legible location ordinates) are reported but never
+choose larger paper, so a crowded but readable small sheet does not lose to an
+enlargement with fewer warnings.
 Unsupported requirements and any undrawn items retain their existing findings.
 Clipping is a hard rejection, including for fallback ranking. If no usable result
 exists through A0, retain the least-bad unclipped candidate using the existing
