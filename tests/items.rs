@@ -338,8 +338,8 @@ fn every_plan_item_has_a_state_and_every_problem_subject_is_a_live_item() {
 }
 
 /// The same on the quality parts (`tools/quality_parts.txt`, from the corpus), planned as the
-/// command line plans them. The default paper preferences and explicitly starved sheets
-/// exercise loss states: every undrawable item must have its matching problem.
+/// command line plans them. Automatic preferences retain every default item;
+/// explicitly starved sheets exercise loss states and their matching findings.
 #[test]
 fn on_the_quality_parts_too() {
     let Some(dir) = corpus::dir() else {
@@ -371,10 +371,7 @@ fn on_the_quality_parts_too() {
     })
     .into_iter()
     .sum();
-    assert!(
-        dropped > 0,
-        "preferred quality drawings exercise reported loss states"
-    );
+    assert_eq!(dropped, 0, "the default quality drawings retain every item");
     let a = cache::native(&dir.join("nist/nist_ftc_08_asme1_rc.stp")).1;
     let starved = spec(json!({"sheet": {"size": "A4", "scale": "1:1"}, "hole_table": "never"}));
     let mut plan = model::plan(&a, &starved).unwrap();
