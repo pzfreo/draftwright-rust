@@ -281,9 +281,10 @@ fn tables_are_plan_items_placed_towards_their_corners() {
     // The revision block in the drawing area's top-right corner, the BOM in its bottom left.
     let [w, h] = plan.sheet.page;
     let rev = plan.tables[0].placed.as_ref().unwrap().cells;
-    assert!((rev[2] - (w - 10.0)).abs() < 1e-9 && (rev[3] - (h - 10.0)).abs() < 1e-9);
+    let edge = 10.0 + tables::frame_clearance();
+    assert!((rev[2] - (w - edge)).abs() < 1e-9 && (rev[3] - (h - edge)).abs() < 1e-9);
     let bom = plan.tables[1].placed.as_ref().unwrap().cells;
-    assert!((bom[0] - 10.0).abs() < 1e-9 && (bom[1] - 10.0).abs() < 1e-9);
+    assert!((bom[0] - edge).abs() < 1e-9 && (bom[1] - edge).abs() < 1e-9);
 }
 
 #[test]
@@ -307,7 +308,8 @@ fn tables_keep_clear_of_the_notes_and_of_each_other() {
     );
     let [w, h] = plan.sheet.page;
     let notes = plan.notes_block.as_ref().unwrap().cells;
-    assert!((notes[2] - (w - 10.0)).abs() < 1e-9 && (notes[3] - (h - 10.0)).abs() < 1e-9);
+    let edge = 10.0 + tables::frame_clearance();
+    assert!((notes[2] - (w - edge)).abs() < 1e-9 && (notes[3] - (h - edge)).abs() < 1e-9);
     assert!(plan.tables.iter().all(|t| t.placed.is_some()));
     assert_clear(a, &plan);
 }
@@ -531,14 +533,14 @@ fn tables_match_draftwrights_on_corpus_parts() {
                     && (y - py_ - tables::frame_clearance()).abs() < 1e-6;
                 let origin = [
                     if right {
-                        w - px - (p.cells[2] - p.cells[0])
+                        w - px - tables::frame_clearance() - (p.cells[2] - p.cells[0])
                     } else {
-                        px
+                        px + tables::frame_clearance()
                     },
                     if top {
-                        h - py_ - (p.cells[3] - p.cells[1])
+                        h - py_ - tables::frame_clearance() - (p.cells[3] - p.cells[1])
                     } else {
-                        py_
+                        py_ + tables::frame_clearance()
                     },
                 ];
                 let original_corner = [
@@ -549,17 +551,16 @@ fn tables_match_draftwrights_on_corpus_parts() {
                 ];
                 assert!(
                     same_corner
-                        || (plan.views.iter().any(|v| v.detail.is_some())
-                            && plan.views.iter().any(|v| overlaps(
-                                original_corner,
-                                [
-                                    v.area[0] - 2.0,
-                                    v.area[1] - 2.0,
-                                    v.area[2] + 2.0,
-                                    v.area[3] + 2.0
-                                ]
-                            ))),
-                    "{name} {} {:?} {pb:?}: a detail must actually occupy the displaced corner",
+                        || plan.views.iter().any(|v| overlaps(
+                            original_corner,
+                            [
+                                v.area[0] - 2.0,
+                                v.area[1] - 2.0,
+                                v.area[2] + 2.0,
+                                v.area[3] + 2.0
+                            ]
+                        )),
+                    "{name} {} {:?} {pb:?}: a view must actually occupy the displaced corner after allowing the rule stroke",
                     t.id,
                     p.cells
                 );

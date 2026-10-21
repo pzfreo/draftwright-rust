@@ -621,17 +621,23 @@ fn r5_a_further_sheet_before_a_smaller_scale_uses_cumulative_prefixes() {
 }
 
 #[test]
-fn r5_paper_runs_before_a_further_sheet() {
+fn r5_first_usable_single_sheet_precedes_further_paper_and_sheets() {
     let a = analysed("gramel/string_post.step");
     let s = spec(
         json!({"sheets":{"max":2,"smallest_scale":"5:1"},"hole_table":"never","tables":overflow::tables()}),
     );
     let p = model::plan_recovered(&a, &s).unwrap();
     assert!(p.sheet.scale_factor >= 5.);
-    assert_ne!(p.sheet.size, "A4");
+    assert_eq!(p.sheet.size, "A4");
     assert!(p.sheets.is_empty());
-    assert!(p.sheet.basis.contains("smallest fit"));
-    assert!(p.sheet.basis.contains("step 0: 0 hard findings"));
+    assert_eq!(p.sheet_candidates.len(), 1);
+    assert_eq!(p.sheet_candidates[0].max, 1);
+    assert!(
+        p.sheet_candidates[0]
+            .outcome
+            .starts_with("A4: usable at 5:1")
+    );
+    assert!(p.tables.iter().all(|t| t.placed.is_some()));
 }
 
 #[test]

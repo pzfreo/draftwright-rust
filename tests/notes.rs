@@ -258,8 +258,9 @@ fn notes_are_plan_items_numbered_in_order() {
     // The block sits at the top right of the drawing area, its rows from the top down.
     let block = plan.notes_block.as_ref().unwrap();
     let [w, h] = plan.sheet.page;
+    let edge = 10.0 + draftwright::tables::frame_clearance();
     assert!(
-        (block.cells[2] - (w - 10.0)).abs() < 1e-9 && (block.cells[3] - (h - 10.0)).abs() < 1e-9
+        (block.cells[2] - (w - edge)).abs() < 1e-9 && (block.cells[3] - (h - edge)).abs() < 1e-9
     );
     let ys: Vec<f64> = std::iter::once(block.title_at[1])
         .chain(

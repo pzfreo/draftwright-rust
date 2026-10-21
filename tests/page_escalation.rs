@@ -409,18 +409,25 @@ fn every_planning_entry_point_applies_the_recovery() {
     assert_eq!(named.sheet.size, "A2");
 }
 
-/// FTC-07 prefers A3 at 1:5. An explicit count retains the old A2 at 1:2 search.
+/// FTC-07 exceeds preferred A3 to retain the complete readable A2 at 1:2.
 /// Wrapping clears the old
 /// pitch-line clash at A1 1:1, but that enlargement lengthens established leaders
 /// beyond their unchanged two-millimetre budget, so the complete A2 is retained.
 #[test]
-fn ftc07_prefers_a3_and_keeps_the_explicit_count_search() {
+fn ftc07_exceeds_preferred_a3_without_losing_required_information() {
     let Some(dir) = corpus::dir() else {
         return;
     };
     let step = dir.join("nist/nist_ftc_07_asme1_rd.stp");
     let plan = api::plan_from(&step, Features::Native, &Spec::default()).unwrap();
-    assert_eq!(sheet(&plan), ("A3", "1:5"));
+    assert_eq!(sheet(&plan), ("A2", "1:2"));
+    let notice: Vec<_> = plan
+        .problems
+        .iter()
+        .filter(|p| p.code == "sheet_preference_exceeded")
+        .collect();
+    assert_eq!(notice.len(), 1);
+    assert_eq!(notice[0].severity, "info");
     let analysis = api::analyse_from(&step, Features::Native).unwrap();
     // The table-free drawing the sheet is chosen by ([`model::recover`]'s hole-table path).
     let never = Spec {
