@@ -1801,6 +1801,19 @@ fn plan_search(
                                 *a = placement::arrow(*tip, c.elbow);
                             }
                         }
+                        if datum && intent.and_then(|p| p.along).is_some() {
+                            let [apex, near] = c.lines[0];
+                            let u = outward(side);
+                            let lateral = (near[0] - apex[0]) * u[1] - (near[1] - apex[1]) * u[0];
+                            if lateral.abs() > 1e-6 {
+                                let reach = dot([near[0] - apex[0], near[1] - apex[1]], u);
+                                let stub = [
+                                    apex[0] + u[0] * (0.8 * TEXT).min(reach / 2.),
+                                    apex[1] + u[1] * (0.8 * TEXT).min(reach / 2.),
+                                ];
+                                c.lines = vec![[apex, stub], [stub, near]];
+                            }
+                        }
                         if let Some(line) = extension {
                             c.lines.push(*line);
                         }
@@ -2336,33 +2349,73 @@ pub fn placement_options(
         .collect()
 }
 
-/// Retry the frame only along its existing face normal. The triangle and any
-/// planar face extension stay exactly where #141 proved them; no oblique datum.
-pub(super) fn normal_routes(g: &PlannedGdt) -> Vec<Placed> {
+/// Straight, short normal routes precede one-bend routes with a square stub.
+/// The triangle and any reader-proven face extension stay fixed. No automatic
+/// oblique departure is generated, even when every candidate retains a contact.
+pub(super) fn normal_routes(g: &PlannedGdt, bends: bool) -> Vec<Placed> {
     let Some(p) = &g.placed else {
         return Vec::new();
     };
-    let Some(line) = p.lines.first() else {
+    let Some(&[apex, near]) = p.lines.first() else {
         return Vec::new();
     };
-    let u = outward(&g.side);
-    let old = (line[1][0] - line[0][0]).hypot(line[1][1] - line[0][1]);
-    (0..64)
-        .filter_map(|i| {
-            let length = 0.8 * TEXT + f64::from(i) * 1.0;
-            if length > old + 1e-6 {
-                return None;
+    let Some(triangle) = p.fills.first().filter(|f| f.len() == 3) else {
+        return Vec::new();
+    };
+    let base = [
+        (triangle[0][0] + triangle[2][0]) / 2.,
+        (triangle[0][1] + triangle[2][1]) / 2.,
+    ];
+    let v = [triangle[1][0] - base[0], triangle[1][1] - base[1]];
+    let n = v[0].hypot(v[1]);
+    if n <= 1e-9 {
+        return Vec::new();
+    }
+    let u = v.map(|x| x / n);
+    let old = (near[0] - apex[0]).hypot(near[1] - apex[1]);
+    let mut routes = Vec::new();
+    for i in 0..64 {
+        let length = 0.8 * TEXT + f64::from(i);
+        if length > old + 1e-6 {
+            break;
+        }
+        let end = [apex[0] + u[0] * length, apex[1] + u[1] * length];
+        let delta = [end[0] - near[0], end[1] - near[1]];
+        let Some(mut q) = proxy(g).and_then(|q| q.placed) else {
+            break;
+        };
+        q.lines[0][1] = end;
+        for k in 0..4 {
+            q.label_box[k] += delta[k % 2];
+        }
+        q.label_at = [q.label_box[0], q.label_box[1]];
+        routes.push(q);
+    }
+    // A lateral frame can escape an occupied normal corridor after a square stub.
+    // Try the shorter normal tiers first; retain all face-extension strokes.
+    if !bends {
+        return routes;
+    }
+    let straight = routes.clone();
+    for q in straight.iter().take(8) {
+        for offset in [-8., 8., -16., 16.] {
+            let delta = [-u[1] * offset, u[0] * offset];
+            let mut bent = q.clone();
+            let end = [q.lines[0][1][0] + delta[0], q.lines[0][1][1] + delta[1]];
+            let stub = [apex[0] + u[0] * 0.8 * TEXT, apex[1] + u[1] * 0.8 * TEXT];
+            if (end[0] - stub[0]) * u[0] + (end[1] - stub[1]) * u[1] <= 1e-6 {
+                continue;
             }
-            let delta = [u[0] * (length - old), u[1] * (length - old)];
-            let mut q = proxy(g)?.placed?;
-            q.lines[0][1] = [line[1][0] + delta[0], line[1][1] + delta[1]];
+            bent.lines[0] = [apex, stub];
+            bent.lines.insert(1, [stub, end]);
             for k in 0..4 {
-                q.label_box[k] += delta[k % 2];
+                bent.label_box[k] += delta[k % 2];
             }
-            q.label_at = [q.label_box[0], q.label_box[1]];
-            Some(q)
-        })
-        .collect()
+            bent.label_at = [bent.label_box[0], bent.label_box[1]];
+            routes.push(bent);
+        }
+    }
+    routes
 }
 
 /// Explicit datum visibility intent, shared by strip demand and symbol placement.
@@ -2386,6 +2439,56 @@ fn datum_omission(analysis: &Analysis, spec: &Spec, item: &Lowered) -> Option<&'
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn datum_route_inventory_tries_straight_before_square_stub_bends() {
+        let a = crate::model::analyse_native(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/samples/cnc-review-spindle.step.gz"),
+        )
+        .unwrap()
+        .1;
+        let p = crate::model::plan(&a, &Spec::default()).unwrap();
+        let g = p
+            .gdt
+            .iter()
+            .find(|g| {
+                g.kind == "datum_feature" && g.placed.as_ref().is_some_and(|p| p.lines.len() == 1)
+            })
+            .unwrap();
+        // Make a deliberately long normal route so the inventory has both tiers
+        // and bends to exercise (the real spindle is already at minimum reach).
+        let mut g = g.clone();
+        let u = outward(&g.side);
+        let placed = g.placed.as_mut().unwrap();
+        for (k, value) in u.into_iter().enumerate() {
+            placed.lines[0][1][k] += 20. * value;
+            placed.label_box[k] += 20. * value;
+            placed.label_box[k + 2] += 20. * value;
+        }
+        let placed = g.placed.as_ref().unwrap();
+        let triangle = &placed.fills[0];
+        let base = [
+            triangle[2][0] - triangle[0][0],
+            triangle[2][1] - triangle[0][1],
+        ];
+        let routes = normal_routes(&g, true);
+        assert!(!routes.is_empty());
+        let mut bent = false;
+        for route in routes {
+            let [a, b] = route.lines[0];
+            assert_eq!(a, placed.lines[0][0], "the triangle stays fixed");
+            assert!(dot(base, [b[0] - a[0], b[1] - a[1]]).abs() < 1e-8);
+            if route.lines.len() == 2 {
+                bent = true;
+                assert!(((b[0] - a[0]).hypot(b[1] - a[1]) - 0.8 * TEXT).abs() < 1e-8);
+                assert_eq!(b, route.lines[1][0]);
+            } else {
+                assert!(!bent, "straight routes precede every bend");
+            }
+        }
+        assert!(bent, "a blocked normal corridor has one-bend alternatives");
+    }
 
     #[test]
     fn a_turned_shoulder_has_clear_exterior_paper_at_its_upper_site() {

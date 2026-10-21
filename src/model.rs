@@ -7814,6 +7814,14 @@ pub fn render_item(item: AnnotationItem<'_>) -> RenderedItem {
     };
     if let (Some(a), Some(ink)) = (out.annotations.first(), items_bbox(&out.items)) {
         out.drawn.push(Drawn {
+            datum_triangle: match item {
+                AnnotationItem::Gdt(g) if g.kind == "datum_feature" => g
+                    .placed
+                    .as_ref()
+                    .and_then(|p| p.fills.first())
+                    .and_then(|f| f.as_slice().try_into().ok()),
+                _ => None,
+            },
             heads,
             name: a.name.clone(),
             kind,
@@ -8158,6 +8166,7 @@ fn render_annotations_with_cuts(
             let ink: Vec<_> = w.curves.iter().cloned().map(Item::Edge).collect();
             if let Some(ink_box) = items_bbox(&ink) {
                 sheet.items.push(Drawn {
+                    datum_triangle: None,
                     heads: Vec::new(),
                     name: w.id.clone(),
                     kind: Kind::Centreline,
@@ -8248,6 +8257,7 @@ fn render_annotations_with_cuts(
             let ink: Vec<_> = curves.into_iter().map(Item::Edge).collect();
             if let Some(b) = items_bbox(&ink) {
                 sheet.items.push(Drawn {
+                    datum_triangle: None,
                     heads: Vec::new(),
                     name: format!("detail_marker_{}", d.label),
                     kind: Kind::Centreline,
@@ -8294,6 +8304,7 @@ fn render_annotations_with_cuts(
             let mut piece = |name: String, kind: Kind, ink: &[Item], lines: Vec<[[f64; 2]; 2]>| {
                 if let Some(ink) = items_bbox(ink) {
                     sheet.items.push(Drawn {
+                        datum_triangle: None,
                         heads: Vec::new(),
                         name,
                         kind,
@@ -8486,6 +8497,7 @@ fn render_annotations_with_cuts(
     // A text-only thing as drawn: the box of its ink *items*, which is also its label.
     let labelled = |name: &str, kind: Kind, items: &[Item]| {
         items_bbox(items).map(|b| Drawn {
+            datum_triangle: None,
             heads: Vec::new(),
             name: name.into(),
             kind,
@@ -8633,6 +8645,7 @@ fn render_annotations_with_cuts(
         _ => None,
     }));
     sheet.items.push(Drawn {
+        datum_triangle: None,
         heads: Vec::new(),
         name: "title_block".into(),
         kind: Kind::TitleBlock,
@@ -8717,6 +8730,7 @@ fn render_annotations_with_cuts(
         }
         if let Some(ink) = items_bbox(&dims[notes_from..]) {
             sheet.items.push(Drawn {
+                datum_triangle: None,
                 heads: Vec::new(),
                 name: if i == 0 {
                     "general_notes"
@@ -8761,6 +8775,7 @@ fn render_annotations_with_cuts(
         stated.entry(r.id.clone()).or_default().extend(at);
         if let Some(ink) = items_bbox(&dims[from..]) {
             sheet.items.push(Drawn {
+                datum_triangle: None,
                 heads: Vec::new(),
                 name: r.id.clone(),
                 kind: Kind::Gdt,
@@ -8846,6 +8861,7 @@ fn render_annotations_with_cuts(
         }
         if let Some(ink) = items_bbox(&dims[table_from..]) {
             sheet.items.push(Drawn {
+                datum_triangle: None,
                 heads: Vec::new(),
                 name: table.id.clone(),
                 kind: Kind::Table,
@@ -8907,6 +8923,7 @@ fn render_annotations_with_cuts(
         }
         if let Some(ink) = items_bbox(&dims[start..]) {
             sheet.items.push(Drawn {
+                datum_triangle: None,
                 heads: Vec::new(),
                 name: t.table.id.clone(),
                 kind: Kind::Table,
@@ -8966,6 +8983,7 @@ fn render_annotations_with_cuts(
         }
         if let Some(ink) = items_bbox(&dims[table_from..]) {
             sheet.items.push(Drawn {
+                datum_triangle: None,
                 heads: Vec::new(),
                 name: t.id.clone(),
                 kind: Kind::Table,
@@ -9121,6 +9139,7 @@ fn render_annotations_with_cuts(
         }
         if let Some(ink) = items_bbox(&dims[from..]) {
             sheet.items.push(Drawn {
+                datum_triangle: None,
                 heads: Vec::new(),
                 name: b.id.clone(),
                 kind: if b.id.starts_with("hole_schedule_") {
@@ -9220,6 +9239,7 @@ fn render_annotations_with_cuts(
         let ink: Vec<Item> = symbol.curves.iter().cloned().map(Item::Edge).collect();
         if let Some(bbox) = items_bbox(&ink) {
             sheet.items.push(Drawn {
+                datum_triangle: None,
                 heads: Vec::new(),
                 name: "projection_symbol".into(),
                 kind: Kind::ProjectionSymbol,

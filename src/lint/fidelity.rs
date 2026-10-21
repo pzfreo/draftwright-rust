@@ -170,6 +170,7 @@ pub(super) fn check(drawing: &Drawing) -> Vec<LintIssue> {
             }
             Kind::Gdt if d.name.starts_with("pmi:datum.") => {
                 issues.extend(datum_leader(d));
+                issues.extend(datum_square(d));
             }
             _ => {}
         }
@@ -533,6 +534,35 @@ fn angular(drawing: &Drawing, d: &Drawn, label: &str, view: Option<&str>) -> Vec
         out.push(i);
     }
     out
+}
+
+/// Read the actual triangle and first shaft, including pinned and bent leaders.
+/// A tiny angular tolerance permits floating-point transport, not an oblique departure.
+fn datum_square(d: &Drawn) -> Option<LintIssue> {
+    let [a, apex, b] = d.datum_triangle?;
+    let [start, end] = *d.lines.first()?;
+    let base = sub(b, a);
+    let shaft = sub(end, start);
+    let norm = len(base) * len(shaft);
+    if norm > 1e-12
+        && len(sub(start, apex)) <= ON_EDGE
+        && dot(base, shaft).abs() <= norm * 0.1f64.to_radians().sin()
+        && dot(shaft, sub(apex, [(a[0] + b[0]) / 2.0, (a[1] + b[1]) / 2.0])) > 0.0
+    {
+        return None;
+    }
+    let mut i = issue(
+        format!("l:datum_leader_not_normal:{}", d.name),
+        "datum_leader_not_normal",
+        Severity::Warning,
+        format!(
+            "Datum leader {} must leave its triangle square to the face; use a straight normal leader or a bend after a square stub.",
+            d.name
+        ),
+        Some(d),
+    );
+    i.at = Some(apex);
+    Some(i)
 }
 
 fn datum_leader(d: &Drawn) -> Option<LintIssue> {

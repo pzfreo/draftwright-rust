@@ -133,6 +133,7 @@ fn sheet(views: &[(&str, [f64; 4])], items: Vec<Drawn>) -> Drawing {
 
 fn item(name: &str, kind: Kind, ink: [f64; 4], label: Option<[f64; 4]>) -> Drawn {
     Drawn {
+        datum_triangle: None,
         heads: Vec::new(),
         name: name.into(),
         kind,
@@ -558,7 +559,12 @@ fn a_datum_shaft_meets_its_frame_but_does_not_cross_its_letter() {
         "the shaft ends on the frame border"
     );
     // A frame-edge stroke is legal too; its midpoint is not inside the frame.
-    datum.placed.as_mut().unwrap().lines = vec![[[50.0, 50.0], [50.0, 56.0]]];
+    datum
+        .placed
+        .as_mut()
+        .unwrap()
+        .lines
+        .push([[50.0, 50.0], [50.0, 56.0]]);
     assert!(check(&datum).is_empty());
     for end in [[53.0, 53.0], [60.0, 53.0]] {
         // Catch both a shaft ending in the letter and one passing all the way through,
@@ -1381,6 +1387,7 @@ fn captured_drawing(name: &str, c: &Captured) -> Drawing {
             });
         }
         items.push(Drawn {
+            datum_triangle: None,
             heads: Vec::new(),
             name: item_name,
             kind,
@@ -1573,6 +1580,7 @@ fn fixed_ink_review_distinguishes_shared_strokes_from_transverse_crossings() {
 /// (x 40) out to its dimension line at x *at*, its label *label*.
 fn vertical(name: &str, at: f64, lo: f64, hi: f64, label: [f64; 4]) -> Drawn {
     Drawn {
+        datum_triangle: None,
         heads: Vec::new(),
         lines: vec![
             [[40.0, lo], [at - 2.0, lo]],

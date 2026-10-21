@@ -31,7 +31,7 @@ ISSUE-563-b, ISSUE-1262-a, ISSUE-1530-a and ISSUE-1604-a. ISSUE-563-b includes t
 maintainer-approved reservation of every linear corridor, permitting smaller scales.
 The detail-view integration also ports ISSUE-443-a, ISSUE-1216-b and
 LINT-code-detail_caption_clearance with executable tests.
-The radius-leader fix (#145) adds a Rust drafting rule for radial approach from the non-material side; unavailable sections reuse the existing target-unverifiable code as info.
+The radius-leader fix (#145) adds a Rust drafting rule for radial approach from either side; unavailable sections reuse the existing target-unverifiable code as info.
 Counts are computed from the merged YAML entries:
 
 | File | Pending | Ported | Translated | Retired |

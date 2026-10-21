@@ -818,9 +818,10 @@ trimmed profile, flats included) as projected in its view (`diameter_leader_targ
 warning; `diameter_leader_target_unverifiable` when no named hole can be read), and a
 radius callout's tip on its trimmed circular profile arc seen end-on
 (`radius_leader_target_mismatch`, warning). The drawn shaft must meet its middle 25–75%,
-within 15° of radial, from the open non-material side (`radius_leader_not_radial`, warning),
-including fillet callouts. This is towards the centre for a concave fillet and away from the
-centre for a convex outside corner. Unreadable circular sections use the existing
+within 15° of radial, from either side (`radius_leader_not_radial`, warning),
+including fillet callouts. Clear space, crossings, length and contacts choose the side,
+independently of convexity, concavity or radius size. Interior callouts may stand over blank
+face with a leader reaching the arc from the material side. Unreadable circular sections use the existing
 `radius_leader_target_unverifiable` as info, not a wrong-shaft warning.
 Exact `Analysis.radius_arcs` records the cylinder, trim, proven middle-face points and
 material side; older straight blends use their rolling axis and proven samples. Toroidal

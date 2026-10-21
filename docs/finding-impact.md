@@ -76,6 +76,7 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `correlated_set_conflict` | decision | The authored choice splits a set that must be kept together. |
 | `correlated_set_whole` | advisory | A correlated dimension set was kept together. |
 | `cross_reference_missing` | incomplete | A required cross-sheet or derived-view reference is absent. |
+| `datum_leader_not_normal` | readability | The datum leader does not leave its triangle square to the face. |
 | `datum_leader_remote` | readability | The datum symbol is too far from its referenced surface. |
 | `datum_not_identified` | incomplete | A referenced datum lacks its identifying symbol. |
 | `datum_origin_unusable` | advisory | The datum cannot define this origin; the documented fallback is used. |
@@ -200,7 +201,7 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `prismatic_pocket_requirement_unsupported` | incomplete | No supported drawing grammar states this feature requirement. |
 | `profiled_bore_not_dimensioned` | incomplete | The profiled bore requirements have no complete drawn dimension. |
 | `projection_relation_infeasible` | decision | The authored projected-view relationship cannot be satisfied. |
-| `radius_leader_not_radial` | readability | The radius leader does not meet its arc radially from the open side. |
+| `radius_leader_not_radial` | readability | The radius leader does not meet its arc radially from either side. |
 | `radius_leader_target_mismatch` | readability | The radius leader points at the wrong geometry. |
 | `radius_leader_target_unverifiable` | readability | The radius leader target cannot be verified. |
 | `rectangular_blind_slot_requirement_missing` | incomplete | The drawing does not state this required feature parameter. |

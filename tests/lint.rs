@@ -2151,6 +2151,12 @@ fn lint_on_the_ports_own_drawings_is_known() {
         .into_iter()
         .filter(|((part, _), _)| names.contains(part))
         .collect();
+    // Resolved findings retain explicit zero-count entries as regression guards.
+    // Every listed positive count and every unlisted finding still participates
+    // in the exact equality below; a zero expectation requires actual absence.
+    for key in listed.keys() {
+        found.entry(key.clone()).or_default();
+    }
     eprintln!(
         "{} findings on the port's own drawings, in {} part and code pairs",
         found.values().sum::<usize>(),

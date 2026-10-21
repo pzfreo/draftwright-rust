@@ -839,14 +839,14 @@
   port_note: "Keep."
 
 - id: LINT-code-radius_leader_not_radial
-  statement: "A radius leader meets the middle 25–75% of its arc within 15 degrees of radial from the non-material side (centre side for concave arcs, outside for convex arcs)."
+  statement: "A radius leader meets the middle 25–75% of its arc within 15 degrees of radial from either side; clear space and route quality choose the side, independently of convexity or radius size."
   detail: "Checks actual drawn shafts, including pins. Proven toroidal minor-circle meridians are checked end-on. Routing keeps its best existing callout when no compliant clear candidate fits; drawn lint reports the violation once, without a duplicate fallback problem."
   class: drafting
   source:
     lint_code: "radius_leader_not_radial"
     issues: [145]
   status: ported
-  rust_test: "rendering::leader_rules::radius_shafts_meet_the_middle_arc_radially_from_the_open_side"
+  rust_test: "rendering::leader_rules::radius_shafts_meet_the_middle_arc_radially_from_either_side"
   rust_note: "Shared geometry in src/radius.rs; final bounded radius inventory in src/dims/leaders.rs."
   port_note: "Keep."
 

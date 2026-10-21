@@ -361,7 +361,7 @@ fn an_already_separated_seed_does_not_gain_datum_crossings() {
     );
 }
 
-fn dense_datums_are_separate(name: &str, expected: usize) {
+fn dense_datums_are_separate(name: &str, expected: usize) -> Plan {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/pmi/step")
         .join(name);
@@ -382,6 +382,7 @@ fn dense_datums_are_separate(name: &str, expected: usize) {
         collisions.is_empty(),
         "coincident projections still need distinct symbols: {collisions:#?}"
     );
+    plan
 }
 
 #[test]
@@ -391,7 +392,17 @@ fn ftc10_coincident_projected_datums_do_not_touch() {
 
 #[test]
 fn stc10_coincident_projected_datums_do_not_touch() {
-    dense_datums_are_separate("nist_stc_10_asme1_ap242-e2.stp.gz", 8);
+    let plan = dense_datums_are_separate("nist_stc_10_asme1_ap242-e2.stp.gz", 8);
+    let frame = "pmi:geometric_tolerance.profile_surface:f65:ref=A,B,C";
+    assert!(plan.gdt.iter().any(|g| g.id == frame && g.placed.is_some()));
+    assert!(
+        !plan
+            .problems
+            .iter()
+            .any(|p| p.code == "leader_through_feature"
+                && p.subjects.first().is_some_and(|id| id == frame)),
+        "a datum bend must not consume the established frame's clear escape route"
+    );
 }
 
 #[test]
@@ -402,4 +413,91 @@ fn ftc07_coincident_projected_datums_do_not_touch() {
 #[test]
 fn stc09_nearby_projected_datums_do_not_touch() {
     dense_datums_are_separate("nist_stc_09_asme1_ap242-e4.stp.gz", 5);
+}
+
+/// #146: both native CTC-01 variants retain A on the base top with a normal departure.
+#[test]
+fn ctc01_datum_a_is_square_to_the_base_top() {
+    let root = Path::new(env!("CARGO_MANIFEST_DIR"));
+    let corpus = std::env::var("DRAFTWRIGHT_CORPUS")
+        .unwrap_or_else(|_| "/Users/paul/repos/quiddity/tests/corpus".into());
+    let rd = Path::new(&corpus).join("nist/nist_ctc_01_asme1_rd.stp");
+    for path in [
+        rd,
+        root.join("tests/fixtures/pmi/step/nist_ctc_01_asme1_ap242-e1.stp.gz"),
+    ] {
+        if !path.is_file() {
+            assert!(std::env::var("DRAFTWRIGHT_CORPUS_REQUIRED").is_err());
+            continue;
+        }
+        let (part, a) = model::analyse_native(&path).unwrap();
+        // The legacy RD file has presentation-only PMI. Author A on its proven
+        // base-top face; the AP242 file supplies A semantically.
+        let mut spec = Spec::default();
+        if path.extension().is_some_and(|e| e == "stp") {
+            spec.faces.insert(
+                "face:3".into(),
+                serde_json::from_value(serde_json::json!({"datum":"A"})).unwrap(),
+            );
+        }
+        let p = model::plan(&a, &spec).unwrap();
+        let g = p
+            .gdt
+            .iter()
+            .find(|g| g.kind == "datum_feature" && g.label == "A")
+            .unwrap();
+        let placed = g.placed.as_ref().unwrap();
+        let [apex, end] = placed.lines[0];
+        assert!(
+            (end[0] - apex[0]).abs() < 1e-8,
+            "{}: {:?}",
+            path.display(),
+            placed.lines
+        );
+        assert!(end[1] > apex[1], "A leaves the top face upwards");
+        let drawing = model::render(
+            &part,
+            &a,
+            &p,
+            &draftwright::text::Font::new(draftwright::api::MONO.to_vec()).unwrap(),
+        )
+        .unwrap();
+        assert!(
+            !draftwright::lint::structural::check(&drawing)
+                .iter()
+                .any(|i| i.annotation.as_deref() == Some(g.id.as_str())
+                    && matches!(
+                        i.code.as_str(),
+                        "datum_leader_not_normal" | "leader_line_through_text"
+                    ))
+        );
+    }
+}
+
+#[test]
+fn an_authored_lateral_datum_frame_has_a_square_stub() {
+    let (mut a, p) = spindle();
+    only_datum(&mut a, "A");
+    let g = place(&a, &p, &[]);
+    let mut spec = isolated_spec(&a);
+    spec.annotations.insert(
+        g.id.clone(),
+        serde_json::from_value(serde_json::json!({
+            "place":{"along":0.8,"pinned":true}
+        }))
+        .unwrap(),
+    );
+    let (items, _) = gdt::plan(&a, &spec, &p.sheet, &p.views, &[]);
+    let g = items.iter().find(|i| i.id == g.id).unwrap();
+    let placed = g.placed.as_ref().unwrap();
+    let [a, b] = placed.lines[0];
+    let triangle = &placed.fills[0];
+    let base = [
+        triangle[2][0] - triangle[0][0],
+        triangle[2][1] - triangle[0][1],
+    ];
+    assert!((base[0] * (b[0] - a[0]) + base[1] * (b[1] - a[1])).abs() < 1e-8);
+    assert_eq!(placed.lines.len(), 2);
+    assert_eq!(b, placed.lines[1][0]);
+    assert!((b[0] - a[0]).hypot(b[1] - a[1]) > 1.);
 }
