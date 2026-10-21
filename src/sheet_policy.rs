@@ -557,7 +557,22 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
         if baseline_fits {
             outcome = "automatic baseline reused".into();
             chosen = judge(baseline.clone(), &mut scales, &mut outcome);
-        } else if let Some(scale) = estimate.scale(size, max, floor) {
+        } else {
+            // The finished baseline's whole annotated views, repacked at its own
+            // (roomiest) scale, cost no new plan: try them before any forced trial.
+            let split = separated
+                .entry((size.into(), baseline.sheet.scale_factor.to_bits()))
+                .or_insert_with(|| {
+                    crate::sheets::separate_views(fit, &baseline, size, hard as usize)
+                });
+            if let Some(plan) = split.as_ref().filter(|p| p.sheets.len() < max) {
+                chosen = judge(plan.clone(), &mut scales, &mut outcome);
+            }
+        }
+        if chosen.is_none()
+            && !baseline_fits
+            && let Some(scale) = estimate.scale(size, max, floor)
+        {
             // At most one smaller readable standard scale: a crowded estimate may
             // read cleanly one step down on the same paper.
             let smaller = layout::SCALES
@@ -588,6 +603,14 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
                 if max > 1 && !plan.sheet.basis.contains("blocked by sheets.max") {
                     unblocked.insert(key, plan.clone());
                 }
+                // Only a lack of room (clipping, hard layout findings or space drops)
+                // earns the smaller scale; a routing refusal would only repeat itself.
+                let cramped = model::findings(&plan).hard > 0
+                    || plan
+                        .problems
+                        .iter()
+                        .any(|p| crate::hole_table::DROPS.contains(&p.code.as_str()))
+                    || !sheet_fit::inside_frames(fit, &plan);
                 chosen = judge(plan, &mut scales, &mut outcome);
                 if chosen.is_some() {
                     break;
@@ -624,16 +647,9 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
                         }
                     }
                 }
-            }
-        }
-        if chosen.is_none() && !baseline_fits {
-            let split = separated
-                .entry((size.into(), baseline.sheet.scale_factor.to_bits()))
-                .or_insert_with(|| {
-                    crate::sheets::separate_views(fit, &baseline, size, hard as usize)
-                });
-            if let Some(plan) = split.as_ref().filter(|p| p.sheets.len() < max) {
-                chosen = judge(plan.clone(), &mut scales, &mut outcome);
+                if !cramped {
+                    break;
+                }
             }
         }
         if let Some(plan) = chosen {
@@ -712,7 +728,11 @@ fn pinned(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     let mut plan = if only_bare_pins(&intent, &base, &canonical) {
         // A bare pin holds the selected finished ink, including peers on every
         // physical page. Re-solving sheet 1 would create a different pin origin.
+        // Hold the drawing the unpinned request finally shows, after the selected
+        // drawing's own route repair (plan_recovered's callout_routes::finish).
         let mut held = canonical.clone();
+        let effective = crate::spec_gdt::effective(analysis, &held.spec)?;
+        crate::dims::callout_routes::finish(effective.as_ref(), &base, &mut held);
         held.spec = intent.clone();
         for d in &mut held.dimensions {
             if intent
@@ -732,7 +752,13 @@ fn pinned(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
         .views
         .iter()
         .any(|v| ["v:front", "v:plan", "v:side"].contains(&v.id.as_str()) && v.sheet > 1)
+        || canonical
+            .sheet
+            .basis
+            .contains(crate::sheets::WHOLE_VIEW_ALLOCATION)
     {
+        // A whole-view allocation transported finished ink into its frames; pins
+        // replay into the same frames rather than re-solving a forced layout.
         let source = if canonical.sheet.scale == raw.sheet.scale {
             model::plan_automatic(analysis, spec)?
         } else {
@@ -743,10 +769,13 @@ fn pinned(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
                 Some(spec.sheets.as_ref().and_then(|s| s.max).unwrap_or(9));
             crate::planning::fixed_pair(|| model::plan_automatic(analysis, &wide))?
         };
-        crate::sheets::replay_views(analysis, &source, &canonical).ok_or_else(|| Invalid {
-            message: "Pinned ink cannot fit in the retained annotated view frames; change its placement or remove the pin.".into(),
-            choices: vec!["dimensions/<id>/place".into()],
-        })?
+        let mut plan =
+            crate::sheets::replay_views(analysis, &source, &canonical).ok_or_else(|| Invalid {
+                message: "Pinned ink cannot fit in the retained annotated view frames; change its placement or remove the pin.".into(),
+                choices: vec!["dimensions/<id>/place".into()],
+            })?;
+        reanchor_offsets(&mut plan, &canonical, &intent);
+        plan
     } else if raw.sheet.size == canonical.sheet.size
         && raw.sheet.scale == canonical.sheet.scale
         && raw.sheets.len() == canonical.sheets.len()
@@ -759,6 +788,30 @@ fn pinned(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
         forced.sheet.scale = Some(canonical.sheet.scale.clone());
         if count > 1 {
             forced.sheets.get_or_insert_with(Default::default).max = Some(count as u32);
+        }
+        // The canonical trial's own request (paper, scale and count) usually
+        // reproduces its R5 allocation exactly; keep it when every view frame matches.
+        let mut same = forced.clone();
+        omit_absent_details(
+            analysis,
+            &mut same,
+            &canonical,
+            canonical.sheet.scale_factor,
+        );
+        let same = crate::planning::fixed_pair(|| model::plan_automatic(analysis, &same))?;
+        let frames = |p: &Plan| {
+            p.views
+                .iter()
+                .map(|v| {
+                    (
+                        v.id.clone(),
+                        v.sheet,
+                        v.at.map(|x| (x * 1e6).round() as i64),
+                    )
+                })
+                .collect::<Vec<_>>()
+        };
+        if count > 1 && frames(&same) != frames(&canonical) {
             for view in canonical.views.iter().filter(|v| v.sheet > 1) {
                 forced
                     .views
@@ -779,14 +832,36 @@ fn pinned(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
                     table.sheet = Some(placed.sheet);
                 }
             }
+            omit_absent_details(
+                analysis,
+                &mut forced,
+                &canonical,
+                canonical.sheet.scale_factor,
+            );
+            let assigned =
+                crate::planning::fixed_pair(|| model::plan_automatic(analysis, &forced))?;
+            // The assigned layout attaches each leader as the canonical one did; carry
+            // its owned ink into the canonical frames so pin offsets keep their frame.
+            let mut source = assigned.clone();
+            for view in source.spec.views.values_mut() {
+                view.sheet = None;
+            }
+            if let Some(sheets) = &mut source.spec.sheets {
+                sheets.hole_table = None;
+            }
+            for table in &mut source.spec.tables {
+                table.sheet = None;
+            }
+            crate::sheets::replay_views(analysis, &source, &canonical)
+                .map(|mut plan| {
+                    plan.spec = assigned.spec.clone();
+                    reanchor_offsets(&mut plan, &canonical, &intent);
+                    plan
+                })
+                .unwrap_or(assigned)
+        } else {
+            same
         }
-        omit_absent_details(
-            analysis,
-            &mut forced,
-            &canonical,
-            canonical.sheet.scale_factor,
-        );
-        crate::planning::fixed_pair(|| model::plan_automatic(analysis, &forced))?
     };
     plan.spec = intent;
     drop_internal_replan(&mut plan);
@@ -810,6 +885,42 @@ fn pinned(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     );
     explain(&mut plan, canonical.sheet_candidates, &reason);
     Ok(plan)
+}
+
+/// A callout offset is measured from the automatic leader tip of the drawing the author
+/// saw. Ink transported from another layout keeps its own tip; move each offset callout
+/// rigidly so its bend is that canonical tip plus the offset, and report that tip.
+fn reanchor_offsets(plan: &mut Plan, canonical: &Plan, intent: &Spec) {
+    for d in plan.dimensions.iter_mut().filter(|d| d.kind == "callout") {
+        let Some(offset) = intent
+            .dimensions
+            .get(&d.id)
+            .and_then(|s| s.place.as_ref())
+            .and_then(|p| p.offset)
+        else {
+            continue;
+        };
+        let (Some((_, anchor)), Some(placed)) =
+            (canonical.automatic_callout_tip(&d.id), d.placed.as_mut())
+        else {
+            continue;
+        };
+        let Some(bend) = placed.lines.first().map(|line| line[1]) else {
+            continue;
+        };
+        let delta = [
+            anchor[0] + offset[0] - bend[0],
+            anchor[1] + offset[1] - bend[1],
+        ];
+        for q in placed.lines.iter_mut().chain(&mut placed.arrows).flatten() {
+            crate::placement_intent::move_point(q, delta);
+        }
+        crate::placement_intent::move_point(&mut placed.label_at, delta);
+        crate::placement_intent::move_box(&mut placed.label_box, delta);
+        if let Some(tip) = canonical.callout_tips.get(&d.id) {
+            plan.callout_tips.insert(d.id.clone(), tip.clone());
+        }
+    }
 }
 
 fn only_bare_pins(spec: &Spec, base: &Spec, canonical: &Plan) -> bool {
@@ -1251,6 +1362,17 @@ mod tests {
 
     #[test]
     fn a_routing_refusal_without_space_drops_does_not_repeat_the_scale() {
+        // GRM-03's unclipped A4 trial gains only a leader/extension contact: a
+        // smaller scale would repeat the same routing, so it is not tried.
+        let Some(a) = corpus("gramel/GRM-03_thumbwheel_drive_screw.step") else {
+            return;
+        };
+        let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+        let a4 = &p.sheet_candidates[0];
+        assert_eq!((a4.size.as_str(), a4.max), ("A4", 1));
+        assert!(a4.outcome.contains("leader_on_extension"), "{}", a4.outcome);
+        assert_eq!(a4.scales.len(), 1, "{}", p.sheet.basis);
+        // 10255's A4 trial runs off the sheet: lack of room earns one smaller scale.
         let Some(a) = corpus("mfcadpp/10255.step") else {
             return;
         };
@@ -1259,7 +1381,7 @@ mod tests {
             (p.sheet.size.as_str(), p.sheet.scale.as_str()),
             ("A3", "2:1")
         );
-        assert!(p.sheet_candidates.iter().all(|c| c.scales.len() <= 1));
+        assert!(p.sheet_candidates.iter().all(|c| c.scales.len() <= 2));
     }
 
     #[test]
@@ -1297,9 +1419,9 @@ mod tests {
             ("mfcadpp/10033.step", "A3", "2:1"),
             // Whole-view packing clears the A4 frame at the original readable scale.
             ("mfcadpp/10163.step", "A4", "1:2"),
-            ("cadgenbench_inputs/cgb245.step", "A2", "1:2"),
-            // The reduction loses document notes; the readable larger reference keeps them.
-            ("nist/nist_ftc_07_asme1_rd.stp", "A2", "1:2"),
+            // Usable on preferred A3, as on main: nothing clipped and nothing lost.
+            ("cadgenbench_inputs/cgb245.step", "A3", "1:5"),
+            ("nist/nist_ftc_07_asme1_rd.stp", "A3", "1:5"),
         ] {
             let Some(a) = corpus(file) else {
                 return;

@@ -284,9 +284,9 @@ fn r5_session_fragments_and_steps() {
         ["v:iso"]
     );
     let mut replay = s.state().clone();
-    // The baseline and smallest-first trials record three recovered runs for
-    // this explicitly assigned drawing. Replaying the prepared prefix costs none.
-    assert_eq!(s.stats().sheet_steps, 3);
+    // The baseline and the first usable smallest-first trial record two recovered
+    // runs for this explicitly assigned drawing. Replaying the prepared prefix costs none.
+    assert_eq!(s.stats().sheet_steps, 2);
     let before = s.stats();
     s.apply(&[Op::set("views/iso/sheet", json!(1))], false)
         .unwrap();

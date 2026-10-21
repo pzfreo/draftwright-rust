@@ -421,9 +421,13 @@ fn ctc01_counts_gaps_and_repeated_causes_without_hiding_findings() {
 }
 #[test]
 fn unsupported_recesses_and_rounding_have_separate_impacts() {
-    assert_review_summary("mfcadpp/1000.step", [(11, 4), (1, 1), (0, 0), (12, 3)]);
+    // A fresh automatic choice no longer carries the planner's internal
+    // layout_replanned trace (that notice belongs to kept layouts and local fixes).
+    assert_review_summary("mfcadpp/1000.step", [(11, 4), (1, 1), (0, 0), (11, 2)]);
 }
 #[test]
 fn informational_hole_bottom_and_recovery_remain_advisory() {
-    assert_review_summary("gramel/string_post.step", [(1, 1), (1, 1), (0, 0), (3, 3)]);
+    // The automatic sheet choice's recovery is stated in its sheet basis, not as a
+    // layout_replanned notice; the remaining informational findings stay advisory.
+    assert_review_summary("gramel/string_post.step", [(1, 1), (1, 1), (0, 0), (2, 2)]);
 }

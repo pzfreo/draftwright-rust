@@ -103,15 +103,22 @@ fn section(file: &str, check_hidden: bool) {
             "{file}: hidden ink in section"
         );
     }
-    let drawing = model::render_annotations(
-        &part,
-        &a,
-        &plan,
-        &Font::new(api::MONO.to_vec()).unwrap(),
-        geometry,
-        &mut cache,
-    )
-    .unwrap();
+    // The section is judged on the physical sheet that carries it.
+    let drawing = if plan.sheets.is_empty() {
+        model::render_annotations(
+            &part,
+            &a,
+            &plan,
+            &Font::new(api::MONO.to_vec()).unwrap(),
+            geometry,
+            &mut cache,
+        )
+        .unwrap()
+    } else {
+        model::render_sheets(&part, &a, &plan, &Font::new(api::MONO.to_vec()).unwrap())
+            .unwrap()
+            .swap_remove(v.sheet as usize - 1)
+    };
     let view = View::new(v.direction, v.up).unwrap();
     let centre = view.map([0, 1, 2].map(|k| (a.envelope[0][k] + a.envelope[1][k]) / 2.));
     let to_model = |q: [f64; 2], side: f64| {

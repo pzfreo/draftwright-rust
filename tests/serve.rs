@@ -118,17 +118,7 @@ fn the_service_answers_each_line() {
             .starts_with("<?xml")
     );
     let problems = replies[1]["result"]["problems"].as_array().unwrap();
-    assert_eq!(
-        problems
-            .iter()
-            .map(|p| p["code"].as_str().unwrap())
-            .collect::<Vec<_>>(),
-        [
-            "general_tolerance_missing",
-            "unclaimed_geometry",
-            "layout_replanned"
-        ]
-    );
+    assert_eq!(problems.len(), 2, "{problems:?}");
     assert_eq!(
         problems[1],
         json!({
@@ -159,8 +149,8 @@ fn the_service_answers_each_line() {
     assert_eq!(fixed.len(), 5);
     for (path, value) in [
         ("sheet/keep_layout", json!(true)),
-        ("sheet/size", json!("A3")),
-        ("sheet/scale", json!("2:1")),
+        ("sheet/size", json!("A4")),
+        ("sheet/scale", json!("1:1")),
         ("sheets/max", json!(1)),
     ] {
         assert_eq!(

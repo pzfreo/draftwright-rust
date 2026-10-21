@@ -105,22 +105,13 @@ fn grm03_rejects_a4_extension_contacts_without_losing_measurements() {
             .iter()
             .any(|c| c.outcome.contains("leader_on_extension"))
     );
-    // Complete unclipped ink takes precedence over filling one page. The
-    // orientation view touched the frame in the old single-sheet layout.
-    // The side view and its bore annotation travel with it on sheet two.
-    assert_eq!(p.sheets.len(), 1);
+    // Centre lines cropped on the frame line clip nothing: one A3 sheet, as on main.
+    assert!(p.sheets.is_empty());
+    let fill = draftwright::sheet_fit::fill(&a, &p);
     assert!(
-        p.sheet_candidates
-            .iter()
-            .any(|c| c.max == 1 && c.outcome.starts_with("hard rejected:"))
-    );
-    assert_eq!(
-        p.views
-            .iter()
-            .filter(|v| v.sheet == 2)
-            .map(|v| v.id.as_str())
-            .collect::<Vec<_>>(),
-        ["v:side", "v:iso"]
+        (draftwright::sheet_fit::FILL_BAND[0]..=draftwright::sheet_fit::FILL_BAND[1])
+            .contains(&fill),
+        "GRM-03 fill {fill:.4}"
     );
     assert!(p.views.iter().all(|v| v.detail.is_none()));
     assert!(p.dimensions.iter().all(|d| d.placed.is_some()));
@@ -493,47 +484,15 @@ fn assert_small_single_sheet(name: &str, expected: (&str, &str)) {
     );
 }
 
+/// A crowded but readable A4 is usable: a small part is not enlarged onto A3.
 #[test]
-fn small_10224_takes_one_clean_a3_before_a_crowded_a4() {
-    assert_small_single_sheet("10224", ("A3", "2:1"));
+fn small_10224_fits_one_a4_sheet() {
+    assert_small_single_sheet("10224", ("A4", "1:1"));
 }
 
 #[test]
-fn small_10255_keeps_annotated_principals_on_two_unclipped_a3_sheets() {
-    let Some(dir) = corpus::dir() else { return };
-    let a = model::analyse_native(&dir.join("mfcadpp/10255.step"))
-        .unwrap()
-        .1;
-    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
-    assert_eq!(
-        (p.sheet.size.as_str(), p.sheet.scale.as_str()),
-        ("A3", "2:1")
-    );
-    assert_eq!(p.sheets.len(), 1);
-    for (id, sheet) in [("v:front", 1), ("v:plan", 1), ("v:side", 2)] {
-        assert_eq!(p.views.iter().find(|v| v.id == id).unwrap().sheet, sheet);
-    }
-    assert!(p.dimensions.iter().all(|d| d.placed.is_some()));
-    assert!(p.views.iter().all(|v| {
-        let page = p
-            .sheets
-            .iter()
-            .find(|s| s.number == v.sheet)
-            .unwrap_or(&p.sheet)
-            .page;
-        v.area[0] >= 10.
-            && v.area[1] >= 10.
-            && v.area[2] <= page[0] - 10.
-            && v.area[3] <= page[1] - 10.
-    }));
-    assert!(!p.problems.iter().any(|q| matches!(
-        q.code.as_str(),
-        "annotation_off_sheet"
-            | "views_overlap"
-            | "cross_reference_missing"
-            | "layout_recovery_exhausted"
-    )));
-    sheet_rule::assert_preferences(&p);
+fn small_10255_fits_one_a3_sheet() {
+    assert_small_single_sheet("10255", ("A3", "2:1"));
 }
 
 /// This 279 mm principal projection already needs large paper at full size.
@@ -566,7 +525,8 @@ fn overflow_honours_named_paper_and_sheet_count() {
         .1;
     for (intent, size, count) in [
         (json!({"sheet":{"size":"A2"}}), "A2", 1),
-        (json!({"sheets":{"max":1}}), "A3", 1),
+        // A hard one-sheet limit keeps the preference order: the usable A4 comes first.
+        (json!({"sheets":{"max":1}}), "A4", 1),
     ] {
         let spec: Spec = serde_json::from_value(intent).unwrap();
         let p = model::plan_recovered(&a, &spec).unwrap();

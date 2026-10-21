@@ -409,29 +409,27 @@ fn every_planning_entry_point_applies_the_recovery() {
     assert_eq!(named.sheet.size, "A2");
 }
 
-/// FTC-07 exceeds preferred A3 to retain the complete readable A2 at 1:2.
-/// Wrapping clears the old
+/// FTC-07 is usable on preferred A3 at 1:5, as on main, so no preference is exceeded.
+/// The planner's own table-free recovery still finds A2 at 1:2: wrapping clears the old
 /// pitch-line clash at A1 1:1, but that enlargement lengthens established leaders
 /// beyond their unchanged two-millimetre budget, so the complete A2 is retained.
 #[test]
-fn ftc07_exceeds_preferred_a3_without_losing_required_information() {
+fn ftc07_stays_on_preferred_a3_and_keeps_the_planner_search() {
     let Some(dir) = corpus::dir() else {
         return;
     };
     let step = dir.join("nist/nist_ftc_07_asme1_rd.stp");
     let plan = api::plan_from(&step, Features::Native, &Spec::default()).unwrap();
-    assert_eq!(sheet(&plan), ("A2", "1:2"));
-    let notice: Vec<_> = plan
-        .problems
-        .iter()
-        .filter(|p| p.code == "sheet_preference_exceeded")
-        .collect();
-    assert_eq!(notice.len(), 1);
-    assert_eq!(notice[0].severity, "info");
+    assert_eq!(sheet(&plan), ("A3", "1:5"));
+    assert!(
+        !plan
+            .problems
+            .iter()
+            .any(|p| p.code == "sheet_preference_exceeded")
+    );
     let analysis = api::analyse_from(&step, Features::Native).unwrap();
     // The table-free drawing the sheet is chosen by ([`model::recover`]'s hole-table path).
     let never = Spec {
-        sheet: serde_json::from_value(json!({"preferred_max_size":"A0"})).unwrap(),
         hole_table: draftwright::hole_table::Setting::Never,
         sheets: Some(draftwright::sheets::SheetsSpec {
             max: Some(1),
@@ -439,7 +437,14 @@ fn ftc07_exceeds_preferred_a3_without_losing_required_information() {
         }),
         ..Default::default()
     };
-    let chosen = api::plan_analysed(&analysis, &never).unwrap();
+    // The paper preferences choose between finished drawings; the planner's own
+    // recovery from its first estimate is unchanged.
+    let chosen = model::recover(
+        &analysis,
+        &never,
+        model::plan_escalated(&analysis, &never).unwrap(),
+    )
+    .unwrap();
     assert_eq!(sheet(&chosen), ("A2", "1:2"));
     assert!(chosen.sheet.basis.contains("smallest fit A2 at 1:2"));
     sheet_rule::assert_rule("ftc07", &chosen);

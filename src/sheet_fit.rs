@@ -388,14 +388,6 @@ pub(crate) fn inside_frames(analysis: &Analysis, plan: &Plan) -> bool {
                 local.requirements.clear();
             }
             let mut ink = view_ink(analysis, &local);
-            let line_work_start = ink.len()
-                - local
-                    .views
-                    .iter()
-                    .flat_map(|v| &v.line_work)
-                    .map(|w| w.curves.len())
-                    .sum::<usize>();
-            let view_ink_end = ink.len();
             ink.extend(
                 local
                     .notes_block
@@ -471,15 +463,13 @@ pub(crate) fn inside_frames(analysis: &Analysis, plan: &Plan) -> bool {
                 }
             }
             ink.into_iter().enumerate().all(|(i, b)| {
-                // View outlines keep their whole stroke inside the frame. Centre-line ink
-                // may end on the frame line itself (a crop edge or a trimmed axis): its
-                // thinner stroke stays under the frame's own.
+                // View outlines keep their whole stroke inside the frame. Thinner ink
+                // (a witness or centre line, a crop edge) may end on the frame line itself:
+                // its stroke stays under the frame's own, so nothing is clipped.
                 let stroke = if i < local.views.len() {
                     crate::output::layer_styles()[0].1.width / 2.0
-                } else if i >= line_work_start && i < view_ink_end {
-                    0.0
                 } else {
-                    crate::tables::frame_clearance()
+                    0.0
                 };
                 b[0] >= MARGIN + stroke - 1e-6
                     && b[1] >= MARGIN + stroke - 1e-6

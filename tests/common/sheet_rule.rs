@@ -240,13 +240,20 @@ pub fn assert_follows(name: &str, plan: &Plan, seed: (&str, &str)) -> (String, S
     (smallest.size.clone(), smallest.scale.clone())
 }
 
-/// The first estimate's (sheet, scale): from the `layout_replanned` finding, or the plan's own.
+/// The first estimate's (sheet, scale): from the sheet basis or the `layout_replanned`
+/// finding (an automatic choice records the estimate only in its basis), or the plan's own.
 pub fn seed_of(plan: &Plan) -> (String, String) {
-    plan.problems
-        .iter()
-        .find(|p| p.code == "layout_replanned")
-        .map(|p| {
-            let from = p.message.split_once("from ").unwrap().1;
+    plan.sheet
+        .basis
+        .split_once("first estimate ")
+        .map(|(_, from)| from)
+        .or_else(|| {
+            plan.problems
+                .iter()
+                .find(|p| p.code == "layout_replanned")
+                .and_then(|p| p.message.split_once("from ").map(|(_, from)| from))
+        })
+        .map(|from| {
             let words: Vec<&str> = from.split_whitespace().collect();
             (words[0].to_string(), words[2].to_string())
         })

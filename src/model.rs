@@ -4178,6 +4178,14 @@ fn plan_with_presentation(
                     )
                 })
                 .collect();
+            // A paper trial's sheet-count permission shapes its R5 allocation, so pin
+            // offsets in a multi-sheet canonical are measured on that same allocation.
+            if let Some(max) = spec.sheets.as_ref().and_then(|s| s.max).filter(|&n| n > 1) {
+                base.sheets = Some(crate::sheets::SheetsSpec {
+                    max: Some(max),
+                    ..Default::default()
+                });
+            }
         }
         // Pins in recovered planning replay the finished recovered drawing,
         // including precision repairs, even in its first unexpanded candidate.

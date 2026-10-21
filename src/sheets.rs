@@ -1166,6 +1166,10 @@ fn pack_with_overflow(
     true
 }
 
+/// The sheet-basis marker of a [`separate_views`] allocation.
+pub(crate) const WHOLE_VIEW_ALLOCATION: &str =
+    "principal views and auxiliary views allocated as whole annotated blocks";
+
 /// Allocate settled view blocks, including principal projections, without changing
 /// their scale, annotation ownership or required-item inventory. The same paper,
 /// fit-box allocator, sheet numbering and cross-reference machinery serve R5.
@@ -1580,7 +1584,8 @@ fn separate_views_inner(
     if frame.is_none() && !crate::sheet_fit::inside_frames(analysis, &plan) {
         return None;
     }
-    plan.sheet.basis += "; principal views and auxiliary views allocated as whole annotated blocks";
+    plan.sheet.basis += "; ";
+    plan.sheet.basis += WHOLE_VIEW_ALLOCATION;
     plan.sheet.fill = crate::sheet_fit::fill(analysis, &plan);
     plan.status = crate::completeness::status(&plan.problems);
     Some(plan)
