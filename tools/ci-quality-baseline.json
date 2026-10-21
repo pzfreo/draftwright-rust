@@ -244,10 +244,10 @@
     },
     "nist_ctc_02_asme1_rc": {
       "hidden_on_visible": 0,
-      "ink": 7,
-      "line_through_feature": 33,
-      "off_sheet": 128,
-      "repeated_label": 1,
+      "ink": 0,
+      "line_through_feature": 4,
+      "off_sheet": 0,
+      "repeated_label": 0,
       "repeated_measure": 0,
       "repeated_span": 0,
       "section_hidden": 0,
@@ -268,10 +268,10 @@
     },
     "nist_ctc_04_asme1_rd": {
       "hidden_on_visible": 0,
-      "ink": 26,
-      "line_through_feature": 42,
-      "off_sheet": 6,
-      "repeated_label": 5,
+      "ink": 0,
+      "line_through_feature": 22,
+      "off_sheet": 0,
+      "repeated_label": 2,
       "repeated_measure": 0,
       "repeated_span": 0,
       "section_hidden": 0,
@@ -280,8 +280,8 @@
     },
     "nist_ctc_05_asme1_rd": {
       "hidden_on_visible": 0,
-      "ink": 4,
-      "line_through_feature": 6,
+      "ink": 0,
+      "line_through_feature": 0,
       "off_sheet": 0,
       "repeated_label": 0,
       "repeated_measure": 0,
@@ -293,9 +293,9 @@
     "nist_ftc_06_asme1_rd": {
       "hidden_on_visible": 0,
       "ink": 0,
-      "line_through_feature": 1,
-      "off_sheet": 6,
-      "repeated_label": 2,
+      "line_through_feature": 0,
+      "off_sheet": 0,
+      "repeated_label": 0,
       "repeated_measure": 0,
       "repeated_span": 0,
       "section_hidden": 0,
@@ -316,9 +316,9 @@
     },
     "nist_ftc_08_asme1_rc": {
       "hidden_on_visible": 0,
-      "ink": 4,
-      "line_through_feature": 17,
-      "off_sheet": 44,
+      "ink": 0,
+      "line_through_feature": 0,
+      "off_sheet": 0,
       "repeated_label": 1,
       "repeated_measure": 0,
       "repeated_span": 0,
@@ -328,10 +328,10 @@
     },
     "nist_ftc_09_asme1_rd": {
       "hidden_on_visible": 0,
-      "ink": 5,
-      "line_through_feature": 7,
-      "off_sheet": 100,
-      "repeated_label": 4,
+      "ink": 0,
+      "line_through_feature": 2,
+      "off_sheet": 0,
+      "repeated_label": 1,
       "repeated_measure": 0,
       "repeated_span": 0,
       "section_hidden": 0,
@@ -340,10 +340,10 @@
     },
     "nist_ftc_10_asme1_rb": {
       "hidden_on_visible": 0,
-      "ink": 23,
-      "line_through_feature": 15,
+      "ink": 0,
+      "line_through_feature": 10,
       "off_sheet": 0,
-      "repeated_label": 2,
+      "repeated_label": 0,
       "repeated_measure": 0,
       "repeated_span": 0,
       "section_hidden": 0,
@@ -439,7 +439,7 @@
     "GRM-03_thumbwheel_drive_screw": [
       "A3",
       "10:1",
-      1
+      2
     ],
     "GRM-05_depth_lock_bolt": [
       "A4",
@@ -462,8 +462,8 @@
       1
     ],
     "cgb245": [
-      "A3",
-      "1:5",
+      "A2",
+      "1:2",
       1
     ],
     "nist_ctc_01_asme1_rd": [
@@ -472,8 +472,8 @@
       1
     ],
     "nist_ctc_02_asme1_rc": [
-      "A3",
-      "1:10",
+      "A1",
+      "1:5",
       1
     ],
     "nist_ctc_03_asme1_rc": [
@@ -482,38 +482,38 @@
       1
     ],
     "nist_ctc_04_asme1_rd": [
-      "A3",
-      "1:10",
+      "A1",
+      "1:5",
       1
     ],
     "nist_ctc_05_asme1_rd": [
-      "A3",
-      "1:10",
+      "A2",
+      "1:5",
       1
     ],
     "nist_ftc_06_asme1_rd": [
-      "A3",
+      "A1",
       "1:2",
       1
     ],
     "nist_ftc_07_asme1_rd": [
-      "A3",
-      "1:5",
+      "A2",
+      "1:2",
       1
     ],
     "nist_ftc_08_asme1_rc": [
-      "A3",
-      "1:1",
-      1
+      "A2",
+      "1:2",
+      2
     ],
     "nist_ftc_09_asme1_rd": [
-      "A3",
+      "A1",
       "1:1",
       1
     ],
     "nist_ftc_10_asme1_rb": [
-      "A3",
-      "1:10",
+      "A1",
+      "1:1",
       1
     ],
     "sm-hanger": [
@@ -528,6 +528,6 @@
     ]
   },
   "source": "Recorded from the complete quality.py --record audit",
-  "source_commit": "a3cda671b14d29aefff6af2b00154f1e94fea466",
-  "verified_binary_sha256": "e1d1997d4562ff7502f84108c0b760b2958462575d92ba0a73467f40f2c6e2bc"
+  "source_commit": "e6d19ba51a30c699855a6e4cb8d09f890b639889",
+  "verified_binary_sha256": "fc6d394bd35b45c114250df977c79afa7e8d3088fa145b4561d99f08702e6a4a"
 }
