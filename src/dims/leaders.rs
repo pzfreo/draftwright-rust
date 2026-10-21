@@ -2481,10 +2481,16 @@ pub(crate) fn settle_radius_leaders(
                 arcs.extend(more);
             }
         }
-        // Unreadable and already compliant routes do not trigger a placement update.
-        // Drawn lint audits retained routes without adding a duplicate plan problem.
+        // A compliant minimum-length route needs no search. Longer compliant
+        // routes still compare both sides: accepting the first legal side can
+        // otherwise retain a long shaft when the opposite side has clear paper.
+        // Drawn lint audits retained routes without a duplicate plan problem.
         let compliant = arcs.iter().any(|a| a.accepts(shaft));
-        if arcs.is_empty() || (reference.is_none() && compliant) {
+        if arcs.is_empty()
+            || (reference.is_none()
+                && compliant
+                && length(&old.lines) <= MIN_LEADER + SHOULDER + 1e-6)
+        {
             continue;
         }
         let view = v.id.trim_start_matches("v:");
@@ -2579,7 +2585,7 @@ pub(crate) fn settle_radius_leaders(
             items[i].basis.clone_from(&before.basis);
             continue;
         }
-        if compliant {
+        if compliant && reference.is_some() {
             continue;
         }
         let mut best: Option<Candidate> = None;
@@ -2613,6 +2619,7 @@ pub(crate) fn settle_radius_leaders(
                             // Unmeasured contact costs are nonnegative, so this lower bound
                             // cannot discard a candidate that would beat the current best.
                             if c.hard > before.hard
+                                || (compliant && c.score() >= before.score())
                                 || best.as_ref().is_some_and(|b| c.score() >= b.score())
                             {
                                 continue;
@@ -2625,6 +2632,7 @@ pub(crate) fn settle_radius_leaders(
                                 || c.text > before.text
                                 || c.feature_crossings > before.feature_crossings
                                 || c.beside > before.beside
+                                || (compliant && c.score() >= before.score())
                                 || best.as_ref().is_some_and(|b| c.score() >= b.score())
                                 || model_crossings(&job, &c) > model_budget
                                 || !page.fits(&c.placed(), view)
@@ -7072,6 +7080,75 @@ mod tests {
         assert_eq!(moved.label_at, old.label_at);
         assert_eq!(moved.label_box, old.label_box);
         assert_eq!(moved.rotation, old.rotation);
+    }
+
+    #[test]
+    fn a_compliant_long_radius_still_compares_clear_routes_on_both_sides() {
+        use super::*;
+        use crate::model::{Analysis, PlannedSheet, PlannedView, Spec};
+        let station = 3. / 2f64.sqrt();
+        let mut analysis: Analysis = serde_json::from_value(serde_json::json!({
+            "schema":crate::model::ANALYSIS_SCHEMA,
+            "binding":{"source_sha256":"test","part":"test","face_count":1,"loader":"test"},
+            "envelope":[[-3.,-3.,-1.],[3.,3.,1.]],"iso_bounds":[0.,0.,0.,0.],
+            "features":[{"id":"f:blend:1","kind":"blend","faces":[0],
+                "parameters":{"radius":3.},"fingerprint":{"version":"test","family":"blends",
+                "subtype":"blend","sizes":{},"axis":[0.,0.,1.],"position":[0.,0.,0.],"neighbourhood":[]}}],
+            "radius_arcs":{"f:blend:1":[{"arc":{"centre":[0.,0.,0.],"radius":3.,
+                "u":[1.,0.,0.],"v":[0.,1.,0.],"start":0.,"sweep":std::f64::consts::FRAC_PI_2},
+                "axis":[0.,0.,1.],"centre_open":true,"tips":[[station,station,0.]]}]}
+        })).unwrap();
+        let view: PlannedView = serde_json::from_value(serde_json::json!({
+            "id":"v:plan","direction":[0.,0.,1.],"up":[0.,1.,0.],"at":[50.,50.],
+            "scale":1.,"area":[10.,10.,190.,180.],"default":true,"basis":"","state":{"kind":"shown"}
+        }))
+        .unwrap();
+        let sheet: PlannedSheet = serde_json::from_value(serde_json::json!({
+            "size":"A4","page":[297.,210.],"scale":"1:1","scale_factor":1.,"arrangement":"columns",
+            "title_block":[200.,10.,280.,30.],"default":true,"basis":"","state":{"kind":"shown"},"title":{}
+        })).unwrap();
+        let tip = [50. + station; 2];
+        let elbow = [tip[0] + 40. / 2f64.sqrt(), tip[1] + 40. / 2f64.sqrt()];
+        let d: PlannedDimension = serde_json::from_value(serde_json::json!({
+            "id":"d:r","kind":"callout","view":"v:plan","value":3.,"label":"R3","terms":["R3"],
+            "measurements":[{"feature":"f:blend:1","parameter":"blend.radius","value":3.}],
+            "default":true,"from_spec":[],"basis":"test","state":{"kind":"shown"},
+            "placed":{"lines":[[tip,elbow],[elbow,[elbow[0]+3.,elbow[1]]]],
+                "arrows":[placement::arrow(tip,elbow)],"label_at":[elbow[0]+4.,elbow[1]],
+                "label_box":[elbow[0]+4.,elbow[1]-1.,elbow[0]+10.,elbow[1]+2.],"rotation":0.}
+        }))
+        .unwrap();
+        let mut chosen = Vec::new();
+        for centre_open in [true, false] {
+            analysis.radius_arcs.get_mut("f:blend:1").unwrap()[0].centre_open = centre_open;
+            let mut items = vec![d.clone()];
+            settle_radius_leaders(
+                &analysis,
+                &Spec::default(),
+                &sheet,
+                std::slice::from_ref(&view),
+                &mut items,
+                &[],
+                &super::super::footprints::Cache::default(),
+                None,
+            );
+            let p = items[0].placed.as_ref().unwrap();
+            assert!(
+                length(&p.lines) < 12.,
+                "a long radial route must not preempt clear short paper: {p:?}"
+            );
+            assert!(
+                radius_route_evidence(&analysis, &items[0], &view)
+                    .unwrap()
+                    .iter()
+                    .any(|a| a.accepts(p.lines[0]))
+            );
+            chosen.push(p.clone());
+        }
+        assert_eq!(
+            chosen[0], chosen[1],
+            "material-side metadata cannot choose the route"
+        );
     }
 
     #[test]
