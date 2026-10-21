@@ -85,10 +85,9 @@ fn hole_item(d: &draftwright::dims::PlannedDimension) -> bool {
 /// unplaced; what stays off the sheet is no hole item. As in draftwright, no part keeps a table
 /// or draws a balloon; CTC-02 attempts a table and withdraws it, said (`table_dropped`), and a
 /// part whose plan view has fewer than 16 holes outside a pattern says why it has none. *drops*
-/// says whether the part's plan places any hole item off the sheet: since the layout reserves
-/// every view's bands (drawing quality 3), CTC-02's and cgb245's place none, so nothing of theirs
-/// is dropped (draftwright drops on both for collisions or crowding, which the port places and
-/// reports: `known_hole_tables.json`).
+/// says whether the capped baseline places any hole item off the sheet. The A3 limit
+/// exposes required losses on the dense NIST parts; every one must keep the same
+/// explicit drop code and severity as the existing escalation contract.
 fn check_part(name: &str, drops: bool) {
     let Some((_, analysis)) = part(name) else {
         eprintln!("SKIPPED: the corpus is not found");
@@ -193,18 +192,18 @@ fn check_part(name: &str, drops: bool) {
 }
 
 #[test]
-fn ftc09_keeps_every_hole_item_with_the_reserved_recess_lanes() {
-    check_part("ftc09", false);
+fn ftc09_capped_hole_items_are_drawn_or_reported() {
+    check_part("ftc09", true);
 }
 
 #[test]
-fn ftc08_keeps_every_hole_item_with_the_reserved_recess_lanes() {
-    check_part("ftc08", false);
+fn ftc08_capped_hole_items_are_drawn_or_reported() {
+    check_part("ftc08", true);
 }
 
 #[test]
-fn ctc02_has_no_hole_item_off_the_sheet_to_drop() {
-    check_part("ctc02", false);
+fn ctc02_capped_hole_items_are_drawn_or_reported() {
+    check_part("ctc02", true);
 }
 
 /// Its one off-sheet hole location (`d:f:hole_pattern:2/location.length.x`, 480) has had
@@ -212,8 +211,8 @@ fn ctc02_has_no_hole_item_off_the_sheet_to_drop() {
 /// fell through below the plan now fit above it, and it takes the first lane below. Nothing of
 /// ctc04's is dropped either.
 #[test]
-fn ctc04_has_no_hole_item_off_the_sheet_to_drop() {
-    check_part("ctc04", false);
+fn ctc04_capped_hole_items_are_drawn_or_reported() {
+    check_part("ctc04", true);
 }
 
 #[test]
@@ -229,7 +228,11 @@ fn rows_match(name: &str) {
         eprintln!("SKIPPED: the corpus is not found");
         return;
     };
-    let plan = model::plan(analysis, &Spec::default()).unwrap();
+    let plan = model::plan(
+        analysis,
+        &serde_json::from_value(serde_json::json!({"sheet":{"max_size":"A0"}})).unwrap(),
+    )
+    .unwrap();
     let ours: Vec<HoleRow> = hole_table::table_rows(analysis, &plan);
     // All nominal cells have exact new-policy expectations. Then replay the independent
     // archived Python comparison at its historical display precision, retaining its row set,
@@ -561,7 +564,11 @@ fn an_off_axis_pin_does_not_suppress_a_plan_view_table_attempt() {
     let Some((_, analysis)) = part("ctc02") else {
         return;
     };
-    let mut p = model::plan(analysis, &Spec::default()).unwrap();
+    let mut p = model::plan(
+        analysis,
+        &serde_json::from_value(serde_json::json!({"sheet":{"max_size":"A0"}})).unwrap(),
+    )
+    .unwrap();
     let held = p
         .dimensions
         .iter()
@@ -597,7 +604,7 @@ fn an_off_axis_pin_does_not_suppress_a_plan_view_table_attempt() {
 fn retained_leader_crossings_roll_back_the_whole_table_and_restore_fallbacks() {
     let ((_, analysis), successful) = forced();
     assert!(successful.hole_table.is_some());
-    let mut p = model::plan(analysis, &Spec::default()).unwrap();
+    let mut p = model::plan(analysis, &successful.spec).unwrap();
     let v = p.views.iter().find(|v| v.id == "v:plan").unwrap();
     let width = analysis.envelope[1][0] - analysis.envelope[0][0];
     let height = analysis.envelope[1][1] - analysis.envelope[0][1];

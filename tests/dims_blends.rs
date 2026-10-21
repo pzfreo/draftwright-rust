@@ -546,9 +546,12 @@ fn radius_exceptions_are_stated_despite_routing_cost() {
     let p = cache::default_plan(&a, false);
     for label in ["4× R15", "6× R18"] {
         assert!(
-            p.omitted.iter().any(|d| d.label == label
-                && matches!(&d.state, State::Covered { by } if by == "t:radius-centres")),
-            "{label} survives routing in a fully located table"
+            p.dimensions
+                .iter()
+                .any(|d| d.label == label && d.placed.is_some())
+                || p.omitted.iter().any(|d| d.label == label
+                    && matches!(&d.state, State::Covered { by } if by == "t:radius-centres")),
+            "{label} survives routing as a callout or in a fully located table"
         );
     }
     assert!(!p.problems.iter().any(|p| p.code == "blend_callout_dropped"));
