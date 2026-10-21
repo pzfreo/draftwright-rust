@@ -18,7 +18,9 @@ All notable changes to draftwright-rust are recorded here, in the style of
   Include inward diameter/thread leaders over proven hole floors, while keeping 3 mm text,
   existing radius attachment producers and datum face normals; equal costs
   favour exterior routes. AP242 CTC/FTC fixtures join the per-kind crossing ratchet in
-  CI's `quality-pins` job.
+  CI's `quality-pins` job. Final radius alternatives use #153's proven arc sites and
+  middle-arc/radial/open-side predicate. Bare pins retain the complete finished automatic
+  route, including interior repair.
 
 - Radius callouts (#145) try the middle half of a proven circular arc, within 15° of
   radial from the non-material side: towards the centre for concave fillets, away from it

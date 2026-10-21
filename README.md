@@ -199,9 +199,10 @@ plan, never hidden:
   and **0 dimension line × dimension line** (`dimension_line_crossing`, warning).
   `crossing_kinds` records every kind met by an ordered item pair; a multi-kind pair
   counts in each applicable column. Extension-line crossings are normal drafting practice.
-  AP242 CTC-01 improves from 25 to 8 crossing warnings: **0 leader × leader**,
+  AP242 CTC-01 improves from 25 to 10 crossing warnings: **2 leader × leader**,
   **5 leader × dimension line**, **3 leader × extension line**, **0 leader × arrow shaft**
-  and **0 leaders through text**. CI's `quality-pins` job holds all six counts on the
+  and **0 leaders through text**. Its R5 callout retains main's above-part fallback and
+  reported radial violation when no compliant improving route fits. CI's `quality-pins` job holds all six counts on the
   30 quality parts and four AP242 CTC/FTC fixtures to their recorded per-part baseline:
   zero where zero today, never more. Re-record on new main after #141 if merging second;
   the single recording command is in `tools/check_leader_crossings.py`'s docstring.
