@@ -273,16 +273,35 @@ fn one_feature_problem_query_returns_all_member_fixes() {
         .iter()
         .filter(|p| !added.iter().any(|q| q["id"] == p["id"]))
         .collect();
-    // The new local pitch fix also clears both slot crossings. Other records can
-    // refresh their scoped alternatives without becoming new physical findings.
+    // The pitch fix clears both slot crossings and every queried member issue.
     assert_eq!(gone.len(), 6);
     for p in &problems {
         assert!(gone.iter().any(|resolved| resolved["id"] == p["id"]));
     }
+    // At the capped frame the optional detail still has no room. Its parent
+    // dimensions stay, and the edit reports both the warning and moved views.
+    let new: Vec<_> = added
+        .iter()
+        .filter(|p| !resolved.iter().any(|q| q["id"] == p["id"]))
+        .collect();
+    assert_eq!(new.len(), 1);
+    assert_eq!(new[0]["code"], "detail_unplaceable");
+    assert_eq!(new[0]["severity"], "warning");
+    assert_eq!(new[0]["refs"], json!(["v:detail_a"]));
     assert!(
-        added
+        new[0]["message"]
+            .as_str()
+            .unwrap()
+            .contains("dimensions remain on the parent")
+    );
+    assert_eq!(
+        delta["notices"]
+            .as_array()
+            .unwrap()
             .iter()
-            .all(|p| resolved.iter().any(|q| q["id"] == p["id"]))
+            .map(|p| p["code"].as_str().unwrap())
+            .collect::<Vec<_>>(),
+        ["layout_replanned"]
     );
 }
 
