@@ -421,6 +421,9 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
                 capacity.sheets.get_or_insert_with(Default::default).max = Some(9);
                 let capacity_key = serde_json::to_vec(&(
                     capacity,
+                    // Retained session preparation must not carry a larger
+                    // permission into an edit that lowers the author's limit.
+                    spec.sheets.as_ref().and_then(|s| s.max),
                     crate::planning::nominals_deferred(),
                     crate::planning::policy_key(analysis),
                     crate::planning::is_fixed_pair(),
@@ -1314,6 +1317,27 @@ mod tests {
             assert_eq!(p.sheet.size, "A4");
             assert!(p.sheets.len() < max as usize);
             assert!(!p.sheet_candidates.is_empty());
+        }
+    }
+
+    #[test]
+    fn retained_candidates_respect_a_lowered_sheet_limit() {
+        let Some(a) = corpus("gramel/string_post.step") else {
+            return;
+        };
+        let mut spec = inspection_spec("A4");
+        spec.sheets.as_mut().unwrap().max = Some(3);
+        crate::planning::with_retained(&a, || model::plan_recovered(&a, &spec)).unwrap();
+        for max in [2, 1] {
+            spec.sheets.as_mut().unwrap().max = Some(max);
+            let warm =
+                crate::planning::with_retained(&a, || model::plan_recovered(&a, &spec)).unwrap();
+            let cold = crate::planning::isolated(&a, || model::plan_recovered(&a, &spec)).unwrap();
+            assert!(warm.sheets.len() < max as usize);
+            assert_eq!(
+                serde_json::to_value(warm).unwrap(),
+                serde_json::to_value(cold).unwrap()
+            );
         }
     }
 
