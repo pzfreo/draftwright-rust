@@ -747,10 +747,19 @@ fn pinned(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
 }
 
 fn only_bare_pins(spec: &Spec, base: &Spec, canonical: &Plan) -> bool {
-    if !crate::placement_intent::automatic_pins_only(spec) {
+    let mut unpinned = spec.clone();
+    for (id, dimension) in &mut unpinned.dimensions {
+        if let Some(place) = &mut dimension.place
+            && place.offset.is_some_and(|offset| {
+                crate::placement_intent::automatic_offset(canonical, id, offset)
+            })
+        {
+            place.offset = None;
+        }
+    }
+    if !crate::placement_intent::automatic_pins_only(&unpinned) {
         return false;
     }
-    let mut unpinned = spec.clone();
     for (id, dimension) in &mut unpinned.dimensions {
         if let Some(view) = dimension.place.as_ref().and_then(|p| p.view.as_deref()) {
             // A matching carrier is an anchor hint. A different or invalid
@@ -909,7 +918,7 @@ mod tests {
         let dimension = canonical
             .dimensions
             .iter()
-            .find(|d| d.placed.is_some())
+            .find(|d| d.placed.is_some() && d.kind == "linear")
             .unwrap();
         let id = &dimension.id;
         let mut spec: Spec = serde_json::from_value(json!({
@@ -918,6 +927,29 @@ mod tests {
         .unwrap();
         let base = model::pin_base(&spec);
         assert!(only_bare_pins(&spec, &base, &canonical));
+        spec.dimensions
+            .get_mut(id)
+            .unwrap()
+            .place
+            .as_mut()
+            .unwrap()
+            .offset = Some([0., 0.]);
+        assert!(only_bare_pins(&spec, &base, &canonical));
+        spec.dimensions
+            .get_mut(id)
+            .unwrap()
+            .place
+            .as_mut()
+            .unwrap()
+            .offset = Some([1., 0.]);
+        assert!(!only_bare_pins(&spec, &base, &canonical));
+        spec.dimensions
+            .get_mut(id)
+            .unwrap()
+            .place
+            .as_mut()
+            .unwrap()
+            .offset = None;
         spec.dimensions
             .get_mut(id)
             .unwrap()
