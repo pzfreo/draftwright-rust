@@ -515,9 +515,12 @@ fn wrapped_counterbores_keep_the_existing_short_leader_budget() {
             .iter()
             .map(|s| (s[1][0] - s[0][0]).hypot(s[1][1] - s[0][1]))
             .sum();
-        let before = baseline["parts"]["nist_ftc_06_asme1_rd"][id]["length"]
-            .as_f64()
-            .unwrap();
+        // This explicit A1 mechanism test keeps its measured full-paper budget;
+        // the default-printer record now describes the capped A3 drawing.
+        let before =
+            baseline["paper_references"]["A1"]["parts"]["nist_ftc_06_asme1_rd"][id]["length"]
+                .as_f64()
+                .unwrap();
         assert!(length <= before + 2.0 + 1e-6, "{id}: {before} -> {length}");
     }
     assert!(

@@ -6,6 +6,9 @@ line within 0.2 mm, and its elbow or padded label may not come within 1 mm of th
 
 Record origin/main with --record, then compare any quality.py output directory.
 The fixture records the original routes on all thirty quality parts.
+An explicit-paper mechanism test can retain its published budgets with
+--record-paper, --record-part and --baseline. The recorder checks the current
+measurement before storing both budgets and measurements separately.
 Compare common IDs; inventory and information coverage are checked by the Rust tests.
 Unchanged pre-existing runs are reported; moving a callout may not retain one.
 Dashes are judged by their underlying stroke; curves use 0.002 mm chord error.
@@ -274,16 +277,46 @@ def main():
     p.add_argument('--record', type=Path)
     p.add_argument('--record-part', action='append', default=[],
                    help='Update only these reviewed parts in the existing record')
+    p.add_argument('--record-paper', choices=['A4', 'A3', 'A2', 'A1', 'A0'],
+                   help='Retain and validate --baseline budgets as an explicit-paper reference')
+    p.add_argument('--base-ref', default='HEAD', help='Source revision when recording')
     p.add_argument('--require-improvement', action='store_true')
     p.add_argument('--report', type=Path)
     args = p.parse_args()
+    if args.record_paper and (not args.record or not args.record_part):
+        p.error('--record-paper requires --record and --record-part')
     result = collect(args.drawings)
     contacts = {name: quality.leader_on_extension(json.loads(
         (args.drawings / (name+'.plan.json')).read_text())) for name in result}
     if args.record:
-        if args.record_part:
+        if args.record_paper:
             record = json.loads(args.record.read_text())
-            revision = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
+            source = json.loads(args.baseline.read_text())
+            reference = record.setdefault('paper_references', {}).setdefault(
+                args.record_paper, dict(parts={}, contacts={}, sheet_choices={}))
+            reference.setdefault('measurements', {})
+            reference['budget_base'] = source.get('base')
+            reference['base'] = subprocess.check_output(
+                ['git', 'rev-parse', args.base_ref], cwd=ROOT, text=True).strip()
+            for part in args.record_part:
+                if part not in result or part not in record['parts']:
+                    p.error(f'unknown recorded part: {part}')
+                plan = json.loads((args.drawings / (part+'.plan.json')).read_text())
+                if plan['sheet']['size'] != args.record_paper:
+                    p.error(f'{part}: drawing is not on {args.record_paper}')
+                if set(source['parts'][part]) != set(result[part]):
+                    p.error(f'{part}: explicit-paper reference must retain the same callouts')
+                failures = check({part: source['parts'][part]}, {part: result[part]})
+                if failures:
+                    p.error('; '.join(failures))
+                reference['parts'][part] = source['parts'][part]
+                reference['measurements'][part] = result[part]
+                reference['contacts'][part] = contacts[part]
+                reference['sheet_choices'][part] = [plan['sheet']['size'],
+                    plan['sheet']['scale'], 1 + len(plan.get('sheets', []))]
+        elif args.record_part:
+            record = json.loads(args.record.read_text())
+            revision = subprocess.check_output(['git', 'rev-parse', args.base_ref], cwd=ROOT, text=True).strip()
             for part in args.record_part:
                 if part not in result or part not in record['parts']:
                     p.error(f'unknown recorded part: {part}')
@@ -291,7 +324,9 @@ def main():
                 record['contacts'][part] = contacts[part]
                 record.setdefault('updated_parts', {})[part] = revision
         else:
-            record = dict(base='0419fa6c1ebc81226cb577639276ea45eb9df3a1', parts=result, contacts=contacts)
+            revision = subprocess.check_output(
+                ['git', 'rev-parse', args.base_ref], cwd=ROOT, text=True).strip()
+            record = dict(base=revision, parts=result, contacts=contacts)
         args.record.write_text(json.dumps(record, indent=2, sort_keys=True)+'\n')
         return 0
     baseline = json.loads(args.baseline.read_text())
