@@ -502,6 +502,54 @@ impl Proof {
             })
     }
 
+    /// The attachment collar may forgive its nearest source chord only. A
+    /// different view edge crossed close to the tip is still a crossing.
+    fn attachment_clear(&self, v: &PlannedView, p: &Placed) -> bool {
+        let tip = self.model_point(v, p.lines[0][0]);
+        let tolerance = 0.05 / v.scale + SLACK;
+        let near = padded([tip[0], tip[1], tip[0], tip[1]], tolerance);
+        let closest = self
+            .grid
+            .near(near)
+            .filter(|&i| i < self.depths.len())
+            .map(|i| distance(tip, self.segments[i]))
+            .fold(f64::INFINITY, f64::min);
+        let eps = 1e-8 / v.scale;
+        let clear = |line: [P2; 2]| {
+            let s = line.map(|p| self.model_point(v, p));
+            self.grid.near(padded(bounds_of(s), eps)).all(|i| {
+                (i < self.depths.len() && distance(tip, self.segments[i]) <= closest + eps)
+                    || segment_distance(s, self.segments[i]) > eps
+            }) && self.boxes.iter().all(|b| !near_box(s, *b, eps))
+        };
+        clear(p.lines[0])
+            && p.arrows
+                .iter()
+                .flat_map(|a| super::leaders::head(*a))
+                .all(clear)
+    }
+
+    /// A leader-attached frame may keep a proven point within a face. Feature
+    /// size/radius callouts still require their physical rim attachment.
+    pub(super) fn leader_clear(&self, v: &PlannedView, p: &Placed, edge_required: bool) -> bool {
+        if edge_required {
+            return self.annotation_clear(v, p, true) && self.attachment_clear(v, p);
+        }
+        let Some([tip, elbow]) = p.lines.first().copied() else {
+            return false;
+        };
+        let on_edge = self.touches(v, tip);
+        self.blank(v, p.label_box)
+            && (!on_edge || self.attachment_clear(v, p))
+            && (on_edge || self.blank(v, [tip[0], tip[1], tip[0], tip[1]]))
+            && self.blank(v, [elbow[0], elbow[1], elbow[0], elbow[1]])
+            && p.lines
+                .iter()
+                .enumerate()
+                .all(|(i, s)| self.segment_clear(v, *s, on_edge && i == 0))
+            && p.arrows.iter().all(|s| self.arrow_clear(v, *s, on_edge))
+    }
+
     /// A bounded notch may carry its angle in the open recess within the view's
     /// rectangular envelope. Prove the whole label outside every projected face,
     /// with the same ink margins as face-interior labels. Curved faces use their
@@ -1173,6 +1221,46 @@ mod tests {
     }
 
     #[test]
+    fn a_neighbouring_edge_is_not_forgiven_by_the_attachment_collar() {
+        let p = Placed {
+            lines: vec![[[0., 0.], [15., 0.]], [[15., 0.], [18., 0.]]],
+            arrows: vec![arrow([0., 0.], [15., 0.])],
+            label_at: [19., -1.1],
+            label_box: [19., -1.1, 29., 1.2],
+            rotation: 0.,
+        };
+        let blank = proof(&ink(vec![vec![[0., -10.], [0., 10.]]]));
+        assert!(blank.leader_clear(&view(), &p, true));
+        let blocked = proof(&ink(vec![
+            vec![[0., -10.], [0., 10.]],
+            vec![[0.3, -10.], [0.3, 10.]],
+        ]));
+        assert!(!blocked.leader_clear(&view(), &p, true));
+    }
+
+    #[test]
+    fn a_frame_keeps_its_face_site_and_never_crosses_an_edge() {
+        let p = Placed {
+            lines: vec![[[0., 0.], [15., 10.]], [[15., 10.], [18., 10.]]],
+            arrows: vec![arrow([0., 0.], [15., 10.])],
+            label_at: [19., 8.8],
+            label_box: [19., 8.8, 29., 11.2],
+            rotation: 0.,
+        };
+        let blank = proof(&ink(vec![]));
+        assert!(blank.leader_clear(&view(), &p, false));
+        assert!(
+            !blank.leader_clear(&view(), &p, true),
+            "a size callout needs a rim"
+        );
+        let blocked = proof(&ink(vec![vec![[8., -40.], [8., 40.]]]));
+        assert!(
+            !blocked.leader_clear(&view(), &p, false),
+            "the frame shaft crosses view ink"
+        );
+    }
+
+    #[test]
     fn a_turned_part_proves_exterior_paper_without_a_planar_interior() {
         let mut ink = EdgeInk {
             resolved: Vec::new(),
@@ -1451,6 +1539,153 @@ mod tests {
         assert_eq!(p.arrows.len(), 2);
         assert!(page.fits_interior(p, "plan"));
         assert!(proofs(&a, &views)["v:plan"].annotation_clear(&views[0], p, false));
+    }
+
+    #[test]
+    fn final_sweep_chooses_blank_face_when_every_exterior_route_crosses() {
+        let file = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/parts/mounting_plate.step");
+        let mut a = crate::model::analyse_native(&file).unwrap().1;
+        let sheet = crate::model::plan(&a, &Spec::default()).unwrap().sheet;
+        a.envelope = [[-50., -50., -1.], [50., 50., 1.]];
+        a.features.clear();
+        a.principal_profiles.clear();
+        a.edge_ink = Some(ink(vec![vec![[0., -5.], [0., 5.]]]));
+        let mut v = view();
+        v.at = [150., 150.];
+        v.area = [70., 70., 230., 230.];
+        let d: PlannedDimension = serde_json::from_value(serde_json::json!({
+            "id":"d:test", "kind":"callout", "view":"v:plan", "value":6.,
+            "label":"M6", "terms":["M6"], "measurements":[], "default":true,
+            "basis":"test", "state":{"kind":"shown"},
+            "placed": {"lines":[[[150.,150.],[90.,145.]],[[90.,145.],[87.,145.]]],
+                "arrows":[[[150.,150.],[147.,149.75]]], "label_at":[80.,143.],
+                "label_box":[80.,143.,86.,146.], "rotation":0.}
+        }))
+        .unwrap();
+        let mut blocker = d.clone();
+        blocker.id = "barrier".into();
+        let p = blocker.placed.as_mut().unwrap();
+        let square = [[100., 100.], [200., 100.], [200., 200.], [100., 200.]];
+        p.lines = (0..4)
+            .map(|i| {
+                let a = square[i];
+                let b = square[(i + 1) % 4];
+                let u = [(b[0] - a[0]) / 100., (b[1] - a[1]) / 100.];
+                [[a[0] - u[0], a[1] - u[1]], [b[0] + u[0], b[1] + u[1]]]
+            })
+            .collect();
+        p.arrows.clear();
+        p.label_box = [220., 220., 225., 223.];
+        let views = [v];
+        let proofs = proofs(&a, &views);
+        let routes = super::super::leaders::settled_routes(
+            &a,
+            &sheet,
+            &views,
+            &d,
+            None,
+            &[blocker],
+            Some(&proofs["v:plan"]),
+        );
+        assert!(!routes.is_empty());
+        let next = &routes[0];
+        assert!(proofs["v:plan"].annotation_clear(&views[0], next, true));
+        assert!(
+            next.lines
+                .iter()
+                .map(|[a, b]| (a[0] - b[0]).hypot(a[1] - b[1]))
+                .sum::<f64>()
+                < 40.
+        );
+        assert_eq!(next.rotation, 0.);
+    }
+
+    #[test]
+    fn an_inward_hole_leader_keeps_its_tip_on_the_rim_over_a_proven_floor() {
+        let file = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/parts/mounting_plate.step");
+        let mut a = crate::model::analyse_native(&file).unwrap().1;
+        let sheet = crate::model::plan(&a, &Spec::default()).unwrap().sheet;
+        a.envelope = [[-50., -50., -2.], [50., 50., 0.]];
+        a.features.clear();
+        a.principal_profiles.clear();
+        let circle: Vec<P2> = (0..=128)
+            .map(|i| {
+                let t = std::f64::consts::TAU * i as f64 / 128.;
+                [30. * t.cos(), 30. * t.sin()]
+            })
+            .collect();
+        let mut drawing_ink = ink(vec![circle.clone()]);
+        drawing_ink.planes[0].edges.push(4);
+        drawing_ink
+            .edges
+            .push(circle.iter().map(|p| [p[0], p[1], -1.]).collect());
+        drawing_ink.planes.push(PlanarFace {
+            normal: [0., 0., 1.],
+            edges: vec![5],
+        });
+        a.edge_ink = Some(drawing_ink);
+        let mut v = view();
+        v.at = [150., 150.];
+        v.area = [70., 70., 230., 230.];
+        let views = [v];
+        let d: PlannedDimension = serde_json::from_value(serde_json::json!({
+            "id":"d:test/bore.diameter", "kind":"callout", "view":"v:plan", "value":60.,
+            "label":"⌀60", "terms":["⌀60"], "measurements":[{"feature":"test","parameter":"bore.diameter","value":60.}],
+            "default":true, "basis":"test", "state":{"kind":"shown"},
+            "placed":{"lines":[[[180.,150.],[210.,150.]],[[210.,150.],[213.,150.]]],
+                "arrows":[[[180.,150.],[182.7,150.]]], "label_at":[214.,149.],
+                "label_box":[214.,149.,221.,152.], "rotation":0.}
+        })).unwrap();
+        let w = Want {
+            id: d.id.clone(),
+            views: vec!["plan"],
+            value: 60.,
+            terms: d.terms.clone(),
+            measurements: d.measurements.clone(),
+            basis: "test".into(),
+            turning: None,
+            shape: Shape::Callout {
+                sites: vec![([0., 0., 0.], 30.)],
+                arcs: Vec::new(),
+            },
+        };
+        let mut barrier = d.clone();
+        barrier.id = "barrier".into();
+        barrier.kind = "ink".into();
+        let p = barrier.placed.as_mut().unwrap();
+        p.lines = (0..128)
+            .map(|i| {
+                let q = |i: usize| {
+                    let t = std::f64::consts::TAU * i as f64 / 128.;
+                    [150. + 31. * t.cos(), 150. + 31. * t.sin()]
+                };
+                let a = q(i);
+                let b = q(i + 1);
+                let e = [0.05 * (b[0] - a[0]), 0.05 * (b[1] - a[1])];
+                [[a[0] - e[0], a[1] - e[1]], [b[0] + e[0], b[1] + e[1]]]
+            })
+            .collect();
+        p.arrows.clear();
+        p.label_box = [240., 240., 245., 243.];
+        let proofs = proofs(&a, &views);
+        let routes = super::super::leaders::settled_routes(
+            &a,
+            &sheet,
+            &views,
+            &d,
+            Some(&w),
+            &[barrier],
+            Some(&proofs["v:plan"]),
+        );
+        assert!(!routes.is_empty(), "the hole floor has room for the label");
+        let p = &routes[0];
+        let [tip, elbow] = p.lines[0];
+        assert!(((tip[0] - 150.).hypot(tip[1] - 150.) - 30.).abs() < 1e-6);
+        assert!((tip[0] - 150.) * (elbow[0] - tip[0]) + (tip[1] - 150.) * (elbow[1] - tip[1]) < 0.);
+        assert!(proofs["v:plan"].annotation_clear(&views[0], p, true));
+        assert_eq!(p.rotation, 0.);
     }
 
     #[test]

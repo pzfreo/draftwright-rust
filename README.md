@@ -168,9 +168,17 @@ includes the summary. See [finding impact](docs/finding-impact.md) for all codes
 - **Revisions:** a spec made for another revision of the part keeps its sheet, view and
   envelope choices, but its feature entries stay inactive until revision rebinding (ADR R3) is
   implemented.
-- **Callouts inside a view:** draftwright puts some callouts over blank face inside the view;
-  the port places every annotation outside the views (it has no view line-work to test against,
-  ADR R1), so some leader crossings draftwright avoids that way remain (below).
+- **Callouts inside a view:** hole, radius, chamfer, thread and other shared feature callouts
+  can retry over proven blank face in their own view. Whole 3 mm horizontal labels, shoulders
+  and short leaders clear projected visible/hidden edges, centre marks and other annotations.
+  Diameter and thread leaders may approach a rim from inside a proven face, including a
+  blind-hole floor. The shared search also covers boss, seat and turned diameters, flats,
+  slots, pockets, grooves and polygonal-stock callouts where their existing feature sites
+  and projected faces prove a clear route.
+  The bounded final route search also serves leader-attached GD&T frames and AP242 surface
+  labels. Exterior routes win equal costs; already clear drawings stay unchanged.
+  Datum triangles retain their face attachment and frames retry only along its existing normal.
+  Missing edge evidence, section views and uncertain curved regions cannot prove interior paper.
 - **The rules catalogue** (`docs/rules/`) tracks what Python draftwright learnt; most of its
   rules are still pending.
 - DXF table head handles (ezdxf adds them on audit) are not written.
@@ -184,16 +192,20 @@ no view overlaps another or the title block, no annotation lies over a view and 
 line crosses one. What remains (282 ink problems, from 506 at the baseline) is reported on the
 plan, never hidden:
 
-- **Leader crossings, 4** (`annotation_leader_crossing`, warning), measured on the
+- **Leader crossings, 3** (`annotation_leader_crossing`, warning), measured on the
   30 quality parts against origin/main: **0 leader × leader, 1 leader × dimension line**
-  (10060), **3 leader × extension line** (ctc01 2, cgb245 1), **0 leader × arrow shaft**.
+  (10060), **2 leader × extension line** (ctc01 2), **0 leader × arrow shaft**.
   Also **0 leaders through text** (`annotation_ink_overlap` with `ink_is_leader: true`)
   and **0 dimension line × dimension line** (`dimension_line_crossing`, warning).
   `crossing_kinds` records every kind met by an ordered item pair; a multi-kind pair
   counts in each applicable column. Extension-line crossings are normal drafting practice.
-  CI's `quality-pins` job holds all six counts to their recorded per-part baseline:
-  zero where zero today, never more. Re-record on new main after #141 if merging second;
-  the single recording command is in `tools/check_leader_crossings.py`'s docstring.
+  AP242 CTC-01 improves from 25 to 10 crossing warnings: **2 leader × leader**,
+  **5 leader × dimension line**, **3 leader × extension line**, **0 leader × arrow shaft**
+  and **0 leaders through text**. Its R5 callout retains main's above-part fallback and
+  reported radial violation when no compliant improving route fits. CI's `quality-pins` job
+  holds all six counts on the 30 quality parts and four AP242 CTC/FTC fixtures to their
+  recorded per-part baseline from merged origin/main: zero where zero today, never more.
+  The recording command is in `tools/check_leader_crossings.py`'s docstring.
 - **Ink past a view's area, 155** (`annotation_outside_area`, info). Rust-wrong as to the
   reservation, harmless on the page: lanes above and left of the plan and below the front run
   past the bands draftwright's estimate gives them, onto open paper, crossing nothing; reserving
