@@ -4140,7 +4140,11 @@ fn plan_with_presentation(
         // including precision repairs, even in its first unexpanded candidate.
         let replay = |base: &Spec| {
             if complete_views || crate::planning::nominals_deferred() {
-                plan_automatic(analysis, base)
+                let mut finished = plan_automatic(analysis, base)?;
+                // A bare pin holds the published route, including final-inventory
+                // interior/GD&T repair, rather than an intermediate paper trial.
+                crate::dims::callout_routes::finish(analysis, base, &mut finished);
+                Ok(finished)
             } else {
                 plan(analysis, base)
             }

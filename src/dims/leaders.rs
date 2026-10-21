@@ -6062,10 +6062,19 @@ pub fn clear_routes(
         .map(|(i, _)| dims.len() + i)
         .collect();
     let tip = p.lines.first()?[0];
+    let radius = views
+        .iter()
+        .find(|v| v.id == d.view)
+        .and_then(|v| radius_route_evidence(analysis, d, v));
     Some(
         sweep(&job, tip)
             .into_iter()
             .chain(inward_rays(&job, tip))
+            .filter(|(tip, elbow, _)| {
+                radius
+                    .as_ref()
+                    .is_none_or(|arcs| arcs.iter().any(|arc| arc.accepts([*tip, *elbow])))
+            })
             .filter_map(|(tip, elbow, right)| {
                 let mut c = measure_bounds(&job, tip, elbow, right, &page)?;
                 let interior = boxes_overlap(c.label_box, job.outline);
@@ -6685,6 +6694,38 @@ fn interior_routes(job: &Job, tip: P2, page: &Page) -> Vec<Candidate> {
         .collect()
 }
 
+/// None for other callouts; an empty inventory refuses to guess an unreadable
+/// radius. Match drawn lint's fillet-before-blend ownership and geometric rule.
+fn radius_route_evidence(
+    analysis: &crate::model::Analysis,
+    d: &PlannedDimension,
+    view: &crate::model::PlannedView,
+) -> Option<Vec<crate::radius::Projected>> {
+    let parameter = if d
+        .measurements
+        .iter()
+        .any(|m| m.parameter == "fillet.radius")
+    {
+        "fillet.radius"
+    } else if d.measurements.iter().any(|m| m.parameter == "blend.radius") {
+        "blend.radius"
+    } else {
+        return None;
+    };
+    let frame = Frame::new(analysis, view);
+    Some(
+        d.measurements
+            .iter()
+            .filter(|m| m.parameter == parameter)
+            .filter_map(|m| {
+                crate::radius::projected(analysis, &m.feature, view.direction, |p| frame.page(p))
+                    .ok()
+            })
+            .flatten()
+            .collect(),
+    )
+}
+
 /// Final repair over the clear-route sweep, with no-regression budgets.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn settled_routes(
@@ -6786,6 +6827,14 @@ pub(super) fn settled_routes(
         .filter(|c| !boxes_overlap(c.label_box, job.outline) && c.hard == 0)
         .collect();
     candidates.extend(interior_routes(&job, shaft[0], &page));
+    // Radius evidence is independent of the old router's sites. A cheaper or
+    // crossing-free route may not violate the shared #153 drawing rule.
+    let radius = radius_route_evidence(analysis, d, v);
+    candidates.retain(|c| {
+        radius
+            .as_ref()
+            .is_none_or(|arcs| arcs.iter().any(|arc| arc.accepts([c.tip, c.elbow])))
+    });
     let old_extensions = fixed.extension_index.contacts(&old.lines, old.label_box);
     let resolved = analysis.edge_ink.as_ref().and_then(|ink| {
         let key = serde_json::to_vec(v).expect("view serializes");
@@ -6984,6 +7033,55 @@ mod tests {
         assert_eq!(moved.label_at, old.label_at);
         assert_eq!(moved.label_box, old.label_box);
         assert_eq!(moved.rotation, old.rotation);
+    }
+
+    #[test]
+    fn final_radius_alternatives_obey_the_drawn_arc_rule() {
+        let file = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/pmi/step/nist_ctc_01_asme1_ap242-e1.stp.gz");
+        let analysis = crate::model::analyse_native(&file).unwrap().1;
+        let plan = crate::model::plan(&analysis, &crate::model::Spec::default()).unwrap();
+        let d = plan
+            .dimensions
+            .iter()
+            .find(|d| d.id == "d:f:blend:23/blend.radius")
+            .unwrap();
+        let view = plan.views.iter().find(|v| v.id == d.view).unwrap();
+        let mut wants = super::super::wants(&analysis).0;
+        let frames = plan
+            .views
+            .iter()
+            .filter_map(|v| {
+                let name = v.id.strip_prefix("v:")?;
+                super::super::NAMES
+                    .contains(&name)
+                    .then(|| (name, Frame::new(&analysis, v)))
+            })
+            .collect();
+        super::super::route(&mut wants, &frames, &analysis);
+        let want = wants.iter().find(|w| w.id == d.id).unwrap();
+        let proof = super::super::interior::proofs(&analysis, &plan.views);
+        let arcs = radius_route_evidence(&analysis, d, view).unwrap();
+        assert!(
+            !arcs.is_empty(),
+            "the fixture proves its trimmed radius arcs"
+        );
+        let alternatives = settled_routes(
+            &analysis,
+            &plan.sheet,
+            &plan.views,
+            d,
+            Some(want),
+            &[],
+            proof.get(&view.id).map(|p| p.as_ref()),
+        );
+        for p in alternatives {
+            assert!(
+                arcs.iter().any(|a| a.accepts(p.lines[0])),
+                "a final route must not approach through the base plate: {:?}",
+                p.lines[0]
+            );
+        }
     }
 
     #[test]
