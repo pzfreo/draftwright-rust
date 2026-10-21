@@ -3587,6 +3587,7 @@ fn plan_automatic_uncached(analysis: &Analysis, spec: &Spec) -> Result<Plan, Inv
             }
         }
     }
+    crate::dims::restore_proven_arc_tips(analysis, spec, &mut plan);
     // PMI completeness belongs to the selected drawing. Attach its remedies once,
     // after that audit in plan_recovered_inner, rather than hashing and enriching
     // every automatic candidate and then repeating the work on the public plan.

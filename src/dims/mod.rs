@@ -77,7 +77,7 @@ pub(crate) use pmi_dimensions::basic as is_basic;
 mod leaders;
 pub(crate) use label_lanes::{in_lane, settle_inventory};
 pub(crate) use leaders::{default_nominal_intent, sheet_route_limits};
-pub(crate) use leaders::{settle_after_furniture, settle_radius_leaders};
+pub(crate) use leaders::{restore_proven_arc_tips, settle_after_furniture, settle_radius_leaders};
 pub(crate) use placement::collisions_cached as label_collisions;
 pub(crate) use placement::nearest_shared_witnesses;
 pub(crate) mod levels;
@@ -2929,6 +2929,15 @@ fn plan_inventory_ordered(
                 .any(|m| matches!(m.parameter.as_str(), "fillet.radius" | "blend.radius"))
     });
     let mut incumbents = vec![false; all.len()];
+    let nominal_context = leaders::nominal_context(analysis, spec, &all);
+    let nominal_seeded = if matches!(stage, 0 | 3)
+        && (recess_context || nominal_context)
+        && intended.iter().all(Option::is_none)
+    {
+        leaders::seed_established(analysis, spec, views, &all, &chosen, &mut placed, &page)
+    } else {
+        false
+    };
     for (i, w) in all.iter().enumerate() {
         if radius_incumbents
             && !crate::nominal::comparison()
@@ -2951,15 +2960,6 @@ fn plan_inventory_ordered(
             incumbents[i] = true;
         }
     }
-    let nominal_context = leaders::nominal_context(analysis, spec, &all);
-    let nominal_seeded = if matches!(stage, 0 | 3)
-        && (recess_context || nominal_context)
-        && intended.iter().all(Option::is_none)
-    {
-        leaders::seed_established(analysis, spec, views, &all, &chosen, &mut placed, &page)
-    } else {
-        false
-    };
     if (recess_context
         || nominal_seeded
         || spec
@@ -3061,7 +3061,8 @@ fn plan_inventory_ordered(
     }
     let mut prior = callout_views.clone();
     for (i, w) in all.iter().enumerate() {
-        if w.measurements.iter().any(|m| m.parameter == "blend.radius")
+        if incumbents[i]
+            || w.measurements.iter().any(|m| m.parameter == "blend.radius")
             || matches!(w.shape, Shape::Callout { .. })
                 && w.measurements.iter().any(|m| {
                     m.feature.starts_with("f:section_recess:")

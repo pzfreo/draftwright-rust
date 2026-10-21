@@ -1246,7 +1246,7 @@ fn place_with_obstacles_uncached(
             }) else {
                 continue;
             };
-            let Some(p) = nominal_route(analysis, reference, old, views, w) else {
+            let Some(p) = nominal_route(reference, old, views, w) else {
                 continue;
             };
             if p.lines.len() != 2 {
@@ -1851,20 +1851,7 @@ pub(crate) fn settle_after_furniture(
             let [old_tip, old_elbow] = p.lines[0];
             let factor = v.scale / old_view.scale;
             let map = |q: P2| [0, 1].map(|k| v.at[k] + factor * (q[k] - old_view.at[k]));
-            let mapped_tip = map(old_tip);
-            let tip = if !crate::nominal::comparison()
-                && w.measurements
-                    .iter()
-                    .any(|m| m.parameter == "slot_end_radius.radius")
-            {
-                rounded_rim_tip(
-                    &job.sites,
-                    mapped_tip,
-                    frame.scale() * crate::model::projected_ink::GRID,
-                )
-            } else {
-                mapped_tip
-            };
+            let tip = map(old_tip);
             let mapped_elbow = map(old_elbow);
             let delta = [mapped_elbow[0] - tip[0], mapped_elbow[1] - tip[1]];
             let norm = delta[0].hypot(delta[1]);
@@ -2813,9 +2800,9 @@ pub(super) fn seed_established(
             continue;
         }
         let p = if is_nominal {
-            nominal_route(analysis, &reference, d, views, w)
+            nominal_route(&reference, d, views, w)
         } else {
-            translated(analysis, &reference, d, views, w)
+            translated(&reference, d, views, w)
         };
         let Some(p) = p else {
             continue;
@@ -2846,7 +2833,6 @@ pub(super) fn seed_established(
 }
 
 fn translated(
-    analysis: &crate::model::Analysis,
     reference: &crate::model::Plan,
     d: &PlannedDimension,
     views: &[crate::model::PlannedView],
@@ -2870,12 +2856,10 @@ fn translated(
         p.label_box[k] += shift;
         p.label_box[k + 2] += shift;
     }
-    reattach_copied_arc(analysis, now, w, &mut p);
     Some(p)
 }
 
 fn nominal_route(
-    analysis: &crate::model::Analysis,
     before: &crate::model::Plan,
     d: &PlannedDimension,
     views: &[crate::model::PlannedView],
@@ -2908,37 +2892,7 @@ fn nominal_route(
         p.label_box[k] += shift;
         p.label_box[k + 2] += shift;
     }
-    reattach_copied_arc(analysis, now, w, &mut p);
     Some(p)
-}
-
-fn reattach_copied_arc(
-    analysis: &crate::model::Analysis,
-    now: &crate::model::PlannedView,
-    w: &Want,
-    p: &mut Placed,
-) {
-    // Compact comparison routes store model-grid attachment points. A copy
-    // onto the live sheet must still terminate on its proven circular rim.
-    // Correct only that rounding, preserving the tip's angular station, the
-    // elbow and the complete label. Ordinary candidates measure this ink as
-    // usual; the comparison's published corridor remains unchanged.
-    if !crate::nominal::comparison()
-        && w.measurements
-            .iter()
-            .any(|m| m.parameter == "slot_end_radius.radius")
-        && let Shape::Callout { sites, arcs } = &w.shape
-    {
-        let frame = Frame::new(analysis, now);
-        let sites = page_sites(&frame, sites, arcs);
-        let tip = p.lines[0][0];
-        p.lines[0][0] = rounded_rim_tip(
-            &sites,
-            tip,
-            frame.scale() * crate::model::projected_ink::GRID,
-        );
-        p.arrows[0] = arrow(p.lines[0][0], p.lines[0][1]);
-    }
 }
 
 // Exact refinement rank, movement and immutable route geometry.
@@ -3143,7 +3097,7 @@ fn refine_uncached(
     };
     let changed_from_established = |i: usize, p: &Placed| {
         legacy(i)
-            .and_then(|d| translated(analysis, reference.as_ref()?, d, views, &items[i]))
+            .and_then(|d| translated(reference.as_ref()?, d, views, &items[i]))
             .is_some_and(|old| {
                 old.lines.len() == p.lines.len()
                     && old.lines.iter().zip(&p.lines).any(|(a, b)| {
@@ -3164,7 +3118,7 @@ fn refine_uncached(
     // established recipe before deciding whether refinement is necessary.
     let added_material_crossing = |i: usize, p: &Placed| {
         legacy(i)
-            .and_then(|d| translated(analysis, reference.as_ref()?, d, views, &items[i]))
+            .and_then(|d| translated(reference.as_ref()?, d, views, &items[i]))
             .zip(views_of[i].and_then(|view| repair_models.get(view)))
             .is_some_and(|(old, model)| model.as_ref().0.new_crossing(&p.lines, &old.lines))
     };
@@ -3347,7 +3301,7 @@ fn refine_uncached(
         // Include slides along that exact shaft, preserving its real attachment
         // and the normal material, length and witness gates.
         let established = legacy(i)
-            .and_then(|d| nominal_route(analysis, reference.as_ref()?, d, views, w))
+            .and_then(|d| nominal_route(reference.as_ref()?, d, views, w))
             .or_else(|| (edited_text && repair_text).then(|| old.clone()));
         let clear_new_text = repair_text
             && !w.measurements.is_empty()
@@ -5071,6 +5025,102 @@ fn rim_tip(site: Site, elbow: P2) -> P2 {
         return [c[0] + r * a.cos(), c[1] + r * a.sin()];
     }
     [c[0] + r * d[0] / n, c[1] + r * d[1] / n]
+}
+
+/// A transported compact route can end on the model grid rather than the
+/// native circular rim. Remove only that rounding before candidate audits.
+/// There is no route search, label movement or change to authored placements.
+pub(crate) fn restore_proven_arc_tips(
+    analysis: &crate::model::Analysis,
+    spec: &crate::model::Spec,
+    plan: &mut crate::model::Plan,
+) {
+    if crate::nominal::comparison() {
+        return;
+    }
+    let ids: Vec<_> = plan
+        .dimensions
+        .iter()
+        .filter(|d| {
+            d.placed.is_some()
+                && d.measurements
+                    .iter()
+                    .any(|m| m.parameter == "slot_end_radius.radius")
+                && spec.dimensions.get(&d.id).is_none_or(|d| d.place.is_none())
+        })
+        .map(|d| (d.id.clone(), d.view.clone()))
+        .collect();
+    if ids.is_empty() {
+        return;
+    }
+    // The live native evidence, also used by callout_offset, is independent
+    // of the compact comparison's temporary placement policies.
+    let corrections = crate::planning::isolated(analysis, || {
+        ids.iter()
+            .filter_map(|(id, view)| {
+                let dimension = plan.dimensions.iter().find(|d| d.id == *id)?;
+                let old = dimension.placed.as_ref()?.lines.first()?[0];
+                let scale = plan.views.iter().find(|v| v.id == *view)?.scale;
+                let sites: Vec<Site> = super::callout_members(analysis, spec, plan, id, view)
+                    .into_iter()
+                    .map(|m| {
+                        (
+                            m.centre,
+                            m.radius,
+                            m.span.map(|s| crate::arc::Span {
+                                start: s.start,
+                                sweep: s.sweep,
+                            }),
+                        )
+                    })
+                    .collect();
+                let tip = rounded_rim_tip(&sites, old, scale * crate::model::projected_ink::GRID);
+                (tip != old).then(|| (id.clone(), tip))
+            })
+            .collect::<Vec<_>>()
+    });
+    if corrections.is_empty() {
+        return;
+    }
+    let corrected: std::collections::BTreeSet<_> =
+        corrections.iter().map(|(id, _)| id.clone()).collect();
+    let affected = |p: &Problem| p.subjects.iter().any(|id| corrected.contains(id));
+    let before: Vec<_> = super::recheck(analysis, plan)
+        .into_iter()
+        .filter(&affected)
+        .collect();
+    for (id, tip) in corrections {
+        let d = plan
+            .dimensions
+            .iter_mut()
+            .find(|d| d.id == id)
+            .expect("corrected dimension");
+        let p = d.placed.as_mut().expect("corrected placement");
+        p.lines[0][0] = tip;
+        p.arrows[0] = arrow(tip, p.lines[0][1]);
+        let at = plan
+            .views
+            .iter()
+            .find(|v| v.id == d.view)
+            .expect("corrected carrier")
+            .at;
+        plan.callout_tips
+            .insert(id, (d.view.clone(), [tip[0] - at[0], tip[1] - at[1]]));
+    }
+    let after: Vec<_> = super::recheck(analysis, plan)
+        .into_iter()
+        .filter(&affected)
+        .collect();
+    let codes: std::collections::BTreeSet<_> = before
+        .into_iter()
+        .chain(after.iter().cloned())
+        .map(|p| p.code)
+        .collect();
+    plan.problems
+        .retain(|p| !(codes.contains(&p.code) && affected(p)));
+    plan.problems.extend(after);
+    plan.sheet.fill = crate::sheet_fit::fill(analysis, plan);
+    plan.status = crate::completeness::status(&plan.problems);
 }
 
 /// Remove model-grid rounding from a copied arc attachment without changing
