@@ -23,6 +23,7 @@ struct Active {
 thread_local! {
     static ACTIVE: RefCell<Option<Active>> = const { RefCell::new(None) };
     static FIXED_PAIR: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    static TRIAL_RADIUS_REFERENCE: RefCell<Option<(crate::model::Plan, [u8; 32])>> = const { RefCell::new(None) };
     static DEFER_NOMINALS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
@@ -54,6 +55,32 @@ pub(crate) fn fixed_pair<T>(run: impl FnOnce() -> T) -> T {
     }
     let _restore = Restore(FIXED_PAIR.replace(true));
     run()
+}
+
+/// A paper trial retains the author's unedited radius corridors. Rebuilding
+/// that reference with the trial's forced paper would choose different anchors.
+pub(crate) fn fixed_pair_with_radius_reference<T>(
+    reference: Option<&crate::model::Plan>,
+    run: impl FnOnce() -> T,
+) -> T {
+    struct Restore(Option<(crate::model::Plan, [u8; 32])>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            TRIAL_RADIUS_REFERENCE.with(|r| *r.borrow_mut() = self.0.take());
+        }
+    }
+    let reference = reference.map(|reference| {
+        let key: [u8; 32] =
+            Sha256::digest(serde_json::to_vec(reference).expect("radius reference serializes"))
+                .into();
+        (reference.clone(), key)
+    });
+    let _restore = Restore(TRIAL_RADIUS_REFERENCE.with(|r| r.replace(reference)));
+    fixed_pair(run)
+}
+
+pub(crate) fn trial_radius_reference() -> Option<crate::model::Plan> {
+    TRIAL_RADIUS_REFERENCE.with(|r| r.borrow().as_ref().map(|r| r.0.clone()))
 }
 
 pub(crate) fn is_fixed_pair() -> bool {
@@ -219,11 +246,12 @@ pub(crate) fn enabled(analysis: &Analysis) -> bool {
 }
 
 /// Placement policies held in the planning scope are inputs to exact result caches too.
-pub(crate) fn policy_key(analysis: &Analysis) -> (bool, bool, bool) {
+pub(crate) fn policy_key(analysis: &Analysis) -> (bool, bool, bool, Option<[u8; 32]>) {
     (
         lookup::<bool>(analysis, "canonical-circular-recipes", &[]).unwrap_or(false),
         lookup::<bool>(analysis, "established-route-policy", &[]).unwrap_or(false),
         crate::nominal::comparison(),
+        TRIAL_RADIUS_REFERENCE.with(|r| r.borrow().as_ref().map(|r| r.1)),
     )
 }
 

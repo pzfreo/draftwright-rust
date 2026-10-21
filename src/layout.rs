@@ -641,6 +641,8 @@ impl Principals {
 /// Everything about the drawing the layout reads, apart from scale, sheet and arrangement.
 #[derive(Clone, Debug, PartialEq)]
 pub struct Request {
+    /// Largest paper index for automatic page/scale choice.
+    pub max_page: Option<usize>,
     /// Internal automatic page/scale trials may compare arrangements.
     pub automatic_pair: bool,
     pub candidate_arrangement: Option<Arrangement>,
@@ -674,6 +676,7 @@ impl Request {
     /// The request for a part of this size with draftwright's defaults.
     pub fn new(size: [f64; 3], views: Principals, include_iso: bool) -> Self {
         Request {
+            max_page: None,
             automatic_pair: false,
             candidate_arrangement: None,
             size,
@@ -1517,11 +1520,28 @@ pub fn choose(
         let fallback = (!fit(s, p, preferred, true)).then_some(Fallback::Uncertain);
         return pick(s, p, preferred, fallback);
     }
-    let (candidates, packed): (Vec<(f64, [f64; 2])>, bool) = match (scale, page) {
+    let (mut candidates, packed): (Vec<(f64, [f64; 2])>, bool) = match (scale, page) {
         (None, Some(p)) => (SCALES.iter().map(|s| (*s, p)).collect(), true),
         (Some(s), None) => (PAGES.iter().map(|(_, w, h)| (s, [*w, *h])).collect(), true),
         _ => (LADDER.iter().map(|(s, n)| (*s, sheet(n))).collect(), false),
     };
+    if page.is_none()
+        && let Some(max) = req.max_page
+    {
+        candidates.retain(|(_, p)| p[0] <= PAGES[max].1 && p[1] <= PAGES[max].2);
+        if scale.is_none() && max < PAGES.len() - 1 {
+            // The old ladder's reduction tail belongs to A0. With a smaller
+            // maximum it belongs to that paper instead; removing it would jump
+            // straight from 1:5 (A3) or 1:1 (A4) to a microscopic computed scale.
+            let last_scale = candidates.last().expect("bounded ladder is nonempty").0;
+            candidates.extend(
+                SCALES
+                    .into_iter()
+                    .filter(|s| *s < last_scale && *s >= 0.0002)
+                    .map(|s| (s, [PAGES[max].1, PAGES[max].2])),
+            );
+        }
+    }
     if let Some(i) = candidates
         .iter()
         .position(|(s, p)| fit(*s, *p, preferred, packed))

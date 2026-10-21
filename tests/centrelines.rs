@@ -331,7 +331,19 @@ part_cases!(callouts_do_not_borrow_hole_centre_strokes;
 fn callouts_do_not_borrow_hole_centre_strokes(file: &str) {
     let Some(dir) = corpus::dir() else { return };
 
-    let (_, p, drawn) = drawing(&dir.join(file));
+    // Keep each historical paper while testing routing quality on complete ink.
+    let size = match file {
+        "nist/nist_ctc_02_asme1_rc.stp" => "A0",
+        "nist/nist_ctc_04_asme1_rd.stp"
+        | "nist/nist_ftc_06_asme1_rd.stp"
+        | "nist/nist_ftc_10_asme1_rb.stp" => "A1",
+        "nist/nist_ctc_05_asme1_rd.stp" => "A2",
+        "nist/nist_ftc_07_asme1_rd.stp" => "A3",
+        _ => unreachable!(),
+    };
+    let mut spec = Spec::default();
+    spec.sheet.size = Some(size.into());
+    let (_, p, drawn) = drawing_with(&dir.join(file), &spec);
     let contacts: Vec<_> = draftwright::lint::structural::check(&drawn)
         .into_iter()
         .filter(|i| {

@@ -45,6 +45,11 @@ fn r5_qualified_addresses_and_near_are_sheet_local() {
             .settable
             .contains_key("sheet/size")
     );
+    let options = s.options("sheet:2/sheet:2").unwrap();
+    assert!(options.settable.contains_key("sheet/preferred_max_size"));
+    assert!(options.settable.contains_key("sheet/preferred_max_sheets"));
+    assert!(!options.settable.contains_key("sheet/max_size"));
+    assert!(!options.settable.contains_key("sheet/preferred_printer"));
     let filter: ItemFilter =
         serde_json::from_value(json!({"near":"sheet:2/v:iso","radius":10000})).unwrap();
     let nearby = s.items(&filter);
@@ -279,7 +284,9 @@ fn r5_session_fragments_and_steps() {
         ["v:iso"]
     );
     let mut replay = s.state().clone();
-    assert_eq!(serde_json::to_value(s.stats()).unwrap()["sheet_steps"], 1);
+    // The baseline and the first usable smallest-first trial record two recovered
+    // runs for this explicitly assigned drawing. Replaying the prepared prefix costs none.
+    assert_eq!(s.stats().sheet_steps, 2);
     let before = s.stats();
     s.apply(&[Op::set("views/iso/sheet", json!(1))], false)
         .unwrap();
@@ -293,7 +300,7 @@ fn r5_session_fragments_and_steps() {
         serde_json::to_value(s.state()).unwrap()
     );
     // Preview prepared this exact single-sheet prefix; commit reuses the finished result.
-    assert_eq!(serde_json::to_value(s.stats()).unwrap()["sheet_steps"], 1);
+    assert_eq!(s.stats().sheet_steps, before.sheet_steps);
     s.undo().unwrap().apply_to(&mut replay).unwrap();
     let font = draftwright::text::Font::new(draftwright::api::MONO.to_vec()).unwrap();
     assert_eq!(

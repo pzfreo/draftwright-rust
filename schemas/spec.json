@@ -1077,13 +1077,29 @@
             }
           ]
         },
-        "preferred_printer": {
+        "preferred_max_sheets": {
+          "anyOf": [
+            {
+              "type": "integer",
+              "minimum": 1,
+              "description": "Preferred sheet count, default 2; sheets.max remains hard."
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "preferred_max_size": {
           "anyOf": [
             {
               "enum": [
                 "A4",
-                "A3"
-              ]
+                "A3",
+                "A2",
+                "A1",
+                "A0"
+              ],
+              "description": "Preferred largest paper, default A3. Try single sheets then preferred_max_sheets at this size, then larger paper; exceeding a preference is advisory. Explicit size or scale wins."
             },
             {
               "type": "null"

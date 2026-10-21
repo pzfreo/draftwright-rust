@@ -26,7 +26,7 @@ mod facts;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
-use draftwright::model::{self, Analysis, Plan, Spec};
+use draftwright::model::{self, Analysis, Plan};
 use serde::{Deserialize, Serialize};
 
 type P2 = [f64; 2];
@@ -283,7 +283,12 @@ fn callout_leaders_cross_nothing_unlisted() {
     let mut found: BTreeSet<(String, String, String)> = BTreeSet::new();
     let mut callouts = 0;
     for (name, analysis) in &parts {
-        let plan = model::plan(analysis, &Spec::default()).unwrap();
+        let plan = model::plan(
+            analysis,
+            &serde_json::from_value(serde_json::json!({"sheet":{"preferred_max_size":"A0"}}))
+                .unwrap(),
+        )
+        .unwrap();
         for (id, set) in crossings(&plan, analysis) {
             callouts += 1;
             for c in set {
@@ -388,7 +393,12 @@ fn callout_leaders_cross_nothing_unlisted() {
 fn a_leader_has_a_horizontal_shoulder_and_reads_outward() {
     let parts = parts();
     for (name, analysis) in &parts {
-        let plan = model::plan(analysis, &Spec::default()).unwrap();
+        let plan = model::plan(
+            analysis,
+            &serde_json::from_value(serde_json::json!({"sheet":{"preferred_max_size":"A0"}}))
+                .unwrap(),
+        )
+        .unwrap();
         for d in plan.dimensions.iter().filter(|d| d.kind == "callout") {
             // ISSUE-798-a: only an item no shown view carries is unplaced.
             let Some(p) = d.placed.as_ref() else {

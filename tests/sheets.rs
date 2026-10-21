@@ -42,7 +42,8 @@ fn value(a: &Analysis, s: &Spec) -> Value {
 #[test]
 fn r5_assigned_section_keeps_parent_scale_and_principals() {
     let a = analysed("nist/nist_ftc_06_asme1_rd.stp");
-    let s = spec(json!({"sheets":{"max":2},"views":{"section_aa":{"sheet":2}}}));
+    let s =
+        spec(json!({"sheet":{"size":"A1"},"sheets":{"max":2},"views":{"section_aa":{"sheet":2}}}));
     let p = value(&a, &s);
     assert_eq!(p["sheets"].as_array().unwrap().len(), 1);
     let views = p["views"].as_array().unwrap();
@@ -479,7 +480,11 @@ fn r5_the_bounded_ladder_skips_scales_below_the_floor() {
 fn r5_off_sheet_hole_table_keeps_all_rows_and_balloons() {
     use draftwright::hole_table::{self, TableOutcome};
     let a = analysed("scattered_holes");
-    let mut p = model::plan(&a, &Spec::default()).unwrap();
+    let mut p = model::plan(
+        &a,
+        &serde_json::from_value(serde_json::json!({"sheet":{"preferred_max_size":"A0"}})).unwrap(),
+    )
+    .unwrap();
     let id = p
         .dimensions
         .iter()
@@ -616,17 +621,23 @@ fn r5_a_further_sheet_before_a_smaller_scale_uses_cumulative_prefixes() {
 }
 
 #[test]
-fn r5_paper_runs_before_a_further_sheet() {
+fn r5_first_usable_single_sheet_precedes_further_paper_and_sheets() {
     let a = analysed("gramel/string_post.step");
     let s = spec(
         json!({"sheets":{"max":2,"smallest_scale":"5:1"},"hole_table":"never","tables":overflow::tables()}),
     );
     let p = model::plan_recovered(&a, &s).unwrap();
     assert!(p.sheet.scale_factor >= 5.);
-    assert_ne!(p.sheet.size, "A4");
+    assert_eq!(p.sheet.size, "A4");
     assert!(p.sheets.is_empty());
-    assert!(p.sheet.basis.contains("smallest fit"));
-    assert!(p.sheet.basis.contains("step 0: 0 hard findings"));
+    assert_eq!(p.sheet_candidates.len(), 1);
+    assert_eq!(p.sheet_candidates[0].max, 1);
+    assert!(
+        p.sheet_candidates[0]
+            .outcome
+            .starts_with("A4: usable at 5:1")
+    );
+    assert!(p.tables.iter().all(|t| t.placed.is_some()));
 }
 
 #[test]

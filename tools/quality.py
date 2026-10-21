@@ -192,18 +192,19 @@ def leader_on_extension(plan, pad=1.0):
     the linear dimension's extension line (itself grown by the pad): the maintainer's decision
     of 2026-10-12, measured as the placer does (`dims::leaders`)."""
     extensions, leaders = [], []
+    pages = {v["id"]: v.get("sheet", 1) for v in plan.get("views", []) if "id" in v}
     for d in plan.get("dimensions", []):
         placed = d.get("placed") or {}
         lines, arrows = placed.get("lines") or [], placed.get("arrows") or []
         if len(lines) >= 3 and len(arrows) == 2:
-            extensions += [(d["id"], line) for line in lines[:2]]
+            extensions += [(d["id"], pages.get(d.get("view"), 1), line) for line in lines[:2]]
         elif d.get("kind") == "callout" and lines and placed.get("label_box"):
-            leaders.append((d["id"], lines, placed["label_box"]))
+            leaders.append((d["id"], pages.get(d.get("view"), 1), lines, placed["label_box"]))
     pairs = set()
-    for name, lines, b in leaders:
+    for name, page, lines, b in leaders:
         padded = [b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad]
-        for other, e in extensions:
-            if other == name:
+        for other, other_page, e in extensions:
+            if other == name or other_page != page:
                 continue
             grown = [min(e[0][0], e[1][0]) - pad, min(e[0][1], e[1][1]) - pad,
                      max(e[0][0], e[1][0]) + pad, max(e[0][1], e[1][1]) + pad]
@@ -335,7 +336,53 @@ def schedule_ink(plan, segments):
                for b in markers)
 
 
+def local_sheet_plan(plan, sheet):
+    """Use the renderer's ownership rules when measuring separate physical pages."""
+    number = sheet.get('number', 1)
+    local = {**plan, 'sheet': sheet, 'sheets': []}
+    local['views'] = [v for v in plan['views'] if v.get('sheet', 1) == number]
+    owners = {v['id'] for v in local['views']}
+    for key in ('dimensions', 'gdt', 'balloons'):
+        local[key] = [d for d in plan.get(key, []) if d.get('view') in owners]
+    for key in ('captions', 'tables', 'hole_tables'):
+        local[key] = [t for t in plan.get(key, []) if t.get('sheet', 1) == number]
+    table = plan.get('hole_table')
+    local['hole_table'] = table if table and table.get('sheet', 1) == number else None
+    if number != 1:
+        for key in ('notes', 'requirements'):
+            local[key] = []
+        for key in ('notes_block', 'radius_notes_block', 'radius_table'):
+            local[key] = None
+    return local
+
+
+def sheet_svg(path, number):
+    stem, extension = os.path.splitext(path)
+    return path if number == 1 else f'{stem}.sheet{number}{extension}'
+
+
+def view_overlap_counts(plan):
+    overlaps, title = 0, 0
+    for sheet in [plan['sheet'], *plan.get('sheets', [])]:
+        number = sheet.get('number', 1)
+        boxes = [v['area'] for v in plan['views'] if v.get('area') and v.get('sheet', 1) == number]
+        overlaps += sum(overlap(a,b) for i,a in enumerate(boxes) for b in boxes[i+1:])
+        if sheet.get('title_block'):
+            title += sum(overlap(b,sheet['title_block']) for b in boxes)
+    return overlaps, title
+
+
 def svg_linework(path, plan):
+    if not plan.get('sheets'):
+        return _svg_linework_page(path, plan)
+    counts = collections.Counter()
+    for sheet in [plan['sheet'], *plan['sheets']]:
+        local = local_sheet_plan(plan, sheet)
+        counts.update(_svg_linework_page(sheet_svg(path,sheet.get('number',1)),local))
+    return dict(counts)
+
+
+def _svg_linework_page(path, plan):
     """Count SVG edge elements (line/path/ellipse), in page mm, per placed view.
 
     Distance is to visible ink (half the SVG stroke width), plus 0.15 mm; dashes are
@@ -659,6 +706,8 @@ def one(f, dw, out, spec=None, timeout=600, review=True):
         return name, {"error": "Plan has no completeness counts; rebuild draftwright before measuring quality"}
     with open(f"{out}/{name}.plan.json", "w") as output:
         json.dump(plan, output, indent=1, sort_keys=True)
+    with open(f"{out}/{name}.render.json", "w") as output:
+        json.dump(rend, output, indent=1, sort_keys=True)
     if plan['sheet'].get('page'):
         analysis = subprocess.run([dw, "analyse", f], capture_output=True, text=True, timeout=timeout)
         if analysis.returncode:
@@ -713,10 +762,7 @@ def one(f, dw, out, spec=None, timeout=600, review=True):
     rep_meas = sum(n - 1 for n in meas.values() if n > 1)
     rep_span = sum(n - 1 for n in spans.values() if n > 1)
     repeated = repeated_spans(plan)
-    views = [v["area"] for v in plan["views"] if v.get("area")]
-    tb = plan["sheet"].get("title_block")
-    view_over = sum(overlap(views[i], views[j]) for i in range(len(views)) for j in range(i + 1, len(views)))
-    view_tb = sum(overlap(v, tb) for v in views) if tb else 0
+    view_over, view_tb = view_overlap_counts(plan)
     linework = svg_linework(f"{out}/{name}.svg", plan)
     return name, {
         "off_sheet": codes.get("annotation_off_sheet", 0) + codes.get("pinned_view_off_sheet", 0),
@@ -735,6 +781,7 @@ def one(f, dw, out, spec=None, timeout=600, review=True):
         **crossing_counts(plan),
         "dimensions": len(plan["dimensions"]),
         "sheet": plan["sheet"].get("size"), "scale": plan["sheet"].get("scale"),
+        "sheets": 1 + len(plan.get("sheets", [])),
         "fill": round(100 * fill, 2),
         "interior_labels": interior_labels(plan),
         "outer_labels": sum(d.get("placed") is not None for d in plan["dimensions"]) - interior_labels(plan),
@@ -774,21 +821,26 @@ def random_pins(plan, name, seed, count):
     candidates += [(g["id"], "annotations", {"pinned": True})
                    for g in plan.get("gdt", []) if g.get("placed") is not None]
     views = sorted(plan["views"], key=lambda v: (v["id"] != "v:front", v["id"]))
-    if len(views) > 1:
-        anchor = views[0]
+    roots = {}
+    for v in views:
+        number = v.get("sheet", 1)
+        if number not in roots:
+            roots[number] = v
+            continue
+        anchor = roots[number]
         b = anchor["area"]
-        for v in views[1:]:
-            a = v["area"]
-            dx, dy = (a[0]+a[2]-b[0]-b[2])/2, (a[1]+a[3]-b[1]-b[3])/2
-            if abs(dx) > abs(dy):
-                side, gap, k = ("right", a[0]-b[2], 1) if dx > 0 else ("left", b[0]-a[2], 1)
-            else:
-                side, gap, k = ("above", a[1]-b[3], 0) if dy > 0 else ("below", b[1]-a[3], 0)
-            offsets = {"middle": (b[k]+b[k+2]-a[k]-a[k+2])/2, "start": b[k]-a[k],
-                       "end": b[k+2]-a[k+2]}
-            align = min(offsets, key=lambda slot: abs(offsets[slot]))
-            candidates.append((v["id"], "views", {"relative_to": anchor["id"][2:], "side": side,
-                               "gap": max(0, min(1000, gap)), "align": align, "pinned": True}))
+        a = v["area"]
+        dx, dy = (a[0]+a[2]-b[0]-b[2])/2, (a[1]+a[3]-b[1]-b[3])/2
+        if abs(dx) > abs(dy):
+            side, gap, k = ("right", a[0]-b[2], 1) if dx > 0 else ("left", b[0]-a[2], 1)
+        else:
+            side, gap, k = ("above", a[1]-b[3], 0) if dy > 0 else ("below", b[1]-a[3], 0)
+        offsets = {"middle": (b[k]+b[k+2]-a[k]-a[k+2])/2, "start": b[k]-a[k],
+                   "end": b[k+2]-a[k+2]}
+        primary = {"v:front", "v:plan", "v:side"}
+        align = "projection" if v["id"] in primary and anchor["id"] in primary else min(offsets, key=lambda slot: abs(offsets[slot]))
+        candidates.append((v["id"], "views", {"relative_to": anchor["id"][2:], "side": side,
+                           "gap": max(0, min(1000, gap)), "align": align, "pinned": True}))
     candidates.sort(key=lambda c: (hashlib.sha256(f"{seed}:{name}:{c[0]}".encode()).digest(), c[0]))
     if count > len(candidates):
         raise ValueError(f"{name}: requested {count} pins, only {len(candidates)} drawable candidates")
@@ -846,9 +898,34 @@ def pin_report(parts, seed, count):
     return {"seed": seed, "pins": count, "parts": parts, "total": total, "go": go}
 
 
+def record_baseline(path, measurements, binary):
+    """Explicitly record a complete measured quality matrix and its paper choices."""
+    with open(path) as source:
+        record = json.load(source)
+    if record.get('format') != 'draftwright.ci-quality-baseline/1':
+        raise ValueError('record target must be the existing CI quality baseline')
+    if set(record['parts']) != set(measurements):
+        raise ValueError('record requires the complete baseline part set')
+    for name, row in measurements.items():
+        if 'error' in row or any(type(row.get(k)) is not int or row[k] < 0 for k in record['metrics']):
+            raise ValueError(f'{name}: incomplete/invalid measured quality row')
+    record['parts'] = {name: {k: row[k] for k in record['metrics']}
+                       for name, row in measurements.items()}
+    record['sheet_choices'] = {name: [row['sheet'], row['scale'], row['sheets']]
+                              for name, row in measurements.items()}
+    record['source_commit'] = subprocess.check_output(['git', 'rev-parse', 'HEAD'], text=True).strip()
+    record['source'] = 'Recorded from the complete quality.py --record audit'
+    with open(binary, 'rb') as source:
+        record['verified_binary_sha256'] = hashlib.sha256(source.read()).hexdigest()
+    with open(path, 'w') as output:
+        json.dump(record, output, indent=2, sort_keys=True)
+        output.write('\n')
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--timeout", type=float, default=600, help="Per-operation wall timeout (seconds)")
+    parser.add_argument("--record", help="Explicitly replace this CI quality baseline from all measured parts")
     parser.add_argument("--seed", type=int)
     parser.add_argument("--pins", type=int)
     parser.add_argument("--baseline", help="Reuse this unpinned baseline JSON (same binary and parts)")
@@ -862,6 +939,8 @@ def main():
         parser.error("--timeout must be positive")
     if (args.seed is None) != (args.pins is None) or (args.pins is not None and args.pins < 1):
         parser.error("provide both --seed and --pins (N >= 1)")
+    if args.record and args.pins is not None:
+        parser.error("--record requires an unpinned quality audit")
     os.makedirs(args.out, exist_ok=True)
     if args.baseline:
         with open(args.baseline) as source:
@@ -880,6 +959,11 @@ def main():
         with open(f"{args.out}/random-pins.json", "w") as output:
             json.dump(report, output, indent=1, sort_keys=True)
         return int(any("error" in p for p in parts.values()) or (args.require_go and not report["go"]))
+    if args.record:
+        try:
+            record_baseline(args.record, res, args.dw)
+        except (OSError, ValueError, KeyError) as error:
+            parser.error(str(error))
     table(res)
     return int(any("error" in v for v in res.values())
                or (args.require_no_repeated_span and any(v['repeated_span'] for v in res.values())))

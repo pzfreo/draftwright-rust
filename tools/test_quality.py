@@ -21,6 +21,31 @@ routes = importlib.util.module_from_spec(route_spec)
 route_spec.loader.exec_module(routes)
 
 
+class QualityRecording(unittest.TestCase):
+    def test_complete_matrix_records_actual_counts_and_paper_choices(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path, binary = Path(directory) / 'baseline.json', Path(directory) / 'binary'
+            binary.write_bytes(b'test executable')
+            path.write_text(json.dumps({'format': 'draftwright.ci-quality-baseline/1',
+                                        'parts': {'p': {'ink': 0}}, 'metrics': ['ink']}))
+            with patch.object(quality.subprocess, 'check_output', return_value='revision\n'):
+                quality.record_baseline(path, {'p': dict(ink=7, sheet='A3', scale='1:5', sheets=2)}, binary)
+            recorded = json.loads(path.read_text())
+            self.assertEqual(recorded['parts'], {'p': {'ink': 7}})
+            self.assertEqual(recorded['sheet_choices'], {'p': ['A3', '1:5', 2]})
+
+    def test_incomplete_matrix_is_refused_before_writing(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / 'baseline.json'
+            original = json.dumps({'format': 'draftwright.ci-quality-baseline/1',
+                                   'parts': {'p': {'ink': 0}}, 'metrics': ['ink']})
+            path.write_text(original)
+            for measurements in [{}, {'p': {'error': 'failed'}}, {'p': {'ink': -1}}]:
+                with self.assertRaises(ValueError):
+                    quality.record_baseline(path, measurements, Path(directory) / 'unused')
+                self.assertEqual(path.read_text(), original)
+
+
 class LeaderRoutes(unittest.TestCase):
     def row(self, **changes):
         row = dict(length=10., run=0., route=[[0., 0.], [6., 6.]], label=[7., 5., 12., 8.],
@@ -119,6 +144,20 @@ class ScheduleInk(unittest.TestCase):
         plan['tables'] = []
         plan['notes_block'] = {'box': [3, 3, 7, 7]}
         self.assertEqual(quality.schedule_ink(plan, []), 1)
+
+
+class LeaderExtensionSheets(unittest.TestCase):
+    def test_coincident_ink_only_contacts_on_its_own_sheet(self):
+        plan = {'views': [{'id': 'front', 'sheet': 1}, {'id': 'plan', 'sheet': 2}],
+                'dimensions': [
+                    {'id': 'linear', 'view': 'front', 'placed': {
+                        'lines': [[[10, 10], [10, 30]], [[20, 10], [20, 30]],
+                                  [[10, 25], [20, 25]]], 'arrows': [[], []]}},
+                    {'id': 'callout', 'view': 'plan', 'kind': 'callout', 'placed': {
+                        'lines': [[[5, 20], [15, 20]]], 'label_box': [5, 18, 9, 22]}}]}
+        self.assertEqual(quality.leader_on_extension(plan), 0)
+        plan['views'][1]['sheet'] = 1
+        self.assertEqual(quality.leader_on_extension(plan), 1)
 
 
 class TextOffSpan(unittest.TestCase):
@@ -427,7 +466,7 @@ class RandomPins(unittest.TestCase):
         self.assertTrue(spec['annotations']['pmi:a']['place']['pinned'])
         view = spec['views']['plan']['place']
         self.assertEqual(view, {'relative_to': 'front', 'side': 'above', 'gap': 10,
-                                'align': 'middle', 'pinned': True})
+                                'align': 'projection', 'pinned': True})
         self.assertNotIn('at', view)
 
     def test_not_enough_items_is_an_error(self):
@@ -440,6 +479,22 @@ class RandomPins(unittest.TestCase):
         plan['dimensions'].reverse()
         three = quality.random_pins(plan, 'part', 2, 3)[1]
         self.assertEqual(one, three[:1])
+
+    def test_view_pins_use_a_root_on_their_own_sheet(self):
+        plan = self.plan()
+        plan['views'] = [
+            dict(id='v:front', sheet=1, area=[10,10,30,30]),
+            dict(id='v:side', sheet=1, area=[40,10,60,30]),
+            dict(id='v:plan', sheet=2, area=[10,10,30,30]),
+            dict(id='v:iso', sheet=2, area=[10,40,30,60]),
+        ]
+        spec, ids = quality.random_pins(plan, 'part', 1, 4)
+        self.assertEqual(len(ids),4)
+        pages = {v['id'][2:]:v['sheet'] for v in plan['views']}
+        for name, item in spec.get('views',{}).items():
+            self.assertEqual(pages[name],pages[item['place']['relative_to']])
+        if 'side' in spec.get('views',{}):
+            self.assertEqual(spec['views']['side']['place']['align'],'projection')
 
     def test_off_sheet_measurement_includes_pinned_views(self):
         plan = self.plan()
@@ -482,6 +537,37 @@ class SheetFill(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()) as output:
             quality.table({'part': result})
         self.assertIn('fill', output.getvalue())
+
+
+class MultiSheetMeasurements(unittest.TestCase):
+    def test_coincident_boxes_on_different_pages_are_not_overlaps(self):
+        plan = dict(sheet=dict(title_block=[80,10,110,30]),
+                    sheets=[dict(number=2,title_block=[80,10,110,30])],
+                    views=[dict(id='v:front',area=[10,10,30,30]),
+                           dict(id='v:plan',sheet=2,area=[10,10,30,30])])
+        self.assertEqual(quality.view_overlap_counts(plan),(0,0))
+        plan['views'][1]['sheet'] = 1
+        self.assertEqual(quality.view_overlap_counts(plan),(1,0))
+        plan['views'][1]['sheet'] = 2
+        plan['views'][1]['area'] = [85,12,95,20]
+        self.assertEqual(quality.view_overlap_counts(plan),(0,1))
+
+    def test_svg_metrics_include_every_page_with_local_view_ownership(self):
+        with tempfile.TemporaryDirectory() as directory:
+            svg = Path(directory)/'part.svg'
+            text = '<svg xmlns="http://www.w3.org/2000/svg"><g id="part" stroke-width="0.5"><line x1="10" y1="20" x2="30" y2="20"/></g><g id="hidden"><line x1="10" y1="20" x2="30" y2="20"/></g></svg>'
+            svg.write_text(text)
+            Path(quality.sheet_svg(str(svg),2)).write_text(text)
+            plan = dict(sheet={},sheets=[dict(number=2)],dimensions=[],views=[
+                dict(id='v:front',area=[5,5,35,35]),
+                dict(id='v:section_aa',sheet=2,cut={},area=[5,5,35,35])])
+            plan['views'][1]['cut'] = {'label':'A'}
+            result = quality.svg_linework(str(svg),plan)
+            self.assertEqual(result['hidden_on_visible'],2)
+            self.assertEqual(result['section_hidden'],1)
+            local = quality.local_sheet_plan(plan,plan['sheets'][0])
+            self.assertEqual([v['id'] for v in local['views']],['v:section_aa'])
+            self.assertEqual(len(plan['views']),2)
 
 
 class CrossingKinds(unittest.TestCase):

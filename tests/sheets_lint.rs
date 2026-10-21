@@ -129,7 +129,11 @@ fn remote_hole_table_rows_cover_the_sheet_one_balloons() {
     let step =
         Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts/scattered_holes.step");
     let (part, analysis) = model::analyse_native(&step).unwrap();
-    let mut p = model::plan(&analysis, &model::Spec::default()).unwrap();
+    let mut p = model::plan(
+        &analysis,
+        &serde_json::from_value(serde_json::json!({"sheet":{"preferred_max_size":"A0"}})).unwrap(),
+    )
+    .unwrap();
     let id = p
         .dimensions
         .iter()

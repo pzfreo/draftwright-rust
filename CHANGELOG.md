@@ -6,12 +6,32 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### Added
+
 - Raise the advertised MCP schema ceiling from 38,000 to 40,000 compact bytes, with
   maintainer approval, to make room for the sheet-size preferences.
 - Add `impact` and stable repeat-cause `group` labels to every problem and lint finding,
   including serve, WASM and compact MCP results. Review includes per-impact and per-group
   counts, also forwarded by the MCP review tool. Severity, finding order and drawings
   are unchanged. See [finding impact](docs/finding-impact.md) for the full classification.
+- Automatic layout preferences: `sheet/preferred_max_size` (A4–A0, default A3)
+  and `sheet/preferred_max_sheets` (integer ≥ 1, default 2). Try single sheets,
+  then annotated whole-view allocations before larger paper. `sheets.max` stays
+  hard. A candidate is never clipped and never below the readable floor; otherwise
+  it is disqualified only by unreadable, error or loss findings the automatic
+  baseline does not have (error-severity layout findings, overlapping text, leader
+  through text or along an extension, a view frame on the title block, lost or
+  unreported items). No sheet carries only the isometric. Other warnings never
+  choose larger paper, so a crowded but readable small sheet is kept (mfcadpp 10190
+  stays A4 at 1:1). One
+  `sheet_preference_exceeded` info/advisory notice explains any exceeded size or
+  count preference. Explicit layout choices win. A fresh automatic plan carries no
+  `layout_replanned` notice.
+
+### Changed
+
+- Remove `sheet/preferred_printer`; Specs carrying it are refused with guidance
+  to use `sheet/preferred_max_size` (A4 printer → `"A4"`, A3 printer → `"A3"`).
 
 ### Fixed
 
@@ -90,6 +110,11 @@ All notable changes to draftwright-rust are recorded here, in the style of
   edits/renders run in the browser parity job.
 
 ### WASM API
+
+- Intended Spec API change: remove `sheet/preferred_printer`, add `sheet/preferred_max_size`
+  (A4–A0, default A3), `sheet/preferred_max_sheets` (default 2), and the
+  `sheet_preference_exceeded` advisory. Unreleased `sheet/max_size` is removed
+  without migration. Method signatures stay unchanged.
 
 - Add `members: [{centre: [x,y], radius, span?: {start, sweep}}]` to `calloutOffset`
   and `Session::callout_offset` (#149). Sites use paper mm, y up; arc spans are

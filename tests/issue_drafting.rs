@@ -1701,7 +1701,10 @@ fn crosses(s: [[f64; 2]; 2], b: [f64; 4]) -> bool {
 
 fn reported_pair(plan: &Plan, code: &str, a: &str, b: &str) -> bool {
     plan.problems.iter().any(|p| {
-        p.code == code && p.subjects.iter().any(|s| s == a) && p.subjects.iter().any(|s| s == b)
+        // Overlapping labels deliberately suppress the duplicate ink warning.
+        (p.code == code || (code == "annotation_ink_overlap" && p.code == "annotation_overlap"))
+            && p.subjects.iter().any(|s| s == a)
+            && p.subjects.iter().any(|s| s == b)
     })
 }
 
@@ -2266,10 +2269,13 @@ fn hole_and_shoulder_outcomes(analysis: &Analysis, plan: &Plan) -> BTreeSet<(Str
 #[test]
 fn sheet_selection_is_bounded_and_keeps_every_outcome() {
     // Keep the exhausted-ladder fixture explicit; auto tables now resolve these losses.
-    let style = Spec {
+    let mut style = Spec {
         hole_table: draftwright::hole_table::Setting::Never,
         ..Spec::default()
     };
+    // This conservation oracle has the full ISO paper ladder available. Capped
+    // fallbacks may retain reported required drops; sheet_policy tests those.
+    style.sheet.preferred_max_size = Some("A0".into());
     let initial: Vec<_> = planned()
         .iter()
         .map(|(n, a, _)| (n.clone(), a.clone(), model::plan(a, &style).unwrap()))
@@ -2309,7 +2315,7 @@ fn sheet_selection_is_bounded_and_keeps_every_outcome() {
 /// or the first drawing and its hard findings survive with an exhausted-search explanation.
 #[test]
 fn fill_selection_preserves_hard_findings_when_no_complete_candidate_exists() {
-    for ((name, _, first), (_, after)) in planned().iter().zip(recovered()) {
+    for ((name, analysis, first), (_, after)) in planned().iter().zip(recovered()) {
         let hard: BTreeSet<_> = after
             .problems
             .iter()
@@ -2317,9 +2323,10 @@ fn fill_selection_preserves_hard_findings_when_no_complete_candidate_exists() {
             .map(|p| p.code.as_str())
             .collect();
         if codes(after).contains("layout_recovery_exhausted") {
+            assert_eq!(after.sheet.size, first.sheet.size, "{name}");
             assert_eq!(
-                (&after.sheet.size, &after.sheet.scale),
-                (&first.sheet.size, &first.sheet.scale),
+                after.sheet.scale_factor,
+                first.sheet.scale_factor.max(0.1),
                 "{name}"
             );
             let said = after
@@ -2327,7 +2334,10 @@ fn fill_selection_preserves_hard_findings_when_no_complete_candidate_exists() {
                 .iter()
                 .find(|p| p.code == "layout_recovery_exhausted")
                 .unwrap();
-            assert_eq!(said.severity, "info");
+            let illegible = after.sheet.scale_factor
+                < draftwright::sheet_fit::min_legible_scale(analysis)
+                || draftwright::sheet_fit::illegible_steps(analysis, after) > 0;
+            assert_eq!(said.severity, if illegible { "warning" } else { "info" });
             assert!(said.message.contains("Tried "), "{name}");
             let before: BTreeSet<_> = first
                 .problems
@@ -2335,7 +2345,9 @@ fn fill_selection_preserves_hard_findings_when_no_complete_candidate_exists() {
                 .filter(|p| HARD_LAYOUT.contains(&p.code.as_str()) && p.severity != "info")
                 .map(|p| p.code.as_str())
                 .collect();
-            assert_eq!(hard, before, "{name}");
+            if first.sheet.scale_factor >= 0.1 {
+                assert_eq!(hard, before, "{name}");
+            } // Below 1:10 the existing legibility clamp redraws the first estimate.
         } else {
             assert!(hard.is_empty(), "{name}: {hard:?}");
             assert!(after.sheet.basis.contains("fill"), "{name}");

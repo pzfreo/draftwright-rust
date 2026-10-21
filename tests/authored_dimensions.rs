@@ -662,10 +662,12 @@ fn authored_aligned_span_clears_dimension_lines_extensions_and_arrowheads() {
         })
         .unwrap();
     for place in [json!(null), json!({"side":"below","lane":1})] {
-        let s = parse(json!({"dimensions":{"d:authored:diagonal":{
-            "between":[p.0,q.0], "along":"true", "view":"front",
-            "tolerance":"±0.1", "place":place
-        }}}));
+        let s = parse(
+            json!({"sheet":{"size":"A4"},"dimensions":{"d:authored:diagonal":{
+                "between":[p.0,q.0], "along":"true", "view":"front",
+                "tolerance":"±0.1", "place":place
+            }}}),
+        );
         let plan = model::plan_recovered(&a, &s).unwrap();
         let diagonal = plan
             .dimensions

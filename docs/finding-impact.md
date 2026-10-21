@@ -219,6 +219,7 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `sheet_assignment_unused` | advisory | A sheet assignment has no corresponding drawing item. |
 | `sheet_below_smallest_scale` | readability | The sheet uses views below the requested legibility scale. |
 | `sheet_label_replaced` | advisory | Automatic document numbering replaces the authored sheet label. |
+| `sheet_preference_exceeded` | advisory | A usable drawing needs larger paper or more sheets than preferred. |
 | `sheet_renumbered` | advisory | The document sheets were renumbered consecutively. |
 | `slot_requirement_missing` | incomplete | The drawing does not state this required feature parameter. |
 | `slot_requirement_unverifiable` | incomplete | The drawing does not prove this required feature parameter. |

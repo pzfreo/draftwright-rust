@@ -17,6 +17,18 @@ allocates the sheets from one spec. The cell reads ISO 7200's `n/m` (maintainer,
 It never says *pinned*: that word belongs to the existing placement intents (`Place.pinned`,
 `ViewPlace.pinned`, `placement_intent::has_pins`), which this record calls *placement pins*.
 
+## Maximum printable paper amendment (2026-10-21)
+
+`sheet/preferred_max_size` (default A3) and `sheet/preferred_max_sheets`
+(default 2) are soft preferences; `sheets.max` remains hard. Try one sheet at each
+size through the preferred paper, then additional sheets at that paper, then
+larger papers with the same single-then-multiple order. More than the preferred
+count is tried only at A0. Whole-view allocation includes principal projections
+and keeps all annotations with their view. Clipping is a hard rejection, and
+readability/required information are compared with the unrestricted larger result.
+One advisory explains exceeded preferences. See [the model](../model.md#sheet-allocation-r5-stage-i)
+for the full ordering and usability definition. Explicit choices and keep_layout win.
+
 ## Small-part overflow amendment (2026-10-16)
 
 The maintainer's practical-paper rule overrides the original paper-first search below:

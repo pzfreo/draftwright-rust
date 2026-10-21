@@ -185,7 +185,16 @@ includes the summary. See [finding impact](docs/finding-impact.md) for all codes
 
 ## Known limitations
 
-Measured for alpha 1 at 873506e with `tools/quality.py` on the 30 parts of
+Automatic layout tries `sheet/preferred_max_size` (default A3) and
+`sheet/preferred_max_sheets` (default 2) before larger paper. Principal views can
+use separate sheets with their annotations. If a readable, unclipped drawing
+needs more paper, one `sheet_preference_exceeded` advisory explains the choice;
+`sheets.max` remains a hard limit. Reported unsupported requirements and required
+drops still need review. Quality baselines record paper, scale and sheet count
+through `tools/quality.py --record`.
+
+The historical measurements below were made for alpha 1 at 873506e with
+`tools/quality.py` on the 30 parts of
 `tools/quality_parts.txt`; the per-part figures, the comparison with the 86ffcbc baseline and
 the evidence are in `docs/quality-2026-10-09.md`. On those parts no annotation is off the sheet,
 no view overlaps another or the title block, no annotation lies over a view and no annotation
@@ -213,8 +222,8 @@ plan, never hidden:
 - **Ink overlaps, 18** (`annotation_ink_overlap`, warning: a line through a label; ctc02 7,
   ftc08 7, ftc10 3, ftc09 1). Rust-wrong; how a text contact weighs against a leader crossing
   is an open question (draftwright gates text first).
-- **Worse than the 86ffcbc baseline, accepted:** ctc03's ink 21 to 24 (a valid A2 sheet where
-  the baseline's A3 had lines through labels), leader crossings on ftc08 (22 to 24) and ctc04
+- **Historical regressions against 86ffcbc, accepted in that review:** ctc03's ink 21 to 24
+  (then on A2, where the baseline's A3 had lines through labels), leader crossings on ftc08 (22 to 24) and ctc04
   (27 to 29), traded for locations brought onto the sheet and labels kept clear, and cgb245's
   leader crossings 0 to 2: one trades an off-sheet location for a crossing, the other follows
   from merged items sharing a lane and is accepted as an overturnable judgement. Each is in
@@ -228,8 +237,9 @@ plan, never hidden:
 - **The AP242 fixtures** (22 files with PMI, not in the 30): no frame, datum symbol, label or
   dimension is off the sheet or over a view, but dense parts carry much more ink: 1736 problems
   in all (1525 leader crossings, 132 past a view's area, 79 ink overlaps), most on NIST STC-09
-  (521), FTC-10 (449) and STC-10 (288). STC-09 is drawn on A1 at 1:5 where draftwright keeps
-  1:1 by dropping 15 items. Undetermined PMI differences (a part placed several times,
+  (521), FTC-10 (449) and STC-10 (288). That review drew STC-09 on A1 at 1:5 where
+  draftwright kept 1:1 by dropping 15 items. The defaults prefer A3 and two sheets; the search continues beyond either
+  preference when needed, and `sheet_preference_exceeded` explains the readable layout. Undetermined PMI differences (a part placed several times,
   dimensions on supplemental geometry, an ISO 286 class stated without limits, records
   haecceity reads only in part) wait on maintainer questions; see the `known_pmi*.json` fixtures.
 - **Hole tables** are drawn only by drop-and-escalate: a hole callout or location whose ink runs

@@ -257,6 +257,7 @@ fn a_try_with_hole_locations_too_close_to_read_is_not_taken() {
         return;
     };
     let no_tables = Spec {
+        sheet: serde_json::from_value(json!({"preferred_max_size":"A0"})).unwrap(),
         hole_table: draftwright::hole_table::Setting::Never,
         ..Spec::default()
     };
@@ -384,25 +385,10 @@ fn every_planning_entry_point_applies_the_recovery() {
     };
     let plan = api::plan_analysed(&analysis, &no_tables).unwrap();
     let as_json = serde_json::to_value(&plan).unwrap();
-    // Final gutters follow raw recovery; they preserve its sheet, scales and view inventory.
-    let raw = recovered(&analysis, &no_tables);
-    assert_eq!(sheet(&plan), sheet(&raw));
-    assert_eq!(
-        plan.views
-            .iter()
-            .map(|v| (&v.id, v.scale))
-            .collect::<Vec<_>>(),
-        raw.views
-            .iter()
-            .map(|v| (&v.id, v.scale))
-            .collect::<Vec<_>>()
-    );
-    assert_eq!(
-        as_json,
-        serde_json::to_value(model::plan_recovered(&analysis, &no_tables).unwrap()).unwrap()
-    );
-    assert_eq!(sheet(&plan), ("A2", "1:2"));
-    assert!(codes(&plan).contains(&"layout_recovery_exhausted"));
+    let selected = model::plan_recovered(&analysis, &no_tables).unwrap();
+    assert_eq!(as_json, serde_json::to_value(selected).unwrap());
+    sheet_rule::assert_preferences(&plan);
+    sheet_rule::assert_rule("cgb245 public selection", &plan);
     let again = api::plan_analysed(&analysis, &no_tables).unwrap();
     assert_eq!(serde_json::to_value(&again).unwrap(), as_json);
     let reply = api::call("plan", &json!({ "analysis": analysis, "spec": no_tables })).unwrap();
@@ -423,18 +409,24 @@ fn every_planning_entry_point_applies_the_recovery() {
     assert_eq!(named.sheet.size, "A2");
 }
 
-/// FTC-07 prefers A3 at 1:5. An explicit count retains the old A2 at 1:2 search.
-/// Wrapping clears the old
+/// FTC-07 is usable on preferred A3 at 1:5, as on main, so no preference is exceeded.
+/// The planner's own table-free recovery still finds A2 at 1:2: wrapping clears the old
 /// pitch-line clash at A1 1:1, but that enlargement lengthens established leaders
 /// beyond their unchanged two-millimetre budget, so the complete A2 is retained.
 #[test]
-fn ftc07_prefers_a3_and_keeps_the_explicit_count_search() {
+fn ftc07_stays_on_preferred_a3_and_keeps_the_planner_search() {
     let Some(dir) = corpus::dir() else {
         return;
     };
     let step = dir.join("nist/nist_ftc_07_asme1_rd.stp");
     let plan = api::plan_from(&step, Features::Native, &Spec::default()).unwrap();
     assert_eq!(sheet(&plan), ("A3", "1:5"));
+    assert!(
+        !plan
+            .problems
+            .iter()
+            .any(|p| p.code == "sheet_preference_exceeded")
+    );
     let analysis = api::analyse_from(&step, Features::Native).unwrap();
     // The table-free drawing the sheet is chosen by ([`model::recover`]'s hole-table path).
     let never = Spec {
@@ -445,7 +437,14 @@ fn ftc07_prefers_a3_and_keeps_the_explicit_count_search() {
         }),
         ..Default::default()
     };
-    let chosen = api::plan_analysed(&analysis, &never).unwrap();
+    // The paper preferences choose between finished drawings; the planner's own
+    // recovery from its first estimate is unchanged.
+    let chosen = model::recover(
+        &analysis,
+        &never,
+        model::plan_escalated(&analysis, &never).unwrap(),
+    )
+    .unwrap();
     assert_eq!(sheet(&chosen), ("A2", "1:2"));
     assert!(chosen.sheet.basis.contains("smallest fit A2 at 1:2"));
     sheet_rule::assert_rule("ftc07", &chosen);
@@ -472,7 +471,7 @@ fn ftc07_prefers_a3_and_keeps_the_explicit_count_search() {
     );
     let first =
         model::plan_escalated(&analysis, &spec(json!({"size":"A3", "scale":"1:5"}))).unwrap();
-    let again = model::recover(&analysis, &Spec::default(), first).unwrap();
+    let again = model::recover(&analysis, &never, first).unwrap();
     assert_eq!(sheet(&again), sheet(&chosen));
     assert!(again.sheet.basis.contains("additional view conflicts"));
 }
@@ -487,7 +486,7 @@ fn wrapped_counterbores_keep_the_existing_short_leader_budget() {
     let plan = api::plan_from(
         &dir.join("nist/nist_ftc_06_asme1_rd.stp"),
         Features::Native,
-        &Spec::default(),
+        &serde_json::from_value(json!({"sheet":{"size":"A1"}})).unwrap(),
     )
     .unwrap();
     assert_eq!(sheet(&plan), ("A1", "1:2"));
@@ -512,9 +511,12 @@ fn wrapped_counterbores_keep_the_existing_short_leader_budget() {
             .iter()
             .map(|s| (s[1][0] - s[0][0]).hypot(s[1][1] - s[0][1]))
             .sum();
-        let before = baseline["parts"]["nist_ftc_06_asme1_rd"][id]["length"]
-            .as_f64()
-            .unwrap();
+        // This explicit A1 mechanism test keeps its measured full-paper budget;
+        // the default-printer record now describes the capped A3 drawing.
+        let before =
+            baseline["paper_references"]["A1"]["parts"]["nist_ftc_06_asme1_rd"][id]["length"]
+                .as_f64()
+                .unwrap();
         assert!(length <= before + 2.0 + 1e-6, "{id}: {before} -> {length}");
     }
     assert!(

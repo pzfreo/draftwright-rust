@@ -245,10 +245,15 @@ pub(crate) fn furniture_bounds(
 /// Drawn bounds per item, including witnesses and leaders, excluding border and title block.
 /// Principal views use the projected part envelope; the isometric uses its measured bounds.
 pub fn footprints(analysis: &Analysis, plan: &Plan) -> Vec<Rect> {
-    footprints_with_notes(analysis, plan, true)
+    footprints_with_notes(analysis, plan, true, true)
 }
 
-fn footprints_with_notes(analysis: &Analysis, plan: &Plan, notes: bool) -> Vec<Rect> {
+fn footprints_with_notes(
+    analysis: &Analysis,
+    plan: &Plan,
+    notes: bool,
+    furniture: bool,
+) -> Vec<Rect> {
     let mut out = Vec::new();
     for v in &plan.views {
         let b = if v.id == "v:iso" {
@@ -285,6 +290,10 @@ fn footprints_with_notes(analysis: &Analysis, plan: &Plan, notes: bool) -> Vec<R
         for q in p.lines.iter().chain(&p.strokes).chain(&p.arrows).flatten() {
             include(&mut b, *q);
         }
+        for arc in &p.arcs {
+            include(&mut b, [arc[0] - arc[2], arc[1] - arc[2]]);
+            include(&mut b, [arc[0] + arc[2], arc[1] + arc[2]]);
+        }
         for q in p.fills.iter().flatten() {
             include(&mut b, *q);
         }
@@ -315,6 +324,10 @@ fn footprints_with_notes(analysis: &Analysis, plan: &Plan, notes: bool) -> Vec<R
             b.at[0] + b.radius,
             b.at[1] + b.radius,
         ];
+        if let Some(label) = b.label_box {
+            include(&mut r, [label[0], label[1]]);
+            include(&mut r, [label[2], label[3]]);
+        }
         for q in b.leader.iter().flatten() {
             include(&mut r, *q);
         }
@@ -326,8 +339,144 @@ fn footprints_with_notes(analysis: &Analysis, plan: &Plan, notes: bool) -> Vec<R
         include(&mut b, [p.glyph[2], p.glyph[3]]);
         out.push(b);
     }
-    out.extend(furniture_footprints(analysis, plan));
+    if furniture {
+        out.extend(furniture_footprints(analysis, plan));
+    }
     out
+}
+
+/// Ink owned by the selected views, without page furniture.
+/// Per-view hole schedules count here, for clipping, but not in [`footprints`]: the
+/// planner's own fit and fill measures keep their established inputs (and cost).
+pub(crate) fn view_ink(analysis: &Analysis, plan: &Plan) -> Vec<Rect> {
+    let mut out = footprints_with_notes(analysis, plan, false, false);
+    for t in &plan.hole_tables {
+        out.extend(
+            t.blocks
+                .iter()
+                .filter_map(|t| t.placed.as_ref().map(|p| p.cells)),
+        );
+    }
+    out.extend(plan.captions.iter().map(|c| c.ink));
+    for v in &plan.views {
+        out.extend(v.line_work.iter().flat_map(|w| &w.curves).map(|c| c.bbox()));
+    }
+    out
+}
+
+/// Clipping is a feasibility gate, independently of the finding score. Include
+/// strokes, arrows, captions and late furniture on their actual carrying page.
+pub(crate) fn inside_frames(analysis: &Analysis, plan: &Plan) -> bool {
+    std::iter::once(&plan.sheet)
+        .chain(&plan.sheets)
+        .all(|sheet| {
+            let mut local = plan.clone();
+            local.sheet = sheet.clone();
+            local.views.retain(|v| v.sheet == sheet.number);
+            let carries = |id: &str| local.views.iter().any(|v| v.id == id);
+            local.dimensions.retain(|d| carries(&d.view));
+            local.gdt.retain(|g| carries(&g.view));
+            local.balloons.retain(|b| carries(&b.view));
+            local.captions.retain(|c| c.sheet == sheet.number);
+            local.tables.retain(|t| t.sheet == sheet.number);
+            local.hole_table = local.hole_table.filter(|t| t.sheet == sheet.number);
+            local.hole_tables.retain(|t| t.sheet == sheet.number);
+            if sheet.number > 1 {
+                local.notes_block = None;
+                local.radius_notes_block = None;
+                local.radius_table = None;
+                local.requirements.clear();
+            }
+            let mut ink = view_ink(analysis, &local);
+            ink.extend(
+                local
+                    .notes_block
+                    .iter()
+                    .chain(&local.radius_notes_block)
+                    .map(|n| n.cells),
+            );
+            ink.extend(
+                local
+                    .radius_table
+                    .iter()
+                    .filter_map(|t| t.table.placed.as_ref().map(|p| p.cells)),
+            );
+            ink.extend(furniture_footprints(analysis, &local));
+            ink.extend(crate::iso_caption::section_text_obstacles(
+                analysis,
+                sheet,
+                &plan.views,
+            ));
+            // Rendering trims detail markers at the frame. That must not make a
+            // clipped automatic candidate appear feasible: test the complete ring,
+            // and settle its letter with the renderer's own annotation obstacles.
+            let labels: Vec<_> = local
+                .dimensions
+                .iter()
+                .filter_map(|d| d.placed.as_ref().map(|p| p.label_box))
+                .chain(
+                    local
+                        .gdt
+                        .iter()
+                        .filter_map(|g| g.placed.as_ref().map(|p| p.label_box)),
+                )
+                .chain(local.balloons.iter().filter_map(|b| b.label_box))
+                .collect();
+            let mut avoid = labels;
+            avoid.extend(
+                local
+                    .dimensions
+                    .iter()
+                    .filter_map(|d| d.placed.as_ref())
+                    .flat_map(|p| &p.lines)
+                    .map(|line| {
+                        [
+                            line[0][0].min(line[1][0]) - 0.5,
+                            line[0][1].min(line[1][1]) - 0.5,
+                            line[0][0].max(line[1][0]) + 0.5,
+                            line[0][1].max(line[1][1]) + 0.5,
+                        ]
+                    }),
+            );
+            for detail in plan.views.iter().filter_map(|v| v.detail.as_ref()) {
+                if let Some(source) = plan
+                    .views
+                    .iter()
+                    .find(|v| v.id == detail.source_view && v.sheet == sheet.number)
+                {
+                    let (circle, at) = crate::detail::marker(
+                        analysis,
+                        detail,
+                        source,
+                        &plan.views,
+                        sheet.page,
+                        &avoid,
+                    );
+                    ink.push(circle.bbox());
+                    let laid = crate::dims::font().text(&detail.label, crate::section::FONT_SIZE);
+                    ink.push([
+                        at[0] + laid.min[0],
+                        at[1] + laid.min[1],
+                        at[0] + laid.max[0],
+                        at[1] + laid.max[1],
+                    ]);
+                }
+            }
+            ink.into_iter().enumerate().all(|(i, b)| {
+                // View outlines keep their whole stroke inside the frame. Thinner ink
+                // (a witness or centre line, a crop edge) may end on the frame line itself:
+                // its stroke stays under the frame's own, so nothing is clipped.
+                let stroke = if i < local.views.len() {
+                    crate::output::layer_styles()[0].1.width / 2.0
+                } else {
+                    0.0
+                };
+                b[0] >= MARGIN + stroke - 1e-6
+                    && b[1] >= MARGIN + stroke - 1e-6
+                    && b[2] <= sheet.page[0] - MARGIN - stroke + 1e-6
+                    && b[3] <= sheet.page[1] - MARGIN - stroke + 1e-6
+            })
+        })
 }
 
 /// Usable-area share. Clip at the border and subtract title-block intersections from the union.
@@ -348,7 +497,7 @@ pub(crate) fn selection_fill(analysis: &Analysis, plan: &Plan, compaction_possib
         && plan.notes.iter().all(|n| n.id.starts_with("pmi:"))
         && crate::dims::pmi_policy::carries(analysis)
     {
-        fill_boxes(plan, footprints_with_notes(analysis, plan, false))
+        fill_boxes(plan, footprints_with_notes(analysis, plan, false, true))
     } else {
         plan.sheet.fill
     }
@@ -1402,6 +1551,7 @@ pub(crate) fn reserve_linear_corridors(
     plan: &mut Plan,
     inventory: &[crate::dims::PlannedDimension],
     automatic_pair: bool,
+    radius_reference: Option<&Plan>,
     cache: &crate::dims::footprints::Cache,
 ) {
     let old: Vec<_> = plan.views.iter().map(|v| (v.at, v.area, v.scale)).collect();
@@ -1427,6 +1577,32 @@ pub(crate) fn reserve_linear_corridors(
             ];
         }
         let mut owned = plan.dimensions.clone();
+        // A later radius polish restores these settled corridors. Compaction
+        // must not discard their paper reservation and then reject the replay
+        // merely for leaving its newly shortened annotation band.
+        owned.extend(
+            crate::placement_intent::held_dimensions(radius_reference, &plan.views)
+                .into_iter()
+                .filter(|d| {
+                    d.measurements
+                        .iter()
+                        .any(|m| matches!(m.parameter.as_str(), "fillet.radius" | "blend.radius"))
+                        && plan.dimensions.iter().any(|p| {
+                            p.id == d.id && p.terms == d.terms && p.measurements == d.measurements
+                        })
+                        && radius_reference.is_some_and(|r| {
+                            r.views.iter().any(|old| {
+                                old.id == d.view
+                                    && plan.views.iter().any(|now| {
+                                        now.id == old.id
+                                            && now.scale == old.scale
+                                            && now.direction == old.direction
+                                            && now.up == old.up
+                                    })
+                            })
+                        })
+                }),
+        );
         owned.extend(plan.gdt.iter().filter_map(crate::dims::gdt::proxy));
         for d in owned.iter().filter(|d| d.placed.is_some()) {
             if let Some(b) = crate::dims::ink_box(d)

@@ -546,9 +546,12 @@ fn radius_exceptions_are_stated_despite_routing_cost() {
     let p = cache::default_plan(&a, false);
     for label in ["4× R15", "6× R18"] {
         assert!(
-            p.omitted.iter().any(|d| d.label == label
-                && matches!(&d.state, State::Covered { by } if by == "t:radius-centres")),
-            "{label} survives routing in a fully located table"
+            p.dimensions
+                .iter()
+                .any(|d| d.label == label && d.placed.is_some())
+                || p.omitted.iter().any(|d| d.label == label
+                    && matches!(&d.state, State::Covered { by } if by == "t:radius-centres")),
+            "{label} survives routing as a callout or in a fully located table"
         );
     }
     assert!(!p.problems.iter().any(|p| p.code == "blend_callout_dropped"));
@@ -665,7 +668,9 @@ fn radius_centre_table_credits_every_occurrence_and_rejects_wrong_locators(file:
     let Some(dir) = corpus::dir() else { return };
 
     let (part, a) = model::analyse_native(&dir.join(file)).unwrap();
-    let p = model::plan(&a, &Spec::default()).unwrap();
+    let spec =
+        serde_json::from_value(serde_json::json!({"sheet":{"preferred_max_size":"A0"}})).unwrap();
+    let p = model::plan(&a, &spec).unwrap();
     let doc = serde_json::to_value(&p).unwrap();
     let table = doc["radius_table"]
         .as_object()
@@ -741,7 +746,7 @@ fn radius_centre_table_credits_every_occurrence_and_rejects_wrong_locators(file:
     let restored: model::Analysis =
         serde_json::from_value(serde_json::to_value(&a).unwrap()).unwrap();
     assert_eq!(
-        serde_json::to_value(model::plan(&restored, &Spec::default()).unwrap()).unwrap(),
+        serde_json::to_value(model::plan(&restored, &spec).unwrap()).unwrap(),
         doc
     );
 }

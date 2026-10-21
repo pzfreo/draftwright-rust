@@ -172,6 +172,7 @@ fn underside_cavity_containment_is_not_a_crossing_and_extensions_are_report_only
         &a,
         &Spec {
             hole_table: draftwright::hole_table::Setting::Never,
+            sheet: serde_json::from_value(serde_json::json!({"size":"A1"})).unwrap(),
             ..Spec::default()
         },
     )

@@ -211,6 +211,11 @@ pub(crate) fn obstacles(
     out
 }
 
+/// Half the annotation-rule stroke, shared with measured frame checks.
+pub fn frame_clearance() -> f64 {
+    crate::output::layer_styles()[2].1.width / 2.0
+}
+
 /// A block of *size*'s lower-left corner on the sheet's drawing area, clear of *obstacles*,
 /// towards *corner*, or none when it fits nowhere.
 pub(crate) fn place(
@@ -220,7 +225,9 @@ pub(crate) fn place(
     corner: Corner,
 ) -> Option<[f64; 2]> {
     let [pw, ph] = sheet.page;
-    let region = [MARGIN, MARGIN, pw - MARGIN, ph - MARGIN];
+    // Ruled furniture must keep its visible stroke inside the drawable frame.
+    let edge = MARGIN + frame_clearance();
+    let region = [edge, edge, pw - edge, ph - edge];
     layout::fit_auxiliary_box(size, region, obstacles, corner, PAD)
 }
 

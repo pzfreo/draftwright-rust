@@ -213,6 +213,20 @@ fn stc09_without_a_complete_fit_keeps_its_first_drawing_and_reports_the_floor() 
         ("A1", "1:5")
     );
     let p = cache::default_plan(&a, true);
+    assert_eq!(p.gdt.len(), 28, "complete frame/datum inventory");
+    let notices: Vec<_> = p
+        .problems
+        .iter()
+        .filter(|p| p.code == "sheet_preference_exceeded")
+        .collect();
+    assert_eq!(notices.len(), 1);
+    assert_eq!(notices[0].severity, "info");
+    assert_eq!(
+        notices[0].labels().impact,
+        draftwright::finding::Impact::Advisory
+    );
+    assert!(notices[0].message.contains(&p.sheet.size));
+    assert!(p.sheet.basis.contains("sheet/preferred_max_size A3"));
     assert_eq!(
         (p.sheet.size.as_str(), p.sheet.scale.as_str()),
         (first.sheet.size.as_str(), first.sheet.scale.as_str())

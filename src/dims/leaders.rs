@@ -2664,6 +2664,67 @@ pub(crate) fn settle_radius_leaders(
     reports
 }
 
+/// Finished-sheet quality using the same resolved ink and 2 mm run predicate
+/// as callout refinement. This measures existing routes; it never repairs one.
+pub(crate) fn sheet_route_limits(
+    analysis: &crate::model::Analysis,
+    plan: &crate::model::Plan,
+) -> std::collections::BTreeSet<(String, Vec<String>)> {
+    let key = serde_json::to_vec(&(&plan.views, &plan.dimensions))
+        .expect("route quality inputs serialize");
+    crate::planning::memo(analysis, "sheet-route-quality", key, || {
+        let cache = super::footprints::Cache::default();
+        let mut out = std::collections::BTreeSet::new();
+        for view in &plan.views {
+            let model = cache.model(analysis, view);
+            let resolved = model
+                .as_ref()
+                .and_then(|ink| ink.0.inspection(analysis, view));
+            let extensions: Vec<_> = plan
+                .dimensions
+                .iter()
+                .filter(|d| {
+                    plan.views
+                        .iter()
+                        .any(|v| v.id == d.view && v.sheet == view.sheet)
+                })
+                .filter_map(|d| d.placed.as_ref())
+                .filter(|p| p.lines.len() >= 3 && p.arrows.len() == 2)
+                .flat_map(|p| p.lines.iter().take(2).copied())
+                .collect();
+            for dimension in plan
+                .dimensions
+                .iter()
+                .filter(|d| d.view == view.id && d.kind == "callout")
+            {
+                let Some(p) = &dimension.placed else { continue };
+                if p.lines.is_empty() {
+                    continue;
+                }
+                let drawn = resolved
+                    .map(|ink| &ink.drawn)
+                    .or_else(|| model.as_ref().map(|ink| &ink.0));
+                if p.lines.iter().any(|line| {
+                    drawn.is_some_and(|ink| ink.runs_beside(*line))
+                        || runs_beside(*line, &extensions)
+                }) {
+                    out.insert(("leader_ink_run".into(), vec![dimension.id.clone()]));
+                }
+                if let Some(ink) = resolved {
+                    let route = [p.lines[0], *p.lines.last().expect("nonempty leader")];
+                    for crossing in 0..ink.hidden.route_crossings(route) {
+                        out.insert((
+                            "leader_hidden_crossing".into(),
+                            vec![dimension.id.clone(), crossing.to_string()],
+                        ));
+                    }
+                }
+            }
+        }
+        out
+    })
+}
+
 /// Local callout refinement after interior placement, with the rest of the ink held fixed
 /// (maintainer decision (iii): leaders and their text keep off extension lines). A callout in
 /// contact moves to the nearest station of its row with fewer contacts only when nothing a
@@ -5002,6 +5063,124 @@ fn rim_tip(site: Site, elbow: P2) -> P2 {
     [c[0] + r * d[0] / n, c[1] + r * d[1] / n]
 }
 
+/// A transported compact route can end on the model grid rather than the
+/// native circular rim. Remove only that rounding before candidate audits.
+/// There is no route search, label movement or change to authored placements.
+pub(crate) fn restore_proven_arc_tips(
+    analysis: &crate::model::Analysis,
+    spec: &crate::model::Spec,
+    plan: &mut crate::model::Plan,
+) {
+    if crate::nominal::comparison() {
+        return;
+    }
+    let ids: Vec<_> = plan
+        .dimensions
+        .iter()
+        .filter(|d| {
+            d.placed.is_some()
+                && d.measurements
+                    .iter()
+                    .any(|m| m.parameter == "slot_end_radius.radius")
+                && spec.dimensions.get(&d.id).is_none_or(|d| d.place.is_none())
+        })
+        .map(|d| (d.id.clone(), d.view.clone()))
+        .collect();
+    if ids.is_empty() {
+        return;
+    }
+    // The live native evidence, also used by callout_offset, is independent
+    // of the compact comparison's temporary placement policies.
+    let corrections = crate::planning::isolated(analysis, || {
+        ids.iter()
+            .filter_map(|(id, view)| {
+                let dimension = plan.dimensions.iter().find(|d| d.id == *id)?;
+                let old = dimension.placed.as_ref()?.lines.first()?[0];
+                let scale = plan.views.iter().find(|v| v.id == *view)?.scale;
+                let sites: Vec<Site> = super::callout_members(analysis, spec, plan, id, view)
+                    .into_iter()
+                    .map(|m| {
+                        (
+                            m.centre,
+                            m.radius,
+                            m.span.map(|s| crate::arc::Span {
+                                start: s.start,
+                                sweep: s.sweep,
+                            }),
+                        )
+                    })
+                    .collect();
+                let tip = rounded_rim_tip(&sites, old, scale * crate::model::projected_ink::GRID);
+                (tip != old).then(|| (id.clone(), tip))
+            })
+            .collect::<Vec<_>>()
+    });
+    if corrections.is_empty() {
+        return;
+    }
+    let corrected: std::collections::BTreeSet<_> =
+        corrections.iter().map(|(id, _)| id.clone()).collect();
+    let affected = |p: &Problem| p.subjects.iter().any(|id| corrected.contains(id));
+    let before: Vec<_> = super::recheck(analysis, plan)
+        .into_iter()
+        .filter(&affected)
+        .collect();
+    for (id, tip) in corrections {
+        let d = plan
+            .dimensions
+            .iter_mut()
+            .find(|d| d.id == id)
+            .expect("corrected dimension");
+        let p = d.placed.as_mut().expect("corrected placement");
+        p.lines[0][0] = tip;
+        p.arrows[0] = arrow(tip, p.lines[0][1]);
+        let at = plan
+            .views
+            .iter()
+            .find(|v| v.id == d.view)
+            .expect("corrected carrier")
+            .at;
+        plan.callout_tips
+            .insert(id, (d.view.clone(), [tip[0] - at[0], tip[1] - at[1]]));
+    }
+    let after: Vec<_> = super::recheck(analysis, plan)
+        .into_iter()
+        .filter(&affected)
+        .collect();
+    let codes: std::collections::BTreeSet<_> = before
+        .into_iter()
+        .chain(after.iter().cloned())
+        .map(|p| p.code)
+        .collect();
+    plan.problems
+        .retain(|p| !(codes.contains(&p.code) && affected(p)));
+    plan.problems.extend(after);
+    plan.sheet.fill = crate::sheet_fit::fill(analysis, plan);
+    plan.status = crate::completeness::status(&plan.problems);
+}
+
+/// Remove model-grid rounding from a copied arc attachment without changing
+/// its angular station. This is geometry transport, not a placement search.
+fn rounded_rim_tip(sites: &[Site], tip: P2, grid: f64) -> P2 {
+    let error = |s: &Site| ((tip[0] - s.0[0]).hypot(tip[1] - s.0[1]) - s.1).abs();
+    if let Some(site) = sites
+        .iter()
+        .filter(|s| {
+            s.1 > 0.
+                && s.2.is_some_and(|span| {
+                    span.contains((tip[1] - s.0[1]).atan2(tip[0] - s.0[0]), grid / s.1)
+                })
+        })
+        .min_by(|a, b| error(a).total_cmp(&error(b)))
+        && error(site) > 1e-6
+        && error(site) <= grid
+    {
+        rim_tip(*site, tip)
+    } else {
+        tip
+    }
+}
+
 /// Reattach to the same proven rim when a bounded growth repair moves its elbow.
 fn moved_rim_tip(sites: &[Site], anchor: P2, elbow: P2, grid: f64) -> P2 {
     let on = |s: &Site| ((s.0[0] - anchor[0]).hypot(s.0[1] - anchor[1]) - s.1).abs();
@@ -7025,6 +7204,27 @@ mod tests {
             let l = [elbow[0] - t[0], elbow[1] - t[1]];
             assert!((r[0] * l[1] - r[1] * l[0]).abs() < 1e-9 && r[0] * l[0] + r[1] * l[1] > 0.0);
         }
+    }
+
+    #[test]
+    fn copied_arc_rounding_preserves_the_station_on_the_real_rim() {
+        let sites = [(
+            [50., 40.],
+            6.,
+            Some(crate::arc::Span {
+                start: 0.,
+                sweep: std::f64::consts::TAU,
+            }),
+        )];
+        let rounded = [53.6, 44.7999];
+        let tip = rounded_rim_tip(&sites, rounded, 0.001);
+        assert!(((tip[0] - 50.).hypot(tip[1] - 40.) - 6.).abs() < 1e-9);
+        assert!(
+            ((tip[1] - 40.).atan2(tip[0] - 50.) - (rounded[1] - 40.).atan2(rounded[0] - 50.)).abs()
+                < 1e-9
+        );
+        assert_eq!(rounded_rim_tip(&sites, [53., 44.], 0.001), [53., 44.]);
+        assert_eq!(rounded_rim_tip(&sites, tip, 0.001), tip);
     }
 
     #[test]

@@ -57,11 +57,21 @@
           "sheet": {
             "type": "object",
             "properties": {
-              "preferred_printer": {
+              "preferred_max_sheets": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1
+              },
+              "preferred_max_size": {
                 "enum": [
                   null,
                   "A4",
-                  "A3"
+                  "A3",
+                  "A2",
+                  "A1",
+                  "A0"
                 ]
               },
               "title": {
@@ -309,11 +319,21 @@
           "sheet": {
             "type": "object",
             "properties": {
-              "preferred_printer": {
+              "preferred_max_sheets": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1
+              },
+              "preferred_max_size": {
                 "enum": [
                   null,
                   "A4",
-                  "A3"
+                  "A3",
+                  "A2",
+                  "A1",
+                  "A0"
                 ]
               },
               "title": {
@@ -643,11 +663,21 @@
           "sheet": {
             "type": "object",
             "properties": {
-              "preferred_printer": {
+              "preferred_max_sheets": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1
+              },
+              "preferred_max_size": {
                 "enum": [
                   null,
                   "A4",
-                  "A3"
+                  "A3",
+                  "A2",
+                  "A1",
+                  "A0"
                 ]
               },
               "title": {
@@ -881,11 +911,21 @@
           "sheet": {
             "type": "object",
             "properties": {
-              "preferred_printer": {
+              "preferred_max_sheets": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1
+              },
+              "preferred_max_size": {
                 "enum": [
                   null,
                   "A4",
-                  "A3"
+                  "A3",
+                  "A2",
+                  "A1",
+                  "A0"
                 ]
               },
               "title": {
@@ -1137,11 +1177,21 @@
           "sheet": {
             "type": "object",
             "properties": {
-              "preferred_printer": {
+              "preferred_max_sheets": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1
+              },
+              "preferred_max_size": {
                 "enum": [
                   null,
                   "A4",
-                  "A3"
+                  "A3",
+                  "A2",
+                  "A1",
+                  "A0"
                 ]
               },
               "title": {
@@ -1371,11 +1421,21 @@
           "sheet": {
             "type": "object",
             "properties": {
-              "preferred_printer": {
+              "preferred_max_sheets": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1
+              },
+              "preferred_max_size": {
                 "enum": [
                   null,
                   "A4",
-                  "A3"
+                  "A3",
+                  "A2",
+                  "A1",
+                  "A0"
                 ]
               },
               "title": {
@@ -1652,11 +1712,21 @@
           "sheet": {
             "type": "object",
             "properties": {
-              "preferred_printer": {
+              "preferred_max_sheets": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1
+              },
+              "preferred_max_size": {
                 "enum": [
                   null,
                   "A4",
-                  "A3"
+                  "A3",
+                  "A2",
+                  "A1",
+                  "A0"
                 ]
               },
               "title": {
@@ -1937,11 +2007,21 @@
           "sheet": {
             "type": "object",
             "properties": {
-              "preferred_printer": {
+              "preferred_max_sheets": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1
+              },
+              "preferred_max_size": {
                 "enum": [
                   null,
                   "A4",
-                  "A3"
+                  "A3",
+                  "A2",
+                  "A1",
+                  "A0"
                 ]
               },
               "title": {
@@ -2203,11 +2283,21 @@
           "sheet": {
             "type": "object",
             "properties": {
-              "preferred_printer": {
+              "preferred_max_sheets": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1
+              },
+              "preferred_max_size": {
                 "enum": [
                   null,
                   "A4",
-                  "A3"
+                  "A3",
+                  "A2",
+                  "A1",
+                  "A0"
                 ]
               },
               "title": {
@@ -2441,11 +2531,21 @@
           "sheet": {
             "type": "object",
             "properties": {
-              "preferred_printer": {
+              "preferred_max_sheets": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1
+              },
+              "preferred_max_size": {
                 "enum": [
                   null,
                   "A4",
-                  "A3"
+                  "A3",
+                  "A2",
+                  "A1",
+                  "A0"
                 ]
               },
               "title": {
@@ -2670,11 +2770,21 @@
           "sheet": {
             "type": "object",
             "properties": {
-              "preferred_printer": {
+              "preferred_max_sheets": {
+                "type": [
+                  "integer",
+                  "null"
+                ],
+                "minimum": 1
+              },
+              "preferred_max_size": {
                 "enum": [
                   null,
                   "A4",
-                  "A3"
+                  "A3",
+                  "A2",
+                  "A1",
+                  "A0"
                 ]
               },
               "title": {

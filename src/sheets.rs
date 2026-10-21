@@ -340,12 +340,19 @@ pub(crate) fn count_runs<T>(steps: &mut usize, run: impl FnOnce() -> T) -> T {
 }
 
 fn run(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
-    if crate::planning::is_fixed_pair() && max_only(spec) {
-        // A max-only permission changes allocation, not the recovered sheet-1
-        // drawing. Reuse it before R5 moves any auxiliary group. Precision is
-        // deferred consistently until the fixed candidate's allocation finishes.
+    if crate::planning::is_fixed_pair()
+        && (max_only(spec) || (spec.sheet.size.is_some() && spec.sheet.scale.is_some()))
+    {
+        // Paper/scale and the moved prefix determine recovered sheet-1 ink.
+        // Increasing the sheet-count permission only changes the packer's capacity;
+        // reuse this existing run cache across 2..N instead of rerouting each prefix.
+        // allocate_inner validates the real bound before running any prefix.
         let mut single = spec.clone();
-        single.sheets = None;
+        if max_only(spec) {
+            single.sheets = None;
+        } else if let Some(sheets) = &mut single.sheets {
+            sheets.max = Some(9);
+        }
         let key = serde_json::to_vec(&(
             &single,
             crate::planning::policy_key(analysis),
@@ -495,7 +502,7 @@ fn allocate_inner(
             p.sheet.scale,
             moved.keys().cloned().collect::<Vec<_>>().join(", ")
         ));
-        let rank = (hard, dropped, -p.sheet.scale_factor, step);
+        let rank = (hard, dropped, -p.sheet.scale_factor, p.sheets.len(), step);
         if best.as_ref().is_none_or(|(r, _)| rank < *r) {
             best = Some((rank, p));
         }
@@ -1159,6 +1166,431 @@ fn pack_with_overflow(
     true
 }
 
+/// The sheet-basis marker of a [`separate_views`] allocation.
+pub(crate) const WHOLE_VIEW_ALLOCATION: &str =
+    "principal views and auxiliary views allocated as whole annotated blocks";
+
+/// Allocate settled view blocks, including principal projections, without changing
+/// their scale, annotation ownership or required-item inventory. The same paper,
+/// fit-box allocator, sheet numbering and cross-reference machinery serve R5.
+pub(crate) fn separate_views(
+    analysis: &Analysis,
+    source: &Plan,
+    size: &str,
+    max: usize,
+) -> Option<Plan> {
+    separate_views_inner(analysis, source, size, max, None)
+}
+
+/// Pin replay transports the same owned ink into the already selected view
+/// frames. Expanded pin ink is audited there, never used to relocate peers.
+pub(crate) fn replay_views(analysis: &Analysis, source: &Plan, frame: &Plan) -> Option<Plan> {
+    let mut fixed = frame.clone();
+    let mut findings = Vec::new();
+    // A retained physical page is its own coordinate frame. Settling all
+    // pages together can refit an isometric around a principal on another
+    // page, changing a bare annotation pin into a view/scale edit.
+    if source.spec.views.values().any(|v| v.place.is_some()) {
+        for sheet in std::iter::once(&frame.sheet).chain(&frame.sheets) {
+            let mut local: Vec<_> = fixed
+                .views
+                .iter()
+                .filter(|v| v.sheet == sheet.number)
+                .cloned()
+                .collect();
+            let mut spec = source.spec.clone();
+            spec.views
+                .retain(|name, _| local.iter().any(|v| v.id == format!("v:{name}")));
+            crate::placement_intent::views(
+                &spec,
+                &mut local,
+                Some(frame),
+                sheet,
+                &[],
+                &mut findings,
+            );
+            for view in local {
+                if let Some(old) = fixed.views.iter_mut().find(|v| v.id == view.id) {
+                    *old = view;
+                }
+            }
+        }
+    }
+    let mut source = source.clone();
+    source.problems.retain(|p| {
+        !matches!(
+            p.code.as_str(),
+            "projection_relation_infeasible" | "pinned_view_off_sheet"
+        )
+    });
+    source.problems.extend(findings);
+    separate_views_inner(
+        analysis,
+        &source,
+        &frame.sheet.size,
+        1 + frame.sheets.len(),
+        Some(&fixed),
+    )
+}
+
+fn separate_views_inner(
+    analysis: &Analysis,
+    source: &Plan,
+    size: &str,
+    max: usize,
+    frame: Option<&Plan>,
+) -> Option<Plan> {
+    use crate::placement_intent::{move_box, move_point};
+    if (frame.is_none() && source.spec.views.values().any(|v| v.place.is_some()))
+        || source.spec.sheets.as_ref().is_some_and(|s| {
+            !s.keep_together.is_empty() || s.gdt_on_sheet_1 || s.hole_table.is_some()
+        })
+        || source.spec.views.values().any(|v| v.sheet.is_some())
+        || source.spec.tables.iter().any(|t| t.sheet.is_some())
+        || source.views.iter().any(|v| v.detail.is_some())
+        || source.views.len() < 2
+    {
+        return None;
+    }
+    // R5 already treats the orientation view as freely fitted. Its normal
+    // parent-scale auxiliary avoids carrying a large-paper 1.3x enlargement
+    // into a small-paper allocation; dimensioned principal views keep scale.
+    let mut adjusted = source.clone();
+    if source.spec.iso_scale_factor.is_none()
+        && !source.dimensions.iter().any(|d| d.view == "v:iso")
+        && !source.gdt.iter().any(|g| g.view == "v:iso")
+        && let Some(i) = source
+            .views
+            .iter()
+            .position(|v| v.id == "v:iso" && v.scale > source.sheet.scale_factor)
+        && let Some(iso) = auxiliary(
+            analysis,
+            "iso",
+            source.sheet.scale_factor,
+            1,
+            source.sheet.scale_factor,
+        )
+    {
+        adjusted.views[i] = iso;
+        adjusted.captions.retain(|c| c.view != "v:iso");
+    }
+    if let Some(target) = frame.and_then(|p| p.views.iter().find(|v| v.id == "v:iso"))
+        && source.spec.iso_scale_factor.is_none()
+        && !source.dimensions.iter().any(|d| d.view == "v:iso")
+        && !source.gdt.iter().any(|g| g.view == "v:iso")
+        && let Some(i) = adjusted.views.iter().position(|v| v.id == "v:iso")
+    {
+        adjusted.views[i] = auxiliary(analysis, "iso", target.scale, 1, source.sheet.scale_factor)?;
+        adjusted.captions.retain(|c| c.view != "v:iso");
+    }
+    let source = &adjusted;
+    let (_, w, h) = layout::PAGES.iter().find(|p| p.0 == size)?;
+    let mut plan = source.clone();
+    let page_delta = [w - source.sheet.page[0], h - source.sheet.page[1]];
+    plan.sheet.size = size.into();
+    plan.sheet.page = [*w, *h];
+    let width = layout::title_block_width(*w);
+    plan.sheet.title_block[0] = w - layout::MARGIN - 1. - width;
+    plan.sheet.title_block[2] = w - layout::MARGIN - 1.;
+    let title_delta = [
+        plan.sheet.title_block[0] - source.sheet.title_block[0],
+        plan.sheet.title_block[1] - source.sheet.title_block[1],
+    ];
+    plan.sheet.title_cells =
+        crate::title_block::cells(plan.sheet.title_block, &plan.sheet.title, size);
+    plan.sheet.projection_symbol = Some(crate::title_block::projection(
+        plan.sheet.title_block,
+        plan.spec.sheet.projection.as_deref() == Some("first"),
+    ));
+    plan.sheet.zones = Some(zones(plan.sheet.page));
+    plan.sheets.clear();
+    // Free document furniture stays on sheet 1, anchored to its original corner.
+    for n in plan
+        .notes_block
+        .iter_mut()
+        .chain(&mut plan.radius_notes_block)
+    {
+        move_box(&mut n.cells, page_delta);
+        move_point(&mut n.title_at, page_delta);
+    }
+    for n in &mut plan.notes {
+        if let Some(p) = &mut n.placed {
+            move_box(&mut p.cells, page_delta);
+            for at in &mut p.rows_at {
+                move_point(at, page_delta);
+            }
+        }
+    }
+    for r in &mut plan.requirements {
+        if let Some(p) = &mut r.placed {
+            move_box(&mut p.glyph, title_delta);
+            move_box(&mut p.label_box, title_delta);
+            move_point(&mut p.text_at, title_delta);
+            for q in p.strokes.iter_mut().flatten() {
+                move_point(q, title_delta);
+            }
+            for a in &mut p.arcs {
+                a[0] += title_delta[0];
+                a[1] += title_delta[1];
+            }
+        }
+    }
+    fn move_table(t: &mut crate::tables::PlannedTable, delta: [f64; 2]) {
+        use crate::placement_intent::{move_box, move_point};
+        t.sheet = 1;
+        if let Some(p) = &mut t.placed {
+            move_box(&mut p.cells, delta);
+            for x in &mut p.columns {
+                *x += delta[0];
+            }
+            for at in p.cells_at.iter_mut().flatten().flatten() {
+                move_point(at, delta);
+            }
+        }
+    }
+    for t in &mut plan.tables {
+        move_table(t, page_delta);
+    }
+    if let Some(t) = &mut plan.radius_table {
+        move_table(&mut t.table, page_delta);
+    }
+    // First try to share the document page. If its furniture needs the whole
+    // page, principal views start on 2; no note or table is silently withdrawn.
+    let mut furniture = plan.clone();
+    furniture.views.clear();
+    furniture.dimensions.clear();
+    furniture.gdt.clear();
+    furniture.hole_table = None;
+    furniture.hole_tables.clear();
+    furniture.balloons.clear();
+    furniture.captions.clear();
+    if !crate::sheet_fit::inside_frames(analysis, &furniture) {
+        return None;
+    }
+    let mut occupied = crate::sheet_fit::view_ink(analysis, &furniture);
+    occupied.extend(
+        furniture
+            .notes_block
+            .iter()
+            .chain(&furniture.radius_notes_block)
+            .map(|n| n.cells),
+    );
+    occupied.extend(
+        furniture
+            .radius_table
+            .iter()
+            .filter_map(|t| t.table.placed.as_ref().map(|p| p.cells)),
+    );
+    occupied.extend(crate::sheet_fit::furniture_footprints(analysis, &furniture));
+    occupied.push(plan.sheet.title_block);
+    let region = [
+        layout::MARGIN + 2.,
+        layout::MARGIN + 2.,
+        w - layout::MARGIN - 2.,
+        h - layout::MARGIN - 2.,
+    ];
+    let mut pages = vec![occupied];
+    let principal = |id: &str| ["v:front", "v:plan", "v:side"].contains(&id);
+    let mut primary_frames = BTreeMap::<usize, ([f64; 2], Vec<[f64; 4]>)>::new();
+    for i in 0..plan.views.len() {
+        let id = plan.views[i].id.clone();
+        let mut own = source.clone();
+        own.views.retain(|v| v.id == id);
+        own.dimensions.retain(|d| d.view == id);
+        own.gdt.retain(|g| g.view == id);
+        own.balloons.retain(|b| b.view == id);
+        own.captions.retain(|c| c.view == id);
+        own.tables.clear();
+        own.hole_table = own
+            .hole_table
+            .filter(|t| t.view.as_deref().unwrap_or("v:plan") == id);
+        own.hole_tables
+            .retain(|t| t.view.as_deref().unwrap_or("v:plan") == id);
+        own.requirements.clear();
+        let mut ink = crate::sheet_fit::view_ink(analysis, &own);
+        ink.extend(
+            crate::sheet_fit::furniture_footprints(analysis, &own)
+                .into_iter()
+                .skip(1 + usize::from(own.sheet.projection_symbol.is_some())),
+        );
+        let bounds = ink.into_iter().reduce(|a, b| {
+            [
+                a[0].min(b[0]),
+                a[1].min(b[1]),
+                a[2].max(b[2]),
+                a[3].max(b[3]),
+            ]
+        })?;
+        let block = [bounds[2] - bounds[0], bounds[3] - bounds[1]];
+        let mut allocation = if let Some(frame) = frame {
+            let target = frame.views.iter().find(|v| v.id == id)?;
+            if (target.scale - plan.views[i].scale).abs() > 1e-9 {
+                return None;
+            }
+            let delta = [
+                target.at[0] - plan.views[i].at[0],
+                target.at[1] - plan.views[i].at[1],
+            ];
+            while pages.len() < target.sheet as usize {
+                let number = pages.len() + 1;
+                plan.sheets.push(extra_sheet(&plan.sheet, number as u32));
+                let mut obstacles =
+                    crate::sheet_fit::furniture_bounds(analysis, plan.sheets.last()?, &[]);
+                obstacles.push(plan.sheet.title_block);
+                pages.push(obstacles);
+            }
+            Some((
+                target.sheet as usize,
+                [bounds[0] + delta[0], bounds[1] + delta[1]],
+            ))
+        } else {
+            pages.iter().enumerate().find_map(|(n, obstacles)| {
+                if principal(&id)
+                    && let Some((delta, peers)) = primary_frames.get(&(n + 1))
+                {
+                    // Projections sharing a page retain their established alignment
+                    // and relative spacing. A different page is a separate frame.
+                    let at = [bounds[0] + delta[0], bounds[1] + delta[1]];
+                    let rect = [at[0], at[1], at[0] + block[0], at[1] + block[1]];
+                    if rect[0] < region[0]
+                        || rect[1] < region[1]
+                        || rect[2] > region[2]
+                        || rect[3] > region[3]
+                    {
+                        return None;
+                    }
+                    let fixed: Vec<_> = obstacles
+                        .iter()
+                        .filter(|b| !peers.contains(b))
+                        .copied()
+                        .collect();
+                    return layout::fit_box(block, rect, &fixed, layout::Corner::BottomLeft, 2.)
+                        .map(|at| (n + 1, at));
+                }
+                layout::fit_box(block, region, obstacles, layout::Corner::BottomLeft, 2.)
+                    .map(|at| (n + 1, at))
+            })
+        };
+        if allocation.is_none() {
+            let n = pages.len() + 1;
+            if n > max {
+                return None;
+            }
+            plan.sheets.push(extra_sheet(&plan.sheet, n as u32));
+            let mut obstacles =
+                crate::sheet_fit::furniture_bounds(analysis, plan.sheets.last()?, &[]);
+            obstacles.push(plan.sheet.title_block);
+            let at = layout::fit_box(block, region, &obstacles, layout::Corner::BottomLeft, 2.)?;
+            pages.push(obstacles);
+            allocation = Some((n, at));
+        }
+        let (next, at) = allocation?;
+        let delta = [at[0] - bounds[0], at[1] - bounds[1]];
+        plan.views[i].sheet = next as u32;
+        shift(&mut plan.views[i], delta);
+        plan.views[i].area = [at[0], at[1], at[0] + block[0], at[1] + block[1]];
+        plan.views[i].basis += "; whole view and its annotations allocated to a separate sheet";
+        for g in plan.gdt.iter_mut().filter(|g| g.view == id) {
+            if let Some(p) = &mut g.placed {
+                move_point(&mut p.tip, delta);
+                move_box(&mut p.label_box, delta);
+                for q in p
+                    .lines
+                    .iter_mut()
+                    .chain(&mut p.arrows)
+                    .chain(&mut p.strokes)
+                    .flatten()
+                {
+                    move_point(q, delta);
+                }
+                for a in &mut p.arcs {
+                    a[0] += delta[0];
+                    a[1] += delta[1];
+                }
+                for q in p.fills.iter_mut().flatten() {
+                    move_point(q, delta);
+                }
+                for t in p.letters.iter_mut().chain(&mut p.runs) {
+                    move_point(&mut t.at, delta);
+                }
+            }
+        }
+        for b in plan.balloons.iter_mut().filter(|b| b.view == id) {
+            move_point(&mut b.at, delta);
+            if let Some(r) = &mut b.label_box {
+                move_box(r, delta);
+            }
+            if let Some(line) = &mut b.leader {
+                for q in line {
+                    move_point(q, delta);
+                }
+            }
+        }
+        for t in plan
+            .hole_table
+            .iter_mut()
+            .chain(&mut plan.hole_tables)
+            .filter(|t| t.view.as_deref().unwrap_or("v:plan") == id)
+        {
+            t.sheet = next as u32;
+            for b in &mut t.blocks {
+                move_table(b, delta);
+                b.sheet = next as u32;
+            }
+        }
+        for c in plan.captions.iter_mut().filter(|c| c.view == id) {
+            c.sheet = next as u32;
+            move_point(&mut c.at, delta);
+            move_box(&mut c.ink, delta);
+        }
+        if principal(&id) {
+            primary_frames
+                .entry(next)
+                .or_insert((delta, Vec::new()))
+                .1
+                .push(plan.views[i].area);
+        }
+        pages[next - 1].push(plan.views[i].area);
+    }
+    plan.dimensions = crate::placement_intent::held_dimensions(Some(source), &plan.views);
+    crate::centrelines::trim_to_frame(&mut plan.views, plan.sheet.page);
+    cross_references(analysis, &mut plan);
+    crate::iso_caption::refresh(analysis, &mut plan);
+    // Re-evaluate spatial findings after transport. Required losses and every
+    // unsupported requirement remain in the inventory and problem list.
+    plan.problems.retain(|p| {
+        !matches!(
+            p.code.as_str(),
+            "annotation_outside_area"
+                | "annotation_off_sheet"
+                | "annotation_over_title_block"
+                | "annotation_over_view"
+                | "annotation_line_over_view"
+                | "annotation_overlap"
+                | "annotation_ink_overlap"
+                | "annotation_leader_crossing"
+                | "leader_through_feature"
+                | "extension_through_feature"
+                | "views_do_not_fit"
+                | "views_overlap"
+                | "view_on_title_block"
+        )
+    });
+    plan.problems.extend(crate::dims::recheck(analysis, &plan));
+    plan.problems.extend(check(&plan));
+    // A frame replay is an author's explicit pin edit, not an automatic
+    // candidate. Preserve its requested ink and the off-sheet findings above,
+    // as on one sheet. Every automatic allocation still rejects clipping.
+    if frame.is_none() && !crate::sheet_fit::inside_frames(analysis, &plan) {
+        return None;
+    }
+    plan.sheet.basis += "; ";
+    plan.sheet.basis += WHOLE_VIEW_ALLOCATION;
+    plan.sheet.fill = crate::sheet_fit::fill(analysis, &plan);
+    plan.status = crate::completeness::status(&plan.problems);
+    Some(plan)
+}
+
 fn shift(view: &mut PlannedView, delta: [f64; 2]) {
     view.at[0] += delta[0];
     view.at[1] += delta[1];
@@ -1753,6 +2185,7 @@ mod tests {
             .join("tests/fixtures/parts/scattered_holes.step");
         let (_, analysis) = model::analyse_native(&path).unwrap();
         let spec: Spec = serde_json::from_value(json!({
+            "sheet": {"preferred_max_size": "A0"},
             "sheets": {"max": 2, "keep_together": [["iso", "hole_table"]]},
             "views": {"iso": {"sheet": 2}}
         }))

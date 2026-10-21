@@ -353,7 +353,7 @@ fn pin_linear(s: &mut Session, id: &str, offset: [f64; 2]) {
         )],
         true,
     )
-    .unwrap();
+    .unwrap_or_else(|error| panic!("{id} offset {offset:?}: {error}"));
 }
 
 fn near_point(a: [f64; 2], b: [f64; 2]) {

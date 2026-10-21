@@ -218,7 +218,9 @@ fn precise_labels_keep_their_span_after_the_final_inventory_settles() {
             }
         }
     }
-    let Some(p) = plan("nist/nist_ftc_08_asme1_rc.stp") else {
+    let mut spec = Spec::default();
+    spec.sheet.size = Some("A1".into()); // Keep the complete inventory for precision checks.
+    let Some(p) = plan_with("nist/nist_ftc_08_asme1_rc.stp", &spec) else {
         return;
     };
     let slot = p

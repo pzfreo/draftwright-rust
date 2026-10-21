@@ -393,9 +393,15 @@ fn offset_members_expose_the_projected_arc_span() {
         .iter()
         .filter(|m| m.span.is_some())
         .find(|m| {
+            // Opposite trimmed arcs can have the same centre and radius.
+            // Membership requires the angular interval as well as the circle.
+            let span = m.span.unwrap();
+            let angle = (p.lines[0][0][1] - m.centre[1]).atan2(p.lines[0][0][0] - m.centre[0]);
             ((p.lines[0][0][0] - m.centre[0]).hypot(p.lines[0][0][1] - m.centre[1]) - m.radius)
                 .abs()
                 < 1e-6
+                && (angle - span.start + 1e-6).rem_euclid(std::f64::consts::TAU)
+                    <= span.sweep + 2e-6
         })
         .expect("drawn radius tip lies on an exposed arc");
     let span = arc.span.unwrap();

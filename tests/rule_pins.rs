@@ -295,7 +295,16 @@ fn fixed_paper_typography_survives_scale_and_sheet_fit() {
                 }
             };
             let p = model::plan_recovered(&a, &s).unwrap();
-            escalated |= p.problems.iter().any(|p| p.code == "layout_replanned");
+            // An automatic choice records its recovery from the first estimate in the
+            // sheet basis; layout_replanned belongs to kept layouts and local fixes.
+            escalated |= p.problems.iter().any(|p| p.code == "layout_replanned")
+                || p.sheet
+                    .basis
+                    .split_once("first estimate ")
+                    .is_some_and(|(_, from)| {
+                        let words: Vec<_> = from.split_whitespace().collect();
+                        (words[0], words[2]) != (p.sheet.size.as_str(), p.sheet.scale.as_str())
+                    });
             fitted_iso |= p
                 .views
                 .iter()

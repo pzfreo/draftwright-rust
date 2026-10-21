@@ -64,11 +64,12 @@ def main():
     p.add_argument('drawings', type=Path)
     p.add_argument('--baseline', type=Path, default=ROOT / 'tools/leader-crossings-baseline.json')
     p.add_argument('--record', type=Path)
+    p.add_argument('--base-ref', default='origin/main', help='Source revision of drawings when recording')
     p.add_argument('--report', type=Path)
     args = p.parse_args()
     parts = collect(args.drawings)
     if args.record:
-        revision = subprocess.check_output(['git', 'rev-parse', 'origin/main'], cwd=ROOT, text=True).strip()
+        revision = subprocess.check_output(['git', 'rev-parse', args.base_ref], cwd=ROOT, text=True).strip()
         args.record.write_text(json.dumps(dict(format=FORMAT, base=revision, parts=parts), indent=2, sort_keys=True) + '\n')
         return 0
     baseline = json.loads(args.baseline.read_text())

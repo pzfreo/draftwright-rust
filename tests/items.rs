@@ -19,6 +19,8 @@ mod support;
 
 #[path = "common/cache.rs"]
 mod cache;
+#[path = "common/sheet_rule.rs"]
+mod sheet_rule;
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::Read as _;
@@ -336,8 +338,8 @@ fn every_plan_item_has_a_state_and_every_problem_subject_is_a_live_item() {
 }
 
 /// The same on the quality parts (`tools/quality_parts.txt`, from the corpus), planned as the
-/// command line plans them. Reserved recess lanes keep every default item drawable;
-/// an explicitly starved sheet still exercises the loss/state-machine audit.
+/// command line plans them. Automatic preferences retain every default item;
+/// explicitly starved sheets exercise loss states and their matching findings.
 #[test]
 fn on_the_quality_parts_too() {
     let Some(dir) = corpus::dir() else {
@@ -353,6 +355,7 @@ fn on_the_quality_parts_too() {
         let a = cache::native(&dir.join(file)).1;
         let plan = cache::default_plan(&a, true);
         consistent(file, &plan, &a, &Spec::default());
+        sheet_rule::assert_preferences(&plan);
         // Exercise both forms; auto tables should not erase loss/state-machine coverage.
         let ladder = Spec {
             hole_table: draftwright::hole_table::Setting::Never,
@@ -360,6 +363,7 @@ fn on_the_quality_parts_too() {
         };
         let plan = model::plan_recovered(&a, &ladder).unwrap();
         consistent(file, &plan, &a, &ladder);
+        sheet_rule::assert_preferences(&plan);
         plan.dimensions
             .iter()
             .filter(|d| matches!(d.state, State::NotDrawable { .. }))
@@ -379,8 +383,7 @@ fn on_the_quality_parts_too() {
             .any(|d| matches!(d.state, State::NotDrawable { .. })),
         "the explicitly starved drawing still exercises not-drawable states"
     );
-    // Complete automatic composition can now retain all of these items.
-    // Force an overcrowded sheet to keep the loss-state/reporting checks real.
+    // Explicitly overcrowded author choices retain the same loss-state/reporting contract.
     let forced: Spec = serde_json::from_value(json!({
         "sheet": {"size": "A4", "scale": "10:1"}, "hole_table": "never"
     }))

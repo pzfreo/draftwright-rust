@@ -229,6 +229,7 @@ pub struct Spec {
     pub schema: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub binding: Option<Binding>,
+    #[serde(deserialize_with = "sheet_document")]
     pub sheet: SheetSpec,
     /// Authored isometric scale relative to the sheet scale; never automatically refitted.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -481,12 +482,18 @@ pub struct SheetSpec {
     /// `A4` … `A0`.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub size: Option<String>,
-    /// Largest available printer: `A4` (default) or `A3`, for automatic sheet selection.
+    /// Preferred automatic paper, `A4` … `A0`; defaults to `A3`.
     #[serde(
         skip_serializing_if = "Option::is_none",
-        deserialize_with = "preferred_printer"
+        deserialize_with = "preferred_max_size"
     )]
-    pub preferred_printer: Option<String>,
+    pub preferred_max_size: Option<String>,
+    /// Preferred sheet count, at least 1; defaults to 2. `sheets.max` stays hard.
+    #[serde(
+        skip_serializing_if = "Option::is_none",
+        deserialize_with = "preferred_max_sheets"
+    )]
+    pub preferred_max_sheets: Option<u32>,
     /// `n:m`, from ISO 5455's series.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scale: Option<String>,
@@ -529,11 +536,34 @@ fn valid_view_gutter(g: f64) -> bool {
     (0.0..=1189.0).contains(&g)
 }
 
-fn preferred_printer<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<String>, D::Error> {
-    let value = Option::<String>::deserialize(d)?;
-    if value.as_deref().is_some_and(|v| !["A4", "A3"].contains(&v)) {
+pub(crate) const REMOVED_PRINTER: &str = "unknown field `preferred_printer` in sheet; use sheet/preferred_max_size instead: A4 printer → preferred_max_size: \"A4\", A3 printer → preferred_max_size: \"A3\"";
+
+fn sheet_document<'de, D: serde::Deserializer<'de>>(d: D) -> Result<SheetSpec, D::Error> {
+    let value = serde_json::Value::deserialize(d)?;
+    if value.get("preferred_printer").is_some() {
+        return Err(serde::de::Error::custom(REMOVED_PRINTER));
+    }
+    serde_json::from_value(value).map_err(serde::de::Error::custom)
+}
+
+fn preferred_max_sheets<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<u32>, D::Error> {
+    let count = Option::<u32>::deserialize(d)?;
+    if count == Some(0) {
         return Err(serde::de::Error::custom(
-            "sheet/preferred_printer must be A4 or A3",
+            "sheet/preferred_max_sheets must be at least 1",
+        ));
+    }
+    Ok(count)
+}
+
+fn preferred_max_size<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<String>, D::Error> {
+    let value = Option::<String>::deserialize(d)?;
+    if value
+        .as_deref()
+        .is_some_and(|v| !layout::PAGES.iter().any(|p| p.0 == v))
+    {
+        return Err(serde::de::Error::custom(
+            "sheet/preferred_max_size must be A4, A3, A2, A1 or A0",
         ));
     }
     Ok(value)
@@ -2075,6 +2105,10 @@ pub(crate) fn established_drawing(analysis: &Analysis, spec: &Spec) -> Result<Pl
                 origin: spec.origin.clone(),
                 ..Spec::default()
             };
+            // This unrendered historical route template must not change with the
+            // paper preferences. The recipient has its own ordered sheet search, just
+            // as when packing annotation blocks from an explicit A0 template.
+            base.sheet.preferred_max_size = Some("A0".into());
             base.sheet.projection = spec.sheet.projection.clone();
             base.sheet.references = spec.sheet.references;
             crate::planning::with(&reference, || {
@@ -3371,7 +3405,8 @@ pub(crate) fn pin_base(spec: &Spec) -> Spec {
     let mut base = Spec::default();
     base.sheet.size = spec.sheet.size.clone();
     base.sheet.scale = spec.sheet.scale.clone();
-    base.sheet.preferred_printer = spec.sheet.preferred_printer.clone();
+    base.sheet.preferred_max_size = spec.sheet.preferred_max_size.clone();
+    base.sheet.preferred_max_sheets = spec.sheet.preferred_max_sheets;
     base.sheet.projection = spec.sheet.projection.clone();
     base.sheet.fit_deviations = spec.sheet.fit_deviations;
     base.sheet.references = spec.sheet.references;
@@ -3512,6 +3547,7 @@ fn plan_automatic_uncached(analysis: &Analysis, spec: &Spec) -> Result<Plan, Inv
             crate::sheets::allocate(analysis, spec)
         }
     })?;
+    crate::centrelines::trim_to_frame(&mut plan.views, plan.sheet.page);
     if !crate::placement_intent::has_pins(spec) {
         type Labels = BTreeMap<String, (String, [f64; 2])>;
         static LABELS: crate::planning::BoundedMemo<Labels> = crate::planning::BoundedMemo::new(64);
@@ -3555,6 +3591,7 @@ fn plan_automatic_uncached(analysis: &Analysis, spec: &Spec) -> Result<Plan, Inv
             }
         }
     }
+    crate::dims::restore_proven_arc_tips(analysis, spec, &mut plan);
     // PMI completeness belongs to the selected drawing. Attach its remedies once,
     // after that audit in plan_recovered_inner, rather than hashing and enriching
     // every automatic candidate and then repeating the work on the public plan.
@@ -4068,15 +4105,21 @@ fn plan_with_presentation(
         ));
     }
     let spec = &crate::recognition_corrections::bind(analysis, migrate(spec, analysis)?)?;
+    if spec.sheet.preferred_max_sheets == Some(0) {
+        return Err(invalid(
+            "sheet/preferred_max_sheets must be at least 1.",
+            &["1", "2"],
+        ));
+    }
     if spec
         .sheet
-        .preferred_printer
+        .preferred_max_size
         .as_deref()
-        .is_some_and(|v| !["A4", "A3"].contains(&v))
+        .is_some_and(|v| !layout::PAGES.iter().any(|p| p.0 == v))
     {
         return Err(invalid(
-            "sheet/preferred_printer must be A4 or A3.",
-            &["A4", "A3"],
+            "sheet/preferred_max_size must be A4, A3, A2, A1 or A0.",
+            &layout::PAGES.map(|p| p.0),
         ));
     }
     crate::dims::authored::check(spec)?;
@@ -4135,6 +4178,14 @@ fn plan_with_presentation(
                     )
                 })
                 .collect();
+            // A paper trial's sheet-count permission shapes its R5 allocation, so pin
+            // offsets in a multi-sheet canonical are measured on that same allocation.
+            if let Some(max) = spec.sheets.as_ref().and_then(|s| s.max).filter(|&n| n > 1) {
+                base.sheets = Some(crate::sheets::SheetsSpec {
+                    max: Some(max),
+                    ..Default::default()
+                });
+            }
         }
         // Pins in recovered planning replay the finished recovered drawing,
         // including precision repairs, even in its first unexpanded candidate.
@@ -5355,7 +5406,7 @@ fn plan_with_presentation(
     // Reserve the finished radius corridors before an edited/promoted linear
     // witness chooses its lane. Late replay alone would see that new witness as
     // a reason to evict an unrelated, already clear radius leader.
-    let radius_reference = radius_edit_reference(analysis, given);
+    let radius_reference = radius_edit_reference(analysis, given, false);
     let radius_inventory = radius_reference.as_ref().is_some_and(|r| {
         r.dimensions.iter().any(|d| {
             d.placed.is_some()
@@ -6270,6 +6321,7 @@ fn plan_with_presentation(
             &mut plan,
             &inventory,
             free_pair,
+            radius_reference.as_ref(),
             &footprint_cache,
         );
     }
@@ -6601,7 +6653,7 @@ fn finish_nominal_plan(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
                 .iter()
                 .any(|m| matches!(m.parameter.as_str(), "blend.radius" | "fillet.radius"))
         })
-        .then(|| radius_edit_reference(analysis, spec))
+        .then(|| radius_edit_reference(analysis, spec, false))
         .flatten();
     if !crate::nominal::geometry_eligible(analysis) {
         settle_finished_nominals(
@@ -6655,7 +6707,11 @@ fn finish_nominal_plan(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
 /// An annotation edit replays the finished radius routes, rather than repairing the
 /// earlier, pre-polish inventory afresh against a different set of peers. This is
 /// a pure reference, independent of which document happened to be planned first.
-fn radius_edit_reference(analysis: &Analysis, spec: &Spec) -> Option<Plan> {
+pub(crate) fn radius_edit_reference(
+    analysis: &Analysis,
+    spec: &Spec,
+    recovered: bool,
+) -> Option<Plan> {
     let edited = spec.dimension_source == DimensionSource::Authored
         || spec.dimensions.values().any(|d| {
             d.omit
@@ -6677,6 +6733,9 @@ fn radius_edit_reference(analysis: &Analysis, spec: &Spec) -> Option<Plan> {
             .any(|f| matches!(f.kind.as_str(), "blend" | "fillet"))
     {
         return None;
+    }
+    if let Some(reference) = crate::planning::trial_radius_reference() {
+        return Some(reference);
     }
     let mut base = spec.clone();
     base.dimension_source = DimensionSource::Auto;
@@ -6706,6 +6765,7 @@ fn radius_edit_reference(analysis: &Analysis, spec: &Spec) -> Option<Plan> {
         &base,
         crate::planning::is_fixed_pair(),
         crate::planning::nominals_deferred(),
+        recovered,
     ))
     .expect("radius reference inputs serialize");
     crate::planning::memo(analysis, "radius-edit-reference", key.clone(), || {
@@ -6720,7 +6780,16 @@ fn radius_edit_reference(analysis: &Analysis, spec: &Spec) -> Option<Plan> {
         }
         // Do not replace the live candidate's policy/preparation entries,
         // notably its complete annotation inventory and sheet trials.
-        let reference = crate::planning::isolated(analysis, || plan(analysis, &base).ok());
+        // Primitive plans retain their primitive corridors. Only the outer
+        // paper policy requests a finished recovered reference, then carries it
+        // through its fixed-paper trials with trial_radius_reference above.
+        let reference = crate::planning::isolated(analysis, || {
+            if recovered {
+                plan_recovered(analysis, &base).ok()
+            } else {
+                plan(analysis, &base).ok()
+            }
+        });
         MEMO.insert(digest, reference.clone());
         reference
     })
@@ -7349,7 +7418,6 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
                         | "sheets"
                         | "sheets/max"
                         | "sheets/smallest_scale"
-                        | "sheet/preferred_printer"
                 )
             )
         });

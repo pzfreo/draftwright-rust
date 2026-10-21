@@ -272,7 +272,7 @@ fn split_grid_prefers_complete_a4_over_fill_enlargement() {
     let automatic = model::plan_recovered(&a, &split).unwrap();
     assert_eq!(automatic.dimensions.len(), 13);
     assert!(
-        automatic.sheet.basis.contains("A4: clean at 1:1"),
+        automatic.sheet.basis.contains("A4: usable at 1:1"),
         "{}",
         automatic.sheet.basis
     );

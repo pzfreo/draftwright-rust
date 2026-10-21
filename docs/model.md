@@ -268,7 +268,7 @@ mention takes its default.
 
 The design also includes `views/sections` (for example `"sections": [{"id": "A", "through": "f:hole:3"}]`). Feature `anchor` is read for recognition corrections, below; a feature's `note` is read since K1b (below).
 
-- **Fields read:** `sheet` (`size`, `scale`, `preferred_printer`, `title`, `references`, `fit_deviations`, `fit_limits`, `projection`, `default_finish`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`),
+- **Fields read:** `sheet` (`size`, `scale`, `preferred_max_size`, `preferred_max_sheets`, `title`, `references`, `fit_deviations`, `fit_limits`, `projection`, `default_finish`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`),
   `iso_scale_factor`, `dimension_source`, `dimension_schemes/<name>` (`scheme`, `axis`, `targets`, `view`, `from`), `hole_table` (`auto`, `always`, `never`), `dimensions/<id>` (`omit`, `tolerance`, `fit`, `text`, `style`, `place`, `kind`, `between`, `along`, and the earlier `view`
   spelling), `annotations/<id>` (`omit`, `place`, `text` for prose callouts and automatic notes), `features/<id>` (`fit`, `datum`, `controls`, `finish`, `thread`, `knurl`, `note`, `anchor`, `reclassify`, `suppress`, `split`, `pattern`), `feature_declarations`,
   `faces/<face>` (`datum`, `controls`, `finish`, `note`: "Datums and controls authored in the Spec" and "Finish, threads,
@@ -501,28 +501,72 @@ not relax safety margins or change sheet-size, scale, detail, fit or datum polic
 
 #### Sheet allocation (R5, Stage I)
 
-Automatic paper is screen first, print second: plan today's automatic baseline once,
-then prefer a clean A4 drawing. `sheet/preferred_printer` is the largest available
-printer, `"A4"` (default) or `"A3"`; other values are refused. A4 printers try one A4,
-up to two A4 sheets, then one A3. A3 printers try one A4, one A3, then A3 overflow
-(up to nine sheets). The first passing candidate wins; otherwise keep the baseline.
-A baseline already equal to or better than the next request ends the search.
-Baseline reserved footprints cheaply rule out impossible paper/count requests: outlines
-scale, while annotation bands and furniture stay in paper mm. Each trial fixes the paper
-and largest estimated standard scale that keeps primary step spans readable,
-with at most one smaller-scale retry above the ordinary readability floor.
-Crossed leaders without space drops continue to allocation/the next paper, unless
-the printed-step bound needs that retry to retain R5's complete single-sheet prefix.
-Trials retain the baseline’s
-automatic detail inventory. R5 allocation
-and its reuse of complete single sheets, including readability refusals, are unchanged.
-New layout/readability problems reject a candidate; baseline problems with the same
-code and subjects are tolerated. This includes callout leaders or text within
-1 mm of extension lines, compared by item pair. Outline strokes must clear the frame.
-Placement pins retain the unpinned drawing's paper, scale and allocation.
-`Plan.sheet_candidates` records trials and
-`sheet.basis` explains the choice. Explicit `sheet/size`, `sheet/scale`, or
-`sheets.max` keeps the established planner unchanged.
+`sheet/preferred_max_size` (`"A4"` through `"A0"`, default `"A3"`) and
+`sheet/preferred_max_sheets` (integer at least 1, default 2) are soft preferences.
+The existing `sheets.max` is a hard limit (up to 9); preferences never grant
+permission beyond it. Explicit paper, scale and allocation intent take precedence.
+`sheet/keep_layout` retains the author's explicit paper, scale and count, including
+when either preference changes.
+
+Search one sheet at A4, then each size through the preferred maximum. Next try
+2 through the preferred count at that size. If none is usable, increase paper one
+size at a time, trying one through the preferred count at each size. Finally try
+more A0 sheets, up to `sheets.max`. The first usable result wins. Principal and
+auxiliary views can move as complete annotated blocks; dimension, PMI and balloon
+ownership follows the view. Authored view relations and keep-together groups remain
+constraints. Footprint bounds skip impossible candidates. At each request the
+finished baseline's whole annotated views are repacked first (no new plan), then a
+forced trial at the largest scale the footprint bound allows; one smaller readable
+scale follows only after a lack of room (clipping, a hard layout finding or a space
+drop), never after a routing refusal. When a smaller readable scale can fit
+individual views, their complete annotated blocks are planned on roomy paper before
+transport; a small-sheet plan that already dropped items is not used to manufacture
+a fit. The search stops at the first usable candidate.
+
+A candidate is usable relative to the automatic baseline (the planner's own
+unrestricted drawing). It is never clipped: every view outline keeps its whole stroke
+inside its own sheet's frame, and thinner ink (witness, centre and crop lines) may end
+on the frame line but not beyond it. It is never below the readable floor (the existing
+0.8 mm minimum feature opening, 20 mm overall span, printed-step limits, the 1:10
+absolute floor and any authored `sheets.smallest_scale`). Otherwise it is disqualified
+only by unreadable, error or loss findings that the baseline does not have (compared by
+code and subjects):
+
+- an error-severity layout finding;
+- a warning for overlapping text, leader-through-text, ink off the sheet, outside its
+  view's area or over the title block, views that do not fit, or unplaced notes and
+  tables;
+- a measured leader running on an extension line, or a view frame on the title block
+  or on another view;
+- a required item the baseline carries that it does not, a new drop or undrawn GD&T
+  item, an unreported undrawable item, or printed steps illegible beyond the baseline's.
+
+A sheet that would carry only pictorial views (the isometric) is not a usable split,
+unless the author assigned it there. A split also costs a page turn, so a multi-sheet
+candidate is refused by new leader runs beside model ink or new hidden-edge crossings.
+Other warnings (extension and feature crossings, route lengths, crowded but legible
+location ordinates, and on one sheet leader runs and hidden-edge crossings) are
+reported but never choose larger paper, so a crowded but readable small sheet does not lose to an
+enlargement with fewer warnings.
+Unsupported requirements and any undrawn items retain their existing findings.
+Clipping is a hard rejection, including for fallback ranking. If no usable result
+exists through A0, retain the least-bad unclipped candidate using the existing
+hard-findings, required-drops, scale and sheet-count ranking, with an explanation.
+
+One `sheet_preference_exceeded` info/advisory notice identifies the size, sheet
+count or both exceeded, the actual paper/scale/count, and why the preferred layout
+was refused. `Plan.sheet_candidates` and `sheet.basis` record the preferences and
+individual decisions. Explicit `sheet/size` or `sheet/scale` bypasses this search.
+Automatic feasibility is checked before pin replay. A subsequent explicit drag
+keeps its ink and reports any off-sheet placement, as on a single sheet. A bare pin
+holds the finished drawing, after its route repair. Pins in a multi-sheet choice
+replay into its view frames, and a callout offset is measured from that drawing's
+own automatic leader tip. A fresh automatic choice carries no `layout_replanned`
+notice; the planner's recovery from its first estimate is stated in `sheet.basis`.
+
+`preferred_printer` is refused with guidance to `sheet/preferred_max_size`.
+The unreleased `max_size` spelling is not accepted.
+
 
 `sheets.max` allows 1–9 sheets. `sheets.smallest_scale` is an ISO 5455 floor,
 `keep_together` groups view names (also `hole_table`), `hole_table` assigns a rescue
@@ -544,7 +588,7 @@ The cumulative overflow order is isometric, section A–A, then a rescue hole ta
 withdrawn for lack of table room. Assigned content moves first; a group containing a
 principal or a placement pin does not move automatically. Sections that fit stay
 on sheet 1. The first clean prefix wins; otherwise the fewest hard findings and
-required drops, largest first-sheet scale, then fewest moves choose the result.
+required drops, largest first-sheet scale, then fewest sheets and moves choose the result.
 The sheet basis records every attempted or blocked prefix.
 
 Assigned corner tables are placed first on later sheets, then complete view blocks
@@ -963,8 +1007,9 @@ or unsupported-feature warnings, and an authored omission is not an ownerless di
   invariant 9.
 - **The baseline and explicit-paper scale are chosen on finished drawings** (maintainer, 2026-10-12,
   H6; `model::plan_recovered` / `model::recover`, policy in `sheet_fit::choose`).
-  The A4-first policy above wraps this baseline search. Each
-  standard sheet and scale at or above the legibility floor is planned and judged. A
+  The smallest-first policy above wraps this baseline search. Single sheets from A4
+  through `sheet/preferred_max_size`, then the preferred sheet count, are judged
+  before larger paper. Explicit size or scale bypasses the preference search. A
   candidate is valid and complete when it has no hard layout finding, its drawn items and
   views fit inside the border and off the title block, it drops or loses no measurement
   the first plan carried, every GD&T item is drawn, and it lays no more annotations over

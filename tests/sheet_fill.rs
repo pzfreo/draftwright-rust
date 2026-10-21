@@ -105,6 +105,8 @@ fn grm03_rejects_a4_extension_contacts_without_losing_measurements() {
             .iter()
             .any(|c| c.outcome.contains("leader_on_extension"))
     );
+    // Centre lines cropped on the frame line clip nothing: one A3 sheet, as on main.
+    assert!(p.sheets.is_empty());
     let fill = draftwright::sheet_fit::fill(&a, &p);
     assert!(
         (draftwright::sheet_fit::FILL_BAND[0]..=draftwright::sheet_fit::FILL_BAND[1])
@@ -183,13 +185,10 @@ fn specify_plate_pmi_fits_a3_at_full_size_with_every_frame_clear() {
 fn automatic_overflow_never_uses_an_illegible_scale() {
     let mut a = part();
     a.envelope = [[0.0; 3], [100_000.0; 3]];
-    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
-    assert!(p.sheet.scale_factor >= 0.1);
-    assert_eq!(p.sheet.size, "A0");
+    let error = model::plan_recovered(&a, &Spec::default()).unwrap_err();
     assert!(
-        p.problems
-            .iter()
-            .any(|p| matches!(p.code.as_str(), "page_fit_uncertain" | "views_do_not_fit"))
+        error.message.contains("No unclipped automatic drawing"),
+        "{error}"
     );
 }
 
@@ -485,6 +484,7 @@ fn assert_small_single_sheet(name: &str, expected: (&str, &str)) {
     );
 }
 
+/// A crowded but readable A4 is usable: a small part is not enlarged onto A3.
 #[test]
 fn small_10224_fits_one_a4_sheet() {
     assert_small_single_sheet("10224", ("A4", "1:1"));
@@ -502,7 +502,11 @@ fn a_part_needing_large_paper_at_full_size_keeps_large_paper() {
     let a = model::analyse_native(&dir.join("nist/nist_ftc_09_asme1_rd.stp"))
         .unwrap()
         .1;
-    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let p = model::plan_recovered(
+        &a,
+        &serde_json::from_value(serde_json::json!({"sheet":{"preferred_max_size":"A0"}})).unwrap(),
+    )
+    .unwrap();
     assert!(
         matches!(p.sheet.size.as_str(), "A2" | "A1" | "A0"),
         "{}",
@@ -521,7 +525,8 @@ fn overflow_honours_named_paper_and_sheet_count() {
         .1;
     for (intent, size, count) in [
         (json!({"sheet":{"size":"A2"}}), "A2", 1),
-        (json!({"sheets":{"max":1}}), "A3", 1),
+        // A hard one-sheet limit keeps the preference order: the usable A4 comes first.
+        (json!({"sheets":{"max":1}}), "A4", 1),
     ] {
         let spec: Spec = serde_json::from_value(intent).unwrap();
         let p = model::plan_recovered(&a, &spec).unwrap();
@@ -561,24 +566,19 @@ fn small_overflow_respects_explicit_auxiliary_assignment() {
 }
 
 #[test]
-fn explicit_sheet_bound_preserves_large_paper_fallthrough() {
+fn a_hard_sheet_limit_preserves_soft_preference_accountability() {
     let Some(dir) = corpus::dir() else { return };
     let a = model::analyse_native(&dir.join("mfcadpp/10190.step"))
         .unwrap()
         .1;
-    // An explicit bound retains the established automatic search.
     let spec = serde_json::from_value(json!({"sheets":{"max":9}})).unwrap();
     let p = model::plan_recovered(&a, &spec).unwrap();
-    assert_eq!(p.sheet.size, "A1");
-    assert!(p.sheets.is_empty());
-    for paper in ["A4", "A3"] {
-        assert!(
-            p.sheet.basis.contains(&format!("{paper} multi-sheet:")),
-            "{}",
-            p.sheet.basis
-        );
-    }
-    assert!(p.sheet.basis.contains("1 required drops"));
+    sheet_rule::assert_preferences(&p);
+    assert!(
+        p.sheet_candidates
+            .iter()
+            .all(|c| c.max <= 9 && c.preferred_max_size == "A3" && c.preferred_max_sheets == 2)
+    );
 }
 
 #[test]
@@ -682,6 +682,8 @@ fn pmi_bolt_reuses_its_readable_a4_baseline() {
         ("A4", "2:1")
     );
     assert_eq!(p.sheet_candidates.len(), 1);
-    assert_eq!(p.sheet_candidates[0].outcome, "automatic baseline reused");
+    let candidate = &p.sheet_candidates[0];
+    assert_eq!((candidate.size.as_str(), candidate.max), ("A4", 1));
+    assert!(candidate.outcome.starts_with("A4: usable at 2:1"));
     assert!(p.gdt.iter().all(|g| g.placed.is_some()));
 }

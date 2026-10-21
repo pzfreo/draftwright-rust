@@ -258,8 +258,9 @@ fn notes_are_plan_items_numbered_in_order() {
     // The block sits at the top right of the drawing area, its rows from the top down.
     let block = plan.notes_block.as_ref().unwrap();
     let [w, h] = plan.sheet.page;
+    let edge = 10.0 + draftwright::tables::frame_clearance();
     assert!(
-        (block.cells[2] - (w - 10.0)).abs() < 1e-9 && (block.cells[3] - (h - 10.0)).abs() < 1e-9
+        (block.cells[2] - (w - edge)).abs() < 1e-9 && (block.cells[3] - (h - edge)).abs() < 1e-9
     );
     let ys: Vec<f64> = std::iter::once(block.title_at[1])
         .chain(
@@ -348,11 +349,19 @@ fn a_long_note_moves_the_sheet_on_rather_than_be_dropped() {
     // A block too big for the first sheet is reserved, so the ladder takes the next one, as
     // draftwright's `layout_required_tables` does.
     let (_, a) = plate();
-    let bare = model::plan(a, &Spec::default()).unwrap();
+    let bare = model::plan(
+        a,
+        &serde_json::from_value(serde_json::json!({"sheet":{"preferred_max_size":"A0"}})).unwrap(),
+    )
+    .unwrap();
     let many: Vec<Value> = (1..=30)
         .map(|k| json!({ "id": format!("n:{k}"), "text": format!("NOTE {k}: A REQUIREMENT LONG ENOUGH TO WRAP ONTO A SECOND ROW OF THE BLOCK") }))
         .collect();
-    let plan = model::plan(a, &spec(json!({ "notes": many }))).unwrap();
+    let plan = model::plan(
+        a,
+        &spec(json!({ "sheet":{"preferred_max_size":"A0"}, "notes": many })),
+    )
+    .unwrap();
     assert!(
         plan.problems.iter().all(|p| p.code != "notes_not_placed"),
         "{:?}",
@@ -455,8 +464,11 @@ fn the_block_matches_draftwrights_on_corpus_parts() {
                 h - (ph - pb[3]),
             ];
             assert!(
-                ((w - block[2] - (pw - pb[2])).abs() < 1e-6
-                    && (h - block[3] - (ph - pb[3])).abs() < 1e-6)
+                ((w - block[2] - (pw - pb[2]) - draftwright::tables::frame_clearance()).abs()
+                    < 1e-6
+                    && (h - block[3] - (ph - pb[3]) - draftwright::tables::frame_clearance())
+                        .abs()
+                        < 1e-6)
                     || plan.views.iter().any(|v| overlaps(
                         corner,
                         [
@@ -476,8 +488,9 @@ fn the_block_matches_draftwrights_on_corpus_parts() {
             );
         } else {
             assert!(
-                (w - block[2] - (pw - pb[2])).abs() < 1e-6
-                    && (h - block[3] - (ph - pb[3])).abs() < 1e-6,
+                (w - block[2] - (pw - pb[2]) - draftwright::tables::frame_clearance()).abs() < 1e-6
+                    && (h - block[3] - (ph - pb[3]) - draftwright::tables::frame_clearance()).abs()
+                        < 1e-6,
                 "{name} {block:?} {pb:?}"
             );
         }
