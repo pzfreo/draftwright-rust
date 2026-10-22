@@ -524,9 +524,14 @@ transport; a small-sheet plan that already dropped items is not used to manufact
 a fit. The search stops at the first usable candidate.
 
 Dimension lines sit 10 mm from the view outline and 7 mm apart (3 mm text). On a
-one-sheet request, when a forced trial at a scale runs out of room (the same clipping,
-hard layout finding or space drop test), the same paper and scale are tried with compact
-spacing before the smaller scale or the next request: the first line 7 mm from the
+one-sheet request, when a forced trial at a scale runs out of room for its lanes, the
+same paper and scale are tried with compact spacing before the smaller scale or the next
+request. Running out of room for lanes means a space drop, a page-fit verdict, dimension ink off the sheet
+or over the title block, or clipping that compact lanes could cover: no view outline larger
+than the frame, and the annotated views' extent beyond the frame's span no more than
+compact lanes save across every view (3 mm per side, plus 1.5 mm per further stacked
+line). Overlaps between items and unrelated furniture do not earn a retry. Compact lanes
+are the first line 7 mm from the
 outline, then 5.5 mm between lines, which leaves 1.5 mm between a label's top and the
 next line and clears the 2 mm extension overshoot. Compact spacing therefore ranks
 before the next paper size and the preferred-count escalation. The footprint bound is

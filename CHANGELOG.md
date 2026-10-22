@@ -13,8 +13,11 @@ All notable changes to draftwright-rust are recorded here, in the style of
   are tried with compact spacing before a smaller scale, larger paper or more sheets: the
   first line 7 mm from the outline, then 5.5 mm between lines (1.5 mm clear above each
   label, and clear of the 2 mm extension overshoot).
-  - The existing usable test (overlaps, leaders, legibility, losses) still gates compact
-    candidates. Splits onto more sheets keep normal lanes.
+  - The retry runs only for a lack of room compact lanes could cover (space drops, page-fit
+    verdicts, dimension ink off the sheet, or clipping within the lanes' possible saving), not
+    for overlaps or unrelated furniture. The existing usable test (overlaps, leaders,
+    legibility, losses) still gates compact candidates. Splits onto more sheets keep normal
+    lanes.
   - `sheet/dimension_spacing: normal | compact` sets the intent: `normal` forbids the
     fallback, `compact` uses compact lanes directly.
   - The plan records `sheet.dimension_spacing: "compact"` when used (absent means normal),

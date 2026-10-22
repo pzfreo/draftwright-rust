@@ -652,8 +652,9 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
             // Normal spacing first; compact spacing on the same paper and scale only when
             // that ran out of room, before a smaller scale or the next paper request.
             let mut cramped_first = None;
+            let mut lanes_may_help = true;
             for spaced in [false, true] {
-                if spaced && (!compact || cramped_first == Some(false)) {
+                if spaced && (!compact || cramped_first == Some(false) || !lanes_may_help) {
                     continue;
                 }
                 let key = (size.to_string(), scale.to_bits(), spaced);
@@ -698,6 +699,9 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
                         .any(|p| crate::hole_table::DROPS.contains(&p.code.as_str()))
                     || !sheet_fit::inside_frames(fit, &plan);
                 cramped_first = cramped_first.or(Some(cramped));
+                if compact && cramped && !spaced {
+                    lanes_may_help = compact_may_help(fit, &plan);
+                }
                 chosen = judge(plan, &mut scales, &mut outcome);
                 if chosen.is_some() {
                     break 'scales;
@@ -782,6 +786,88 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
     });
     let reason = "least-bad unclipped candidate; supported-paper search exhausted";
     Ok(finish_choice(best, &intent, candidates, reason))
+}
+
+/// Whether compact lanes could cure a cramped normal-spacing trial. Not when a view's own
+/// outline is larger than the frame, nor when the annotated views span more than the frame
+/// by more than compact lanes could save across all of them; not when its hard findings and
+/// drops are not a lack of room for dimension lanes.
+fn compact_may_help(analysis: &Analysis, plan: &Plan) -> bool {
+    let page = plan.sheet.page;
+    let frame = [
+        layout::MARGIN,
+        layout::MARGIN,
+        page[0] - layout::MARGIN,
+        page[1] - layout::MARGIN,
+    ];
+    if !sheet_fit::inside_frames(analysis, plan) {
+        let outlines = sheet_fit::footprints(analysis, plan);
+        let bands = crate::view_gutters::bands(analysis, plan);
+        let mut ink = [
+            f64::INFINITY,
+            f64::INFINITY,
+            f64::NEG_INFINITY,
+            f64::NEG_INFINITY,
+        ];
+        let mut saving = [0.0; 2];
+        for ((view, outline), band) in plan.views.iter().zip(outlines).zip(bands) {
+            if view.id == "v:iso" {
+                continue;
+            }
+            // Packing moves views; only a view larger than the frame cannot fit.
+            if (0..2).any(|k| outline[k + 2] - outline[k] > frame[k + 2] - frame[k] + 1e-6) {
+                return false;
+            }
+            for k in 0..2 {
+                ink[k] = ink[k].min(band[k]);
+                ink[k + 2] = ink[k + 2].max(band[k + 2]);
+                saving[k] += compact_savings(plan, &view.id, outline)[k];
+            }
+        }
+        // The annotated views' total extent beyond the frame's span, against the most that
+        // compact lanes could save across every view.
+        return (0..2).all(|k| ink[k + 2] - ink[k] - (frame[k + 2] - frame[k]) <= saving[k] + 1e-6);
+    }
+    // Room the sheet lacks: space drops, the page-fit verdicts, and dimension ink pushed off
+    // the sheet or onto the title block. Collisions between items (overlaps) are local
+    // placement, which tighter lanes do not relieve.
+    let dimensioned = |p: &model::Problem| p.subjects.iter().any(|s| s.starts_with("d:"));
+    plan.problems
+        .iter()
+        .filter(|p| p.severity != "info")
+        .any(|p| match p.code.as_str() {
+            "page_fit_uncertain" | "views_do_not_fit" => true,
+            "annotation_off_sheet" | "annotation_over_title_block" => dimensioned(p),
+            code => crate::hole_table::DROPS.contains(&code),
+        })
+}
+
+/// The most paper mm compact spacing can save across each axis of a view: per side, 3 mm on
+/// the first line (or the empty corridor) and 1.5 mm per further stacked linear dimension.
+fn compact_savings(plan: &Plan, view: &str, o: [f64; 4]) -> [f64; 2] {
+    use crate::dims::{FIRST_COMPACT, FIRST_NORMAL, LANE_COMPACT, LANE_NORMAL};
+    let side = |k: usize, sign: f64, edge: f64| {
+        let mut at: Vec<f64> = plan
+            .dimensions
+            .iter()
+            .filter(|d| d.view == view && d.kind == "linear")
+            .filter_map(|d| d.placed.as_ref()?.lines.last().copied())
+            .filter(|[a, b]| (a[k] - b[k]).abs() < 1e-6 && (a[1 - k] - b[1 - k]).abs() > 1.0)
+            .map(|[a, _]| sign * (a[k] - edge))
+            .filter(|d| *d > 0.5)
+            .collect();
+        at.sort_by(f64::total_cmp);
+        at.dedup_by(|a, b| (*a - *b).abs() < 0.01);
+        // Every side keeps at least the first-line corridor (layout::dim_pad), 3 mm less
+        // at compact spacing.
+        (FIRST_NORMAL - FIRST_COMPACT)
+            + at.len().saturating_sub(1) as f64 * (LANE_NORMAL - LANE_COMPACT)
+    };
+    // Vertical lines stack left and right (across x); horizontal ones below and above.
+    [
+        side(0, -1.0, o[0]) + side(0, 1.0, o[2]),
+        side(1, -1.0, o[1]) + side(1, 1.0, o[3]),
+    ]
 }
 
 fn automatic(spec: &Spec) -> bool {
@@ -1246,6 +1332,37 @@ mod tests {
             (&after.sheet.size, &after.sheet.scale),
             (&before.sheet.size, &before.sheet.scale)
         );
+    }
+
+    #[test]
+    fn compact_is_retried_only_for_a_lack_of_lane_room() {
+        let a = fixture();
+        let plan = model::plan_automatic(&a, &Spec::default()).unwrap();
+        assert!(sheet_fit::inside_frames(&a, &plan));
+        let with = |code: &str, subjects: &[&str]| {
+            let mut p = plan.clone();
+            p.problems.push(model::Problem {
+                code: code.into(),
+                severity: "warning".into(),
+                subjects: subjects.iter().map(|s| s.to_string()).collect(),
+                ..Default::default()
+            });
+            compact_may_help(&a, &p)
+        };
+        assert!(with("page_fit_uncertain", &["sheet"]));
+        assert!(with("callout_dropped", &["d:x"]));
+        assert!(with("annotation_off_sheet", &["d:x"]));
+        // Collisions and unrelated furniture are not cured by tighter lanes.
+        assert!(!with("annotation_ink_overlap", &["d:x", "d:y"]));
+        assert!(!with("title_field_overflow", &["sheet"]));
+        assert!(!with("annotation_off_sheet", &["v:iso"]));
+        // Clipped ink far wider than every view's lane saving: no compact retry.
+        let mut wide = plan.clone();
+        wide.views[0].at[0] += 1000.0;
+        wide.views[0].area[0] += 1000.0;
+        wide.views[0].area[2] += 1000.0;
+        assert!(!sheet_fit::inside_frames(&a, &wide));
+        assert!(!compact_may_help(&a, &wide));
     }
 
     #[test]
