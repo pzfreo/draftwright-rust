@@ -17,6 +17,7 @@ threads-required = "num-cpus"
 [[profile.default.overrides]]
 filter = '''
     (binary(=audits) & test(/^items::/)) & not test(=items::a_problems_fix_resolves_it)
+        & not test(/^items::on_the_quality_part::/)
     | test(=problem_wording::only_sheet_problems_have_the_sheet_as_subject)
     | test(=problem_wording::no_problem_message_carries_an_internal_id)
     | test(=interior_placement::all_quality_parts_interior_lines_arrows_and_tips_clear_rendered_ink)
@@ -34,13 +35,17 @@ priority = 100
 default-filter = 'not (binary(issue_drafting) | binary(issue_trust))'
 fail-fast = false
 
+# Per-test durations for tools/test_shards.py --record.
+[profile.ci.junit]
+path = "junit.xml"
+
 # A shard's wall clock is bounded below by its longest test, so the tests that take most of a
 # minute or more on CI start first rather than last. Named NIST cases replace the long
 # all-fixture PMI loops; reserve early slots for the remaining aggregate audits too.
 # Share this ordering with the default full-suite run; ci inherits the same overrides.
 [[profile.default.overrides]]
 filter = '''
-    test(=items::on_the_quality_parts_too)
+    test(/^items::on_the_quality_part::/)
     | test(=items::every_plan_item_has_a_state_and_every_problem_subject_is_a_live_item)
     | test(=problem_wording::only_sheet_problems_have_the_sheet_as_subject)
     | test(=problem_wording::no_problem_message_carries_an_internal_id)
