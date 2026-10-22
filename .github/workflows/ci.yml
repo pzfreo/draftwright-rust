@@ -178,9 +178,10 @@ jobs:
           done
 
   # The quality-pins measurements (30 parts unpinned, the 270 runs of the nine random-pin
-  # cells, and the AP242 CTC/FTC sources) run once each, balanced across these shards
-  # (tools/ci_acceptance.py shard_tasks). quality-gate compares them with one same-binary
-  # baseline and enforces every cell.
+  # cells, the AP242 CTC/FTC sources, and the rest of the 66-part repeated-span survey) run
+  # once each, balanced across these shards (tools/ci_acceptance.py shard_tasks).
+  # quality-gate compares them with one same-binary baseline, enforces every cell, and
+  # requires no repeated span on any survey part.
   quality-pins:
     name: acceptance (quality-pins-${{ matrix.shard }}-9)
     needs: binary
@@ -252,8 +253,6 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          # The 63-part survey keeps the 3600 s per-call budget and the 120 min job limit.
-          - {job: repeated-spans, label: repeated-spans, pin_args: "--job repeated-spans", timeout: 120}
           # Each budget runs alone in turn: plan-time, then the slow tail's renders
           # (cgb243 and threaded_connector_109, #43 item 3), then the MCP evaluation.
           - {job: budgets, label: budgets, pin_args: "--job plan-time --job render-tail --job mcp", timeout: 70}

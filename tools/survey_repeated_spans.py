@@ -32,6 +32,35 @@ def in_shard(names, k, n):
     return sorted(names)[k - 1::n]
 
 
+def inputs(corpus, directory):
+    """The 66 survey inputs: the corpus manifest, which must hold every corpus file the tests
+    read, and each PMI fixture decompressed into *directory*."""
+    corpus, root = Path(corpus), Path(__file__).resolve().parents[1]
+    assert corpus.is_dir(), corpus
+    directory.mkdir(parents=True, exist_ok=True)
+    files = [corpus / f for f in (root / 'tools/repeated_span_parts.txt').read_text().splitlines()]
+    assert set((root / 'tools/quality_parts.txt').read_text().splitlines()) <= {
+        str(p.relative_to(corpus)) for p in files}
+    sources = '\n'.join(p.read_text() for p in (root / 'tests').rglob('*.rs'))
+    used = {p for p in corpus.rglob('*') if p.suffix.lower() in {'.step', '.stp'}
+            # A bare file name counts only as a whole name: `cgb203.step` does not use `203.step`.
+            and (re.search(r'(?<![\w-])' + re.escape(p.name), sources)
+                 or str(p.relative_to(corpus)) in sources)}
+    used.update(corpus / json.loads(gzip.decompress(p.read_bytes()))['binding']['file']
+                for p in (root / 'tests/fixtures/sheets').glob('*.gz'))
+    # Left out by the maintainer: real drawings rarely model threads, so the part is a poor
+    # survey case. Tests and sheet facts that mirror the Python corpus still read it.
+    used -= {corpus / p for p in EXCLUDED}
+    assert used <= set(files), f'add test inputs to the manifest: {sorted(used - set(files))}'
+    for fixture in sorted((root / 'tests/fixtures/pmi/step').glob('*.gz')):
+        path = directory / fixture.name[:-3]
+        path.write_bytes(gzip.decompress(fixture.read_bytes()))
+        files.append(path)
+    assert all(p.is_file() for p in files), 'a survey input is missing'
+    assert len({p.stem for p in files}) == len(files), 'ambiguous output basenames'
+    return files
+
+
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('binary')
@@ -51,30 +80,8 @@ def main():
         recorded = [{k: v[k] for k in ('part', 'kind', 'items')} for v in verdicts]
         assert sorted(found, key=str) == sorted(recorded, key=str), 'pre-E3 patterns differ from verdicts'
     corpus = Path(os.environ['DRAFTWRIGHT_CORPUS'])
-    assert corpus.is_dir(), corpus
     assert args.out.is_absolute(), 'out must be absolute'
-    inputs = args.out / 'inputs'
-    inputs.mkdir(parents=True, exist_ok=True)
-    files = [corpus / f for f in Path('tools/repeated_span_parts.txt').read_text().splitlines()]
-    assert set(Path('tools/quality_parts.txt').read_text().splitlines()) <= {
-        str(p.relative_to(corpus)) for p in files}
-    sources = '\n'.join(p.read_text() for p in Path('tests').rglob('*.rs'))
-    used = {p for p in corpus.rglob('*') if p.suffix.lower() in {'.step', '.stp'}
-            # A bare file name counts only as a whole name: `cgb203.step` does not use `203.step`.
-            and (re.search(r'(?<![\w-])' + re.escape(p.name), sources)
-                 or str(p.relative_to(corpus)) in sources)}
-    used.update(corpus / json.loads(gzip.decompress(p.read_bytes()))['binding']['file']
-                for p in Path('tests/fixtures/sheets').glob('*.gz'))
-    # Left out by the maintainer: real drawings rarely model threads, so the part is a poor
-    # survey case. Tests and sheet facts that mirror the Python corpus still read it.
-    used -= {corpus / p for p in EXCLUDED}
-    assert used <= set(files), f'add test inputs to the manifest: {sorted(used - set(files))}'
-    for fixture in sorted(Path('tests/fixtures/pmi/step').glob('*.gz')):
-        path = inputs / fixture.name[:-3]
-        path.write_bytes(gzip.decompress(fixture.read_bytes()))
-        files.append(path)
-    assert all(p.is_file() for p in files), 'a survey input is missing'
-    assert len({p.stem for p in files}) == len(files), 'ambiguous output basenames'
+    files = inputs(corpus, args.out / 'inputs')
     keep = set(in_shard({p.stem for p in files}, *args.shard))
     files = [p for p in files if p.stem in keep]
     (args.out / 'inputs.txt').write_text(''.join(f'{p}\n' for p in files))

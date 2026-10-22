@@ -132,7 +132,7 @@ class Acceptance(unittest.TestCase):
 
     def test_ci_calls_local_runner_and_always_uploads_evidence(self):
         workflow = (ROOT / '.github/workflows/ci.yml').read_text()
-        for required in ('quality-pins', 'repeated-spans', 'mcp', 'tools/ci_acceptance.py',
+        for required in ('quality-pins', 'quality-gate', 'mcp', 'tools/ci_acceptance.py',
                          'if: always()', 'acceptance-inputs.tar.gz', 'timeout-minutes: ${{ matrix.timeout }}'):
             self.assertIn(required, workflow)
         self.assertNotIn('continue-on-error', workflow)
@@ -183,7 +183,10 @@ class Acceptance(unittest.TestCase):
             return name, row
         plan = SimpleNamespace(returncode=0, stdout=json.dumps({'dimensions': [
             {'id': f'd:{i}', 'placed': {}} for i in range(8)], 'views': []}))
+        def inputs(corpus, directory):
+            return [Path(tmp) / 'survey' / f'{name}.step' for name in sorted(runner.survey_names())]
         with patch.object(runner.quality, 'one', side_effect=one), \
+                patch.object(runner.survey, 'inputs', side_effect=inputs), \
                 patch.object(runner.subprocess, 'run', return_value=plan):
             for k in range(1, n + 1):
                 out = Path(tmp) / f'shard-{k}'
@@ -214,7 +217,8 @@ class Acceptance(unittest.TestCase):
             self.assertEqual(steps, ['leader-crossings', 'leader-routes', 'label-lane-locality'])
             names = [s['name'] for s in run.steps]
             self.assertEqual(names[:3], ['shards', 'quality', 'ap242-quality'])
-            self.assertEqual(names[-9:], ['pins-' + c for c in runner.PIN_CELLS])
+            self.assertEqual(names[-10:], ['survey'] + ['pins-' + c for c in runner.PIN_CELLS])
+            self.assertEqual(len(json.loads((out / 'survey/baseline.json').read_text())), 66)
             self.assertEqual(len(json.loads((out / 'quality/baseline.json').read_text())), 30)
             for cell in runner.PIN_CELLS:
                 report = json.loads((out / f'pins-{cell}/random-pins.json').read_text())
@@ -245,7 +249,8 @@ class Acceptance(unittest.TestCase):
         self.assertEqual(command[command.index('--timeout') + 1], 3600)
         self.assertEqual(step.call_args.kwargs['timeout'], 6600)
         workflow = (ROOT / '.github/workflows/ci.yml').read_text()
-        self.assertIn('label: repeated-spans, pin_args: "--job repeated-spans", timeout: 120', workflow)
+        # CI surveys inside quality-pins (with this per-call budget) and judges in quality-gate.
+        self.assertNotIn('--job repeated-spans', workflow)
 
     def test_ci_runs_plan_budget_with_release_binary(self):
         runner = self.runner()
