@@ -4,6 +4,7 @@ import json
 import os
 import importlib.util
 import re
+import shutil
 from pathlib import Path
 import signal
 import subprocess
@@ -37,17 +38,6 @@ class Acceptance(unittest.TestCase):
 
     def quality(self):
         return {name: dict.fromkeys(KEYS, 0) for name in NAMES}
-
-    def test_quality_pins_runs_the_crossing_ratchet(self):
-        runner = self.runner()
-        with tempfile.TemporaryDirectory() as tmp:
-            run = runner.Run(SimpleNamespace(binary=Path('binary'), corpus=Path('corpus'),
-                baseline=Path('baseline'), pin_cell='1-1'), Path(tmp))
-            with patch.object(run, 'step') as step:
-                run.execute('quality-pins')
-            calls = {call.args[0]: call.args[1] for call in step.call_args_list}
-            self.assertIn('leader-crossings', calls)
-            self.assertIn(runner.ROOT / 'tools/check_leader_crossings.py', calls['leader-crossings'])
 
     def test_quality_accepts_equal_and_improved_cells(self):
         before, after = self.quality(), self.quality()
@@ -153,40 +143,98 @@ class Acceptance(unittest.TestCase):
         spec.loader.exec_module(runner)
         return runner
 
-    def test_hosted_pin_matrix_covers_every_cell_with_bounded_jobs(self):
+    def test_quality_shards_partition_every_measurement(self):
+        runner = self.runner()
+        tasks = runner.quality_tasks()
+        self.assertEqual(len(tasks), len(set(tasks)))
+        self.assertEqual(sum(kind == 'quality' for kind, _ in tasks), 30)
+        self.assertEqual(sum(kind.startswith('pins-') for kind, _ in tasks), 270)
+        self.assertEqual({kind for kind, _ in tasks if kind.startswith('pins-')},
+                         {'pins-' + cell for cell in runner.PIN_CELLS})
+        self.assertGreater(sum(kind == 'ap242' for kind, _ in tasks), 0)
+        for n in (1, 2, 7, 12):
+            shards = [runner.shard_tasks(k, n) for k in range(1, n + 1)]
+            self.assertEqual(sorted(t for shard in shards for t in shard), sorted(tasks))
+
+    def test_hosted_quality_shards_cover_every_task_and_the_gate_needs_them(self):
         workflow = (ROOT / '.github/workflows/ci.yml').read_text()
-        cells = re.findall(r'job: quality-pins, label: quality-pins-(\d-\d), '
-                           r'pin_args: "--pin-cell (\d-\d)", timeout: (\d+)', workflow)
-        expected = {(f'{seed}-{pins}', f'{seed}-{pins}', '30')
-                    for seed in (1, 2, 3) for pins in (1, 3, 8)}
-        self.assertEqual(len(cells), 9)
-        self.assertEqual(set(cells), expected)
-        self.assertIn('${{ matrix.pin_args }}', workflow)
-        self.assertIn('name: acceptance-${{ matrix.label }}', workflow)
+        job = workflow[workflow.index('  quality-pins:'):workflow.index('  quality-gate:')]
+        n = int(re.search(r'--shard \$\{\{ matrix.shard \}\}/(\d+) ', job).group(1))
+        shards = re.search(r'shard: \[([\d, ]+)\]', job).group(1)
+        self.assertEqual([int(k) for k in shards.split(',')], list(range(1, n + 1)))
+        self.assertIn(f'name: acceptance-quality-pins-${{{{ matrix.shard }}}}-{n}', job)
+        self.assertIn(f'name: quality-gate-input-${{{{ matrix.shard }}}}-{n}', job)
+        gate = workflow[workflow.index('  quality-gate:'):]
+        self.assertIn('needs: [binary, quality-pins]', gate[:400])
+        self.assertIn('--job quality-gate', gate)
+        self.assertIn('--require-go', gate)
+        self.assertIn('pattern: quality-gate-input-*', gate)
+
+    def fake_shards(self, runner, tmp, n, pinned=None):
+        """Run every shard with a stand-in renderer; the gate's subprocess checks are patched."""
+        def one(f, dw, out, spec=None, timeout=600, review=True):
+            name = os.path.basename(str(f)).split('.')[0]
+            Path(out).mkdir(parents=True, exist_ok=True)
+            row = dict.fromkeys(KEYS, 0)
+            row.update(ink=2, off_sheet_items=[])
+            if spec:
+                row.update(pinned or {})
+            (Path(out) / f'{name}.plan.json').write_text('{}')
+            return name, row
+        plan = SimpleNamespace(returncode=0, stdout=json.dumps({'dimensions': [
+            {'id': f'd:{i}', 'placed': {}} for i in range(8)], 'views': []}))
+        with patch.object(runner.quality, 'one', side_effect=one), \
+                patch.object(runner.subprocess, 'run', return_value=plan):
+            for k in range(1, n + 1):
+                out = Path(tmp) / f'shard-{k}'
+                out.mkdir()
+                run = runner.Run(SimpleNamespace(binary=Path('binary'), corpus=Path(tmp), shard=(k, n)), out)
+                run.execute('quality-pins')
+                self.assertTrue(all(step['passed'] for step in run.steps), run.steps)
+
+    def gate(self, runner, tmp, shards_dir, name='gate'):
+        baseline = Path(tmp) / 'committed.json'
+        baseline.write_text(json.dumps({'metrics': KEYS, 'parts': {
+            n: {**dict.fromkeys(KEYS, 0), 'ink': 2} for n in NAMES}}))
+        out = Path(tmp) / name
+        out.mkdir()
+        run = runner.Run(SimpleNamespace(binary=Path('binary'), baseline=baseline,
+                                         shards_dir=shards_dir), out)
+        with patch.object(run, 'step', return_value=True) as step, \
+                patch.object(runner.subprocess, 'run', return_value=SimpleNamespace(returncode=1)):
+            run.execute('quality-gate')
+        return run, [c.args[0] for c in step.call_args_list], out
+
+    def test_quality_gate_merges_shards_and_enforces_every_pin_cell(self):
         runner = self.runner()
         with tempfile.TemporaryDirectory() as tmp:
+            self.fake_shards(runner, tmp, 3)
+            run, steps, out = self.gate(runner, tmp, Path(tmp))
+            self.assertTrue(all(s['passed'] for s in run.steps), run.steps)
+            self.assertEqual(steps, ['leader-crossings', 'leader-routes', 'label-lane-locality'])
+            names = [s['name'] for s in run.steps]
+            self.assertEqual(names[:3], ['shards', 'quality', 'ap242-quality'])
+            self.assertEqual(names[-9:], ['pins-' + c for c in runner.PIN_CELLS])
+            self.assertEqual(len(json.loads((out / 'quality/baseline.json').read_text())), 30)
             for cell in runner.PIN_CELLS:
-                args = SimpleNamespace(binary=Path('binary'), corpus=Path('corpus'),
-                                       baseline=Path('baseline'), pin_cell=cell)
-                run = runner.Run(args, Path(tmp))
-                with patch.object(run, 'step') as step:
-                    run.execute('quality-pins')
-                calls = step.call_args_list
-                self.assertEqual([c.args[0] for c in calls], ['quality', 'ap242-quality', 'leader-crossings', 'leader-routes', 'label-lane-locality', 'pins-' + cell])
-                route = calls[3].args[1]
-                self.assertIn(ROOT / 'tools/check_leader_routes.py', route)
-                self.assertEqual(route[-1], Path(tmp) / 'leader-routes.json')
-                self.assertNotIn('--require-improvement', route)
-                locality = calls[4].args[1]
-                self.assertIn(ROOT / 'tools/check_label_lanes.py', locality)
-                self.assertEqual(locality[locality.index('--current') + 1], Path(tmp) / 'quality')
-                self.assertEqual(locality[locality.index('--after-binary') + 1], args.binary)
-                command = calls[5].args[1]
-                self.assertIn('--require-go', command)
-                self.assertEqual(command[command.index('--baseline') + 1],
-                                 Path(tmp) / 'quality/baseline.json')
-                self.assertEqual(command[command.index('--seed') + 1], int(cell[0]))
-                self.assertEqual(command[command.index('--pins') + 1], int(cell[2]))
+                report = json.loads((out / f'pins-{cell}/random-pins.json').read_text())
+                self.assertEqual(len(report['parts']), 30)
+                self.assertTrue(all(len(p['ids']) == int(cell[2]) for p in report['parts'].values()))
+            # A missing shard fails the gate before any comparison.
+            shutil.rmtree(Path(tmp) / 'shard-2')
+            run, steps, _ = self.gate(runner, tmp, Path(tmp), 'gate-again')
+            self.assertFalse(run.steps[0]['passed'])
+            self.assertIn('incomplete', run.steps[0]['error'])
+            self.assertEqual(steps, [])
+
+    def test_quality_gate_rejects_a_pin_regression(self):
+        runner = self.runner()
+        with tempfile.TemporaryDirectory() as tmp:
+            self.fake_shards(runner, tmp, 2, pinned={'ink': 4})
+            run, _, _ = self.gate(runner, tmp, Path(tmp))
+            failed = {s['name']: s.get('error', '') for s in run.steps if not s['passed']}
+            self.assertEqual(set(failed), {'pins-' + c for c in runner.PIN_CELLS})
+            self.assertTrue(all('pin bar' in e for e in failed.values()))
 
     def test_survey_budgets_allow_observed_hosted_slowdown(self):
         runner = self.runner()
@@ -197,9 +245,7 @@ class Acceptance(unittest.TestCase):
         self.assertEqual(command[command.index('--timeout') + 1], 3600)
         self.assertEqual(step.call_args.kwargs['timeout'], 6600)
         workflow = (ROOT / '.github/workflows/ci.yml').read_text()
-        shards = re.findall(r'job: repeated-spans, label: repeated-spans-(\d)-4, '
-                            r'pin_args: "--survey-shard (\d)/4", timeout: 120', workflow)
-        self.assertEqual(sorted(shards), [(str(k), str(k)) for k in range(1, 5)])
+        self.assertIn('label: repeated-spans, pin_args: "--job repeated-spans", timeout: 120', workflow)
 
     def test_ci_runs_plan_budget_with_release_binary(self):
         runner = self.runner()
@@ -213,7 +259,7 @@ class Acceptance(unittest.TestCase):
         self.assertEqual(command[command.index('--corpus') + 1], Path('corpus'))
         self.assertNotIn('--record', command)
         workflow = (ROOT / '.github/workflows/ci.yml').read_text()
-        self.assertIn('job: plan-time, label: plan-time', workflow)
+        self.assertIn('--job plan-time', workflow)
 
     def test_plan_budget_gates_instructions_and_reports_without_a_counter(self):
         spec = importlib.util.spec_from_file_location('plan_time', ROOT / 'tools/check_plan_time.py')
@@ -284,7 +330,7 @@ class Acceptance(unittest.TestCase):
         self.assertEqual(command[command.index('--corpus') + 1], Path('corpus'))
         self.assertNotIn('--record', command)
         workflow = (ROOT / '.github/workflows/ci.yml').read_text()
-        self.assertIn('job: render-tail, label: render-tail', workflow)
+        self.assertIn('--job render-tail', workflow)
 
     def test_render_tail_gates_each_part_on_instructions_or_processor_time(self):
         spec = importlib.util.spec_from_file_location('render_tail', ROOT / 'tools/check_render_tail.py')
@@ -320,7 +366,7 @@ class Acceptance(unittest.TestCase):
         self.assertEqual(sorted(recorded['cpu_seconds_ceiling']), names)
 
     def test_require_go_rejects_partial_or_unrelated_jobs(self):
-        for options in (['--job', 'mcp'], ['--job', 'quality-pins', '--pin-cell', '1-1']):
+        for options in (['--job', 'mcp'], ['--job', 'quality-pins', '--shard', '1/9']):
             command = [sys.executable, '-I', str(RUNNER), '--require-go', *options]
             checked = subprocess.run(command, capture_output=True, text=True)
             self.assertEqual(checked.returncode, 2)

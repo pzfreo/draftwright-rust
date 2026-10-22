@@ -17,8 +17,19 @@ ROOT = Path(__file__).resolve().parents[1]
 KEYS = ['off_sheet', 'repeated_label', 'repeated_measure', 'views_overlap',
         'view_on_title_block', 'ink', 'repeated_span', 'line_through_feature',
         'hidden_on_visible', 'section_hidden']
-JOBS = ('quality-pins', 'repeated-spans', 'mcp', 'plan-time', 'render-tail')
+JOBS = ('quality-pins', 'quality-gate', 'repeated-spans', 'mcp', 'plan-time', 'render-tail')
 PIN_CELLS = tuple(f'{seed}-{pins}' for seed in (1, 2, 3) for pins in (1, 3, 8))
+# Seconds for one quality measurement (render + plan + analyse) of each part on the
+# development machine (2026-10-22). They only balance the quality-pins shards: every
+# task runs in exactly one shard whatever the weights, and unlisted parts weigh 10.
+WEIGHTS = {
+    'nist_ftc_08_asme1_rc': 99, 'nist_ctc_02_asme1_rc': 81, 'cgb203': 55, 'nist_ctc_04_asme1_rd': 30,
+    'nist_ftc_10_asme1_rb': 27, 'cgb207': 27, 'nist_ftc_09_asme1_rd': 21, 'nist_ctc_05_asme1_rd': 21,
+    'nist_ftc_06_asme1_rd': 17, 'nist_ftc_07_asme1_rd': 14, 'cgb241': 13, 'cgb245': 11,
+    'nist_ctc_01_asme1_rd': 9, 'nist_ctc_03_asme1_rc': 4, '10020': 3, 'string_post': 2.4,
+    'sm-hanger': 2.2, 'nist_ctc_02_asme1_ap242-e2': 91, 'nist_ftc_10_asme1_ap242-e2': 32,
+    'nist_ftc_07_asme1_ap242-e2': 16, 'nist_ctc_01_asme1_ap242-e1': 5,
+}
 CORPUS_REV = '6d544e060cd0eeb4442d2196e5df757b5a15ea55'
 spec = importlib.util.spec_from_file_location('quality', ROOT / 'tools/quality.py')
 quality = importlib.util.module_from_spec(spec)
@@ -58,6 +69,30 @@ def survey_names():
     result = names(corpus) | names(p.name[:-3] for p in fixtures)
     require(len(result) == 66, 'incomplete/ambiguous 66-part survey')
     return result
+
+
+def ap242_fixtures():
+    step = ROOT / 'tests/fixtures/pmi/step'
+    return sorted({*step.glob('nist_ctc_0*_ap242*.gz'), *step.glob('nist_ftc_*_ap242*.gz')})
+
+
+def quality_tasks():
+    """Every measurement of the quality-pins job: each quality part unpinned, each part in
+    each of the nine random-pin cells, and each AP242 CTC/FTC source."""
+    parts = sorted(names(manifest('quality_parts.txt')))
+    return ([('quality', p) for p in parts] + [(f'pins-{c}', p) for c in PIN_CELLS for p in parts]
+            + [('ap242', Path(f.stem).stem) for f in ap242_fixtures()])
+
+
+def shard_tasks(k, n):
+    """The K-th of N shards of quality_tasks(): heaviest task first to the least-loaded shard.
+    Deterministic, and the N shards partition the tasks."""
+    load, shards = [0.0] * n, [[] for _ in range(n)]
+    for task in sorted(quality_tasks(), key=lambda t: (-WEIGHTS.get(t[1], 10), t)):
+        i = min(range(n), key=lambda j: (load[j], j))
+        load[i] += WEIGHTS.get(task[1], 10)
+        shards[i].append(task)
+    return shards[k - 1]
 
 
 def complete(actual, expected):
@@ -161,6 +196,163 @@ class Run:
         print(f'{label}: {"PASS" if record["passed"] else "FAIL"} ({record["wall_seconds"]}s)', flush=True)
         return record['passed']
 
+    def verify(self, label, kind, actual, baseline):
+        """Validate in-process evidence and record it like a step."""
+        record = {'name': label}
+        try:
+            record['metrics'] = self.metrics[label] = validate(kind, actual, baseline)
+            record['passed'] = True
+        except (ValueError, KeyError, TypeError) as error:
+            record.update(passed=False, error=str(error))
+        self.steps.append(record)
+        print(f'{label}: {"PASS" if record["passed"] else "FAIL"}', flush=True)
+        return record['passed']
+
+    def quality_shard(self, k, n):
+        """Measure this shard's tasks; quality-gate compares them once every shard is in."""
+        import gzip
+        import threading
+        from concurrent.futures import ThreadPoolExecutor
+        args, out, binary = self.args, self.out, self.args.binary
+        timeout = getattr(args, 'part_timeout', None) or 600
+        files = {Path(f).stem: args.corpus / f for f in manifest('quality_parts.txt')}
+        (out / 'ap242-inputs').mkdir(exist_ok=True)
+        for fixture in ap242_fixtures():
+            files[Path(fixture.stem).stem] = out / 'ap242-inputs' / fixture.stem
+            files[Path(fixture.stem).stem].write_bytes(gzip.decompress(fixture.read_bytes()))
+        tasks = shard_tasks(k, n)
+        plans, lock = {}, threading.Lock()
+
+        def unpinned(name):
+            # One unpinned plan per part chooses the pins of every cell in this shard,
+            # as quality.py's pinned_one plans the part before choosing its pins.
+            with lock:
+                cell = plans.setdefault(name, [threading.Lock(), None])
+            with cell[0]:
+                if cell[1] is None:
+                    p = subprocess.run([binary, 'plan', files[name]], capture_output=True, text=True,
+                                       timeout=timeout)
+                    if p.returncode:
+                        raise ValueError(p.stderr or p.stdout)
+                    cell[1] = json.loads(p.stdout)
+            return cell[1]
+
+        def measure(task):
+            kind, name = task
+            try:
+                if kind == 'quality':
+                    return quality.one(files[name], binary, out / 'quality', timeout=timeout)[1]
+                if kind == 'ap242':
+                    return quality.one(files[name], binary, out / 'ap242', timeout=timeout)[1]
+                seed, pins = map(int, kind[5:].split('-'))
+                spec, ids = quality.random_pins(unpinned(name), name, seed, pins)
+                path = out / kind / 'pinned' / f'{name}.spec.json'
+                path.parent.mkdir(parents=True, exist_ok=True)
+                write(path, spec)
+                after = quality.one(files[name], binary, out / kind / 'pinned', path, timeout=timeout)[1]
+                return {'error': after['error']} if 'error' in after else {'ids': ids, 'pinned': after}
+            except (OSError, ValueError, KeyError, subprocess.TimeoutExpired) as error:
+                return {'error': str(error)}
+
+        start = time.monotonic()
+        order = sorted(tasks, key=lambda t: -WEIGHTS.get(t[1], 10))
+        with ThreadPoolExecutor(4) as pool:
+            rows = dict(zip(order, pool.map(measure, order)))
+        results = {}
+        for (kind, name), row in rows.items():
+            results.setdefault(kind, {})[name] = row
+        write(out / 'shard.json', {'shard': [k, n], 'tasks': [list(t) for t in tasks], 'results': results})
+        failed = sorted(f'{kind}/{name}: {row["error"]}' for (kind, name), row in rows.items() if 'error' in row)
+        record = {'name': f'quality-shard-{k}-{n}', 'tasks': len(tasks), 'passed': not failed,
+                  'wall_seconds': round(time.monotonic() - start, 3)}
+        if failed:
+            record['error'] = '; '.join(failed)[:2000]
+        self.steps.append(record)
+        print(f'{record["name"]}: {"PASS" if record["passed"] else "FAIL"} ({len(tasks)} tasks, '
+              f'{record["wall_seconds"]}s)', flush=True)
+
+    def quality_gate(self, shards_dir):
+        """Merge every quality-pins shard, then run the same-binary comparisons once."""
+        import shutil
+        args, out, binary = self.args, self.out, self.args.binary
+        py = [sys.executable, '-I']
+        record = {'name': 'shards'}
+        try:
+            found = [(path.parent, read(path)) for path in sorted(Path(shards_dir).glob('**/shard.json'))]
+            require(found, f'no quality-pins shard evidence under {shards_dir}')
+            n = found[0][1]['shard'][1]
+            seen = sorted(tuple(s['shard']) for _, s in found)
+            require(seen == [(k, n) for k in range(1, n + 1)], f'incomplete/duplicate shards: {seen}')
+            merged = {}
+            for _, s in found:
+                k = s['shard'][0]
+                require([tuple(t) for t in s['tasks']] == shard_tasks(k, n), f'shard {k}/{n} ran other tasks')
+                for kind, name in shard_tasks(k, n):
+                    merged.setdefault(kind, {})[name] = s['results'][kind][name]
+            expected = quality_tasks()
+            require(sum(map(len, merged.values())) == len(expected) and
+                    all(name in merged.get(kind, {}) for kind, name in expected), 'shards miss a task')
+            record.update(passed=True, shards=n, tasks=len(expected))
+        except (OSError, ValueError, KeyError, TypeError) as error:
+            record.update(passed=False, error=str(error))
+        self.steps.append(record)
+        print(f'shards: {"PASS" if record["passed"] else "FAIL"}', flush=True)
+        if not record['passed']:
+            return
+        quality_out = out / 'quality'
+        quality_out.mkdir()
+        for directory, _ in found:
+            if (directory / 'quality').is_dir():
+                shutil.copytree(directory / 'quality', quality_out, dirs_exist_ok=True)
+        fresh = quality_out / 'baseline.json'
+        write(fresh, merged['quality'])
+        committed = read(args.baseline)
+        self.verify('quality', 'quality', merged['quality'], committed)
+        # AP242 source PMI is a crossing ratchet too. Keep its renders separate
+        # from the fixed thirty-part quality/pin inventory, then share saved plans.
+        ap242_errors = sorted(f'{name}: {row["error"]}' for name, row in merged['ap242'].items() if 'error' in row)
+        self.steps.append({'name': 'ap242-quality', 'passed': not ap242_errors,
+                           **({'error': '; '.join(ap242_errors)} if ap242_errors else {})})
+        for directory, _ in found:
+            for plan in sorted((directory / 'ap242').glob('*.plan.json')):
+                (quality_out / plan.name).write_bytes(plan.read_bytes())
+        self.step('leader-crossings', [*py, ROOT / 'tools/check_leader_crossings.py', quality_out,
+                  '--report', out / 'leader-crossings.json'])
+        self.step('leader-routes', [*py, ROOT / 'tools/check_leader_routes.py', quality_out,
+                  '--report', out / 'leader-routes.json'])
+        # The deliberate failure uses a real measured report, without changing the accepted baseline.
+        bad = read(fresh)
+        reference = committed['parts']
+        part = sorted(reference)[0]
+        bad[part]['ink'] = reference[part]['ink'] + 1
+        write(out / 'deliberate-regression.json', bad)
+        command = [*py, Path(__file__), '--check-results', 'quality', '--results',
+                   out / 'deliberate-regression.json', '--baseline', args.baseline]
+        with (out / 'deliberate-rejection.log').open('w') as log:
+            rejected = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT)
+        self.steps.append({'name': 'reject-deliberate-regression', 'passed': rejected.returncode == 1,
+                           'observed_exit_code': rejected.returncode, 'expected_exit_code': 1})
+        self.step('label-lane-locality', [*py, ROOT / 'tools/check_label_lanes.py',
+                  '--current', quality_out, '--after-binary', binary])
+        baseline = merged['quality']
+        for cell in PIN_CELLS:
+            seed, pins = map(int, cell.split('-'))
+            parts = {}
+            for name, row in merged[f'pins-{cell}'].items():
+                before = baseline[name]
+                if 'error' in before or 'error' in row:
+                    parts[name] = {'error': before.get('error') or row['error'], 'go': False}
+                    continue
+                after = row['pinned']
+                parts[name] = {'ids': row['ids'], 'unpinned': before, 'pinned': after,
+                               'ink_delta': after['ink'] - before['ink'],
+                               'off_sheet_delta': after['off_sheet'] - before['off_sheet'],
+                               'go': quality.pin_bar(before, after)}
+            report = quality.pin_report(parts, seed, pins)
+            (out / f'pins-{cell}').mkdir()
+            write(out / f'pins-{cell}' / 'random-pins.json', report)
+            self.verify(f'pins-{cell}', 'pins', report, baseline)
+
     def execute(self, job):
         args, out = self.args, self.out
         binary = args.binary
@@ -168,56 +360,9 @@ class Run:
         part_timeout = getattr(args, 'part_timeout', None)
         quality_args = ['--timeout', part_timeout] if part_timeout else []
         if job == 'quality-pins':
-            files = [args.corpus / p for p in manifest('quality_parts.txt')]
-            quality_out = out / 'quality'
-            fresh = quality_out / 'baseline.json'
-            self.step('quality', [*py, ROOT / 'tools/quality.py', *quality_args, binary, quality_out, *files],
-                      'quality', fresh, args.baseline)
-            # AP242 source PMI is a crossing ratchet too. Keep its renders separate
-            # from the fixed thirty-part quality/pin inventory, then share saved plans.
-            import gzip
-            ap242 = out / 'ap242-inputs'
-            ap242.mkdir(exist_ok=True)
-            fixture_paths = sorted({*(ROOT / 'tests/fixtures/pmi/step').glob('nist_ctc_0*_ap242*.gz'),
-                                    *(ROOT / 'tests/fixtures/pmi/step').glob('nist_ftc_*_ap242*.gz')})
-            sources = []
-            for fixture in fixture_paths:
-                source = ap242 / fixture.stem
-                source.write_bytes(gzip.decompress(fixture.read_bytes()))
-                sources.append(source)
-            ap242_out = out / 'ap242'
-            self.step('ap242-quality', [*py, ROOT / 'tools/quality.py', *quality_args,
-                      binary, ap242_out, *sources])
-            for source in sources:
-                plan = ap242_out / (source.stem + '.plan.json')
-                if plan.is_file():
-                    (quality_out / plan.name).write_bytes(plan.read_bytes())
-            self.step('leader-crossings', [*py, ROOT / 'tools/check_leader_crossings.py', quality_out,
-                      '--report', out / 'leader-crossings.json'])
-            self.step('leader-routes', [*py, ROOT / 'tools/check_leader_routes.py', quality_out,
-                      '--report', out / 'leader-routes.json'])
-            # The deliberate failure uses a real measured report, without changing the accepted baseline.
-            if fresh.is_file():
-                bad = read(fresh)
-                reference = read(args.baseline)['parts']
-                part = sorted(reference)[0]
-                bad[part]['ink'] = reference[part]['ink'] + 1
-                write(out / 'deliberate-regression.json', bad)
-                command = [*py, Path(__file__), '--check-results', 'quality', '--results',
-                           out / 'deliberate-regression.json', '--baseline', args.baseline]
-                with (out / 'deliberate-rejection.log').open('w') as log:
-                    rejected = subprocess.run(command, stdout=log, stderr=subprocess.STDOUT)
-                self.steps.append({'name': 'reject-deliberate-regression', 'passed': rejected.returncode == 1,
-                                   'observed_exit_code': rejected.returncode, 'expected_exit_code': 1})
-            cells = (args.pin_cell,) if args.pin_cell else PIN_CELLS
-            self.step('label-lane-locality', [*py, ROOT / 'tools/check_label_lanes.py',
-                      '--current', quality_out, '--after-binary', binary])
-            for cell in cells:
-                seed, pins = map(int, cell.split('-'))
-                pin_out = out / f'pins-{cell}'
-                self.step(f'pins-{cell}', [*py, ROOT / 'tools/quality.py', '--seed', seed,
-                          '--pins', pins, '--baseline', fresh, '--require-go', *quality_args, binary, pin_out, *files],
-                          'pins', pin_out / 'random-pins.json', fresh)
+            self.quality_shard(*getattr(args, 'shard', (1, 1)))
+        elif job == 'quality-gate':
+            self.quality_gate(getattr(args, 'shards_dir', None) or out.parent)
         elif job == 'repeated-spans':
             survey_out = out / 'survey'
             k, n = getattr(args, 'survey_shard', (1, 1))
@@ -241,10 +386,14 @@ class Run:
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument('--job', choices=(*JOBS, 'all'), default='all')
-    parser.add_argument('--pin-cell', choices=PIN_CELLS, help='Run one seed-N cell with a fresh baseline')
+    parser.add_argument('--job', choices=(*JOBS, 'all'), action='append',
+                        help='Run this job; repeat to run several in turn in one runner (default: all)')
+    parser.add_argument('--shard', type=survey.shard_arg, default=(1, 1), metavar='K/N',
+                        help='Measure one of N shards of the quality-pins tasks (quality-gate compares them)')
+    parser.add_argument('--shards-dir', type=Path,
+                        help='quality-gate: directory holding every quality-pins shard (default: --out)')
     parser.add_argument('--require-go', action='store_true',
-                        help='Require the full nine-cell random-pin grid (with --job all or quality-pins)')
+                        help='Require the full nine-cell random-pin grid (with --job all or quality-gate)')
     parser.add_argument('--survey-shard', type=survey.shard_arg, default=(1, 1), metavar='K/N',
                         help='Run one of N slices of the repeated-span survey')
     parser.add_argument('--part-timeout', type=int, help='Override local quality/survey operation timeouts')
@@ -257,12 +406,16 @@ def main():
     parser.add_argument('--results', type=Path)
     parser.add_argument('--documents-dir', type=Path, help='Check saved MCP judge documents and PNGs')
     args = parser.parse_args()
+    jobs = list(JOBS) if not args.job or 'all' in args.job else list(dict.fromkeys(args.job))
+    args.job = 'all' if not args.job or 'all' in args.job else args.job[0] if len(jobs) == 1 else 'several'
     if any(t is not None and t <= 0 for t in (args.part_timeout, args.step_timeout)):
         parser.error('timeouts must be positive')
-    if args.require_go and (args.pin_cell or args.job not in ('all', 'quality-pins') or args.check_results):
-        parser.error('--require-go requires the full random-pin grid: --job all or quality-pins, without --pin-cell')
-    if args.pin_cell and args.job != 'quality-pins':
-        parser.error('--pin-cell requires --job quality-pins')
+    if args.require_go and (args.job not in ('all', 'quality-gate') or args.check_results):
+        parser.error('--require-go requires the full random-pin grid: --job all or quality-gate')
+    if args.shard != (1, 1) and args.job != 'quality-pins':
+        parser.error('--shard requires --job quality-pins')
+    if args.shards_dir and args.job != 'quality-gate':
+        parser.error('--shards-dir requires --job quality-gate')
     if args.survey_shard != (1, 1) and args.job != 'repeated-spans' and args.check_results != 'survey':
         parser.error('--survey-shard requires --job repeated-spans')
     if args.check_results:
@@ -284,6 +437,8 @@ def main():
     try:
         args.binary = args.binary.resolve()
         args.baseline = args.baseline.resolve()
+        if args.shards_dir:
+            args.shards_dir = args.shards_dir.resolve()
         require(args.binary.is_file() and os.access(args.binary, os.X_OK), 'release binary missing or not executable')
         require(args.corpus is not None, 'DRAFTWRIGHT_CORPUS or --corpus is required')
         args.corpus = args.corpus.resolve()
@@ -300,7 +455,7 @@ def main():
         summary['binary_sha256'] = digest(args.binary)
         summary['fixture_sha256'] = {str(p.relative_to(args.corpus) if p.is_relative_to(args.corpus)
                                          else p.relative_to(ROOT)): digest(p) for p in required}
-        for job in JOBS if args.job == 'all' else (args.job,):
+        for job in jobs:
             out = args.out / job
             out.mkdir()
             run = Run(args, out)
