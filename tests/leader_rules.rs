@@ -1379,10 +1379,57 @@ fn a_chamfer_tip_lies_on_its_bevel() {
     );
 }
 
+/// A callout counting members lint can measure and members it cannot (cgb243's 36× C0.5: turned
+/// bevels with no band, prismatic ones seen end-on) is a mismatch only when every member was
+/// measured; a tip on an unmeasurable member's bevel is unverifiable, not a miss.
+#[test]
+fn a_chamfer_tip_missing_only_the_measurable_members_is_unverifiable() {
+    let turned = feature(
+        "f:chamfer:1",
+        "chamfer",
+        json!({ "angle": 45.0, "at": [4.5, 2.0, 0.0], "axis": "y", "corner": null,
+                "leg1": 1.0, "leg2": 1.0, "turned": true }),
+    );
+    let prismatic = feature(
+        "f:chamfer:2",
+        "chamfer",
+        json!({ "angle": 45.0, "at": [0.0, 9.5, 0.0], "axis": "z", "corner": null,
+                "leg1": 1.0, "leg2": 1.0, "turned": false }),
+    );
+    let check = |claims: &[(&str, &str)]| {
+        let mut features = flatted_band(10.0, None);
+        features.extend([turned.clone(), prismatic.clone()]);
+        let a = analysis(features, json!({}), &[]);
+        found(
+            &a,
+            &drawing(
+                ALONG_Z,
+                vec![callout("d:c", claims, page(4.5, 2.0), [130.0, 110.0])],
+            ),
+            "chamfer_leader",
+        )
+    };
+    assert_eq!(
+        check(&[
+            ("f:chamfer:1", "chamfer.length"),
+            ("f:chamfer:2", "chamfer.length")
+        ]),
+        one("chamfer_leader_target_unverifiable", "d:c")
+    );
+    // With every member measured, the same tip is a miss.
+    assert_eq!(
+        check(&[("f:chamfer:2", "chamfer.length")]),
+        one("chamfer_leader_target_mismatch", "d:c")
+    );
+}
+
 /// The real defects (ARCH0017-6, ISSUE-1374-a/d, ISSUE-1276-a, E4): string_post's ø3.4 and
 /// ctc05's ø558.8 lead to their flat-cut bands' drawn outlines (ctc05's in the side view, where
-/// the flange is the cylinder), ctc05's 4× C6.35 to its bevel, ftc10's 41× R1 to a fillet arc;
-/// lint finds no turned-diameter, chamfer or off-arc radius tip on them.
+/// the flange is the cylinder), ctc05's 4× C6.35 to its bevel, ftc10's 41× R1 and cgb202's two
+/// R callouts to fillet arcs; lint finds no turned-diameter, chamfer or off-arc radius tip on
+/// them. E4 stays open: the fillet shafts may still approach more than 15 degrees off radial
+/// (`radius_leader_not_radial`, radial wording), since automatic routing keeps the drawn route
+/// when no compliant radial candidate fits (#146); only the tip-off-arc form is refused here.
 #[test]
 fn flat_cut_bands_chamfers_and_fillets_lead_to_their_own_faces() {
     for (file, checks) in [
@@ -1401,9 +1448,16 @@ fn flat_cut_bands_chamfers_and_fillets_lead_to_their_own_faces() {
             "nist/nist_ftc_10_asme1_rb.stp",
             &["d:f:fillet:15/fillet.radius"][..],
         ),
+        (
+            "cadgenbench_inputs/cgb202.step.gz",
+            &[
+                "d:f:fillet:217/fillet.radius",
+                "d:f:fillet:286/fillet.radius",
+            ][..],
+        ),
     ] {
         let Some((a, plan, drawing)) = native_drawing(file, false) else {
-            return;
+            continue;
         };
         for id in checks {
             assert!(
@@ -1429,7 +1483,9 @@ fn flat_cut_bands_chamfers_and_fillets_lead_to_their_own_faces() {
             .filter(|i| {
                 i.code.starts_with("step_diameter_leader")
                     || i.code.starts_with("chamfer_leader")
-                    || (i.code.starts_with("radius_leader") && i.message.contains("does not touch"))
+                    // The tip off its arc; a shaft off radial is E4's open half.
+                    || (i.code.starts_with("radius_leader")
+                        && i.message.contains("tip does not touch"))
             })
             .map(|i| (i.code, i.annotation))
             .collect();

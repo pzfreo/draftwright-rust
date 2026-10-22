@@ -188,6 +188,13 @@ impl Projected {
     }
 }
 
+/// Whether a view looking along *toward* sees an arc about *axis* end-on (the planner's arc
+/// sites and lint's arc evidence share this test).
+pub(crate) fn seen_end_on(axis: [f64; 3], toward: [f64; 3]) -> bool {
+    let n = axis.iter().map(|x| x * x).sum::<f64>().sqrt();
+    n > 1e-12 && (axis.iter().zip(toward).map(|(a, b)| a * b).sum::<f64>() / n).abs() > 1.0 - 1e-9
+}
+
 /// Read end-on cylinder profiles and proven end-on minor-circle meridians of tori.
 /// Older analyses can still prove a straight blend from its rolling axis and trimmed samples.
 pub(crate) fn projected(
@@ -196,11 +203,7 @@ pub(crate) fn projected(
     toward: [f64; 3],
     page: impl Fn([f64; 3]) -> P,
 ) -> Result<Vec<Projected>, String> {
-    let end_on = |axis: [f64; 3]| {
-        let n = axis.iter().map(|x| x * x).sum::<f64>().sqrt();
-        n > 1e-12
-            && (axis.iter().zip(toward).map(|(a, b)| a * b).sum::<f64>() / n).abs() > 1.0 - 1e-9
-    };
+    let end_on = |axis: [f64; 3]| seen_end_on(axis, toward);
     if let Some(arcs) = a.radius_arcs.get(id) {
         let shown: Vec<_> = arcs
             .iter()

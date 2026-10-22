@@ -31,6 +31,9 @@
 //!   coaxial band onto the outline (or its ring, seen along the axis); a prismatic bevel's
 //!   section seen along its edge; an oriented bevel's face. `…_unverifiable` (info) when the view
 //!   cannot show it (a prismatic edge not seen end-on) or the record cannot be read.
+//!   For both, a callout counting several members is a mismatch only when every member could
+//!   be measured; a tip that misses the measurable ones while others cannot be verified is
+//!   `…_unverifiable`, since it may sit on one of those.
 //!
 //! - `leader_crosses_silhouette` (draftwright's structural check, #796/#798): a callout's shaft,
 //!   after leaving the material at its tip, cuts back into it in its own view, measured by
@@ -645,16 +648,21 @@ pub(super) fn check(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
             }
         }
         // A turned step's diameter, and a chamfer's size, against the faces they name.
-        for (parameters, noun, gap) in [
+        type Gap = fn(&Analysis, &Projection, &Feature, P) -> Result<f64, String>;
+        for (parameters, noun, leader, what, gap) in [
             (
                 &["step.diameter"][..],
                 "step_diameter",
-                step_gap as fn(&Analysis, &Projection, &Feature, P) -> Result<f64, String>,
+                "diameter",
+                "diameter leader tip does not touch its named turned surface",
+                step_gap as Gap,
             ),
             (
                 &["chamfer.length", "oriented_chamfer.length"][..],
                 "chamfer",
-                chamfer_gap,
+                "chamfer",
+                "chamfer leader tip does not touch its named bevel",
+                chamfer_gap as Gap,
             ),
         ] {
             // One callout may count members of several of these families (principal and
@@ -676,25 +684,15 @@ pub(super) fn check(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
             }
             reasons.sort();
             reasons.dedup();
-            let (what, leader) = if noun == "chamfer" {
-                (
-                    "chamfer leader tip does not touch its named bevel",
-                    "chamfer",
-                )
-            } else {
-                (
-                    "diameter leader tip does not touch its named turned surface",
-                    "diameter",
-                )
-            };
             let best = gaps.iter().copied().fold(f64::INFINITY, f64::min);
-            if gaps.is_empty() {
+            if best <= TOLERANCE {
+                continue;
+            }
+            // A miss is proven only when every claimed member could be measured: the tip
+            // may sit on a member this view cannot verify.
+            if !reasons.is_empty() {
                 found(
-                    if noun == "chamfer" {
-                        "chamfer_leader_target_unverifiable"
-                    } else {
-                        "step_diameter_leader_target_unverifiable"
-                    },
+                    &format!("{noun}_leader_target_unverifiable"),
                     ids,
                     parameter,
                     format!(
@@ -703,13 +701,9 @@ pub(super) fn check(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
                     ),
                     &reasons.join("; "),
                 );
-            } else if best > TOLERANCE {
+            } else {
                 found(
-                    if noun == "chamfer" {
-                        "chamfer_leader_target_mismatch"
-                    } else {
-                        "step_diameter_leader_target_mismatch"
-                    },
+                    &format!("{noun}_leader_target_mismatch"),
                     ids,
                     parameter,
                     format!("{}: the {what} (it lies {best:.3} mm from it)", a.name),

@@ -167,7 +167,11 @@ fn edge<'a>(cx: &Context, f: &'a Feature) -> Result<Edge<'a>, String> {
 /// The point on the axis a treatment turned about world axis *k*, through *at*, of size *size*
 /// turns about: that of the coaxial turned band whose span (widened by the treatment's size)
 /// contains its station and whose radius reaches it, the nearest such; else that of a part turned
-/// whole (*whole*) about *k*; else none.
+/// whole (*whole*) about *k*; else none. The record names only an axis letter, not the
+/// treatment's own axis line, so a turned treatment about a parallel off-axis hole that lies
+/// inside a band's radius would be turned about that band's axis. No corpus part shows one
+/// (the corpus parts with bands, ctc05 and GRM-03, are coaxial); the radius is not
+/// required to match a band's, since a bevel at a bore's mouth rightly turns about the shaft.
 fn turning_axis(bands: &[Band], whole: Option<&Turned>, k: usize, at: P3, size: f64) -> Option<P3> {
     crate::lint::turned::coaxial(bands, k, at, size)
         .map(|b| b.on)
@@ -244,10 +248,7 @@ pub(super) fn route_profile(analysis: &crate::model::Analysis, w: &mut Want, vie
         .filter(|m| m.parameter == "fillet.radius")
     {
         for arc in analysis.radius_arcs.get(&m.feature).into_iter().flatten() {
-            let n = arc.axis.iter().map(|x| x * x).sum::<f64>().sqrt();
-            if n > 1e-12
-                && ((0..3).map(|i| arc.axis[i] * toward[i]).sum::<f64>() / n).abs() > 1.0 - 1e-9
-            {
+            if crate::radius::seen_end_on(arc.axis, *toward) {
                 let mut middle = arc.arc.clone();
                 middle.start += 0.25 * middle.sweep;
                 middle.sweep *= 0.5;

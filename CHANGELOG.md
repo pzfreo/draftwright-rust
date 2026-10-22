@@ -73,10 +73,13 @@ All notable changes to draftwright-rust are recorded here, in the style of
   - A turned chamfer or fillet turns about the coaxial band that holds it, not only about the
     axis of a part turned whole. ctc05's 4× C6.35 no longer tips at the shaft's axis.
   - A fillet callout whose tip would miss every arc its view sees end-on now leads to one of
-    its members' arcs, never a straight edge (ftc10's 41× R1).
+    its members' arcs, never a straight edge (ftc10's 41× R1). Its shaft may still approach
+    more than 15° off radial, so `radius_leader_not_radial` remains on ftc10 and cgb202 (E4
+    stays open).
   - Lint checks turned-diameter and chamfer leader tips against those faces
     (`step_diameter_leader_target_mismatch`, `chamfer_leader_target_mismatch`). Each has an
-    `…_unverifiable` info when the view cannot show the target.
+    `…_unverifiable` info when the view cannot show the target, or when the tip misses the
+    members it can measure while others in the callout cannot be measured.
 
 ## 0.1.0-alpha.12 (2026-10-22)
 
