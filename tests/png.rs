@@ -278,6 +278,16 @@ fn a_corpus_part_inks_every_planned_view() {
     }
     // The visible lines are black: some pixel is.
     assert!(pixels.as_chunks::<3>().0.contains(&[0, 0, 0]));
-    // A thin strip at the page's left edge, outside the border, is white.
-    assert_eq!(inked([0.0, 0.0, 1.0, page_h]), 0);
+    // A thin strip at the page's left edge, outside the border, carries only the ISO 5457
+    // furniture (zone ticks and the centring mark): without it, the strip is white.
+    assert!(inked([0.0, 0.0, 1.0, page_h]) > 0);
+    let mut bare = plan.clone();
+    bare.sheet.zones = None;
+    let drawing = model::render(&part, &analysis, &bare, &font).unwrap();
+    let (_, pixels) = decode(&drawing.png(dpi).unwrap());
+    let rows = 0..h;
+    let white = rows
+        .flat_map(|r| (0..(k.ceil() as usize)).map(move |c| (r, c)))
+        .all(|(r, c)| pixels[3 * (r * w + c)..3 * (r * w + c) + 3] == [255, 255, 255]);
+    assert!(white);
 }

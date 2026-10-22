@@ -760,6 +760,14 @@ fn renderers_draw_only_from_the_plan() {
         .iter()
         .map(|d| d.terms.join(" "))
         .chain(plan.captions.iter().map(|c| c.text.clone()))
+        // The planned ISO 5457 grid's margin labels: its column numbers and row letters.
+        .chain(plan.sheet.zones.iter().flat_map(|z| {
+            (1..=z.columns).map(|n| n.to_string()).chain(
+                b"ABCDEFGHJKLMNPQRSTUVWXYZ"[..z.rows as usize]
+                    .iter()
+                    .map(|c| (*c as char).to_string()),
+            )
+        }))
         .collect();
     let before = runs(&plan);
     assert!(!before.is_empty());

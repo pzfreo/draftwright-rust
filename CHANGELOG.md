@@ -6,6 +6,18 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### Added
+
+- **ISO 5457 sheet furniture on every sheet.** Grid zones (numbers along the top and bottom,
+  letters down the sides, skipping I and O) are now drawn on single-sheet drawings too, not
+  only on multi-sheet ones. Each sheet also has centring marks: 0.7 mm lines at the midpoint of
+  each side, from the trimmed edge to 5 mm inside the frame. A mark stops at the frame where
+  it would meet the title block, a table or other drawn ink.
+  - Everything is in the margin outside the frame (apart from the short mark ends), so sheet
+    size, scale, view placement and annotations do not change.
+  - `sheet/zones: false` omits the zones and centring marks. Zones that section
+    cross-references cite (`SHEET n, ZONE …`) stay, with one `sheet_zones_kept` info finding.
+
 ### Changed
 
 - **The title block sits flush with the frame.** Following ISO 7200, its right and bottom edges

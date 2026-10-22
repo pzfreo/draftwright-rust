@@ -119,7 +119,7 @@ fn the_spindles_unclaimed_faces_are_its_subjects() {
 /// or the title block drawn on it.
 #[test]
 fn only_sheet_problems_have_the_sheet_as_subject() {
-    const SHEET: [&str; 16] = [
+    const SHEET: [&str; 17] = [
         "layout_replanned",
         "layout_recovery_exhausted",
         "scale_fallback_applied",
@@ -135,6 +135,7 @@ fn only_sheet_problems_have_the_sheet_as_subject() {
         "step_general_tolerance_disagreement",
         "step_material_disagreement",
         "sheet_label_replaced",
+        "sheet_zones_kept",
         "spec_entries_inactive",
     ];
     for (name, plan) in plans() {

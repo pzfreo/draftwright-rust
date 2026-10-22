@@ -1002,8 +1002,14 @@ fn labels_are_measured_with_the_font_they_are_drawn_with() {
                         && first[1] >= b[1] - 1e-8
                         && first[1] <= b[3] + 1e-8
                 });
+                // ISO 5457 zone labels sit in the margin, outside the frame.
+                let [w, h] = one.sheet.page;
+                let in_margin = first[0] < 10.0
+                    || first[1] < 10.0
+                    || first[0] > w - 10.0
+                    || first[1] > h - 10.0;
                 // An arrowhead is a triangle from a tip.
-                !in_title && !in_caption && !tips.contains(&first)
+                !in_title && !in_caption && !in_margin && !tips.contains(&first)
             }
             _ => false,
         });

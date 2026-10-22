@@ -102,6 +102,10 @@ returned by `get_spec`. Live browser sessions continue to use their existing Spe
 operation and placement-option methods and the same model validation. This schema
 advertisement change adds no WASM method or TypeScript signature.
 
+Rendered SVG, PDF and PNG carry ISO 5457 grid zones and centring marks on every sheet, in a
+`centring_marks` layer with the zone labels as margin text. `setSpec` or `apply` with `sheet/zones: false`
+omits them unless section cross-references cite zones; see `schemas/spec.json`.
+
 ## Consume a pinned release in the editor
 
 Each published GitHub release whose tag starts with `v` builds from that tag. Keep both

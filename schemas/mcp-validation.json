@@ -111,7 +111,7 @@
             },
             "additionalProperties": false,
             "patternProperties": {
-              "^(references|hidden|keep_layout|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+              "^(references|hidden|keep_layout|zones|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
                 "type": [
                   "boolean",
                   "null"
@@ -380,7 +380,7 @@
             },
             "additionalProperties": false,
             "patternProperties": {
-              "^(references|hidden|keep_layout|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+              "^(references|hidden|keep_layout|zones|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
                 "$ref": "#/A"
               },
               "^(size|scale)$(?!\n)": {
@@ -731,7 +731,7 @@
             },
             "additionalProperties": false,
             "patternProperties": {
-              "^(references|hidden|keep_layout|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+              "^(references|hidden|keep_layout|zones|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
                 "type": [
                   "boolean",
                   "null"
@@ -986,7 +986,7 @@
             },
             "additionalProperties": false,
             "patternProperties": {
-              "^(references|hidden|keep_layout|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+              "^(references|hidden|keep_layout|zones|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
                 "type": [
                   "boolean",
                   "null"
@@ -1259,7 +1259,7 @@
             },
             "additionalProperties": false,
             "patternProperties": {
-              "^(references|hidden|keep_layout|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+              "^(references|hidden|keep_layout|zones|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
                 "type": [
                   "boolean",
                   "null"
@@ -1510,7 +1510,7 @@
             },
             "additionalProperties": false,
             "patternProperties": {
-              "^(references|hidden|keep_layout|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+              "^(references|hidden|keep_layout|zones|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
                 "type": [
                   "boolean",
                   "null"
@@ -1808,7 +1808,7 @@
             },
             "additionalProperties": false,
             "patternProperties": {
-              "^(references|hidden|keep_layout|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+              "^(references|hidden|keep_layout|zones|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
                 "type": [
                   "boolean",
                   "null"
@@ -2110,7 +2110,7 @@
             },
             "additionalProperties": false,
             "patternProperties": {
-              "^(references|hidden|keep_layout|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+              "^(references|hidden|keep_layout|zones|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
                 "type": [
                   "boolean",
                   "null"
@@ -2393,7 +2393,7 @@
             },
             "additionalProperties": false,
             "patternProperties": {
-              "^(references|hidden|keep_layout|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+              "^(references|hidden|keep_layout|zones|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
                 "type": [
                   "boolean",
                   "null"
@@ -2648,7 +2648,7 @@
             },
             "additionalProperties": false,
             "patternProperties": {
-              "^(references|hidden|keep_layout|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+              "^(references|hidden|keep_layout|zones|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
                 "type": [
                   "boolean",
                   "null"
@@ -2894,7 +2894,7 @@
             },
             "additionalProperties": false,
             "patternProperties": {
-              "^(references|hidden|keep_layout|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
+              "^(references|hidden|keep_layout|zones|fit_(limits|deviations)|centre_(marks|lines)|(thread|knurl)_depiction)$(?!\n)": {
                 "type": [
                   "boolean",
                   "null"

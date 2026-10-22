@@ -622,12 +622,18 @@ states and geometry restored. Nothing is silently removed. Empty assigned sheets
 are closed by renumbering, with `sheet_renumbered` and an edit to the actual sheet.
 
 `plan.sheet` remains sheet 1 (`sheet`). Optional `plan.sheets` contains sheets 2..m
-(`sheet:2` etc.); each carries `number` and, for a multi-sheet document, `zones`.
+(`sheet:2` etc.); each carries `number` and `zones`.
 Views, corner tables and hole tables carry `sheet`, omitted when 1. A moved view's
 `scale_note` records a scale different from its sheet's. A section's `xref` and its
 cut's `xref` refer both ways, with sheet, grid zone and resolved text position.
 Zones use 6×4 fields on A4, 8×6 on A3, 12×8 on A2, 16×12 on A1 and 24×16 on A0;
 numbers run left to right and letters top to bottom, skipping I and O.
+Every sheet, single-sheet drawings included, draws the zones in its margin with ISO 5457
+centring marks: 0.7 mm lines at each side's midpoint from the trimmed edge to 5 mm inside
+the frame, stopping at the frame where they would meet the title block, a table or other
+drawn ink. `sheet/zones: false` omits both (`plan.sheet.zones` absent); zones cited by a
+section's `xref` stay and are reported once as `sheet_zones_kept` info, with a fix that
+removes the setting. The furniture never changes the layout.
 
 Item IDs survive moves. `items::Item.sheet` follows the carrying view or table;
 notes and drawing-wide requirements stay on sheet 1. Every Stage I dimension,

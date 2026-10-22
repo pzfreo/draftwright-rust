@@ -39,6 +39,7 @@ pub fn path_scope(path: &str) -> Scope {
         ("annotations/*/text/**", Local),
         ("features/*/fit", Local),
         ("sheet/title/*", Local),
+        ("sheet/zones", Local),
     ];
     let parts: Vec<_> = path.trim_matches('/').split('/').collect();
     PATTERNS
@@ -223,6 +224,11 @@ fn op_description(op: &Op) -> String {
             "lay out the whole sheet again".into()
         },
         "sheet/size" => text.map_or_else(|| choose("paper size"), |v| format!("use {v} paper")),
+        "sheet/zones" => if value.and_then(serde_json::Value::as_bool) == Some(false) {
+            "omit the grid zones and centring marks where no reference cites them".into()
+        } else {
+            "draw the grid zones and centring marks".into()
+        },
         "sheet/dimension_spacing" => text.map_or_else(
             || choose("dimension spacing"),
             |v| format!("keep {v} dimension spacing"),
