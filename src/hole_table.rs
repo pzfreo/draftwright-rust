@@ -403,7 +403,7 @@ pub fn escalate(analysis: &Analysis, plan: &mut Plan, table_sheet: Option<u32>) 
         .map(|(i, _)| *i)
         .collect();
     // The plan view's holes outside any pattern: each member of each group's callout.
-    let loose = loose(plan);
+    let loose = loose(analysis, plan);
     let tabulate = loose.len() >= MIN_HOLES;
     if !tabulate && patterns.is_empty() {
         let why = format!(
@@ -686,12 +686,18 @@ pub(crate) fn withdraw_no_place(analysis: &Analysis, plan: &mut Plan) {
 }
 
 /// The plan view's holes outside any recognised pattern, each member of each group's callout in
-/// the plan's order, with its callout's index.
-fn loose(plan: &Plan) -> Vec<(usize, &str)> {
+/// the plan's order, with its callout's index. A hole inclined to z keeps its callout: the table
+/// states a drilling direction along z and a location in the plan, which it has neither of.
+fn loose<'a>(analysis: &Analysis, plan: &'a Plan) -> Vec<(usize, &'a str)> {
+    let along_z: BTreeSet<&str> = holes::read(analysis)
+        .into_iter()
+        .filter_map(|(f, h)| (h.ok()?.principal?.0 == 2).then_some(f.id.as_str()))
+        .collect();
     plan.dimensions
         .iter()
         .enumerate()
         .filter(|(_, d)| d.kind == "callout" && d.view == "v:plan" && d.id.starts_with("d:f:hole:"))
+        .filter(|(_, d)| bores(d).iter().all(|f| along_z.contains(f)))
         .flat_map(|(i, d)| bores(d).into_iter().map(move |f| (i, f)))
         .collect()
 }
@@ -699,7 +705,7 @@ fn loose(plan: &Plan) -> Vec<(usize, &str)> {
 /// The rows a hole table of *plan*'s plan view has, whether or not its escalation runs: one per
 /// hole outside a pattern, tagged in order.
 pub fn table_rows(analysis: &Analysis, plan: &Plan) -> Vec<HoleRow> {
-    let loose = loose(plan);
+    let loose = loose(analysis, plan);
     rows(analysis, plan, &loose, &tags(loose.len())).0
 }
 

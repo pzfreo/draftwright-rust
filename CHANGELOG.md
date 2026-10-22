@@ -47,6 +47,19 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Fixed
 
+- **Holes and bosses on inclined axes get a callout** instead of none (defect E2). The callout
+  goes in the view that sees the feature most nearly end-on, where it shows as an ellipse. The
+  leader lands on an end of the ellipse's major axis, on the rim nearer the viewer.
+  - Every view that sees it as an ellipse can carry it, so `dimensions/<id>/view` can move it,
+    and a part whose best view is not drawn uses the next one. On an exact 45° tie, x is taken
+    before y before z.
+  - Inclined holes and bosses are still not located, and a boss's height is still not stated:
+    those need a view square to the axis. The boss reports this.
+  - A plan-view hole table leaves inclined holes as callouts. Its rows give a direction along
+    z and a plan location, and an inclined hole has neither.
+  - nist_ctc_03, nist_ctc_04, nist_ftc_07 and cgb217: no hole_requirement_missing or diameter
+    feature_not_dimensioned findings remain (22 → 15, 43 → 34, 16 → 12 and 19 → 9 lint
+    findings), on the same paper as before.
 - **One owner per measurement** in four more cases (ADR1-8, ADR4-U1, ISSUE-1505-b).
   - A recess location on a stated face level is stated once, by the level's rung, even when the
     two print their value to different precisions (ftc09: `128.100` and `128.1` → `128.100`).
