@@ -36,10 +36,19 @@ Counts are computed from the merged YAML entries:
 
 | File | Pending | Ported | Translated | Retired |
 | --- | --- | --- | --- | --- |
-| `adr.yaml` | 5 | 68 | 61 | 26 |
-| `lint.yaml` | 6 | 127 | 14 | 19 |
-| `issues.yaml` | 19 | 95 | 50 | 26 |
-| **All** | **30** | **290** | **125** | **71** |
+| `adr.yaml` | 4 | 69 | 61 | 26 |
+| `lint.yaml` | 2 | 130 | 14 | 20 |
+| `issues.yaml` | 7 | 107 | 50 | 26 |
+| **All** | **13** | **306** | **125** | **72** |
+
+The evaluation of 2026-10-22 re-read the 30 rules then pending against main (alpha.12) and
+closed 17. Two were met in full (LINT-code-pmi_source_text_mismatch, ISSUE-1143-e) and 14 are
+ported for what Rust implements, each entry's `rust_note` naming the clauses retired and why
+(for example the Escalation object, stroke width, per-family term parsers and unreachable
+leader-geometry clauses). LINT-code-leader_shaft_unverified is retired, since typed drawings
+always carry their leader lines and view transforms. ISSUE-958-a (owned by quiddity) and
+ARCH0020-1 (waiting on the quiddity 0.1.0 upgrade) stay pending with updated notes, and the
+notes on the two remaining PORT rules were corrected. Every cited test was checked to exist.
 
 The triage covered all 190 rules then pending: 80 PORT, 98 TRANSLATE and 12 RETIRE.
 The original PORT triage recorded value, size and stream in `port_note`. Of the TRANSLATE
@@ -51,7 +60,8 @@ approved reason.
 
 PR #57 now supplies the K6 evidence that was unavailable at triage: ARCH0015-2 and
 ISSUE-1154-a are ported, and ADR1-8, ADR4-U1 and ISSUE-1505-b gain evidence for their
-implemented portions. ISSUE-1505-a retains K6's updated assessment and remains pending.
+implemented portions. ISSUE-1505-a kept K6's updated assessment; the 2026-10-22 evaluation
+ported it with the decoration clause retired.
 The table-rule batch keeps six verified ported entries, promoting four beyond main's triage:
 LINT-code-manufacturing_reference_unresolved, ISSUE-1144-a, ISSUE-1202-a and ISSUE-1543-c.
 The approved triage is otherwise retained, including ISSUE-883-a's translation. Test
@@ -130,7 +140,7 @@ classifications and port notes are judgement calls. Settled with the maintainer 
 H7 (2026-10-12) revived ADR2-17 and LINT-code-interior_label_on_narrow_material
 with tests for the implemented portion; both were retired only because the port formerly
 placed no interior labels. The 2026-10-16 triage translates ADR2-17's placement rule;
-the independent narrow-material lint check remains pending.
+the independent narrow-material lint check was retired in the 2026-10-22 evaluation.
 
 The native recess-reader batch ports five pending recess rules and verifies four
 previously bridge-only rules on recognition/3. See `tests/native_recesses.rs`.

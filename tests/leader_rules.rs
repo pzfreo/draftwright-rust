@@ -406,6 +406,44 @@ fn fillet_radius_shafts_use_the_fillets_own_cylindrical_evidence() {
     assert!(found(&a, &draw, "radius_leader_not_radial").is_empty());
 }
 
+/// ISSUE-1374-b: a fillet.radius tip moved off its round loses credit: past the trimmed arc on
+/// the same circle, or off the circle, it is reported.
+#[test]
+fn a_fillet_radius_tip_moved_off_its_arc_is_reported() {
+    let f = feature(
+        "f:fillet:1",
+        "fillet",
+        json!({"radius":3.0, "axis":"z", "at":[3.0,0.0,0.0]}),
+    );
+    let mut a = analysis(vec![f], json!({}), &[]);
+    a.radius_arcs.insert("f:fillet:1".into(), serde_json::from_value(json!([{
+        "arc":{"centre":[0.0,0.0,0.0],"radius":3.0,"u":[1.0,0.0,0.0],"v":[0.0,1.0,0.0],"start":0.0,"sweep":std::f64::consts::FRAC_PI_2},
+        "axis":[0.0,0.0,1.0],"centre_open":true,"tips":[]
+    }])).unwrap());
+    let check = |deg: f64, r: f64| {
+        let t = deg.to_radians();
+        let tip = page(r * t.cos(), r * t.sin());
+        let elbow = page(3.0 * t.cos() - 6.0, 3.0 * t.sin() - 6.0);
+        found(
+            &a,
+            &drawing(
+                ALONG_Z,
+                vec![callout(
+                    "d:r",
+                    &[("f:fillet:1", "fillet.radius")],
+                    tip,
+                    elbow,
+                )],
+            ),
+            "radius_leader",
+        )
+    };
+    assert!(check(45.0, 3.0).is_empty());
+    let off = one("radius_leader_not_radial", "d:r");
+    assert_eq!(check(180.0, 3.0), off);
+    assert_eq!(check(45.0, 3.5), off);
+}
+
 #[test]
 fn toroidal_radius_direction_limits_are_explicit() {
     let f = feature(

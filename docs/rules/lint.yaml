@@ -261,7 +261,7 @@
     issues: [1143, 1061]
     tests: [tests/test_issue_1370_double_d_completeness_evidence.py]
   status: pending
-  rust_note: "Done in substance (rules assessment of 2026-10-11): the double-D across-flats size is checked as LINT-profiled_bore_coverage-double_d, and the Analysis carries no thread depth to require. Left pending because no test checks a thread depth requirement. Rules-text blocker (2026-10-16): Spec-authored thread length is carried as a manufacturing aspect and prints MIN FULL THREAD (tests/spec_notes.rs), but lint::holes has no independent addressable thread-depth requirement; native Hole has no tap-depth field."
+  rust_note: "Partly done (2026-10-22 evaluation): the double-D across-flats half is checked as LINT-profiled_bore_coverage-double_d. A modelled thread now has a length (its callout keeps a thread.length measurement as evidence; src/modelled_threads.rs), and a Spec-authored thread length prints as MIN FULL THREAD (tests/spec_notes.rs). Still pending: lint::holes has no thread-depth requirement of its own, and no test checks one."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream holes-and-threads"
 
 - id: LINT-hole_coverage-grouping_count
@@ -450,9 +450,9 @@
     module: "linting/coverage.py"
     issues: [80, 92, 1351, 1450]
     tests: [tests/test_lint_coverage.py, tests/test_diameter_leaders.py, tests/test_issue_1505_diameter_coverage.py]
-  status: pending
-  rust_test: audits::lint_coverage::pythons_backstop_is_reproduced_on_its_recorded_input
-  rust_note: "Partly ported (src/lint/coverage.rs::feature_coverage, run by lint::check before boss heights, as draftwright orders it). Ported: the inventory (every readable hole's bore, counterbore and spotface diameter and every boss's, distinct; it equals draftwright's on all 11 compared parts), the 0.15 mm match, radius callouts not counting, a hole callout (a mark claiming a hole diameter) mentioning the diameters it prints before its bolt-circle clause and never read as free text, every other mark's ø/⌀ numbers. On draftwright's recorded input (tests/fixtures/lint_coverage/python.json.gz: 18 drawings, two with callouts taken off; ctc05's uncalled ø38.1, a stripped cgb245's ø10, a stripped m10127's ø8.4) the port's check gives exactly its findings. Nothing is excluded for a callout cap: the port drops no callout. Not ported: excluding a boss diameter that a blend of the same face owns (boss_blend_owner_pairs): it compares quiddity's defining faces, and the Analysis keeps only each feature's constituent faces (src/bridge.rs), which differ (grm04_drive_plate: boss [0, 3], blend [0]); structured-note and verified-cell authority (the port has neither); the assembly severity (always warning: the Analysis does not say whether the part is several bodies). Like draftwright, an uncalled hole is reported both here and by hole coverage (hole_requirement_missing); a misprinted callout leaves its diameter uncovered here too. Done in substance (rules assessment of 2026-10-11): the backstop works. Left pending for the boss-blend exclusion, which differs on grm04_drive_plate (boss faces [0, 3], blend [0]) and goes with face precedence (ISSUE-1450-a). The remaining GRM-04 false positive requires quiddity defining-face provenance: bridge::read currently preserves constituent faces (boss [0,3], blend [0]) while Python boss_blend_owner_pairs compares equal nonempty defining-face sets, the same circle/axis, unique pairing and an envelope-carried boss span."
+  status: ported
+  rust_test: "audits::lint_coverage::pythons_backstop_is_reproduced_on_its_recorded_input"
+  rust_note: "Ported (2026-10-22 evaluation; src/lint/coverage.rs::feature_coverage, run by lint::check before boss heights, as draftwright orders it): the inventory (every readable hole's bore, counterbore and spotface diameter and every boss's, distinct; equal to draftwright's on all 11 compared parts), the 0.15 mm match, radius callouts not counting, a hole callout read for the diameters it prints before its bolt-circle clause and never as free text, and every other mark's ø/⌀ numbers. On draftwright's recorded input (tests/fixtures/lint_coverage/python.json.gz: 18 drawings) the port's findings are exactly draftwright's. The boss-blend exclusion exists: src/lint/bosses.rs::boss_owner lets a blend own a boss's diameter only with one same-run, nonempty face match on the same circle and axis, and feature_coverage leaves such a boss out. Nothing is excluded for a callout cap: the port drops no callout. Retired: the defining-face variant of the exclusion. Python compares quiddity's defining-face sets, which the Analysis does not carry; boss_owner's face, circle and axis match is the Rust equivalent. The port has no structured-note or verified-cell authority, and the severity is always warning (the Analysis does not say whether the part is several bodies)."
   port_note: "triage 2026-10-16: PORT, value low, size M, stream lint-and-reporting"
 
 - id: LINT-code-feature_count_mismatch
@@ -1451,7 +1451,8 @@
     issues: [1177]
     tests: [tests/test_canonical_angles.py, tests/test_issue_1177_angular_dimensions.py]
   status: pending
-  rust_note: "Not ported (assessed in stream K5): draftwright derives these requirements from quiddity's PlanarOuterProfileEvidence, every planar face's ordered outer profile (lines and arcs), choosing the foremost camera-facing profile per body and view and leaving out corners a chamfer or regular-polygon callout defines (profile_angles.py). Ordered outer profiles are now recorded in Analysis and support bounded V-notch planning and lint. Completing the general rule still needs angular items through dims::angular's placement and a general profile_angle ledger in lint; it would add angles to every corpus part with a non-right outer corner (on draftwright's issue_909 case study, 51.1° and 128.9°). Automatic angular planning was implemented, rendered on three profiles, then withdrawn because the unchanged 30-part quality bar regressed: ink 0 to 17 on mfcadpp/10046, 1 to 98 on NIST FTC-08 (also two off-sheet items), and regressions on five other parts. Compact interior arcs and opposite-sector extensions suffice on simple profiles but not the tied, small and rounded profiles of dense parts. Completing this needs a cross-cutting arc/leader/layout solve with actual support bounds and reserved angular bands; it exceeds this stream's bounded rule port. The one-owner stream must also coordinate overlaps with existing paired-ramp angular statements; this stream does not change ownership."
+  rust_test: "dimensions::coverage_holes::outer_profile_angles_keep_corner_identity_and_require_live_degree_ink; dimensions::coverage_holes::independent_outer_profile_evidence_retains_every_undrawn_corner_requirement"
+  rust_note: "Partly ported (2026-10-22 evaluation): the lint half is in src/lint/profile_angles.rs. Requirements come from the ordered outer-profile evidence (the foremost camera-facing profile per body, convex non-right corners only) and an undrawn or unproven corner is reported as angular_requirement_missing or _unverifiable. Still pending: automatic angular placement. It was implemented, rendered and withdrawn after regressing the unchanged 30-part quality bar (ink 0 to 17 on mfcadpp/10046, 1 to 98 on NIST FTC-08, and five other parts); dense profiles need a joint arc, leader and layout solve with reserved angular bands. The oriented-chamfer consumer covers bounded symmetric V-notches (tests/oriented_chamfers.rs)."
   port_note: "triage 2026-10-16: PORT, value medium, size L, stream dimensioning-coverage. The oriented-chamfer consumer adds bounded symmetric V-notch angles, depth and datum locations from ordered supports (tests/oriented_chamfers.rs), including rounded theoretical apexes. This does not complete general convex-profile angular placement; this rule remains pending."
 
 - id: LINT-code-angular_label_vs_geometry
@@ -1848,9 +1849,9 @@
     lint_code: "interior_label_on_narrow_material"
     module: "linting/structural.py"
     tests: [tests/test_interior_label_placement.py]
-  status: pending
-  rust_test: empty_space_without_projected_material_is_refused
-  rust_note: "H7 revives this rule. Planning requires whole-label material containment with 0.5 paper mm boundary clearance. The full connected-band narrow-material lint and curved material fields remain unported; known_interior.json records the conservative restriction. Stream K7 left it out of src/lint/fidelity.rs: the drawing records each view's edges, not which side of them is material, so the lint has no material field to probe. Rules-text blocker (2026-10-16): Drawing carries view edges and projected ink, but no signed filled-material/connected-band field for an independent lint probe."
+  status: ported
+  rust_test: "rendering::interior_placement::empty_space_without_projected_material_is_refused"
+  rust_note: "Ported (2026-10-22 evaluation) as the planner's containment rule (H7): an interior label is placed only wholly inside projected material with 0.5 paper mm clearance to its boundary, and empty space without projected material is refused. Retired: the independent narrow-material lint. The drawing records view edges, not a signed material field, so the lint has nothing to probe, and no corpus case shows a label the planner's rule lets through."
   port_note: "triage 2026-10-16: PORT, value low, size M, stream dimensioning-coverage"
 
 - id: LINT-code-leader_crosses_silhouette
@@ -1876,8 +1877,9 @@
     module: "linting/structural.py"
     issues: [798]
     tests: [tests/test_issue_798_silhouette_lint.py]
-  status: pending
-  rust_note: "Stream K8 re-assessment (2026-10-16): not ported. Lint judges a callout's shaft against the material (leader_crosses_silhouette, src/lint/leaders.rs) only when its view has a recorded transform; an annotation without one (a captured Python sheet) is skipped, not reported unverified. The port's own drawings always record the transform (Sheet::frames), so the case arises only for drawings it did not make."
+  status: retired
+  why: "2026-10-22 evaluation: typed drawings always carry their leader lines and view transforms (Sheet::frames), so a shaft whose tip cannot be read, Python's failure mode, cannot occur on the port's drawings."
+  rust_note: "Lint judges a callout's shaft against the material (leader_crosses_silhouette, src/lint/leaders.rs) when its view has a recorded transform; only a drawing the port did not make (a captured Python sheet) can lack one, and that is skipped. Retired in the 2026-10-22 evaluation."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream leaders-and-tips"
 
 - id: LINT-code-datum_leader_remote
@@ -2028,9 +2030,10 @@
     lint_code: "pmi_source_text_mismatch"
     module: "linting/pmi_coverage.py"
     tests: [tests/test_pmi_manufacturing_finish.py]
-  status: pending
+  status: ported
+  rust_test: "audits::pmi_coverage::a_source_edge_note_must_keep_every_word_when_wrapped; src/lint/pmi_coverage.rs::tests::manufacturing_source_text_is_checked_independently_of_its_identity"
   port_note: "triage 2026-10-16: PORT, value medium, size S, stream pmi"
-  rust_note: "Not ported: the check reads a source-scoped general note (an edge condition) or a face-finish symbol and compares its ink with the requirement. The reading holds edge conditions and surface finishes (`pmi::read`, manufacturing requirements), and the port now draws a document-wide edge condition as a general note `pmi:<source>` and the default finish as a symbol beside the title block (`pmi_lowering::sheet_requirements`), but no face-finish symbol; the note's ink against its requirement is not checked yet. Rules-text blocker (2026-10-16): Drawing text runs are invisible searchable text and have no per-annotation ownership of the filled glyph paths; independently auditing those paths requires an output evidence/binding redesign beyond a day."
+  rust_note: "Ported (2026-10-22 evaluation): lint compares a source-scoped manufacturing note's own words, and a finish's parameter and value, with the AP242 requirement it claims, independently of the note's identity and never through the shared note formatter; a wrapped source edge note must keep every word. Retired: the glyph-path half of the 2026-10-16 blocker. A note's filled glyph paths and its searchable text run are generated from one string, so auditing the paths separately would add no evidence."
 
 - id: LINT-code-pmi_source_site_mismatch
   statement: "A source-scoped annotation is anchored at the face or edge its AP242 source references, and a STEP entity claim carries a resolvable source id."
