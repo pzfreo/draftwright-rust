@@ -191,9 +191,14 @@ class Acceptance(unittest.TestCase):
             for k in range(1, n + 1):
                 out = Path(tmp) / f'shard-{k}'
                 out.mkdir()
-                run = runner.Run(SimpleNamespace(binary=Path('binary'), corpus=Path(tmp), shard=(k, n)), out)
+                run = runner.Run(SimpleNamespace(binary=self.binary(tmp), corpus=Path(tmp), shard=(k, n)), out)
                 run.execute('quality-pins')
                 self.assertTrue(all(step['passed'] for step in run.steps), run.steps)
+
+    def binary(self, tmp, content=b'draftwright'):
+        path = Path(tmp) / 'draftwright'
+        path.write_bytes(content)
+        return path
 
     def gate(self, runner, tmp, shards_dir, name='gate'):
         baseline = Path(tmp) / 'committed.json'
@@ -201,7 +206,7 @@ class Acceptance(unittest.TestCase):
             n: {**dict.fromkeys(KEYS, 0), 'ink': 2} for n in NAMES}}))
         out = Path(tmp) / name
         out.mkdir()
-        run = runner.Run(SimpleNamespace(binary=Path('binary'), baseline=baseline,
+        run = runner.Run(SimpleNamespace(binary=Path(tmp) / 'draftwright', baseline=baseline,
                                          shards_dir=shards_dir), out)
         with patch.object(run, 'step', return_value=True) as step, \
                 patch.object(runner.subprocess, 'run', return_value=SimpleNamespace(returncode=1)):
@@ -224,6 +229,12 @@ class Acceptance(unittest.TestCase):
                 report = json.loads((out / f'pins-{cell}/random-pins.json').read_text())
                 self.assertEqual(len(report['parts']), 30)
                 self.assertTrue(all(len(p['ids']) == int(cell[2]) for p in report['parts'].values()))
+            # A shard of another binary fails the gate before any comparison.
+            self.binary(tmp, b'rebuilt')
+            run, steps, _ = self.gate(runner, tmp, Path(tmp), 'gate-other-binary')
+            self.assertIn('different binary', run.steps[0]['error'])
+            self.assertEqual(steps, [])
+            self.binary(tmp, b'draftwright')
             # A missing shard fails the gate before any comparison.
             shutil.rmtree(Path(tmp) / 'shard-2')
             run, steps, _ = self.gate(runner, tmp, Path(tmp), 'gate-again')

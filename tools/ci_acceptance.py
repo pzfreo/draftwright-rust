@@ -260,7 +260,9 @@ class Run:
                 if kind == 'ap242':
                     return quality.one(files[name], binary, out / 'ap242', timeout=timeout)[1]
                 if kind == 'survey':
-                    # The survey's own per-call budget; review feeds only quality cells.
+                    # The survey's own per-call budget; review feeds only quality cells. The 34
+                    # survey parts that are also quality or AP242 tasks run with review on and a
+                    # 600 s budget instead; the survey verdict reads only their plans.
                     return quality.one(files[name], binary, out / 'survey', review=False,
                                        timeout=getattr(args, 'part_timeout', None) or 3600)[1]
                 seed, pins = map(int, kind[5:].split('-'))
@@ -280,7 +282,8 @@ class Run:
         results = {}
         for (kind, name), row in rows.items():
             results.setdefault(kind, {})[name] = row
-        write(out / 'shard.json', {'shard': [k, n], 'tasks': [list(t) for t in tasks], 'results': results})
+        write(out / 'shard.json', {'shard': [k, n], 'tasks': [list(t) for t in tasks], 'results': results,
+                                   'binary_sha256': hashlib.sha256(Path(binary).read_bytes()).hexdigest()})
         failed = sorted(f'{kind}/{name}: {row["error"]}' for (kind, name), row in rows.items() if 'error' in row)
         record = {'name': f'quality-shard-{k}-{n}', 'tasks': len(tasks), 'passed': not failed,
                   'wall_seconds': round(time.monotonic() - start, 3)}
@@ -302,6 +305,9 @@ class Run:
             n = found[0][1]['shard'][1]
             seen = sorted(tuple(s['shard']) for _, s in found)
             require(seen == [(k, n) for k in range(1, n + 1)], f'incomplete/duplicate shards: {seen}')
+            binary_sha256 = hashlib.sha256(Path(binary).read_bytes()).hexdigest()
+            require(all(s.get('binary_sha256') == binary_sha256 for _, s in found),
+                    'a shard measured a different binary')
             merged = {}
             for _, s in found:
                 k = s['shard'][0]
@@ -315,7 +321,8 @@ class Run:
         except (OSError, ValueError, KeyError, TypeError) as error:
             record.update(passed=False, error=str(error))
         self.steps.append(record)
-        print(f'shards: {"PASS" if record["passed"] else "FAIL"}', flush=True)
+        detail = f' ({record["shards"]} shards, {record["tasks"]} tasks)' if record['passed'] else ''
+        print(f'shards: {"PASS" if record["passed"] else "FAIL"}{detail}', flush=True)
         if not record['passed']:
             return
         quality_out = out / 'quality'
@@ -421,7 +428,8 @@ def main():
     parser.add_argument('--shards-dir', type=Path,
                         help='quality-gate: directory holding every quality-pins shard (default: --out)')
     parser.add_argument('--require-go', action='store_true',
-                        help='Require the full nine-cell random-pin grid (with --job all or quality-gate)')
+                        help='Assert that this run enforces the full nine-cell random-pin grid: rejected '
+                             'unless --job is all or quality-gate (which always require every cell GO)')
     parser.add_argument('--survey-shard', type=survey.shard_arg, default=(1, 1), metavar='K/N',
                         help='Run one of N slices of the repeated-span survey')
     parser.add_argument('--part-timeout', type=int, help='Override local quality/survey operation timeouts')
