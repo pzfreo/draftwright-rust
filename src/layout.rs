@@ -11,10 +11,10 @@
 //! the automatic `auto` arrangement (not a production choice). First angle (`Request::first_angle`)
 //! mirrors the packed third-angle row and column (`geometry`), rather than draftwright's origins.
 
-/// Page mm. The sheet edge margin, the title block's inset and height, the annotation text
-/// height and its padding.
+/// Page mm. The sheet edge margin, the title block's inset (flush with the frame at its right
+/// and bottom edges, ISO 7200) and height, the annotation text height and its padding.
 pub const MARGIN: f64 = 10.0;
-pub const TB_CLEAR: f64 = MARGIN + 1.0;
+pub const TB_CLEAR: f64 = MARGIN;
 pub const TB_H: f64 = 40.0;
 const FONT_SIZE: f64 = 3.0;
 const PAD: f64 = 2.0;
@@ -840,11 +840,6 @@ fn geometry_with(
     let (left, right, top, bottom) = (m.left, m.right, m.top, m.bottom);
     let furniture = req.furniture();
     let (tb_right, tb_bottom) = (furniture.right, furniture.bottom);
-    let reserved_tb_bottom = if req.title_block_margins.is_none() {
-        bottom
-    } else {
-        tb_bottom
-    };
     let bbox_max = x_size.max(y_size).max(z_size);
     let fv_hw = x_size * scale / 2.0;
     let fv_hh = z_size * scale / 2.0;
@@ -960,7 +955,7 @@ fn geometry_with(
             0.0
         };
         let min_y_offset = ((page_h - top - bottom - min_column_h.max(side_h)) / 2.0).max(0.0);
-        let title_top = reserved_tb_bottom + TB_H;
+        let title_top = tb_bottom + TB_H;
         if min_y_offset + bottom + dim_pad() >= title_top {
             let max_column_h = page_h - top - bottom - 2.0 * (title_top - bottom - dim_pad());
             extra = extra.min((max_column_h - min_column_h).max(0.0));
@@ -1400,7 +1395,7 @@ fn geometry_with(
     } else {
         page_w - tb_w - right
     };
-    let auto_clears_tb = y_offset + bottom + dim_pad() >= reserved_tb_bottom + TB_H;
+    let auto_clears_tb = y_offset + bottom + dim_pad() >= tb_bottom + TB_H;
     let auto_row_w = total_content_w + (left + right) + if auto_clears_tb { 0.0 } else { tb_w };
     let auto_row_fits = auto_row_w <= page_w + TOL;
     let iso_fit = (iso[2] - iso[0]).min(iso[3] - iso[1]);

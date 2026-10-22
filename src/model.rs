@@ -8536,7 +8536,21 @@ fn render_annotations_with_cuts(
     // The block is the grid's four rows at the bottom of the box the layout reserves for it.
     let block = plan.sheet.title_block;
     let [tx0, ty0, tx1, _] = block;
-    part_layer.extend(rect(tx0, ty0, tx1, title_block::top(block)));
+    // Its sides on the frame (ISO 7200: flush at the right and bottom) are the frame's line,
+    // drawn once.
+    let on_frame = |e: &Item| match e {
+        Item::Edge(Curve::Line(a, b)) => [0, 1].into_iter().any(|k| {
+            [MARGIN, [w, h][k] - MARGIN]
+                .iter()
+                .any(|f| (a[k] - f).abs() < 1e-9 && (b[k] - f).abs() < 1e-9)
+        }),
+        _ => false,
+    };
+    part_layer.extend(
+        rect(tx0, ty0, tx1, title_block::top(block))
+            .into_iter()
+            .filter(|e| !on_frame(e)),
+    );
     let mut text = Vec::new();
     // The dimensions and callouts, drawn from the plan alone, one at a time so each one's ink
     // is measured.

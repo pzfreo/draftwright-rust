@@ -1290,8 +1290,8 @@ fn separate_views_inner(
     plan.sheet.size = size.into();
     plan.sheet.page = [*w, *h];
     let width = layout::title_block_width(*w);
-    plan.sheet.title_block[0] = w - layout::MARGIN - 1. - width;
-    plan.sheet.title_block[2] = w - layout::MARGIN - 1.;
+    plan.sheet.title_block[0] = w - layout::TB_CLEAR - width;
+    plan.sheet.title_block[2] = w - layout::TB_CLEAR;
     let title_delta = [
         plan.sheet.title_block[0] - source.sheet.title_block[0],
         plan.sheet.title_block[1] - source.sheet.title_block[1],

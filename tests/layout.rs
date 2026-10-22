@@ -142,7 +142,13 @@ fn request(c: &Value) -> Request {
             .map(|t| ([f(&t[0][0]), f(&t[0][1])], corner(t[1].as_str().unwrap())))
             .collect(),
         margins: margins(&c["margin"]).unwrap(),
-        title_block_margins: margins(&c["title_block_margins"]),
+        // draftwright's default title block sits 1 mm inside the frame; the port's is flush
+        // with it (ISO 7200), so the replay pins draftwright's.
+        title_block_margins: margins(&c["title_block_margins"]).or(Some(Margins {
+            right: layout::MARGIN + 1.0,
+            bottom: layout::MARGIN + 1.0,
+            ..Margins::uniform(layout::MARGIN)
+        })),
         views,
         include_iso: c["include_iso"].as_bool().unwrap(),
         iso_scale_factor: c["iso_scale_factor"].as_f64(),

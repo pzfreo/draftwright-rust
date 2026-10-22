@@ -462,7 +462,7 @@ fn a_field_crossing_cells_inside_the_page_is_reported() {
     let [x0, _, x1, _] = cell(&plan, "designed_by").cell;
     let [w, _] = title_block::measure(OVERFLOWING);
     assert!(w > x1 - x0);
-    assert!(plan.sheet.title_block[2] < plan.sheet.page[0] - 10.0);
+    assert!(plan.sheet.title_block[2] <= plan.sheet.page[0] - 10.0 + 1e-9);
     // Nothing of the block is off the sheet. (The plate's own dimensions are placement's: on A2
     // its plan's y location of the hole pattern is reported off the sheet.)
     assert!(
