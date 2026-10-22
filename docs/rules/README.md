@@ -50,8 +50,8 @@ always carry their leader lines and view transforms. ISSUE-958-a (owned by quidd
 ARCH0020-1 (waiting on the quiddity 0.1.0 upgrade) stay pending with updated notes, and the
 notes on the two remaining PORT rules were corrected. Every cited test was checked to exist.
 What still depends on quiddity: ISSUE-958-a on quiddity-rust #73, ARCH0020-1 on #69 to #72,
-and ISSUE-1143-e's NIST CTC-04 case (countersink seats whose drill bores are not recognised)
-on #74.
+and ISSUE-1143-e's NIST CTC-04 case (pocket-rim chamfer corners misread as countersink seats)
+on #76.
 
 The triage covered all 190 rules then pending: 80 PORT, 98 TRANSLATE and 12 RETIRE.
 The original PORT triage recorded value, size and stream in `port_note`. Of the TRANSLATE
