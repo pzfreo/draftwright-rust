@@ -2,7 +2,7 @@
 """Check integration-module reachability and nextest's unfiltered test inventory.
 
 The source walk understands ordinary Rust modules, #[path], #[test], and the
-part_cases!/pmi_cases! generators in tests/common/support.rs. It compares names,
+part_cases!/pmi_cases!/quality_cases! generators in tests/common/support.rs. It compares names,
 not just totals, so a lost test cannot be hidden by an unrelated added test.
 Run without arguments in lint; pass --nextest-list after the release build.
 """
@@ -62,11 +62,19 @@ def inventory(root=ROOT):
         raise ValueError('set package.autotests = false and declare every [[test]] target')
     reached = set()
     expected = {}
-    pmi = tokens((root / 'tests/common/support.rs').read_text())
-    start = next(i for i in range(len(pmi)) if pmi[i:i + 3] == ['macro_rules', '!', 'pmi_files']) + 3
-    pmi = pmi[start:closing(pmi, start) + 1]
-    pmi_names = [pmi[i - 1] for i in range(1, len(pmi) - 2)
-                 if pmi[i:i + 2] == ['=', '>'] and pmi[i + 2].startswith('"')]
+    support = tokens((root / 'tests/common/support.rs').read_text())
+
+    def inventory_names(macro):
+        # The case names of an inventory macro (pmi_files!, quality_files!); absent is empty.
+        found = [i for i in range(len(support)) if support[i:i + 3] == ['macro_rules', '!', macro]]
+        if not found:
+            return []
+        start = found[0] + 3
+        body = support[start:closing(support, start) + 1]
+        return [body[i - 1] for i in range(1, len(body) - 2)
+                if body[i:i + 2] == ['=', '>'] and body[i + 2].startswith('"')]
+
+    generated = {'pmi_cases': inventory_names('pmi_files'), 'quality_cases': inventory_names('quality_files')}
 
     def walk_file(path, prefix, names, ancestors=()):
         path = path.resolve()
@@ -120,10 +128,10 @@ def inventory(root=ROOT):
                 if name in names:
                     raise ValueError(f'duplicate test: {name}')
                 names.add(name)
-            if t in ('part_cases', 'pmi_cases') and ts[i + 1:i + 3] == ['!', '(']:
+            if t in ('part_cases', *generated) and ts[i + 1:i + 3] == ['!', '(']:
                 end = closing(ts, i + 2)
                 args = ts[i + 3:end]
-                cases = pmi_names if t == 'pmi_cases' else [
+                cases = generated[t] if t in generated else [
                     args[j - 1] for j in range(1, len(args) - 1) if args[j:j + 2] == ['=', '>']]
                 if not cases:
                     raise ValueError(f'empty {t} invocation')
