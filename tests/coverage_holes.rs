@@ -316,6 +316,51 @@ fn outer_profile_angles_keep_corner_identity_and_require_live_degree_ink() {
     );
 }
 
+/// CTC-01: a 5 mm chamfer leaves the hex boss's top cap a smaller hexagon bounded by chamfer
+/// faces. Its sides stay parallel to the boss's flats, so the HEX callout states its 120°.
+#[test]
+fn a_chamfered_polygon_cap_takes_its_corner_angles_from_the_polygon_callout() {
+    let cap = |turn: f64| {
+        let c = 45.0 / 30f64.to_radians().cos();
+        let corners: Vec<_> = (0..6)
+            .map(|k| {
+                let t = (30. + 60. * k as f64).to_radians();
+                [c * t.cos(), c * t.sin(), 50.]
+            })
+            .collect();
+        let supports: Vec<_> = (0..6)
+            .map(|k| json!({"kind":"line","start":corners[k],"end":corners[(k + 1) % 6]}))
+            .collect();
+        let flats: Vec<_> = (0..6)
+            .map(|k| {
+                let t = (60. * k as f64 + turn).to_radians();
+                [t.cos(), t.sin(), 0.]
+            })
+            .collect();
+        let mut boss = feature(
+            "polygonal_boss",
+            61,
+            json!({"axis":"z","side_count":6,"across_flats":100,"center":[0,0,25],
+                "flat_directions":flats}),
+        );
+        boss["faces"] = json!([61, 62, 63, 64, 65, 66]);
+        let mut a = analysis(vec![boss]);
+        a.envelope = [[-50., -50., 0.], [50., 50., 50.]];
+        a.outer_profiles = serde_json::from_value(json!([{"face":67,
+            "body_faces":(60..=80).collect::<Vec<_>>(),"edges":[1,2,3,4,5,6],"profile":{
+            "origin":[0,0,50],"normal":[0,0,1],"schema_version":1,"boundary_kind":"outer",
+            "inner_loop_count":0,"supports":supports}}]))
+        .unwrap();
+        lint::profile_angles::requirements(&a).len()
+    };
+    assert_eq!(cap(0.), 0, "sides parallel to the stated hexagon's flats");
+    assert_eq!(
+        cap(15.),
+        6,
+        "a cap not aligned with the polygon keeps every corner"
+    );
+}
+
 fn shafts(xs: &[f64]) -> Analysis {
     let features=xs.iter().enumerate().flat_map(|(n,&x)|[(30,0,20),(20,20,40)].into_iter().enumerate().map(move |(i,(d,lo,hi))|
         feature("turned_step",2*n+i+1,json!({"axis":"z","lo":lo,"hi":hi,"diameter":d,"profile":{"axis":"z","axis_origin":[x,0,0]}})))).collect();

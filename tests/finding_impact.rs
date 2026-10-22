@@ -416,7 +416,7 @@ fn ctc01_counts_gaps_and_repeated_causes_without_hiding_findings() {
         "nist/nist_ctc_01_asme1_rd.stp",
         // The soft preferences retain this main-readable A3 drawing and its
         // reported unavailable detail; summary groups must retain every finding.
-        [(8, 3), (1, 1), (1, 1), (13, 4)],
+        [(6, 2), (1, 1), (1, 1), (13, 4)],
     );
 }
 #[test]

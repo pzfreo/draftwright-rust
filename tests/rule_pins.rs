@@ -165,6 +165,20 @@ fn grm04_small_hole_retains_diameter_and_location_on_a_clean_sheet() {
     );
 }
 
+/// GRM-04's hub face meets the plate's taper, the common tangent of R3 and R4 about the two
+/// located holes. Tangency plus those stated circles fix the 96° corners; without the located
+/// centres the corners are required again.
+#[test]
+fn grm04_taper_corners_are_determined_by_tangency_to_located_circles() {
+    let (_, mut a) = source("grm04_drive_plate.step", None);
+    assert!(draftwright::lint::profile_angles::requirements(&a).is_empty());
+    a.features
+        .retain(|f| !matches!(f.kind.as_str(), "hole" | "boss"));
+    let left = draftwright::lint::profile_angles::requirements(&a);
+    assert_eq!(left.len(), 2);
+    assert!(left.iter().all(|c| (c.degrees() - 96.0).abs() < 0.1));
+}
+
 #[test]
 fn opposed_coaxial_taps_keep_authored_left_and_right_callouts() {
     let (part, a) = source("opposed.step", Some("opposed.recognition.json"));

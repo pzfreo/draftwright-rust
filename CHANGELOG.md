@@ -36,6 +36,14 @@ All notable changes to draftwright-rust are recorded here, in the style of
   quiddity (quiddity-rust #69–#73); stale notes corrected. 13 rules remain pending. Two new
   tests check that a fillet radius leader moved off its arc is reported, and that omitting a
   threaded hole's callout reports its thread rather than losing it.
+- **Profile-angle lint credits determined corners.** Two kinds of outer-profile corner no
+  longer report `angular_requirement_missing`, because the drawing already fixes them:
+  - the chamfered cap of a regular polygonal boss, whose sides stay parallel to the boss's
+    flats, so the `HEX … A/F` callout states its angles (NIST CTC-01's two 120° corners);
+  - a corner between a principal line and the common tangent of two arcs centred on located
+    hole or boss axes (GRM-04's two 96° taper corners between R3 and R4).
+  Real gaps still report: the corners on cgb202, cgb207, CTC-03, CTC-04 and FTC-08 have no
+  stated size or angle on the drawing. Drawings are unchanged.
 
 ### Fixed
 
