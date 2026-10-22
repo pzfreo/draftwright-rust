@@ -349,8 +349,6 @@ fn title_block_is_flush_with_the_frame_on_every_sheet() {
         }
     }
 }
-    }
-}
 
 /// The four centring marks drawn on a sheet, or none.
 fn centring_marks(drawing: &draftwright::output::Drawing) -> Vec<[[f64; 2]; 2]> {

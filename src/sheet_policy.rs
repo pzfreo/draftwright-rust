@@ -2230,9 +2230,11 @@ mod tests {
         let a = fixture();
         let s: Spec = serde_json::from_value(value).unwrap();
         let mut b = model::plan_automatic(&a, &s).unwrap();
-        // Public planning attaches retained-layout constraints after paper selection.
+        // Public planning attaches sheet furniture and retained-layout constraints after paper
+        // selection.
         // Compare the complete plans after the same offer finalization, preserving
         // the passthrough check for every drawing field and all remedy metadata.
+        crate::sheets::furnish(&mut b);
         crate::fixes::retain_local_layout(&mut b);
         let p = model::plan_recovered(&a, &s).unwrap();
         assert!(p.sheet_candidates.is_empty());
