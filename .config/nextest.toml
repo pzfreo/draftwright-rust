@@ -100,7 +100,12 @@ filter = '''
 priority = 60
 
 # Exclusive latency gates wait for every running test to finish, idling the other slots, so
-# they run first, before any other test has started.
+# they run first, before any other test has started. CI's shards rank the other tests by
+# recorded duration (tools/test_shards.py --priorities); this `ci` override comes first.
 [[profile.default.overrides]]
+filter = 'test(=r5_multi_sheet_latency) | (binary(=session) & test(_benchmark_deltas))'
+priority = 100
+
+[[profile.ci.overrides]]
 filter = 'test(=r5_multi_sheet_latency) | (binary(=session) & test(_benchmark_deltas))'
 priority = 100

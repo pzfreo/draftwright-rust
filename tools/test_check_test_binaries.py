@@ -112,6 +112,14 @@ macro_rules! quality_files {
         self.assertEqual(test_shards.filterset([('b', 'slow'), ('a', 't1'), ('a', 't0')]),
                          '(binary_id(=a) & (test(=t0) | test(=t1))) | (binary_id(=b) & (test(=slow)))')
 
+    def test_shard_priorities_start_long_tests_first(self):
+        config = test_shards.priorities([('a', 'slow'), ('a', 'quick'), ('b', 'huge'), ('b', 'mid')],
+                                        {'a slow': 100.0, 'a quick': 9.9, 'b huge': 900.0, 'b mid': 101.0})
+        parsed = guard.tomllib.loads(config)['profile']['ci']['overrides']
+        self.assertEqual([(o['priority'], o['filter']) for o in parsed], [
+            (99, '(binary_id(=b) & (test(=huge)))'),
+            (25, '(binary_id(=a) & (test(=slow))) | (binary_id(=b) & (test(=mid)))')])
+
     def test_ci_runs_every_duration_shard(self):
         workflow = (guard.ROOT / '.github/workflows/ci.yml').read_text()
         job = workflow.split('  test:', 1)[1].split('\n  # ', 1)[0].split('\n  quality-pins:', 1)[0]
@@ -121,6 +129,7 @@ macro_rules! quality_files {
         self.assertEqual(shards[:-1], [f'{k}/{n}' for k in range(1, n + 1)])
         self.assertIn('tools/test_shards.py --list nextest-list.json --shard ${{ matrix.shard }}', job)
         self.assertIn('--profile ci -E "$filter"', job)
+        self.assertIn('--tool-config-file "test-shards:$PWD/shard-priorities.toml"', job)
         self.assertNotIn('--partition', job)
 
 
