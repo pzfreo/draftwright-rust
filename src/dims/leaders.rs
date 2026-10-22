@@ -2310,12 +2310,21 @@ pub(crate) fn settle_after_furniture(
                     if compact {
                         return None;
                     }
-                    // `measure_at`, except that a route whose page, view and material blockers
-                    // or grazing already exceed the old route's is not measured further: the
-                    // annotation tier only adds to `hard`, so `acceptable` refuses it anyway.
+                    // `measure_at`, except that a route `acceptable` must refuse on its geometry
+                    // alone (its direction, shelf and length budget), or whose page, view and
+                    // material blockers or grazing already exceed the old route's, is not
+                    // measured further: the annotation tier only adds to `hard`.
                     let ring_measure = |tip: P2, elbow: P2, end: P2, right: bool| {
+                        // A measured candidate keeps these tip, elbow and end points.
+                        if (elbow[0] - tip[0]) * (end[0] - elbow[0]) < -1e-9
+                            || budget.is_some_and(|budget| {
+                                length(&[[tip, elbow], [elbow, end]]) > budget + 1e-6
+                            })
+                        {
+                            return None;
+                        }
                         let mut c = measure_at_bounds(&job, tip, elbow, end, right, &page)?;
-                        if c.hard > before.hard || c.grazing > before.grazing {
+                        if !radial(&c) || c.hard > before.hard || c.grazing > before.grazing {
                             return None;
                         }
                         measure_fixed(&mut c, &job, &fixed);
