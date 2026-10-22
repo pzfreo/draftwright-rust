@@ -98,27 +98,14 @@ independent display-precision check fixes that false positive and correctly acce
 not weakened. The full cross-solid channel contract was probed separately and left pending
 because it fails upstream; the committed test names the passing subset it actually protects.
 
-## Upstream cross-solid blocker
+## Cross-solid channels (resolved)
 
-`tests/fixtures/parts/rules-text/make.py` builds the exact #958 Python solids. In particular,
-`two-channels.step` contains channels at z=6..24 and z=66..84. Quiddity at pinned revision
-`7cb26d8` publishes one channel in normal child order and two in reversed order. Its reader is outside this repository and native
-Draftwright also does not yet consume its recess families. The full rule therefore stays
-pending; reporting an unread family as absent would make a negative test vacuous. The raw evidence is
-`target/rules-text-validation/two-channels.native.json` (one channel, three plates) and
-`target/rules-text-validation/two-channels-reversed.native.json` (two channels, six plates).
-
-Inspect the native evidence, including unread families, with:
-
-```sh
-cargo run --release --example recognition_document -- tests/fixtures/parts/rules-text/two-channels.step
-cargo run --release --example recognition_document -- tests/fixtures/parts/rules-text/two-channels-reversed.step
-```
-
-The pending positive assertions are **two** native channels and equal physical geometry/order
-regardless of compound child order. These expectations are not replaced with the order-dependent
-observed results. The negative fixtures and the two real slots/pads/pockets exercise the raw
-native document before checking any reader/planner behavior.
+`tests/fixtures/parts/rules-text/make.py` builds the exact #958 Python solids. The original
+`two-channels.step` export held one occurrence of the channelled block (one solid), which is why
+recognition reported one channel against the reversed file's two. The committed file is now
+quiddity-rust's `two_channels_ordered.step`, the reversed file with its two occurrences'
+placements swapped, and `audits::rules_text` asserts two channels in both orders
+(quiddity-rust #73).
 
 ## Drawing and validation evidence
 

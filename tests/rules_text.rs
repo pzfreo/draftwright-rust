@@ -101,9 +101,15 @@ fn separate_solids_do_not_invent_features_and_preserve_real_slots_pads_and_pocke
             "{name}: {family}"
         );
     }
-    // The two-channel positive case is deliberately not claimed by this partial test:
-    // quiddity 7cb26d8 reports one channel. examples/recognition_document.rs and the two
-    // channel fixtures retain a reproduction; ISSUE-958-a stays pending in the catalogue.
+    // The same two channelled blocks in either compound child order give one channel each.
+    for name in ["two-channels", "two-channels-reversed"] {
+        let doc = document(name);
+        assert_eq!(
+            doc.records.iter().filter(|r| r.family == "channels").count(),
+            2,
+            "{name}: channels"
+        );
+    }
 }
 
 /// ARCH0009-3: Python's central through-hole block and two coaxial-bore scope locks from

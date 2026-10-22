@@ -485,9 +485,10 @@
       - "tests/test_issue_958_cross_solid_recognition.py::test_real_slots_on_separate_bodies_are_each_preserved"
       - "tests/test_issue_958_cross_solid_recognition.py::test_channel_geometry_order_does_not_depend_on_compound_child_order"
     corpus_parts: []
-  status: pending
+  status: ported
+  owner: quiddity
   rust_test: "audits::rules_text::separate_solids_do_not_invent_features_and_preserve_real_slots_pads_and_pockets"
-  rust_note: "Stays pending (2026-10-22 evaluation): a recognition lesson, owner quiddity (quiddity-rust #73). draftwright-rust takes recognition's records as given and does not combine faces across solids itself. The negative half is tested here: separate solids do not invent a slot, pad or pocket, and real ones are preserved. Still open upstream: at the pinned quiddity, two-channels.step yields one channel and two-channels-reversed.step (the same two disjoint channels, compound children reversed) yields two; both must yield two."
+  rust_note: "Ported (2026-10-22): draftwright-rust takes recognition's records as given and does not combine faces across solids itself. Separate solids invent no slot, pad, pocket or channel; two slots, pads and pockets stay two; and the two channelled blocks give two channels in either compound child order. The one-against-two channel count once reported here was the forward fixture itself, which held a single occurrence of the block; it is now quiddity-rust's corrected two_channels_ordered.step (quiddity-rust #73, closed)."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream regression-pins"
 
 - id: ISSUE-1000-a
