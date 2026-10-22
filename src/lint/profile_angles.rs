@@ -124,7 +124,9 @@ fn bevel_edges(a: &Analysis, s: &Source) -> (bool, Vec<usize>) {
         if polygon
             && all_lines
             && count == Some(s.edges.len() as u64)
-            && (f.faces.contains(&s.face) || s.edges.iter().all(|e| edges.contains(e)))
+            && (f.faces.contains(&s.face)
+                || s.edges.iter().all(|e| edges.contains(e))
+                || parallel_to_flats(a, f, s))
         {
             return (true, Vec::new());
         }
@@ -133,6 +135,98 @@ fn bevel_edges(a: &Analysis, s: &Source) -> (bool, Vec<usize>) {
         }
     }
     (false, bevels)
+}
+/// A chamfered or offset cap of a regular polygon (CTC-01's hex boss top) keeps every side
+/// parallel to one of the polygon's flats, so the polygon callout states its corner angles.
+fn parallel_to_flats(a: &Analysis, f: &crate::bridge::Feature, s: &Source) -> bool {
+    let frame = crate::bridge::holes::frame(a);
+    let axis = super::parameters::direction(&frame, f.parameters.get("axis"));
+    let flats: Option<Vec<P3>> = f
+        .parameters
+        .get("flat_directions")
+        .and_then(|v| v.as_array())
+        .and_then(|ds| {
+            ds.iter()
+                .map(|d| super::parameters::direction(&frame, Some(d)))
+                .collect()
+        });
+    let (Some(axis), Some(flats)) = (axis, flats) else {
+        return false;
+    };
+    norm(cross(unit(axis), s.profile.normal)) <= 1e-6
+        && flats.len() == s.edges.len()
+        && s.profile.supports.iter().all(|l| {
+            let Support::Line { start, end } = l else {
+                return false;
+            };
+            let along = unit(sub(*end, *start));
+            flats.iter().any(|d| dot(along, unit(*d)).abs() <= 1e-3)
+        })
+}
+fn flat(p: P3, axis: usize) -> P3 {
+    let mut q = p;
+    q[axis] = 0.;
+    q
+}
+/// A line along a principal direction needs no stated angle.
+fn principal(axis: usize, line: (P3, P3)) -> bool {
+    unit(sub(flat(line.1, axis), flat(line.0, axis)))
+        .iter()
+        .any(|v| v.abs() >= 1. - 1e-9)
+}
+/// A line collinear (in the view) with a common tangent of two arcs centred on located hole or
+/// boss axes of the same body is fixed by those circles (GRM-04's taper between R3 and R4):
+/// their own size and location requirements determine its direction.
+fn common_tangent(a: &Analysis, s: &Source, axis: usize, line: (P3, P3)) -> bool {
+    let flat = |p: P3| flat(p, axis);
+    let (p0, p1) = (flat(line.0), flat(line.1));
+    let d = unit(sub(p1, p0));
+    let frame = crate::bridge::holes::frame(a);
+    let centres: Vec<P3> = a
+        .features
+        .iter()
+        .filter(|f| {
+            matches!(f.kind.as_str(), "hole" | "boss")
+                && !f.faces.is_empty()
+                && f.faces.iter().all(|i| s.body_faces.contains(i))
+                && super::parameters::direction(&frame, f.parameters.get("axis"))
+                    .is_some_and(|v| unit(v)[axis].abs() >= 1. - 1e-6)
+        })
+        .filter_map(|f| super::parameters::place(&frame, f.parameters.get("location")))
+        .map(flat)
+        .collect();
+    let located = |c: P3| centres.iter().any(|h| norm(sub(*h, flat(c))) <= 1e-4);
+    a.outer_profiles.iter().any(|o| {
+        let q = &o.profile;
+        if o.body_faces != s.body_faces
+            || q.boundary_kind != "outer"
+            || q.normal[axis].abs() < 1. - 1e-8
+        {
+            return false;
+        }
+        let n = q.supports.len();
+        (0..n).any(|k| {
+            let Support::Line { start, end } = q.supports[k] else {
+                return false;
+            };
+            let (m0, m1) = (flat(start), flat(end));
+            let e = unit(sub(m1, m0));
+            if norm(cross(d, e)) > 1e-6 || norm(cross(sub(m0, p0), d)) > 1e-4 {
+                return false;
+            }
+            let ends = [
+                (&q.supports[(k + n - 1) % n], m0),
+                (&q.supports[(k + 1) % n], m1),
+            ];
+            ends.iter().all(|(arc, at)| {
+                let Support::Arc { center, .. } = arc else {
+                    return false;
+                };
+                let r = sub(*at, flat(*center));
+                dot(unit(r), e).abs() <= 1e-6 && located(*center)
+            })
+        })
+    })
 }
 pub fn requirements(a: &Analysis) -> Vec<Corner> {
     let candidates: Vec<_> = a
@@ -211,6 +305,12 @@ pub fn requirements(a: &Analysis) -> Vec<Corner> {
                 }
                 (*a0, b1)
             };
+            let lines = [(*a0, *a1), (b0, b1)];
+            let tangent = lines.map(|l| common_tangent(a, s, axis, l));
+            if tangent.iter().any(|&t| t) && (0..2).all(|k| tangent[k] || principal(axis, lines[k]))
+            {
+                continue;
+            }
             out.push(Corner {
                 feature: format!("outer_profile:f{}:e{}:e{}", s.face, s.edges[i], s.edges[j]),
                 axis,
