@@ -249,6 +249,20 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                         ..Default::default()
                     });
                 }
+                if h.inclined {
+                    // As an inclined boss's (super::bosses): its size is called out below.
+                    problems.push(Problem {
+                        id: format!("p:feature_not_dimensioned:{}", f.id),
+                        code: "feature_not_dimensioned".into(),
+                        severity: "warning".into(),
+                        message: format!(
+                            "{}'s location is not dimensioned: its axis is inclined to every principal axis, so it needs a view square to it; its size is called out where it is seen most nearly end-on.",
+                            crate::wording::capital(&crate::wording::feature(f))
+                        ),
+                        subjects: vec![f.id.clone()],
+                        ..Default::default()
+                    });
+                }
                 holes.push(h);
             }
             Err(why) => problems.push(Problem {

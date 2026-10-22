@@ -54,7 +54,8 @@ All notable changes to draftwright-rust are recorded here, in the style of
     and a part whose best view is not drawn uses the next one. On an exact 45° tie, x is taken
     before y before z.
   - Inclined holes and bosses are still not located, and a boss's height is still not stated:
-    those need a view square to the axis. The boss reports this.
+    those need a view square to the axis. Each reports this as `feature_not_dimensioned`.
+    Inclined bosses of one diameter are counted once only along one line.
   - A plan-view hole table leaves inclined holes as callouts. Its rows give a direction along
     z and a plan location, and an inclined hole has neither.
   - nist_ctc_03, nist_ctc_04, nist_ftc_07 and cgb217: no hole_requirement_missing or diameter

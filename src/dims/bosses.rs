@@ -150,12 +150,16 @@ fn read_inclined<'a>(f: &'a Feature, frame: &QFrame) -> Option<Inclined<'a>> {
 /// Inclined bosses' diameters, called out as an inclined hole's are ([`super::holes`]): in the
 /// views that see them as ellipses, most nearly end-on first, the leader to a major-axis end of
 /// the rim nearer the viewer (its top when it faces the viewer, else its base). Bosses of one
-/// diameter seen most nearly end-on in one view are counted once, as principal ones are.
+/// diameter along one line are counted once, as principal ones along one axis are: keyed on the
+/// direction, either way along it (as [`holes::Hole::requirement`] keys a hole's, signed), so
+/// every member is seen as the first is.
 fn inclined_callouts(inclined: &[Inclined]) -> Vec<Want> {
-    let mut groups: BTreeMap<(usize, i64), Vec<&Inclined>> = BTreeMap::new();
+    let mut groups: BTreeMap<([i64; 3], i64), Vec<&Inclined>> = BTreeMap::new();
     let mut order = Vec::new();
     for b in inclined {
-        let k = (holes_dims::oblique_axes(b.dir)[0], key(b.diameter));
+        // Its largest component made positive: one key for both ways along the line.
+        let sign = b.dir[holes_dims::oblique_axes(b.dir)[0]].signum();
+        let k = (b.dir.map(|c| holes::size_key(sign * c)), key(b.diameter));
         let members = groups.entry(k).or_default();
         if members.is_empty() {
             order.push(k);
@@ -444,10 +448,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             "boss" if groove_floor(analysis, f) || turned_band(analysis, f) => {
                 continue;
             }
-            "boss"
-                if crate::lint::bosses::boss_owner(analysis, f).is_none()
-                    && let Some(b) = read_inclined(f, &cx.frame) =>
-            {
+            "boss" if let Some(b) = read_inclined(f, &cx.frame) => {
                 problems.push(Problem {
                     message: format!(
                         "{}'s height and location are not dimensioned: its axis is inclined to every principal axis, so they need a view square to it; its diameter is called out where it is seen most nearly end-on.",
