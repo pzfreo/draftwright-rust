@@ -235,8 +235,8 @@ pub(super) fn route_profile(analysis: &crate::model::Analysis, w: &mut Want, vie
     {
         return;
     }
-    // The middle half of each arc the view sees end-on: the leader's tip is set on it radially
-    // towards its elbow ([`super::leaders`]' rim tip), so it meets the arc radially.
+    // The middle half of each arc the view sees end-on: the leader's tip is set on it towards its
+    // elbow ([`super::leaders`]' rim tip), radially when the elbow lies within its sweep.
     let mut middles = Vec::new();
     for m in w
         .measurements
