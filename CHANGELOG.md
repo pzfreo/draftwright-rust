@@ -6,26 +6,69 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+## 0.1.0-alpha.12 (2026-10-22)
+
+Still on quiddity-rust `0.1.0-alpha.8`. The move to quiddity-rust 0.1.0 is waiting on
+quiddity-rust #69–#72.
+
 ### Added
 
-- **Compact dimension spacing.** Dimension lines stay 10 mm from the outline and 7 mm apart
-  when there is room. When a one-sheet candidate runs out of room, the same paper and scale
-  are tried with compact spacing before a smaller scale, larger paper or more sheets: the
-  first line 7 mm from the outline, then 5.5 mm between lines (1.5 mm clear above each
-  label, and clear of the 2 mm extension overshoot).
-  - The retry runs only for a lack of room compact lanes could cover (space drops, page-fit
-    verdicts, dimension ink off the sheet, or clipping within the lanes' possible saving), not
-    for overlaps or unrelated furniture. The existing usable test (overlaps, leaders,
-    legibility, losses) still gates compact candidates. Splits onto more sheets keep normal
-    lanes.
-  - `sheet/dimension_spacing: normal | compact` sets the intent: `normal` forbids the
-    fallback, `compact` uses compact lanes directly.
-  - The plan records `sheet.dimension_spacing: "compact"` when used (absent means normal),
-    and the sheet choice says "with compact dimension spacing". The Spec is unchanged.
-  - A local fix offered on a compact drawing keeps `sheet/dimension_spacing: compact` with
-    its paper, scale and count.
-  - Drawings that change: 1013 goes from A3 2:1 to A4 1:1. The prismatic test fixture
-    without its isometric stays at A4 2:1 instead of 1:1.
+- **Compact dimension spacing.** By default, the first dimension line stays 10 mm from the
+  outline and later lines stay 7 mm apart. When a one-sheet layout runs out of room, the same
+  paper and scale are tried with compact spacing before a smaller scale, larger paper or more
+  sheets.
+  - Compact spacing puts the first line 7 mm from the outline, then 5.5 mm between lines. That
+    leaves 1.5 mm clear above each label and clears the 2 mm extension overshoot.
+  - The retry runs only when compact lanes could make the room: a dimension dropped for space,
+    a page-fit verdict, dimension ink off the sheet or over the title block, or clipping that
+    compact lanes could cover (no view outline larger than the frame). It does not run for
+    overlaps or unrelated furniture.
+  - The usable test (overlaps, leaders, legibility, lost information) still decides whether a
+    compact layout is accepted. Splits onto more sheets keep normal spacing.
+  - `sheet/dimension_spacing: normal | compact` states the intent: `normal` forbids the
+    fallback, and `compact` uses compact spacing for every candidate, including an explicit
+    paper and scale.
+  - The plan records `sheet.dimension_spacing: "compact"` when compact spacing is used (absent
+    means normal), and the sheet choice text adds "with compact dimension spacing". The Spec
+    is not changed.
+  - A local fix offered on a compact drawing keeps `sheet/dimension_spacing: compact` along
+    with its paper, scale and count. An explicit `sheet/dimension_spacing` edit releases an
+    inherited `sheet/keep_layout` hold, as paper, scale and sheet-count edits do.
+  - Drawings that change: mfcadpp 1013 goes from A3 2:1 to A4 1:1, with the same problem
+    counts. The prismatic test fixture without its isometric stays at A4 2:1 instead of
+    dropping to 1:1. No other part in the 63-part comparison (quality set, NIST CTC/FTC, NIST
+    STC 06–10, 40 mfcadpp parts) changes (#163).
+
+### WASM API
+
+- **Spec:** `sheet/dimension_spacing` (`"normal"` or `"compact"`) is added.
+- **Plan:** `sheet.dimension_spacing` is added; it appears only as `"compact"`.
+- **MCP:** `sheet.dimension_spacing` (`normal | compact`) is added to the MCP Spec schemas.
+- **Options:** the sheet item's settable fields list `sheet/dimension_spacing` with choices
+  `normal` and `compact`.
+- Method signatures are unchanged.
+
+### Performance
+
+Ratio of retired CPU instructions for `draftwright plan`, alpha.12 ÷ alpha.11, from
+interleaved runs on PR #167 (the only change since alpha.11):
+
+| Part | Ratio |
+|---|---|
+| NIST CTC-01 | 1.00 |
+| NIST CTC-02 | 1.00 |
+| NIST CTC-04 | 1.00 |
+| NIST FTC-06 | 1.00 |
+| NIST FTC-09 | 1.01 |
+| cgb243 | 1.00 |
+| cgb245 | 1.06 |
+| string_post | 1.00 |
+| MFCAD++ part 1000 | 1.00 |
+| MFCAD++ part 10163 | 1.00 |
+| MFCAD++ part 1013 (changed drawing) | 1.35 |
+
+- cgb245 makes one compact retry on A4, which fails.
+- 1013 pays for the trials that end on A4 compact.
 
 ## 0.1.0-alpha.11 (2026-10-21)
 
