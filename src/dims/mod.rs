@@ -758,6 +758,7 @@ fn wants_uncached(
         out.extend(w);
         problems.extend(more);
     }
+    blends::count_oblique(analysis, &mut out, &mut problems);
     // All axial locations use the same inspection end as the turned shoulder baseline.
     if let Some((axis, datum)) = turned::axial_datum(analysis) {
         for w in &mut out {
