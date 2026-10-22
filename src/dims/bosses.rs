@@ -381,7 +381,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
 
     let mut out = Vec::new();
     // Callouts by axis, side count (0 for a cylinder) and size; a boss carrying a thread or knurl
-    // keeps its own callout (one annotation per owner), keyed by its index after the first.
+    // keeps its own callout (one annotation per owner), keyed by its index + 1 (0 means shared).
     let mut circles: BTreeMap<(usize, u64, i64, usize), Vec<usize>> = BTreeMap::new();
     let mut order = Vec::new();
     let mut located: BTreeMap<(&'static str, usize, i64), Vec<usize>> = BTreeMap::new();
@@ -687,11 +687,11 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                         Section::Polygon { across_flats, .. } => across_flats,
                     },
                 })
-                .chain(super::turned::claims(
-                    &manufacturing,
-                    vec![first.feature.id.as_str()],
-                    value,
-                ))
+                // Only a round callout prints what the boss carries, so only it claims it.
+                .chain(
+                    super::turned::claims(&manufacturing, vec![first.feature.id.as_str()], value)
+                        .filter(|_| parameter == "boss.diameter"),
+                )
                 .collect(),
             turning: None,
             basis,

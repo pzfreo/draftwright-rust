@@ -41,6 +41,24 @@ fn modelled_thread_callouts_clear_labels_and_dimension_ink() {
             .collect();
         assert_eq!(labels, expected, "{file}");
         let drawing = model::render(&part, &analysis, &plan, &font).unwrap();
+        // cgb243's M14×1.5 and two M62×1.5 are shorter than the holes they are cut in; their
+        // callouts do not print the depth yet, so lint reports each one (thread.depth).
+        let mut depths: Vec<_> = draftwright::lint::lint(&analysis, &drawing)
+            .into_iter()
+            .filter(|i| i.requirements.iter().any(|r| r.parameter == "thread.depth"))
+            .map(|i| i.subjects.join(","))
+            .collect();
+        depths.sort();
+        let expected_depths: &[&str] = if file.contains("cgb243") {
+            &[
+                "f:modelled_thread:1",
+                "f:modelled_thread:2",
+                "f:modelled_thread:3",
+            ]
+        } else {
+            &[]
+        };
+        assert_eq!(depths, expected_depths, "{file}");
         for code in ["annotation_overlap", "annotation_ink_overlap"] {
             let problems: Vec<_> = plan
                 .problems
@@ -71,4 +89,58 @@ fn modelled_thread_callouts_clear_labels_and_dimension_ink() {
                 })
         );
     }
+}
+
+/// A thread on cgb243's lone ø90 boss prints its designation in place of the diameter, and
+/// lint counts that callout as stating the boss's diameter (it claims `boss.diameter`), so
+/// there is neither a `pmi_not_lowered` refusal nor a false `feature_not_dimensioned`.
+#[test]
+fn a_thread_on_a_lone_boss_states_its_diameter() {
+    let Some(corpus) = corpus::dir() else {
+        return;
+    };
+    let path = corpus.join("cadgenbench_inputs/cgb243.step.gz");
+    let mut bytes = Vec::new();
+    flate2::read::GzDecoder::new(std::fs::read(&path).unwrap().as_slice())
+        .read_to_end(&mut bytes)
+        .unwrap();
+    let (_, analysis) = model::analyse_native_step(&path, &bytes).unwrap();
+    let spec: model::Spec = serde_json::from_value(serde_json::json!({
+        "features": {"f:boss:2": {"thread": {"designation": "M90x2"}}}
+    }))
+    .unwrap();
+    let plan = model::plan_recovered(&analysis, &spec).unwrap();
+    let boss = plan
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:f:boss:2/boss.diameter")
+        .expect("the boss's callout is planned");
+    assert_eq!(boss.label, "M90 x 2");
+    assert!(
+        plan.problems.iter().all(|p| p.code != "pmi_not_lowered"),
+        "{:?}",
+        plan.problems
+    );
+    let marks: Vec<_> = plan
+        .dimensions
+        .iter()
+        .map(|d| draftwright::lint::Mark {
+            name: d.id.clone(),
+            view: Some(d.view.clone()),
+            text: d.label.replace('\n', " "),
+            claims: d
+                .measurements
+                .iter()
+                .map(|m| draftwright::output::Claim {
+                    feature: m.feature.clone(),
+                    parameter: m.parameter.clone(),
+                })
+                .collect(),
+        })
+        .collect();
+    let unstated: Vec<_> = draftwright::lint::coverage::feature_coverage(&analysis, &marks)
+        .into_iter()
+        .filter(|i| i.subjects.iter().any(|s| s == "f:boss:2"))
+        .collect();
+    assert!(unstated.is_empty(), "{unstated:?}");
 }

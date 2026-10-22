@@ -19,8 +19,9 @@ All notable changes to draftwright-rust are recorded here, in the style of
     cross-references cite (`SHEET n, ZONE …`) stay, with one `sheet_zones_kept` info finding.
 - **Thread depth lint.** A modelled internal thread shorter than the hole it is cut in must
   state its depth: lint reports `hole_requirement_missing` for `thread.depth` when the callout
-  claiming the thread gives no `↧` depth. cgb243's M14×1.5 and two M62×1.5 threads are reported;
-  the callout does not print the depth yet.
+  claiming the thread gives no `↧` depth. cgb243's M14×1.5 and two M62×1.5 threads are reported.
+  The callout does not print the depth yet: on cgb243 that makes the leader search draw two
+  bolt-circle labels on top of each other.
 
 ### Changed
 

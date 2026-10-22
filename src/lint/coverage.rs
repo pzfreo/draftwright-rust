@@ -282,14 +282,28 @@ pub fn not_dimensioned(
         .collect()
 }
 
-/// The diameter findings on a drawing whose annotations are *marks*.
+/// The diameter findings on a drawing whose annotations are *marks*. A mark claiming a boss's
+/// diameter mentions it, as a hole callout's claims do, whether or not its text prints `ø`: an
+/// external thread's designation stands in place of the diameter it is cut on (`M90 x 2`).
 pub fn feature_coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     let holes = holes_by_id(analysis);
+    let boss = |id: &str| {
+        analysis
+            .features
+            .iter()
+            .find(|f| f.id == id && f.kind == "boss")
+            .and_then(|f| f.parameters.get("diameter").and_then(|v| v.as_f64()))
+    };
     let mentioned: Vec<f64> = marks
         .iter()
         .flat_map(|m| {
+            let claimed = m
+                .claims
+                .iter()
+                .filter(|c| c.parameter == "boss.diameter")
+                .filter_map(|c| boss(&c.feature));
             let m = mentions(&holes, m);
-            m.structured.into_iter().chain(m.text)
+            m.structured.into_iter().chain(m.text).chain(claimed)
         })
         .collect();
     not_dimensioned(&inventory(analysis), &mentioned, &[], Severity::Warning)
