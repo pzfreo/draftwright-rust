@@ -4705,7 +4705,7 @@ impl SegmentIndex {
         }
     }
 
-    fn collect_beside(&self, line: [P2; 2], found: &mut Vec<[P2; 2]>) {
+    fn collect_beside(&self, line: [P2; 2], found: &mut Vec<(f64, f64)>) {
         // Any interval within the 0.3 mm perpendicular band must meet
         // these expanded closed bounds, including a nearly diagonal run.
         if !self.meets_padded_line(line, 0.3 + 1e-9) {
@@ -4716,7 +4716,7 @@ impl SegmentIndex {
                 child.collect_beside(line, found);
             }
         } else {
-            found.extend(&self.ink);
+            found.extend(self.ink.iter().filter_map(|e| along_interval(line, *e)));
         }
     }
 
@@ -4734,9 +4734,9 @@ impl SegmentIndex {
         if (line[1][0] - line[0][0]).hypot(line[1][1] - line[0][1]) <= 2.0 + 1e-6 {
             return false;
         }
-        let mut ink = Vec::new();
-        self.collect_beside(line, &mut ink);
-        let result = runs_beside(line, &ink);
+        let mut intervals = Vec::new();
+        self.collect_beside(line, &mut intervals);
+        let result = covered_run(line, intervals);
         let mut saved = self.besides.borrow_mut();
         if saved.len() >= 8192 {
             saved.clear();
@@ -4837,7 +4837,14 @@ pub(super) fn runs_beside(s: [P2; 2], ink: &[[P2; 2]]) -> bool {
     if (s[1][0] - s[0][0]).hypot(s[1][1] - s[0][1]) <= 2.0 + 1e-6 {
         return false;
     }
-    let mut intervals: Vec<_> = ink.iter().filter_map(|e| along_interval(s, *e)).collect();
+    covered_run(
+        s,
+        ink.iter().filter_map(|e| along_interval(s, *e)).collect(),
+    )
+}
+
+/// Whether the [`along_interval`]s of line-work beside *s* join into a run of over 2 mm.
+fn covered_run(s: [P2; 2], mut intervals: Vec<(f64, f64)>) -> bool {
     intervals.sort_by(|a, b| a.0.total_cmp(&b.0));
     let length = (s[1][0] - s[0][0]).hypot(s[1][1] - s[0][1]);
     let (mut start, mut stop) = (0.0_f64, 0.0_f64);
