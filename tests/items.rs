@@ -14,6 +14,7 @@
 
 #[path = "common/corpus.rs"]
 mod corpus;
+#[macro_use]
 #[path = "common/support.rs"]
 mod support;
 
@@ -338,8 +339,58 @@ fn every_plan_item_has_a_state_and_every_problem_subject_is_a_live_item() {
 }
 
 /// The same on the quality parts (`tools/quality_parts.txt`, from the corpus), planned as the
-/// command line plans them. Automatic preferences retain every default item;
-/// explicitly starved sheets exercise loss states and their matching findings.
+/// command line plans them, one case per part. Automatic preferences retain every item, with
+/// and without hole tables; explicitly overcrowded author choices retain the same loss-state/reporting contract.
+fn on_the_quality_part(file: &str) {
+    let Some(dir) = corpus::dir() else {
+        eprintln!("SKIPPED: the corpus is not found");
+        return;
+    };
+    let a = cache::native(&dir.join(file)).1;
+    let plan = cache::default_plan(&a, true);
+    consistent(file, &plan, &a, &Spec::default());
+    sheet_rule::assert_preferences(&plan);
+    assert_eq!(
+        not_drawable(&plan),
+        0,
+        "{file}: the default quality drawings retain every item"
+    );
+    // Exercise both forms; auto tables should not erase loss/state-machine coverage.
+    let ladder = Spec {
+        hole_table: draftwright::hole_table::Setting::Never,
+        ..Spec::default()
+    };
+    let plan = model::plan_recovered(&a, &ladder).unwrap();
+    consistent(file, &plan, &a, &ladder);
+    sheet_rule::assert_preferences(&plan);
+    assert_eq!(
+        not_drawable(&plan),
+        0,
+        "{file}: the ladder (no hole table) quality drawings retain every item"
+    );
+    let forced = overcrowded();
+    let plan = model::plan_recovered(&a, &forced).unwrap();
+    consistent(file, &plan, &a, &forced);
+}
+quality_cases!(on_the_quality_part);
+
+fn not_drawable(plan: &Plan) -> usize {
+    plan.dimensions
+        .iter()
+        .filter(|d| matches!(d.state, State::NotDrawable { .. }))
+        .count()
+}
+
+fn overcrowded() -> Spec {
+    serde_json::from_value(json!({
+        "sheet": {"size": "A4", "scale": "10:1"}, "hole_table": "never"
+    }))
+    .unwrap()
+}
+
+/// The quality-part cases cover the manifest, an explicitly starved sheet exercises
+/// not-drawable states, and the overcrowded author choices of `on_the_quality_part` drop an
+/// item on at least one part.
 #[test]
 fn on_the_quality_parts_too() {
     let Some(dir) = corpus::dir() else {
@@ -351,55 +402,25 @@ fn on_the_quality_parts_too() {
     )
     .unwrap();
     let files: Vec<_> = list.lines().filter(|l| !l.trim().is_empty()).collect();
-    let mut dropped: usize = support::parallel(&files, |&file| {
-        let a = cache::native(&dir.join(file)).1;
-        let plan = cache::default_plan(&a, true);
-        consistent(file, &plan, &a, &Spec::default());
-        sheet_rule::assert_preferences(&plan);
-        // Exercise both forms; auto tables should not erase loss/state-machine coverage.
-        let ladder = Spec {
-            hole_table: draftwright::hole_table::Setting::Never,
-            ..Spec::default()
-        };
-        let plan = model::plan_recovered(&a, &ladder).unwrap();
-        consistent(file, &plan, &a, &ladder);
-        sheet_rule::assert_preferences(&plan);
-        plan.dimensions
-            .iter()
-            .filter(|d| matches!(d.state, State::NotDrawable { .. }))
-            .count()
-    })
-    .into_iter()
-    .sum();
-    assert_eq!(dropped, 0, "the default quality drawings retain every item");
+    assert_eq!(files, support::QUALITY_FILES, "one case per quality part");
     let a = cache::native(&dir.join("nist/nist_ftc_08_asme1_rc.stp")).1;
     let starved = spec(json!({"sheet": {"size": "A4", "scale": "1:1"}, "hole_table": "never"}));
     let mut plan = model::plan(&a, &starved).unwrap();
     draftwright::hole_table::escalate(&a, &mut plan, None);
     consistent("explicitly starved FTC08", &plan, &a, &starved);
     assert!(
-        plan.dimensions
-            .iter()
-            .any(|d| matches!(d.state, State::NotDrawable { .. })),
+        not_drawable(&plan) > 0,
         "the explicitly starved drawing still exercises not-drawable states"
     );
-    // Explicitly overcrowded author choices retain the same loss-state/reporting contract.
-    let forced: Spec = serde_json::from_value(json!({
-        "sheet": {"size": "A4", "scale": "10:1"}, "hole_table": "never"
-    }))
-    .unwrap();
-    dropped += support::parallel(&files, |&file| {
+    // The ladder drawings drop nothing (each case asserts it), so this is the sum the
+    // whole-manifest test asserted over ladder plus overcrowded drawings: some overcrowded
+    // quality drawing drops an item.
+    let forced = overcrowded();
+    let dropped = files.iter().any(|file| {
         let a = cache::native(&dir.join(file)).1;
-        let p = model::plan_recovered(&a, &forced).unwrap();
-        consistent(file, &p, &a, &forced);
-        p.dimensions
-            .iter()
-            .filter(|d| matches!(d.state, State::NotDrawable { .. }))
-            .count()
-    })
-    .into_iter()
-    .sum::<usize>();
-    assert!(dropped > 0, "no item was dropped");
+        not_drawable(&model::plan_recovered(&a, &forced).unwrap()) > 0
+    });
+    assert!(dropped, "no item was dropped");
 }
 
 /// The editor's drawing review, as `drawing-review.ts` classifies an item.

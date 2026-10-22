@@ -17,6 +17,7 @@ threads-required = "num-cpus"
 [[profile.default.overrides]]
 filter = '''
     (binary(=audits) & test(/^items::/)) & not test(=items::a_problems_fix_resolves_it)
+        & not test(/^items::on_the_quality_part::/)
     | test(=problem_wording::only_sheet_problems_have_the_sheet_as_subject)
     | test(=problem_wording::no_problem_message_carries_an_internal_id)
     | test(=interior_placement::all_quality_parts_interior_lines_arrows_and_tips_clear_rendered_ink)
@@ -34,13 +35,17 @@ priority = 100
 default-filter = 'not (binary(issue_drafting) | binary(issue_trust))'
 fail-fast = false
 
+# Per-test durations for tools/test_shards.py --record.
+[profile.ci.junit]
+path = "junit.xml"
+
 # A shard's wall clock is bounded below by its longest test, so the tests that take most of a
 # minute or more on CI start first rather than last. Named NIST cases replace the long
 # all-fixture PMI loops; reserve early slots for the remaining aggregate audits too.
 # Share this ordering with the default full-suite run; ci inherits the same overrides.
 [[profile.default.overrides]]
 filter = '''
-    test(=items::on_the_quality_parts_too)
+    test(/^items::on_the_quality_part::/)
     | test(=items::every_plan_item_has_a_state_and_every_problem_subject_is_a_live_item)
     | test(=problem_wording::only_sheet_problems_have_the_sheet_as_subject)
     | test(=problem_wording::no_problem_message_carries_an_internal_id)
@@ -63,3 +68,44 @@ filter = '''
     | test(=dims_slots::a_turned_parts_coaxial_bosses_are_profile_bands_and_a_groove_floor_is_the_grooves)
 '''
 priority = 80
+
+# The other tests that took two minutes or more in a CI shard (CI runs 39835970005 and
+# 39841898867) also start first, so none becomes its shard's tail.
+[[profile.default.overrides]]
+filter = '''
+    test(nist_ctc_02_asme1_rc)
+    | test(=placement_intent::seeded_edits_on_slice_parts_preserve_pinned_geometry)
+    | test(=placement_intent::pinning_without_offsets_keeps_automatic_geometry)
+    | test(=placement_intent::a_bare_pin_relays_its_own_label_when_its_text_changes)
+    | test(=fit_label_layout::crowded_h7_hole_label_clears_the_dimension_stack)
+    | test(=repeated_labels::every_repeated_label_on_the_quality_parts_has_a_verdict)
+    | test(=table_symbols::quality_parts_have_no_unsupported_table_or_note_glyphs)
+    | test(=stateless::s0_edits_through_http_serve_and_session_have_identical_specs_plans_and_deltas)
+    | test(=stateless::warm_cache_and_fresh_process_are_byte_identical_to_session)
+    | test(=stateless::four_slice_parts_default_payloads_are_bounded_and_paging_is_lossless)
+    | test(=authored_dimensions::cylinders_spheres_and_axis_offsets_are_measured_and_linted)
+    | test(=sheet_policy::tests::automatic_pins_keep_canonical_paper_scale_and_sheet_count)
+    | test(=problem_wording::fix_descriptions_use_drawing_language_across_fixtures_and_corpus)
+    | test(=problem_wording::problems_keep_tool_diagnostics_out_of_drawing_messages)
+    | test(=planned_hole_tables::non_hole_pins_keep_the_settled_schedule_and_isometric_frame)
+    | test(=sheets::r5_narrow_section_blocks_reserve_caption_and_reference_width)
+    | test(=modelled_thread_layout::modelled_thread_callouts_clear_labels_and_dimension_ink)
+    | test(=hole_tables::a_table_without_every_balloon_is_withdrawn_whole)
+    | test(=dims::leaders::tests::refined_slot_radius_leaders_point_towards_the_arc_centre)
+    | test(=repeated_dimensions::an_authored_location_and_rung_with_equal_bands_share_the_authored_survivor)
+    | test(=oriented_chamfers::bounded_notches_reserve_acute_arcs_and_leave_dense_general_profiles_alone)
+    | test(=oriented_chamfers::notch_dimensions_accept_omit_tolerance_place_and_label_text)
+    | test(=gdt_band::stc09_without_a_complete_fit_keeps_its_first_drawing_and_reports_the_floor)
+'''
+priority = 60
+
+# Exclusive latency gates wait for every running test to finish, idling the other slots, so
+# they run first, before any other test has started. CI's shards rank the other tests by
+# recorded duration (tools/test_shards.py --priorities); this `ci` override comes first.
+[[profile.default.overrides]]
+filter = 'test(=r5_multi_sheet_latency) | (binary(=session) & test(_benchmark_deltas))'
+priority = 100
+
+[[profile.ci.overrides]]
+filter = 'test(=r5_multi_sheet_latency) | (binary(=session) & test(_benchmark_deltas))'
+priority = 100

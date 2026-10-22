@@ -128,9 +128,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Five nextest shards of the `ci` profile, and the binaries it leaves out run whole
-        # under their own harness (.config/nextest.toml says why).
-        shard: [1/5, 2/5, 3/5, 4/5, 5/5, harness]
+        # Seven duration-balanced shards of the `ci` profile's tests (tools/test_shards.py),
+        # and the binaries it leaves out run whole under their own harness
+        # (.config/nextest.toml says why).
+        shard: [1/7, 2/7, 3/7, 4/7, 5/7, 6/7, 7/7, harness]
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -151,10 +152,30 @@ jobs:
       # the workspace, and target/tmp, which cargo makes when it builds, is made here.
       - run: tar --zstd -xf nextest-archive.tar.zst && mkdir -p target/tmp
       - if: matrix.shard != 'harness'
-        run: >-
-          cargo nextest run --archive-file nextest-archive.tar.zst
-          --workspace-remap . --extract-to . --extract-overwrite
-          --profile ci --partition hash:${{ matrix.shard }}
+        shell: bash
+        run: |
+          cargo nextest list --archive-file nextest-archive.tar.zst \
+            --workspace-remap . --profile ci --message-format json > nextest-list.json
+          filter=$(python3 -I tools/test_shards.py --list nextest-list.json --shard ${{ matrix.shard }} \
+            --priorities "$PWD/shard-priorities.toml")
+          cargo nextest run --archive-file nextest-archive.tar.zst \
+            --tool-config-file "test-shards:$PWD/shard-priorities.toml" \
+            --workspace-remap . --extract-to . --extract-overwrite --profile ci -E "$filter"
+          # Every test assigned to this shard ran (the filterset names each one once).
+          expected=$(grep -o 'test(=' <<<"$filter" | wc -l)
+          ran=$(grep -o '<testcase ' target/nextest/ci/junit.xml | wc -l)
+          if [ "$expected" != "$ran" ]; then
+            echo "::error::shard ${{ matrix.shard }} was assigned $expected tests but ran $ran"
+            exit 1
+          fi
+      # Durations for refreshing tools/test-durations.json (tools/test_shards.py --record).
+      - if: always() && matrix.shard != 'harness'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: test-junit-${{ strategy.job-index }}
+          path: target/nextest/ci/junit.xml
+          if-no-files-found: warn
+          retention-days: 14
       # The binaries the `ci` profile's default filter leaves out, each run whole (`shell: bash`
       # adds pipefail).
       - if: matrix.shard == 'harness'
