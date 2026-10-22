@@ -1,6 +1,6 @@
 //! Python's bounded interior rays and corridor retry, against proven blank face and settled ink.
 use super::placement::{Frame, Page, Side, arrow, boxes_overlap, crosses, label_box};
-use super::{CAP, LANE, P2, Placed, PlannedDimension, Shape, Want, font, label_ink};
+use super::{CAP, P2, Placed, PlannedDimension, Shape, Want, font, label_ink, lane_pitch};
 use crate::model::{Analysis, PlannedView, Spec};
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -914,12 +914,12 @@ fn callouts(
                 })
                 .fold(f64::INFINITY, f64::min)
                 .max(0.0);
-            if lane as f64 * LANE + 0.5 >= exit {
+            if lane as f64 * lane_pitch() + 0.5 >= exit {
                 continue;
             }
             let elbow = [
-                tip[0] + lane as f64 * LANE * d[0],
-                tip[1] + lane as f64 * LANE * d[1],
+                tip[0] + lane as f64 * lane_pitch() * d[0],
+                tip[1] + lane as f64 * lane_pitch() * d[1],
             ];
             let right = d[0] >= -1e-9;
             let end = [

@@ -7,8 +7,8 @@ use haecceity::hlr::View;
 
 use super::holes::SPOTFACE;
 use super::{
-    ARROW, ARROW_HALF, CAP, FIRST, GAP, LANE, LIFT, OVERSHOOT, P2, P3, Placed, PlannedDimension,
-    Shape, TEXT, TOKEN_GAP, Want, font, key,
+    ARROW, ARROW_HALF, CAP, GAP, LIFT, OVERSHOOT, P2, P3, Placed, PlannedDimension, Shape, TEXT,
+    TOKEN_GAP, Want, first_line, font, key, lane_pitch,
 };
 use crate::layout::{Lanes, MARGIN};
 use crate::model::{Analysis, PlannedSheet, PlannedView, Problem};
@@ -396,7 +396,7 @@ fn callout_strip(view: &str) -> Side {
 
 /// The page position of lane *lane* in strip *side*, and the outward sign.
 fn lane_at(o: [f64; 4], side: Side, lane: usize) -> (f64, f64) {
-    let d = FIRST + lane as f64 * LANE;
+    let d = first_line() + lane as f64 * lane_pitch();
     match side {
         Side::Below => (o[1] - d, -1.0),
         Side::Above => (o[3] + d, 1.0),
@@ -415,9 +415,9 @@ pub struct LabelRows {
 
 fn callout_step(side: Side, width: f64, canonical_width: f64) -> f64 {
     if matches!(side, Side::Left | Side::Right) {
-        canonical_width.max(width) + super::SHOULDER + LANE
+        canonical_width.max(width) + super::SHOULDER + lane_pitch()
     } else {
-        LANE
+        lane_pitch()
     }
 }
 
@@ -1299,7 +1299,8 @@ pub(super) fn body_chains(
                     *a_edge = false;
                     *b_edge = false;
                 }
-                let line = centre[cross_axis] + sign * (radial + FIRST + lane as f64 * LANE);
+                let line = centre[cross_axis]
+                    + sign * (radial + first_line() + lane as f64 * lane_pitch());
                 let Some(p) = place_linear_at(f, &w.shape, &w.terms, side, (line, sign)) else {
                     clear = false;
                     continue;
@@ -1425,7 +1426,7 @@ pub(super) fn interior_lanes(frame: &Frame, w: &Want, side: Side) -> Vec<Placed>
                 &w.shape,
                 &w.terms,
                 side,
-                (edge + inward * lane as f64 * LANE, inward),
+                (edge + inward * lane as f64 * lane_pitch(), inward),
             )
         })
         .collect()
@@ -2502,7 +2503,7 @@ fn clear_linear_ordered(
                     && q.as_ref().is_some_and(|q| {
                         q.arrows.len() == 2
                             && q.rotation == c.rotation
-                            && distance(c) < distance(q) + super::LANE - 1e-6
+                            && distance(c) < distance(q) + super::lane_pitch() - 1e-6
                     })
             })
         };
@@ -2633,8 +2634,8 @@ fn clear_linear_ordered(
         // Prefer the least obstructed of the opposite strip's first eight lanes.
         // Keeping a reported label conflict is better than adding body crossings.
         let paper = page.drawable();
-        let max_lane = (((paper[2] - paper[0]).max(paper[3] - paper[1]) / super::LANE).ceil()
-            as usize)
+        let max_lane = (((paper[2] - paper[0]).max(paper[3] - paper[1]) / super::lane_pitch())
+            .ceil() as usize)
             .max(16);
         let choices: Vec<_> = if recess_context {
             [side, opposite(side)]
@@ -4520,7 +4521,14 @@ fn place_aligned_page(
     side: Side,
     lane: usize,
 ) -> Option<Placed> {
-    aligned_at_offset(a, b, o, terms, side, FIRST + lane as f64 * LANE)
+    aligned_at_offset(
+        a,
+        b,
+        o,
+        terms,
+        side,
+        first_line() + lane as f64 * lane_pitch(),
+    )
 }
 
 fn aligned_at_offset(

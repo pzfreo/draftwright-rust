@@ -4,7 +4,11 @@ use draftwright::{fixes::Scope, items, model};
 pub fn constraint(op: &items::Op) -> bool {
     matches!(
         op.path.as_str(),
-        "sheet/keep_layout" | "sheet/size" | "sheet/scale" | "sheets/max"
+        "sheet/keep_layout"
+            | "sheet/size"
+            | "sheet/scale"
+            | "sheets/max"
+            | "sheet/dimension_spacing"
     )
 }
 pub fn edits<'a>(problem: &'a model::Problem, plan: &model::Plan) -> Vec<&'a items::Op> {

@@ -39,10 +39,16 @@ fn plate_rows_follow_automatic_frames_widths_and_explicit_pins() {
         .map(|p| p.label_box[2] - p.label_box[0])
         .fold(0.0, f64::max);
     assert!((guide.row_spacing["left"] - width - 10.0).abs() < 1e-6);
-    assert_eq!(guide.row_spacing["above"], dims::LANE);
-    assert_eq!(guide.row_spacing["below"], dims::LANE);
-    assert_eq!(guide.first_row["above"], guide.outline[3] + dims::FIRST);
-    assert_eq!(guide.first_row["below"], guide.outline[1] - dims::FIRST);
+    assert_eq!(guide.row_spacing["above"], dims::LANE_NORMAL);
+    assert_eq!(guide.row_spacing["below"], dims::LANE_NORMAL);
+    assert_eq!(
+        guide.first_row["above"],
+        guide.outline[3] + dims::FIRST_NORMAL
+    );
+    assert_eq!(
+        guide.first_row["below"],
+        guide.outline[1] - dims::FIRST_NORMAL
+    );
     let stats = session.stats();
     assert_eq!(guides, session.label_rows(id).unwrap());
     assert_eq!(

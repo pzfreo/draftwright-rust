@@ -47,12 +47,12 @@ fn small(a: &model::Analysis, p: &model::Plan) -> bool {
     let row: f64 = views
         .iter()
         .filter(|v| v.id != "v:plan")
-        .map(|v| size(v)[0] + 2. * layout::DIM_PAD)
+        .map(|v| size(v)[0] + 2. * layout::dim_pad())
         .sum();
     let column: f64 = views
         .iter()
         .filter(|v| v.id == "v:plan" || v.id == "v:front")
-        .map(|v| size(v)[1] + 2. * layout::DIM_PAD)
+        .map(|v| size(v)[1] + 2. * layout::dim_pad())
         .sum();
     row <= layout::PAGES[1].1 - 2. * layout::MARGIN
         && column <= layout::PAGES[1].2 - 2. * layout::MARGIN

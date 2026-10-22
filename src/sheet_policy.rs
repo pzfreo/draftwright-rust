@@ -293,7 +293,7 @@ impl Estimate {
 // remaining dimension tiers and callout widths in paper mm.
 fn shared_band(views: &[(String, [f64; 2], [f64; 2])], a: &str, b: &str, k: usize) -> f64 {
     let band = |id| views.iter().find(|v| v.0 == id).map_or(0.0, |v| v.2[k]);
-    band(a).min(band(b)).min(layout::DIM_PAD)
+    band(a).min(band(b)).min(layout::dim_pad())
 }
 
 // With no detail owner, the baseline's printed primary steps must remain
@@ -566,13 +566,15 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
     let radius_reference = model::radius_edit_reference(analysis, &intent, true);
     let floor = readable_floor(fit, &baseline, spec);
     let estimate = Estimate::new(fit, &baseline);
+    // Unset spacing may fall back to compact lanes; an explicit choice holds for every trial.
+    let fallback = spec.sheet.dimension_spacing.is_none();
     let hard = spec.sheets.as_ref().and_then(|s| s.max).unwrap_or(9);
     let mut candidates = Vec::new();
     let mut best = sheet_fit::inside_frames(fit, &baseline).then(|| baseline.clone());
     // Whole-view allocations are independent of a count bound once they fit.
     let mut separated = std::collections::BTreeMap::<(String, u64), Option<Plan>>::new();
     let mut scale_sources = std::collections::BTreeMap::<u64, Option<Plan>>::new();
-    let mut unblocked = std::collections::BTreeMap::<(String, u64), Plan>::new();
+    let mut unblocked = std::collections::BTreeMap::<(String, u64, bool), Plan>::new();
     for (size, max) in requests(spec) {
         let mut scales = Vec::new();
         let mut outcome = "reserved footprints cannot fit at a readable scale".to_string();
@@ -626,24 +628,44 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
                 chosen = judge(plan.clone(), &mut scales, &mut outcome);
             }
         }
-        if chosen.is_none()
-            && !baseline_fits
-            && let Some(scale) = estimate.scale(size, max, floor)
-        {
-            // At most one smaller readable standard scale: a crowded estimate may
-            // read cleanly one step down on the same paper.
-            let smaller = layout::SCALES
-                .into_iter()
-                .find(|s| *s < scale && *s + 1e-9 >= floor);
-            for scale in std::iter::once(scale).chain(smaller) {
-                scales.push(model::scale_name(scale));
-                let key = (size.to_string(), scale.to_bits());
+        // At most one smaller readable standard scale: a crowded estimate may
+        // read cleanly one step down on the same paper.
+        let mut steps: Vec<f64> = estimate
+            .scale(size, max, floor)
+            .into_iter()
+            .flat_map(|scale| {
+                std::iter::once(scale).chain(
+                    layout::SCALES
+                        .into_iter()
+                        .find(|s| *s < scale && *s + 1e-9 >= floor),
+                )
+            })
+            .collect();
+        if chosen.is_some() || baseline_fits {
+            steps.clear();
+        }
+        // The compact fallback keeps a drawing on one sheet of this paper; a split keeps
+        // normal lanes (pinned replay across whole-view sheets is not yet reliable).
+        let compact = fallback && max == 1;
+        'scales: for scale in steps {
+            scales.push(model::scale_name(scale));
+            // Normal spacing first; compact spacing on the same paper and scale only when
+            // that ran out of room, before a smaller scale or the next paper request.
+            let mut cramped_first = None;
+            for spaced in [false, true] {
+                if spaced && (!compact || cramped_first == Some(false)) {
+                    continue;
+                }
+                let key = (size.to_string(), scale.to_bits(), spaced);
                 let cached = (max > 1).then(|| unblocked.get(&key).cloned()).flatten();
                 let mut forced = intent.clone();
                 forced.binding = spec.binding.clone();
                 forced.sheet.size = Some(size.into());
                 forced.sheet.scale = Some(model::scale_name(scale));
                 forced.sheets.get_or_insert_with(Default::default).max = Some(max as u32);
+                if spaced {
+                    forced.sheet.dimension_spacing = Some(model::DimensionSpacing::Compact);
+                }
                 omit_absent_details(fit, &mut forced, &baseline, scale);
                 let plan = match cached.map(Ok).unwrap_or_else(|| {
                     crate::planning::fixed_pair_with_radius_reference(
@@ -667,22 +689,24 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
                     unblocked.insert(key, plan.clone());
                 }
                 // Only a lack of room (clipping, hard layout findings or space drops)
-                // earns the smaller scale; a routing refusal would only repeat itself.
+                // earns compact spacing or the smaller scale; a routing refusal would only
+                // repeat itself.
                 let cramped = model::findings(&plan).hard > 0
                     || plan
                         .problems
                         .iter()
                         .any(|p| crate::hole_table::DROPS.contains(&p.code.as_str()))
                     || !sheet_fit::inside_frames(fit, &plan);
+                cramped_first = cramped_first.or(Some(cramped));
                 chosen = judge(plan, &mut scales, &mut outcome);
                 if chosen.is_some() {
-                    break;
+                    break 'scales;
                 }
                 // A smaller readable scale may fit individual views even when
                 // the unrestricted reference's scale cannot. Plan its ink on
                 // roomy paper, then reuse whole-view allocation; never pack a
                 // cramped small-paper plan after it has already lost items.
-                if max > 1 && scale < baseline.sheet.scale_factor {
+                if !spaced && max > 1 && scale < baseline.sheet.scale_factor {
                     let source = scale_sources.entry(scale.to_bits()).or_insert_with(|| {
                         let mut wide = forced.clone();
                         wide.sheet.size = Some("A0".into());
@@ -706,20 +730,26 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
                     if let Some(plan) = split.as_ref().filter(|p| p.sheets.len() < max) {
                         chosen = judge(plan.clone(), &mut scales, &mut outcome);
                         if chosen.is_some() {
-                            break;
+                            break 'scales;
                         }
                     }
                 }
-                if !cramped {
-                    break;
-                }
+            }
+            // Only a lack of room earns the smaller scale.
+            if cramped_first == Some(false) {
+                break;
             }
         }
         if let Some(plan) = chosen {
             let reason = format!(
-                "{size}: usable at {} ({} sheet(s)); nothing clipped, readable scale, no unreadable ink or required losses",
+                "{size}: usable at {} ({} sheet(s)){}; nothing clipped, readable scale, no unreadable ink or required losses",
                 plan.sheet.scale,
-                1 + plan.sheets.len()
+                1 + plan.sheets.len(),
+                if plan.sheet.dimension_spacing == model::DimensionSpacing::Compact {
+                    " with compact dimension spacing"
+                } else {
+                    ""
+                }
             );
             candidates.push(Candidate {
                 size: size.into(),
@@ -781,21 +811,33 @@ fn pinned(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
         base.sheet.references = Some(true);
         canonical = select(analysis, &base)?;
     }
+    // Replay with the spacing the canonical drawing was selected with, which may be the
+    // automatic compact fallback.
+    let compact = canonical.sheet.dimension_spacing == model::DimensionSpacing::Compact;
+    crate::dims::with_compact(compact, || replay_pins(analysis, spec, &base, canonical))
+}
+
+fn replay_pins(
+    analysis: &Analysis,
+    spec: &Spec,
+    base: &Spec,
+    canonical: Plan,
+) -> Result<Plan, Invalid> {
     let count = 1 + canonical.sheets.len();
     let migrated = model::migrate(spec, analysis)?;
     let intent = crate::recognition_corrections::canonical(analysis, &migrated)?.into_owned();
     // The unpinned automatic baseline is already memoised by canonical selection.
     // Keep its ordinary pin replay when no forced paper was selected; a fixed-pair
     // replay can have a different nominal presentation even at the same scale.
-    let raw = model::plan_automatic(analysis, &base)?;
-    let mut plan = if only_bare_pins(&intent, &base, &canonical) {
+    let raw = model::plan_automatic(analysis, base)?;
+    let mut plan = if only_bare_pins(&intent, base, &canonical) {
         // A bare pin holds the selected finished ink, including peers on every
         // physical page. Re-solving sheet 1 would create a different pin origin.
         // Hold the drawing the unpinned request finally shows, after the selected
         // drawing's own route repair (plan_recovered's callout_routes::finish).
         let mut held = canonical.clone();
         let effective = crate::spec_gdt::effective(analysis, &held.spec)?;
-        crate::dims::callout_routes::finish(effective.as_ref(), &base, &mut held);
+        crate::dims::callout_routes::finish(effective.as_ref(), base, &mut held);
         held.spec = intent.clone();
         for d in &mut held.dimensions {
             if intent
@@ -1054,6 +1096,181 @@ mod tests {
             return None;
         }
         Some(model::analyse_native(&root.join(file)).unwrap().1)
+    }
+
+    /// Linear dimension lines beyond each view's outline, per view and side: the first line's
+    /// distance from the outline, the gaps between neighbouring parallel lines (paper mm,
+    /// rounded to 0.01), and the least clearance from a label's box to another parallel line
+    /// it spans on that side.
+    fn lane_gaps(analysis: &Analysis, plan: &Plan) -> (Vec<f64>, Vec<f64>, f64) {
+        let round = |v: f64| (v * 100.0).round() / 100.0;
+        let (mut firsts, mut pitches, mut clear) = (Vec::new(), Vec::new(), f64::INFINITY);
+        for (view, o) in plan.views.iter().zip(sheet_fit::footprints(analysis, plan)) {
+            // The line's constant coordinate, the outward sign and the outline's edge.
+            for (k, sign, edge) in [
+                (1, -1.0, o[1]),
+                (1, 1.0, o[3]),
+                (0, -1.0, o[0]),
+                (0, 1.0, o[2]),
+            ] {
+                let lines: Vec<(f64, [f64; 2], [f64; 4])> = plan
+                    .dimensions
+                    .iter()
+                    .filter(|d| d.view == view.id && d.kind == "linear")
+                    .filter_map(|d| {
+                        let p = d.placed.as_ref()?;
+                        let [a, b] = *p.lines.last()?;
+                        ((a[k] - b[k]).abs() < 1e-6 && (a[1 - k] - b[1 - k]).abs() > 1.0).then(
+                            || {
+                                let span = [a[1 - k].min(b[1 - k]), a[1 - k].max(b[1 - k])];
+                                (a[k], span, p.label_box)
+                            },
+                        )
+                    })
+                    .filter(|(at, _, _)| sign * (at - edge) > 0.5)
+                    .collect();
+                let mut at: Vec<f64> = lines.iter().map(|l| sign * (l.0 - edge)).collect();
+                at.sort_by(f64::total_cmp);
+                at.dedup_by(|a, b| (*a - *b).abs() < 0.01);
+                if let Some(first) = at.first() {
+                    firsts.push(round(*first));
+                }
+                pitches.extend(at.windows(2).map(|w| round(w[1] - w[0])));
+                for (own, _, label) in &lines {
+                    let (low, high) = (label[k], label[k + 2]);
+                    for (other, span, _) in &lines {
+                        if (other - own).abs() < 0.01
+                            || span[1] < label[1 - k]
+                            || span[0] > label[3 - k]
+                        {
+                            continue;
+                        }
+                        clear = clear.min((low - other).max(other - high).max(0.0));
+                    }
+                }
+            }
+        }
+        (firsts, pitches, clear)
+    }
+
+    fn spaced(spacing: Option<&str>, sheet: serde_json::Value) -> Spec {
+        let mut sheet = sheet;
+        if let Some(spacing) = spacing {
+            sheet["dimension_spacing"] = json!(spacing);
+        }
+        serde_json::from_value(json!({ "sheet": sheet })).unwrap()
+    }
+
+    #[test]
+    fn compact_lanes_keep_their_pitch_and_label_clearance() {
+        let Some(a) = corpus("mfcadpp/1013.step") else {
+            return;
+        };
+        let fixed = json!({"size":"A3","scale":"1:1"});
+        for (spacing, first, pitch) in [("normal", 10.0, 7.0), ("compact", 7.0, 5.5)] {
+            let p = model::plan_automatic(&a, &spaced(Some(spacing), fixed.clone())).unwrap();
+            let (firsts, pitches, clear) = lane_gaps(&a, &p);
+            assert_eq!(
+                p.sheet.dimension_spacing == model::DimensionSpacing::Compact,
+                spacing == "compact"
+            );
+            assert_eq!(
+                firsts.iter().copied().reduce(f64::min),
+                Some(first),
+                "{spacing}"
+            );
+            assert!(pitches.contains(&pitch), "{spacing}: {pitches:?}");
+            for gap in &pitches {
+                let lanes = gap / pitch;
+                assert!(
+                    (lanes - lanes.round()).abs() < 0.01 && lanes >= 1.0,
+                    "{spacing}: {pitches:?}"
+                );
+            }
+            // A label's top stays 1.5 mm clear of the next line.
+            assert!(clear >= 1.5, "{spacing}: {clear}");
+        }
+    }
+
+    #[test]
+    fn compact_spacing_is_tried_before_larger_paper() {
+        let Some(crowded) = corpus("mfcadpp/1013.step") else {
+            return;
+        };
+        let paper = |p: &Plan| layout::PAGES.iter().position(|q| q.0 == p.sheet.size);
+        let compact = |p: &Plan| p.sheet.dimension_spacing == model::DimensionSpacing::Compact;
+        // Normal lanes need A3 for this part; compact lanes keep it on A4.
+        let auto = select(&crowded, &Spec::default()).unwrap();
+        let normal = select(&crowded, &spaced(Some("normal"), json!({}))).unwrap();
+        assert!(compact(&auto) && !compact(&normal));
+        assert!(
+            paper(&auto) < paper(&normal),
+            "{} vs {}",
+            auto.sheet.size,
+            normal.sheet.size
+        );
+        assert!(auto.sheet.basis.contains("with compact dimension spacing"));
+        assert!(!normal.sheet.basis.contains("compact"));
+        // The Spec keeps the author's intent; only the plan records the fallback.
+        assert_eq!(auto.spec.sheet.dimension_spacing, None);
+    }
+
+    #[test]
+    fn a_local_fix_retains_the_compact_fallback() {
+        let Some(a) = corpus("mfcadpp/1013.step") else {
+            return;
+        };
+        let before = model::plan_recovered(&a, &Spec::default()).unwrap();
+        assert_eq!(
+            before.sheet.dimension_spacing,
+            model::DimensionSpacing::Compact
+        );
+        let fix = before
+            .problems
+            .iter()
+            .flat_map(|p| p.offered_fixes())
+            .find(|f| f.ops.iter().any(|op| op.path == "sheet/keep_layout"))
+            .expect("a retained local fix");
+        assert!(
+            fix.ops.iter().any(
+                |op| op.path == "sheet/dimension_spacing" && op.value == Some(json!("compact"))
+            )
+        );
+        let ops = serde_json::to_value(&fix.ops).unwrap();
+        let after = model::plan_recovered(&a, &model::edit(&before.spec, &ops).unwrap()).unwrap();
+        assert_eq!(
+            after.sheet.dimension_spacing,
+            model::DimensionSpacing::Compact
+        );
+        assert_eq!(
+            (&after.sheet.size, &after.sheet.scale),
+            (&before.sheet.size, &before.sheet.scale)
+        );
+    }
+
+    #[test]
+    fn plain_parts_keep_normal_spacing_and_explicit_compact_holds() {
+        let a = fixture();
+        let auto = select(&a, &Spec::default()).unwrap();
+        assert_eq!(
+            auto.sheet.dimension_spacing,
+            model::DimensionSpacing::Normal
+        );
+        let (firsts, _, _) = lane_gaps(&a, &auto);
+        assert!(
+            !firsts.is_empty() && firsts.iter().all(|f| *f >= 10.0),
+            "{firsts:?}"
+        );
+        let compact = select(&a, &spaced(Some("compact"), json!({}))).unwrap();
+        assert_eq!(
+            compact.sheet.dimension_spacing,
+            model::DimensionSpacing::Compact
+        );
+        let (firsts, _, _) = lane_gaps(&a, &compact);
+        assert_eq!(firsts.iter().copied().reduce(f64::min), Some(7.0));
+        assert!(
+            serde_json::from_value::<Spec>(json!({"sheet":{"dimension_spacing":"tight"}})).is_err()
+        );
     }
 
     #[test]

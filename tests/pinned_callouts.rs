@@ -51,7 +51,7 @@ fn crossing_pin_keeps_bend_and_label_and_reports_features() {
         .as_ref()
         .unwrap();
     let bounds = outline(&a, view);
-    let expected = [view.at[0], bounds[3] + draftwright::dims::FIRST];
+    let expected = [view.at[0], bounds[3] + draftwright::dims::FIRST_NORMAL];
     assert!(
         (ink.lines[0][1][0] - expected[0]).abs() < 1e-6,
         "{ink:?}, {expected:?}"
@@ -137,7 +137,7 @@ fn above_left_pin_keeps_parallel_location_dimensions_readable() {
             let short_line = short.lines[2];
             let long_line = long.lines[2];
             assert!(
-                (short_line[0][1] - long_line[0][1]).abs() >= draftwright::dims::LANE - 1e-6,
+                (short_line[0][1] - long_line[0][1]).abs() >= draftwright::dims::LANE_NORMAL - 1e-6,
                 "along {along}: 50 and 95 share a lane: {short:?}, {long:?}"
             );
             // When both lie below the view, the larger span must be outside the smaller.

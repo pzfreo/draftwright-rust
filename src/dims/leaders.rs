@@ -970,15 +970,23 @@ fn settled_nominal_reference(
     };
     // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
     let key = serde_json::to_vec(&recipe).expect("reference intent serializes");
-    let full = crate::planning::memo(analysis, "selected-nominal-reference", key, || {
-        crate::nominal::with_comparison(|| {
-            crate::planning::isolated(analysis, || {
-                crate::planning::store(analysis, "canonical-circular-recipes", Vec::new(), true);
-                if recovered_recipe {
-                    crate::model::plan_automatic(analysis, &recipe).ok()
-                } else {
-                    crate::model::plan_escalated(analysis, &recipe).ok()
-                }
+    // An unrendered comparison drawing: normal spacing, whatever the candidate's spacing.
+    let full = crate::dims::with_compact(false, || {
+        crate::planning::memo(analysis, "selected-nominal-reference", key, || {
+            crate::nominal::with_comparison(|| {
+                crate::planning::isolated(analysis, || {
+                    crate::planning::store(
+                        analysis,
+                        "canonical-circular-recipes",
+                        Vec::new(),
+                        true,
+                    );
+                    if recovered_recipe {
+                        crate::model::plan_automatic(analysis, &recipe).ok()
+                    } else {
+                        crate::model::plan_escalated(analysis, &recipe).ok()
+                    }
+                })
             })
         })
     })?;
@@ -3096,15 +3104,19 @@ fn refine_uncached(
             ))
             // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
             .expect("bare route inputs serialize");
-            crate::planning::memo(analysis, "bare-leader-reference", key, || {
-                let mut base = analysis.clone();
-                base.features.retain(|f| f.kind != "section_recess");
-                let mut recipe = crate::model::Spec::default();
-                recipe.sheet.size = Some(sheet.size.clone());
-                recipe.sheet.scale = Some(sheet.scale.clone());
-                recipe.sheet.projection = spec.sheet.projection.clone();
-                recipe.sheet.references = spec.sheet.references;
-                crate::model::plan(&base, &recipe).ok()
+            // A route template: the established normal-spacing drawing at this paper and
+            // scale, whatever the candidate's dimension spacing.
+            crate::dims::with_compact(false, || {
+                crate::planning::memo(analysis, "bare-leader-reference", key, || {
+                    let mut base = analysis.clone();
+                    base.features.retain(|f| f.kind != "section_recess");
+                    let mut recipe = crate::model::Spec::default();
+                    recipe.sheet.size = Some(sheet.size.clone());
+                    recipe.sheet.scale = Some(sheet.scale.clone());
+                    recipe.sheet.projection = spec.sheet.projection.clone();
+                    recipe.sheet.references = spec.sheet.references;
+                    crate::model::plan(&base, &recipe).ok()
+                })
             })
         });
     let legacy = |i: usize| {

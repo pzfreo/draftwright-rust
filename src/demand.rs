@@ -23,7 +23,7 @@
 use serde_json::Value;
 
 use crate::bridge::holes;
-use crate::layout::{self, DIM_PAD, Pick, Request, Scaled, Strips};
+use crate::layout::{self, Pick, Request, Scaled, Strips, dim_pad};
 use crate::model::Analysis;
 
 /// A bridged hole in the part's frame.
@@ -473,7 +473,7 @@ pub fn strips(d: &Demand, n_steps: usize, plan_shown: bool) -> Strips {
     let plan_work = d.holes.iter().any(|h| h.axis == Some(2)) || d.turning_axis != Some(2);
     let mut strips = Strips {
         right,
-        left: DIM_PAD,
+        left: dim_pad(),
         top: layout::plan_above_depth(distinct.len()),
         pv_halo: if balloon { layout::PLAN_HALO } else { 0.0 },
         front_hole_below: layout::front_hole_rows_depth(front_rows),

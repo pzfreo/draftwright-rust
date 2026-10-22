@@ -253,9 +253,68 @@ pub(crate) const ARROW_HALF: f64 = ARROW / 6.0;
 const GAP: f64 = 1.0;
 const OVERSHOOT: f64 = 2.0;
 /// The first dimension line's distance from the view's outline (draftwright's `_STRIP_GAP`) and
-/// the distance between successive parallel lines.
-pub const FIRST: f64 = 10.0;
-pub const LANE: f64 = 7.0;
+/// the distance between successive parallel lines, at normal spacing.
+pub const FIRST_NORMAL: f64 = 10.0;
+pub const LANE_NORMAL: f64 = 7.0;
+/// Compact spacing (`sheet/dimension_spacing: compact`, and the automatic fallback before a
+/// smaller scale or larger paper): a 7 mm first line, then 5.5 mm, which leaves 1.5 mm between
+/// a label's top (LIFT + TEXT above its line) and the next line, beyond the 2 mm overshoot.
+pub const FIRST_COMPACT: f64 = 7.0;
+pub const LANE_COMPACT: f64 = 5.5;
+// A label's top sits LIFT + TEXT above its line: compact lanes leave 1.5 mm to the next line
+// and clear the extension overshoot.
+const _: () = assert!(
+    LANE_COMPACT - (LIFT + TEXT) >= 1.5 - 1e-9
+        && LANE_COMPACT > OVERSHOOT
+        && FIRST_COMPACT > GAP + OVERSHOOT
+);
+
+thread_local! {
+    static COMPACT: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Whether the plan being made uses compact dimension spacing.
+pub fn compact() -> bool {
+    COMPACT.get()
+}
+
+/// The first dimension line's distance from the view's outline under the current spacing.
+pub fn first_line() -> f64 {
+    if compact() {
+        FIRST_COMPACT
+    } else {
+        FIRST_NORMAL
+    }
+}
+
+/// The distance between successive parallel dimension lines under the current spacing.
+pub fn lane_pitch() -> f64 {
+    if compact() { LANE_COMPACT } else { LANE_NORMAL }
+}
+
+/// Run *run* with the Spec's dimension spacing: an explicit `normal` or `compact` sets it, and
+/// an unset value keeps the enclosing plan's (normal at the top level). Planning memos are
+/// partitioned by it ([`crate::planning`]).
+pub(crate) fn spaced<T>(spec: &crate::model::Spec, run: impl FnOnce() -> T) -> T {
+    let compact = match spec.sheet.dimension_spacing {
+        Some(crate::model::DimensionSpacing::Compact) => true,
+        Some(crate::model::DimensionSpacing::Normal) => false,
+        None => compact(),
+    };
+    with_compact(compact, run)
+}
+
+/// Run *run* with compact spacing on or off.
+pub(crate) fn with_compact<T>(compact: bool, run: impl FnOnce() -> T) -> T {
+    struct Restore(bool);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            COMPACT.set(self.0);
+        }
+    }
+    let _restore = Restore(COMPACT.replace(compact));
+    run()
+}
 /// The gap between a label's terms (draftwright's callout recipe), a label's baseline above its
 /// dimension line, the middle of a capital above its baseline, and a leader's shoulder.
 const TOKEN_GAP: f64 = 0.45 * TEXT;
@@ -654,7 +713,7 @@ pub(crate) fn has_new_native_recess_dimensions(analysis: &Analysis) -> bool {
 }
 
 pub(crate) fn has_recess_dimensions(analysis: &Analysis) -> bool {
-    let (canonical, established, comparison, _) = crate::planning::policy_key(analysis);
+    let (canonical, established, comparison, _, _) = crate::planning::policy_key(analysis);
     crate::planning::memo(
         analysis,
         "recess-presence",
@@ -993,7 +1052,7 @@ pub(crate) fn inspection_datum(a: &Analysis) -> Option<(usize, f64)> {
 }
 
 pub(crate) fn detail_levels(a: &Analysis) -> Vec<(String, f64)> {
-    let (canonical, established, comparison, _) = crate::planning::policy_key(a);
+    let (canonical, established, comparison, _, _) = crate::planning::policy_key(a);
     crate::planning::memo(
         a,
         "detail-linear-levels",
@@ -1245,7 +1304,7 @@ pub(crate) fn callout_bands(
             Some(crate::layout::CalloutBand {
                 view,
                 side,
-                depth: FIRST + depth + 2.0,
+                depth: first_line() + depth + 2.0,
             })
         })
         .collect())
@@ -1532,8 +1591,8 @@ fn lanes_uncached(
         })
         .count();
     if notch_lanes > 0 {
-        let base = ((crate::layout::DIM_PAD - crate::layout::lane_band(1)).max(0.) / LANE).ceil()
-            as usize
+        let base = ((crate::layout::dim_pad() - crate::layout::lane_band(1)).max(0.) / lane_pitch())
+            .ceil() as usize
             + 1;
         bands.authored_plan_left = bands.authored_plan_left.max(base + notch_lanes);
     }
@@ -1600,8 +1659,8 @@ fn lanes_uncached(
             && let Some(k) = NAMES.iter().position(|v| *v == view)
         {
             let ink = label_ink(&w.terms, font());
-            bands.recess_callouts[k] =
-                bands.recess_callouts[k].max(FIRST + SHOULDER + ink.max[0] - ink.min[0] + 2.0);
+            bands.recess_callouts[k] = bands.recess_callouts[k]
+                .max(first_line() + SHOULDER + ink.max[0] - ink.min[0] + 2.0);
         }
     }
     for (i, w) in wants.iter().enumerate() {
@@ -1839,7 +1898,7 @@ pub(crate) fn authored_placement_clear(spec: &Spec, dims: &[PlannedDimension]) -
 /// A slot chain must have room for its arrows and its own text between its ends.
 /// New recess annotations reserve extra paper rather than reducing these existing chains.
 pub(crate) fn recess_chain_scale(analysis: &Analysis) -> f64 {
-    let (canonical, established, comparison, _) = crate::planning::policy_key(analysis);
+    let (canonical, established, comparison, _, _) = crate::planning::policy_key(analysis);
     crate::planning::memo(
         analysis,
         "recess-readable-scale",
@@ -4565,7 +4624,12 @@ pub(crate) fn local_placement_fix(
                 } else {
                     [0.0, 0.0]
                 };
-                for distance in [LANE, 2.0 * LANE, 3.0 * LANE, 4.0 * LANE] {
+                for distance in [
+                    lane_pitch(),
+                    2.0 * lane_pitch(),
+                    3.0 * lane_pitch(),
+                    4.0 * lane_pitch(),
+                ] {
                     for [dx, dy] in [
                         [0., 1.],
                         [0., -1.],
@@ -4852,6 +4916,22 @@ mod tests {
     use super::*;
 
     #[test]
+    fn compact_lanes_clear_labels_and_overshoot() {
+        assert_eq!((first_line(), lane_pitch()), (FIRST_NORMAL, LANE_NORMAL));
+        let normal = crate::layout::lane_band(4);
+        let compact = with_compact(true, || {
+            assert_eq!((first_line(), lane_pitch()), (FIRST_COMPACT, LANE_COMPACT));
+            crate::layout::lane_band(4)
+        });
+        assert!((compact - normal * LANE_COMPACT / LANE_NORMAL).abs() < 1e-9);
+        assert_eq!(
+            lane_pitch(),
+            LANE_NORMAL,
+            "the scope restores normal spacing"
+        );
+    }
+
+    #[test]
     fn rejected_head_routes_leave_parent_witnesses_untouched() {
         let (_, mut a) = crate::model::analyse_native(
             &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -4922,7 +5002,7 @@ mod tests {
             let ink = label_ink(&d.terms, font());
             let width = ink.max[0] - ink.min[0];
             assert!(width <= crate::callouts::WIDTH);
-            assert_eq!(precise[0].depth, FIRST + (width + SHOULDER) + 2.0);
+            assert_eq!(precise[0].depth, first_line() + (width + SHOULDER) + 2.0);
             // Precision still adds over 20 mm of text. Wrapping now reserves the
             // widest line, rather than letting that text grow one unbounded column.
             let unwrapped: Vec<_> = d
@@ -4932,7 +5012,7 @@ mod tests {
                 .cloned()
                 .collect();
             let ink = label_ink(&unwrapped, font());
-            assert!(FIRST + ink.max[0] - ink.min[0] + SHOULDER + 2.0 > bare[0].depth + 20.0);
+            assert!(first_line() + ink.max[0] - ink.min[0] + SHOULDER + 2.0 > bare[0].depth + 20.0);
         }
     }
 

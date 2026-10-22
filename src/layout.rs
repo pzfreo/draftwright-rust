@@ -18,14 +18,20 @@ pub const TB_CLEAR: f64 = MARGIN + 1.0;
 pub const TB_H: f64 = 40.0;
 const FONT_SIZE: f64 = 3.0;
 const PAD: f64 = 2.0;
-/// The view outline to the first dimension line, and between successive dimension lines.
-const STRIP_GAP: f64 = 10.0;
+/// The view outline to the first dimension line ([`crate::dims::first_line`]: 10 mm, or 7 mm at
+/// compact spacing).
+fn strip_gap() -> f64 {
+    crate::dims::first_line()
+}
 const STRIP_SPACING: f64 = 2.5;
 const SLOT_DIM_WIDTH: f64 = 2.0 * FONT_SIZE + PAD;
 const SLOT_DIM_HEIGHT: f64 = 2.0 * FONT_SIZE + 2.0 * PAD;
 const SLOT_DIM_STEP: f64 = 4.0 * FONT_SIZE + PAD;
-/// The base corridor between views: one first-line gap and one dimension tier (20 mm).
-pub const DIM_PAD: f64 = STRIP_GAP + SLOT_DIM_HEIGHT;
+/// The base corridor between views: one first-line gap and one dimension tier (20 mm; 17 mm at
+/// compact spacing).
+pub fn dim_pad() -> f64 {
+    strip_gap() + SLOT_DIM_HEIGHT
+}
 /// The isometric's estimated width as a fraction of the part's largest extent, and the fraction
 /// of that its rectangle must hold for a candidate to fit.
 const ISO_WIDTH_BUDGET: f64 = 0.7;
@@ -212,8 +218,8 @@ impl Strips {
     /// front and the base corridor on the left (draftwright's estimate with no steps).
     pub fn without_features() -> Self {
         Strips {
-            right: STRIP_GAP + SLOT_DIM_HEIGHT,
-            left: DIM_PAD,
+            right: strip_gap() + SLOT_DIM_HEIGHT,
+            left: dim_pad(),
             top: 0.0,
             pv_halo: 0.0,
             fv_top: 0.0,
@@ -269,10 +275,9 @@ pub struct Lanes {
     pub side_right: usize,
 }
 
-/// The distance between successive dimension lines in the port's lanes (`dims::LANE`), and how
+/// The distance between successive dimension lines in the port's lanes is [`crate::dims::lane_pitch`]; how
 /// far a lane's ink reaches past its line: the label's baseline lift and one text height, which
 /// also covers the extension lines' 2 mm overshoot.
-const LANE: f64 = 7.0;
 const LANE_REACH: f64 = 1.0 + FONT_SIZE;
 
 /// The band *lanes* stacked lanes need: the first line's gap, the lanes, and the outermost one's
@@ -281,7 +286,7 @@ pub fn lane_band(lanes: usize) -> f64 {
     if lanes == 0 {
         0.0
     } else {
-        STRIP_GAP + (lanes - 1) as f64 * LANE + LANE_REACH
+        strip_gap() + (lanes - 1) as f64 * crate::dims::lane_pitch() + LANE_REACH
     }
 }
 
@@ -516,7 +521,7 @@ fn gdt_band(items: &[&Gdt], base: f64, scale: f64) -> f64 {
 /// other occupant (an axial boss height).
 pub fn right_strip_depth(n_steps: usize, n_extra: usize) -> f64 {
     let n = (1 + n_steps + n_extra) as f64;
-    STRIP_GAP + SLOT_DIM_HEIGHT + (n - 1.0) * (STRIP_SPACING + SLOT_DIM_STEP)
+    strip_gap() + SLOT_DIM_HEIGHT + (n - 1.0) * (STRIP_SPACING + SLOT_DIM_STEP)
 }
 
 /// The tiers above the plan for X-location dimensions, one per distinct reference and one spare
@@ -535,13 +540,13 @@ pub fn front_hole_rows_depth(rows: usize) -> f64 {
         0.0
     } else {
         let row = FONT_SIZE + 2.0 * PAD;
-        STRIP_GAP + rows as f64 * row + (rows - 1) as f64 * STRIP_SPACING
+        strip_gap() + rows as f64 * row + (rows - 1) as f64 * STRIP_SPACING
     }
 }
 
 /// The balloon standoff ring around a plan whose holes are tabulated (draftwright's
 /// `_balloon_halo`): the first-line gap, one balloon (diameter three text heights) and a spacing.
-pub const PLAN_HALO: f64 = STRIP_GAP + 3.0 * FONT_SIZE + STRIP_SPACING;
+pub const PLAN_HALO: f64 = crate::dims::FIRST_NORMAL + 3.0 * FONT_SIZE + STRIP_SPACING;
 
 /// The end-on radial fan's reach beside the overall-height slot, for a Y-axis boss or step.
 pub const RADIAL_REACH: f64 = FONT_SIZE + 6.0 * PAD;
@@ -848,23 +853,23 @@ fn geometry_with(
 
     // The estimated blocks.
     let halo = strips.pv_halo;
-    let gap_fv_sv = DIM_PAD.max(strips.right).max(halo);
-    let gap_left = DIM_PAD.max(strips.left).max(halo);
-    let pv_below = STRIP_GAP + SLOT_DIM_WIDTH;
+    let gap_fv_sv = dim_pad().max(strips.right).max(halo);
+    let gap_left = dim_pad().max(strips.left).max(halo);
+    let pv_below = strip_gap() + SLOT_DIM_WIDTH;
     let pv_top = if halo > 0.0 {
-        DIM_PAD.max(strips.top) + halo
+        dim_pad().max(strips.top) + halo
     } else {
-        DIM_PAD
+        dim_pad()
     }
     .max(strips.pv_authored_top);
     let sv_right_band =
-        DIM_PAD
+        dim_pad()
             .max(strips.sv_right)
             .max(if req.sections > 0 { strips.right } else { 0.0 });
     let mut fv = Block {
-        top: (DIM_PAD - pv_below).max(strips.fv_top),
+        top: (dim_pad() - pv_below).max(strips.fv_top),
         right: gap_fv_sv,
-        bottom: DIM_PAD.max(strips.fv_bottom),
+        bottom: dim_pad().max(strips.fv_bottom),
         left: gap_left,
         ..Block::bare(fv_hw, fv_hh)
     };
@@ -913,9 +918,9 @@ fn geometry_with(
         // First angle turns outward the edges third angle keeps inside the group: the front's
         // and the side's tops face the sheet's top edge, and the side's left its left edge, so
         // each keeps at least the band a free edge gets.
-        fv.top = fv.top.max(DIM_PAD);
-        sv.top = sv.top.max(DIM_PAD);
-        sv.left = sv.left.max(DIM_PAD);
+        fv.top = fv.top.max(dim_pad());
+        sv.top = sv.top.max(dim_pad());
+        sv.left = sv.left.max(dim_pad());
     }
     let Principals {
         front: has_front,
@@ -956,8 +961,8 @@ fn geometry_with(
         };
         let min_y_offset = ((page_h - top - bottom - min_column_h.max(side_h)) / 2.0).max(0.0);
         let title_top = reserved_tb_bottom + TB_H;
-        if min_y_offset + bottom + DIM_PAD >= title_top {
-            let max_column_h = page_h - top - bottom - 2.0 * (title_top - bottom - DIM_PAD);
+        if min_y_offset + bottom + dim_pad() >= title_top {
+            let max_column_h = page_h - top - bottom - 2.0 * (title_top - bottom - dim_pad());
             extra = extra.min((max_column_h - min_column_h).max(0.0));
         }
         vertical_gutter += extra;
@@ -978,7 +983,7 @@ fn geometry_with(
             + col_right
             + sv.left
             + y_size * scale
-            + (2.0 * DIM_PAD).max(sv.right + DIM_PAD)
+            + (2.0 * dim_pad()).max(sv.right + dim_pad())
             + iso_budget;
         let slack = page_w - left - right - tb_w - row - side_gutter;
         side_gutter += (VIEW_GUTTER_PREFERRED - VIEW_GUTTER).min((slack - 2.0).max(0.0));
@@ -1003,7 +1008,7 @@ fn geometry_with(
     let section_hw = fv_hw.max(12.0);
     let section_hh = fv_hh;
     let section_right_band = if req.sections > 0 {
-        sv.right + sections * (10.0 + 2.0 * section_hw + DIM_PAD)
+        sv.right + sections * (10.0 + 2.0 * section_hw + dim_pad())
     } else {
         0.0
     };
@@ -1017,8 +1022,8 @@ fn geometry_with(
             0.0
         }
         + side_gutter
-        + (2.0 * DIM_PAD)
-            .max(if has_side { sv.right + DIM_PAD } else { 0.0 })
+        + (2.0 * dim_pad())
+            .max(if has_side { sv.right + dim_pad() } else { 0.0 })
             .max(section_right_band);
     let iso_exact = req.iso_scale_factor.is_some();
     let iso_natural = bbox_max
@@ -1044,7 +1049,7 @@ fn geometry_with(
         let tier = FONT_SIZE + 2.0 * 2.0;
         sv.top = sv
             .top
-            .max(STRIP_GAP + n * tier + (n - 1.0).max(0.0) * STRIP_SPACING);
+            .max(strip_gap() + n * tier + (n - 1.0).max(0.0) * STRIP_SPACING);
     }
     let fv_x = left + x_offset + col_left + fv.hw;
     let mut fv_y = y_offset + bottom + fv.bottom + fv.hh;
@@ -1066,9 +1071,9 @@ fn geometry_with(
     let mut section_x = sv_x + sv.hw + sv.right + SECTION_GAP + section_hw;
     let mut section_y = fv_y;
     let section_block = Block {
-        top: DIM_PAD,
-        right: DIM_PAD,
-        bottom: DIM_PAD + FONT_SIZE + 4.0,
+        top: dim_pad(),
+        right: dim_pad(),
+        bottom: dim_pad() + FONT_SIZE + 4.0,
         left: SECTION_GAP,
         ..Block::bare(section_hw, section_hh)
     };
@@ -1137,10 +1142,10 @@ fn geometry_with(
     }
     // draftwright's stride between sections (`2 hw + DIM_PAD`): the plan draws only the first.
     let section_at = |i: usize, x: f64, y: f64| {
-        section_block.footprint(x + i as f64 * (2.0 * section_hw + DIM_PAD), y)
+        section_block.footprint(x + i as f64 * (2.0 * section_hw + dim_pad()), y)
     };
     // No view's bands may lie on the title block (draftwright's packed verdict, `fits`, keeps
-    // them off it; its row verdict assumes a DIM_PAD band below the views, which a deeper band
+    // them off it; its row verdict assumes a [`dim_pad`] band below the views, which a deeper band
     // breaks). When they would, the row is lifted clear if the sheet has the height; else the
     // layout does not fit.
     let tb_rect: Rect = [
@@ -1264,10 +1269,10 @@ fn geometry_with(
 
     // The pinned title block, and the isometric in the largest gap left.
     let title_block = Block {
-        top: DIM_PAD,
-        right: DIM_PAD,
+        top: dim_pad(),
+        right: dim_pad(),
         bottom: tb_bottom - bottom,
-        left: DIM_PAD,
+        left: dim_pad(),
         ..Block::bare(tb_w / 2.0, TB_H / 2.0)
     };
     let (tb_cx, tb_cy) = (page_w - tb_right - tb_w / 2.0, tb_bottom + TB_H / 2.0);
@@ -1286,10 +1291,10 @@ fn geometry_with(
             obstacles.push(match measured {
                 Some(_) => b.footprint(x, y),
                 None => Block {
-                    top: b.top.max(DIM_PAD),
-                    right: b.right.max(DIM_PAD),
-                    bottom: b.bottom.max(DIM_PAD),
-                    left: b.left.max(DIM_PAD),
+                    top: b.top.max(dim_pad()),
+                    right: b.right.max(dim_pad()),
+                    bottom: b.bottom.max(dim_pad()),
+                    left: b.left.max(dim_pad()),
                     ..b
                 }
                 .footprint(x, y),
@@ -1311,7 +1316,7 @@ fn geometry_with(
     // the side view.
     let side_step_band =
         if has_plan && !scaled.derived.is_empty() && strips.plan_demand && strips.side_step_y {
-            STRIP_GAP + SLOT_DIM_STEP
+            strip_gap() + SLOT_DIM_STEP
         } else {
             0.0
         };
@@ -1395,7 +1400,7 @@ fn geometry_with(
     } else {
         page_w - tb_w - right
     };
-    let auto_clears_tb = y_offset + bottom + DIM_PAD >= reserved_tb_bottom + TB_H;
+    let auto_clears_tb = y_offset + bottom + dim_pad() >= reserved_tb_bottom + TB_H;
     let auto_row_w = total_content_w + (left + right) + if auto_clears_tb { 0.0 } else { tb_w };
     let auto_row_fits = auto_row_w <= page_w + TOL;
     let iso_fit = (iso[2] - iso[0]).min(iso[3] - iso[1]);

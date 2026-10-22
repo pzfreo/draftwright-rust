@@ -74,6 +74,13 @@
                   "A0"
                 ]
               },
+              "dimension_spacing": {
+                "enum": [
+                  null,
+                  "normal",
+                  "compact"
+                ]
+              },
               "title": {
                 "type": "object",
                 "additionalProperties": {
@@ -334,6 +341,13 @@
                   "A2",
                   "A1",
                   "A0"
+                ]
+              },
+              "dimension_spacing": {
+                "enum": [
+                  null,
+                  "normal",
+                  "compact"
                 ]
               },
               "title": {
@@ -680,6 +694,13 @@
                   "A0"
                 ]
               },
+              "dimension_spacing": {
+                "enum": [
+                  null,
+                  "normal",
+                  "compact"
+                ]
+              },
               "title": {
                 "type": "object",
                 "additionalProperties": {
@@ -926,6 +947,13 @@
                   "A2",
                   "A1",
                   "A0"
+                ]
+              },
+              "dimension_spacing": {
+                "enum": [
+                  null,
+                  "normal",
+                  "compact"
                 ]
               },
               "title": {
@@ -1194,6 +1222,13 @@
                   "A0"
                 ]
               },
+              "dimension_spacing": {
+                "enum": [
+                  null,
+                  "normal",
+                  "compact"
+                ]
+              },
               "title": {
                 "type": "object",
                 "additionalProperties": {
@@ -1436,6 +1471,13 @@
                   "A2",
                   "A1",
                   "A0"
+                ]
+              },
+              "dimension_spacing": {
+                "enum": [
+                  null,
+                  "normal",
+                  "compact"
                 ]
               },
               "title": {
@@ -1727,6 +1769,13 @@
                   "A2",
                   "A1",
                   "A0"
+                ]
+              },
+              "dimension_spacing": {
+                "enum": [
+                  null,
+                  "normal",
+                  "compact"
                 ]
               },
               "title": {
@@ -2024,6 +2073,13 @@
                   "A0"
                 ]
               },
+              "dimension_spacing": {
+                "enum": [
+                  null,
+                  "normal",
+                  "compact"
+                ]
+              },
               "title": {
                 "type": "object",
                 "additionalProperties": {
@@ -2300,6 +2356,13 @@
                   "A0"
                 ]
               },
+              "dimension_spacing": {
+                "enum": [
+                  null,
+                  "normal",
+                  "compact"
+                ]
+              },
               "title": {
                 "type": "object",
                 "additionalProperties": {
@@ -2548,6 +2611,13 @@
                   "A0"
                 ]
               },
+              "dimension_spacing": {
+                "enum": [
+                  null,
+                  "normal",
+                  "compact"
+                ]
+              },
               "title": {
                 "type": "object",
                 "additionalProperties": {
@@ -2785,6 +2855,13 @@
                   "A2",
                   "A1",
                   "A0"
+                ]
+              },
+              "dimension_spacing": {
+                "enum": [
+                  null,
+                  "normal",
+                  "compact"
                 ]
               },
               "title": {

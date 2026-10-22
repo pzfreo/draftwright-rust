@@ -532,24 +532,28 @@ impl Session {
         let ink = crate::dims::label_ink(&d.terms, crate::dims::font());
         let width = ink.max[0] - ink.min[0];
         let options = self.options(address)?;
-        Ok(self
-            .plan()
-            .views
-            .iter()
-            .filter(|v| {
-                options
-                    .placements
-                    .iter()
-                    .any(|p| p.view.as_deref() == v.id.strip_prefix("v:"))
-            })
-            .map(|v| {
-                let width = width.max(self.plan().canonical_callout_width(&v.id).unwrap_or(0.0));
-                (
-                    v.id.clone(),
-                    crate::dims::label_rows(&self.analysis, v, width),
-                )
-            })
-            .collect())
+        // Rows follow the spacing the drawing was planned with.
+        let compact = self.plan().sheet.dimension_spacing == model::DimensionSpacing::Compact;
+        Ok(crate::dims::with_compact(compact, || {
+            self.plan()
+                .views
+                .iter()
+                .filter(|v| {
+                    options
+                        .placements
+                        .iter()
+                        .any(|p| p.view.as_deref() == v.id.strip_prefix("v:"))
+                })
+                .map(|v| {
+                    let width =
+                        width.max(self.plan().canonical_callout_width(&v.id).unwrap_or(0.0));
+                    (
+                        v.id.clone(),
+                        crate::dims::label_rows(&self.analysis, v, width),
+                    )
+                })
+                .collect()
+        }))
     }
     /// The callout's bend against its automatic leader tip, for pinning a drag with
     /// `place.offset`, with its projected attachment members. Does not plan or project model
@@ -1622,6 +1626,7 @@ fn settable(
             "sheet/scale".into(),
             choices(json!(crate::layout::SCALES.map(model::scale_name))),
         );
+        fields.insert("sheet/dimension_spacing".into(), json!({"choices":["normal","compact"], "consequences":["Unset: normal 10/7 mm lanes, with compact 7/5.5 mm lanes tried on the same sheet before a smaller scale or larger paper; normal forbids that fallback; compact uses it directly."]}));
         fields.insert(
             "sheet/title".into(),
             json!({"fields":crate::title_block::KEYS.map(|k|k.0),"forms":["text"]}),
