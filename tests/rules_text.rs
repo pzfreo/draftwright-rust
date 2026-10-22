@@ -105,7 +105,10 @@ fn separate_solids_do_not_invent_features_and_preserve_real_slots_pads_and_pocke
     for name in ["two-channels", "two-channels-reversed"] {
         let doc = document(name);
         assert_eq!(
-            doc.records.iter().filter(|r| r.family == "channels").count(),
+            doc.records
+                .iter()
+                .filter(|r| r.family == "channels")
+                .count(),
             2,
             "{name}: channels"
         );
