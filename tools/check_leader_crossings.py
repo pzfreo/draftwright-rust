@@ -5,7 +5,7 @@ Record from origin/main quality.py drawings with this single command (also after
   python3 -I tools/check_leader_crossings.py /tmp/main-quality --record tools/leader-crossings-baseline.json
 Generate /tmp/main-quality with quality.py and an origin/main release binary first.
 The geometry fallback classifies old plans without requiring the new problem fields.
-CI's quality-pins job compares fresh drawings to this record; zero stays zero,
+CI's quality-gate job compares fresh drawings to this record; zero stays zero,
 nonzero never increases, independently for each part and each of the six kinds.
 Counts retain the existing ordered-pair semantics; multi-kind pairs count in each
 applicable column, not in a partition of the old warning total. Leader-through-text
