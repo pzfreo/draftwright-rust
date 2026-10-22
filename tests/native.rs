@@ -1811,13 +1811,13 @@ fn quiddity_and_haecceity_are_pinned_together() {
     assert_eq!(source("quiddity"), source("haecceity"));
 }
 
-/// Countersinks are on no part compared above (sheets' ctc04 has the corpus's only ones, and is
-/// not compared there yet), so ctc04's native countersinks are compared with Python quiddity
-/// 0.3.9's records in its recognition JSON directly: faces through `caller_index`, points and
-/// directions mapped from its frame. Every one agrees (the location within quiddity's 1e-4
-/// rounding).
+/// Python quiddity 0.3.9 reports 12 countersinks on ctc04 (its recognition JSON, faces through
+/// `caller_index`). They are the quarter-cone corner faces of the 5×45° pocket-rim chamfer, seated
+/// only on the pockets' R5 corner walls, not countersinks (quiddity-rust #76): since 0.1.1 a
+/// countersink's cone must run at least 270° round its axis. Native recognition reports none of
+/// them, and no countersink at all on ctc04.
 #[test]
-fn ctc04_countersinks_match_pythons_records() {
+fn ctc04_has_none_of_pythons_chamfer_corner_countersinks() {
     let Some(dir) = corpus::dir() else {
         eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
         return;
@@ -1825,63 +1825,22 @@ fn ctc04_countersinks_match_pythons_records() {
     let json: Value =
         serde_json::from_str(&gunzip(&fixture("recognition/sheets/ctc04.json.gz")).unwrap())
             .unwrap();
-    let q = &json["quiddity"];
-    let f = &q["frame"];
-    let v = |k: &str| bridge::holes::point(Some(&f[k])).unwrap();
-    let frame = [v("origin"), v("x"), v("y"), v("z")];
-    let caller: BTreeMap<u64, usize> = q["faces"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|f| {
-            (
-                f["index"].as_u64().unwrap(),
-                f["caller_index"].as_u64().unwrap() as usize,
-            )
-        })
-        .collect();
-    let py: Vec<(Vec<usize>, Map<String, Value>)> = q["features"]
+    let python = json["quiddity"]["features"]
         .as_array()
         .unwrap()
         .iter()
         .filter(|r| r["family"] == "countersinks")
-        .map(|r| {
-            let mut faces: Vec<usize> = r["constituent_faces"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .map(|i| caller[&i.as_u64().unwrap()])
-                .collect();
-            faces.sort_unstable();
-            let mut record = r["record"].as_object().unwrap().clone();
-            record.remove("dependents");
-            (faces, other_to_part(&frame, &record))
-        })
-        .collect();
+        .count();
+    assert_eq!(python, 12);
     let (part, _) = model::analyse(&dir.join(facts::load("ctc04").binding.file)).unwrap();
     let rs = native::recognise(&part).unwrap();
-    let ours: Vec<&Feature> = rs
+    let ours: Vec<&Vec<usize>> = rs
         .features
         .iter()
         .filter(|f| f.kind == "countersink")
+        .map(|f| &f.faces)
         .collect();
-    assert_eq!((py.len(), ours.len()), (12, 12));
-    let within = |path: &str| rounding("countersink", path);
-    for (faces, p) in &py {
-        let h = ours
-            .iter()
-            .find(|h| h.faces == *faces)
-            .unwrap_or_else(|| panic!("no native countersink on faces {faces:?}"));
-        let mut diffs = Vec::new();
-        compare_within(
-            "parameters",
-            Some(&Value::Object(p.clone())),
-            Some(&Value::Object(h.parameters.clone())),
-            &within,
-            &mut diffs,
-        );
-        assert!(diffs.is_empty(), "{} {faces:?}: {diffs:?}", h.id);
-    }
+    assert!(ours.is_empty(), "{ours:?}");
 }
 
 /// A slot pattern names its member slots by their IDs, in quiddity's order, and gives them and

@@ -611,8 +611,8 @@ pub fn recognise(part: &Part) -> Result<Native, String> {
 
 /// Reads the families of [`READ`] from *doc*, Rust quiddity's recognition of *part*.
 pub fn read(part: &Part, doc: &RecognitionDocument) -> Result<Native, String> {
-    let snapped = on_file_grid(doc);
-    let doc = snapped.as_ref().unwrap_or(doc);
+    let restored = restore_file_axes(doc);
+    let doc = restored.as_ref().unwrap_or(doc);
     if !SCHEMA_VERSIONS.contains(&doc.schema_version.as_str()) {
         return Err(format!(
             "quiddity's recognition document is {:?}, not {SCHEMA_VERSION:?}",
@@ -1154,50 +1154,38 @@ fn ascending(faces: &[usize]) -> bool {
     !faces.is_empty() && faces.windows(2).all(|w| w[0] < w[1])
 }
 
-/// quiddity's publication grid for positions (mm).
-const GRID: f64 = 1e-3;
-
-/// *doc* with its records restored to the file's axes where quiddity's frame allows it, or
-/// `None` where there is nothing to restore.
+/// *doc* in the file's axes and without sub-floor round-off, or `None` where it is not framed.
 ///
-/// quiddity 0.1.0 recognises in the part's own frame, whose origin is the solids' centroid,
-/// rounds positions on the grid there, and moves them to the file's coordinates without
-/// rounding again (`framed_records`). So a hole at x = 40 can be published at 39.999728, and
-/// a drawing would print 40.000 where it printed 40. Where the frame's axes are the file's up
-/// to sign and order, a coordinate along file axis *w* is the frame's origin there plus or
-/// minus a value on the grid. Any number that lies on the grid relative to one of the origin's
-/// coordinates is taken to be such a coordinate and is rounded on the file's grid, as
-/// quiddity published it before 0.1.0. Integers and values already on the grid are unchanged.
+/// quiddity publishes framed records in the file's coordinates, the positions it rounds on
+/// their grids (quiddity-rust 0.1.1, #69), and a frame within the coordinate floor of the
+/// file's axes in those axes (#70). Positions it publishes unrounded still pass through the
+/// frame's motion and back, and keep its round-off: string_post's turned profile has its axis
+/// at (1e-8, 1.4e-7) where the file has it at the origin, and a boss on a file axis can lie
+/// 5e-12 off it. Such a value decides which way a tie between mirror-image choices falls, so a
+/// number within the kernel's coordinate floor (`COORD_FLOOR`, 1e-6 mm) of the 0.001 mm grid
+/// is put on it; no other value moves.
 ///
-/// Where a frame axis is a file axis only to within 1e-6 (sm-hanger's frame is 2.4e-9 off), or
-/// where only some frame axes are file axes (a hexagonal bar's axis is, its in-plane axes are
-/// not), quiddity maps no axis letter and lists each in `local`. Each local top-level axis
-/// letter whose frame axis is a file axis is renamed to that file axis, and an interval along
-/// the record's own axis (a plate's `lo`/`hi`, a prism's `base`/`top`) and a plate's position
-/// across it are moved as quiddity moves them on an exact frame. A local letter whose frame
-/// axis is no file axis, in a field that may also be a direction ([`Field::Axis`]: a fillet's
-/// axis), is replaced by that axis's direction in the file. Each restored field leaves `local`.
-pub(crate) fn on_file_grid(doc: &RecognitionDocument) -> Option<RecognitionDocument> {
+/// On a frame where only some axes are file axes (a hexagonal bar's axis is, its in-plane axes
+/// are not; a part turned about one file axis), quiddity maps no axis letter and lists each in
+/// `local`. Each local top-level axis letter whose frame axis is a file axis is renamed to that
+/// file axis, and an interval along the record's own axis (a plate's `lo`/`hi`, a prism's
+/// `base`/`top`) and a plate's position across it are moved as quiddity moves them on an exact
+/// frame. A local letter whose frame axis is no file axis, in a field that may also be a
+/// direction ([`Field::Axis`]: a fillet's axis), is replaced by that axis's direction in the
+/// file. Each restored field leaves `local`.
+pub(crate) fn restore_file_axes(doc: &RecognitionDocument) -> Option<RecognitionDocument> {
     let quiddity::frames::RecordFrame::Inferred(frame) = &doc.frame else {
         return None;
     };
     let axes = [frame.x, frame.y, frame.z];
-    // Each frame axis's file axis and sense, where its components are within 1e-6 of 0 or ±1.
+    // Each frame axis's file axis and sense, where it is one.
     let file_axes: [Option<(usize, f64)>; 3] = axes.map(|axis| {
-        let ones: Vec<usize> = (0..3)
-            .filter(|&w| (axis[w].abs() - 1.0).abs() <= 1e-6)
-            .collect();
-        let [w] = ones[..] else { return None };
-        ((0..3).all(|v| v == w || axis[v].abs() <= 1e-6)).then_some((w, axis[w].signum()))
+        let w = (0..3).find(|&w| axis[w].abs() == 1.0)?;
+        (0..3)
+            .all(|v| v == w || axis[v] == 0.0)
+            .then_some((w, axis[w]))
     });
-    let exact = axes.iter().flatten().all(|&c| c == 0.0 || c.abs() == 1.0);
-    let origin = frame.origin;
-    fn on_grid(v: f64) -> bool {
-        let k = v / GRID;
-        (k - k.round()).abs() <= 1e-4
-    }
-    // `origin` is `None` off an exact frame: only round-off is removed there.
-    fn snap(value: &mut Value, origin: Option<&[f64; 3]>) {
+    fn snap(value: &mut Value) {
         match value {
             Value::Number(n) => {
                 if let Some(x) = n.as_f64()
@@ -1205,32 +1193,30 @@ pub(crate) fn on_file_grid(doc: &RecognitionDocument) -> Option<RecognitionDocum
                     && !n.is_u64()
                 {
                     let rounded = haecceity::py::round_to3(x);
-                    let translated = || origin.is_some_and(|o| o.iter().any(|&o| on_grid(x - o)));
                     if rounded != x
-                        && (on_grid(x) || translated())
+                        && (rounded - x).abs() <= haecceity::geom::COORD_FLOOR
                         && let Some(rounded) = serde_json::Number::from_f64(rounded)
                     {
                         *n = rounded;
                     }
                 }
             }
-            Value::Array(items) => items.iter_mut().for_each(|v| snap(v, origin)),
-            Value::Object(map) => map.values_mut().for_each(|v| snap(v, origin)),
+            Value::Array(items) => items.iter_mut().for_each(snap),
+            Value::Object(map) => map.values_mut().for_each(snap),
             _ => {}
         }
     }
     let mut out = doc.clone();
     for r in &mut out.records {
-        if !exact && !r.local.is_empty() {
-            restore_local(r, &axes, &file_axes, &origin);
+        if !r.local.is_empty() {
+            restore_local(r, &axes, &file_axes, &frame.origin);
         }
-        let grid = exact.then_some(&origin);
-        r.parameters.values_mut().for_each(|v| snap(v, grid));
+        r.parameters.values_mut().for_each(snap);
     }
     Some(out)
 }
 
-/// The local fields of *r* that [`on_file_grid`] can restore, restored.
+/// The local fields of *r* that [`restore_file_axes`] can restore, restored.
 fn restore_local(
     r: &mut quiddity::recognition::Record,
     axes: &[[f64; 3]; 3],

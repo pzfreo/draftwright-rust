@@ -1453,7 +1453,7 @@ pub fn recognise_document(
     doc: &quiddity::recognition::RecognitionDocument,
 ) -> Result<(), String> {
     use crate::bridge::native;
-    let restored = native::on_file_grid(doc);
+    let restored = native::restore_file_axes(doc);
     let doc = restored.as_ref().unwrap_or(doc);
     let read = native::read(part, doc)?;
     let mut features = read.holes;
