@@ -5982,6 +5982,7 @@ fn plan_with_presentation(
     });
     problems.extend(rerouted.into_values().flatten());
     crate::dims::blends::consolidate(&mut dimensions, spec, given);
+    crate::dims::blends::fold_unattached(analysis, &mut dimensions, &mut problems, spec, given);
     if annotation_text_edited(spec) && canonical.is_some() {
         // A fillet's final count includes blends consolidated after routing.
         // Compare complete claims before deciding that this peer was edited.

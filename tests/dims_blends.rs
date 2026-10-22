@@ -750,3 +750,82 @@ fn radius_centre_table_credits_every_occurrence_and_rejects_wrong_locators(file:
         doc
     );
 }
+
+// A blend on an oblique axis has no arc in any principal view, so no leader of its own. An equal
+// fillet leader's count states it, so the general radius note is placed instead of withdrawn;
+// hiding that leader leaves the exception undrawn and the note withdrawn again, as an error.
+part_cases!(oblique_radius_exceptions_join_an_equal_fillet_leader;
+    nist_ctc_03_asme1_rc => "nist/nist_ctc_03_asme1_rc.stp",
+    nist_ftc_07_asme1_rd => "nist/nist_ftc_07_asme1_rd.stp",
+    cgb207 => "cadgenbench_inputs/cgb207.step",
+);
+fn oblique_radius_exceptions_join_an_equal_fillet_leader(file: &str) {
+    let Some(dir) = corpus::dir() else { return };
+    let (part, a) = cache::native(&dir.join(file));
+    let p = cache::default_plan(&a, false);
+    let withdrawn = |p: &model::Plan| p.problems.iter().any(|x| x.code == "notes_not_placed");
+    assert!(!withdrawn(&p), "{file}: {:#?}", p.problems);
+    let note = p
+        .notes
+        .iter()
+        .find(|n| n.text.starts_with("ALL UNSPECIFIED RADII") && n.placed.is_some())
+        .expect("the general radius note, placed");
+    let general = note.measurements[0].value;
+    // The exceptions: blends of another radius whose axis is along no principal direction.
+    let oblique: Vec<&draftwright::bridge::Feature> = a
+        .features
+        .iter()
+        .filter(|f| {
+            f.kind == "blend"
+                && f.parameters["radius"].as_f64() != Some(general)
+                && f.parameters["path"]["direction"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .filter(|c| c.as_f64().unwrap().abs() > 1e-6)
+                    .count()
+                    > 1
+        })
+        .collect();
+    assert!(!oblique.is_empty(), "{file}");
+    for f in &oblique {
+        let leader = p
+            .dimensions
+            .iter()
+            .find(|d| d.placed.is_some() && d.measurements.iter().any(|m| m.feature == f.id))
+            .unwrap_or_else(|| panic!("{file}: {} is not stated", f.id));
+        assert!(
+            leader
+                .measurements
+                .iter()
+                .any(|m| m.parameter == "fillet.radius"),
+            "{file}: {}",
+            leader.label
+        );
+        assert_eq!(Some(leader.value), f.parameters["radius"].as_f64());
+        assert_eq!(
+            leader.label,
+            format!(
+                "{}× R{}",
+                leader.measurements.len(),
+                draftwright::dims::fmt(leader.value)
+            )
+        );
+        assert!(
+            !p.problems
+                .iter()
+                .any(|x| x.code == "feature_not_dimensioned" && x.subjects == [f.id.clone()])
+        );
+    }
+    assert_eq!(missing(&a, &p, &part), 0, "{file}");
+    // Hiding the leader leaves the exception undrawn: the note is withdrawn, as an error.
+    let leader = p
+        .dimensions
+        .iter()
+        .find(|d| d.measurements.iter().any(|m| m.feature == oblique[0].id))
+        .unwrap();
+    let spec = model::edit(&Spec::default(), &json!([{"op":"set", "path":format!("dimensions/{}/omit", draftwright::items::key(&leader.id)), "value":true}])).unwrap();
+    let hidden = model::plan(&a, &spec).unwrap();
+    assert!(withdrawn(&hidden), "{file}");
+    assert!(missing(&a, &hidden, &part) > 0, "{file}");
+}

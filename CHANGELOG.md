@@ -94,6 +94,15 @@ All notable changes to draftwright-rust are recorded here, in the style of
     (`step_diameter_leader_target_mismatch`, `chamfer_leader_target_mismatch`). Each has an
     `…_unverifiable` info when the view cannot show the target, or when the tip misses the
     members it can measure while others in the callout cannot be measured.
+- **Oblique radius exceptions no longer withdraw the general radius note.** A blend on an
+  oblique axis has no arc in any principal view, so it gets no leader of its own. When a fillet
+  leader already states the same radius, its count now includes the blend, so the radius is
+  stated and `ALL UNSPECIFIED RADII` is placed instead of a `notes_not_placed` error (NIST
+  CTC-03, FTC-07, cgb207). With no equal leader the note is still withdrawn, as an error.
+- **Hexagonal stock states its overall extents.** The envelope lint now credits a stock's
+  length with the extent along the bar, and its `HEX … A/F` callout with the extents across
+  it that the regular section reaches, whatever its roll. The three false
+  `missing_principal_dimension` warnings on the stock bars (roll17 among them) are gone.
 
 ## 0.1.0-alpha.12 (2026-10-22)
 

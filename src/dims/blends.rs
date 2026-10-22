@@ -301,6 +301,49 @@ fn overridden(spec: &crate::model::Spec, given: &crate::model::Spec, id: &str) -
         })
 }
 
+/// The placed fillet leader, not overridden, whose displayed radius equals *value*.
+fn fillet_peer(
+    dimensions: &[super::PlannedDimension],
+    value: f64,
+    spec: &crate::model::Spec,
+    given: &crate::model::Spec,
+) -> Option<usize> {
+    dimensions.iter().position(|d| {
+        d.placed.is_some()
+            && d.measurements
+                .iter()
+                .all(|m| m.parameter == "fillet.radius")
+            && !d.measurements.is_empty()
+            && fmt(d.value) == fmt(value)
+            && !overridden(spec, given, &d.id)
+    })
+}
+
+/// Gives the fillet leader *j* the claims *ms* and relabels its count in place.
+fn fold_into(dimensions: &mut [super::PlannedDimension], j: usize, ms: Vec<Measurement>) {
+    dimensions[j].measurements.extend(ms);
+    let n = dimensions[j].measurements.len();
+    let was = dimensions[j].terms.clone();
+    dimensions[j].terms = vec![format!("{n}×"), format!("R{}", fmt(dimensions[j].value))];
+    dimensions[j].label = dimensions[j].terms.join(" ");
+    // Invariant: fillet_peer selects only placed dimensions.
+    let placed = dimensions[j].placed.as_ref().unwrap();
+    let want = Want {
+        id: dimensions[j].id.clone(),
+        views: Vec::new(),
+        value: dimensions[j].value,
+        terms: dimensions[j].terms.clone(),
+        measurements: dimensions[j].measurements.clone(),
+        basis: dimensions[j].basis.clone(),
+        shape: Shape::Callout {
+            arcs: Vec::new(),
+            sites: Vec::new(),
+        },
+        turning: None,
+    };
+    dimensions[j].placed = Some(super::placement::relabel(placed, &was, &want));
+}
+
 /// The recogniser's fillet/blend distinction is not a second radius requirement on paper.
 /// Keep the established fillet leader and give it the equal blend group's exact claims.
 pub(crate) fn consolidate(
@@ -318,43 +361,53 @@ pub(crate) fn consolidate(
         {
             continue;
         }
-        let Some(j) = dimensions.iter().position(|d| {
-            d.placed.is_some()
-                && d.measurements
-                    .iter()
-                    .all(|m| m.parameter == "fillet.radius")
-                && !d.measurements.is_empty()
-                && fmt(d.value) == fmt(dimensions[i].value)
-                && !overridden(spec, given, &d.id)
-        }) else {
+        let Some(j) = fillet_peer(dimensions, dimensions[i].value, spec, given) else {
             continue;
         };
         let ms = dimensions[i].measurements.clone();
-        dimensions[j].measurements.extend(ms);
-        let n = dimensions[j].measurements.len();
-        let was = dimensions[j].terms.clone();
-        dimensions[j].terms = vec![format!("{n}×"), format!("R{}", fmt(dimensions[j].value))];
-        dimensions[j].label = dimensions[j].terms.join(" ");
-        // Invariant: The selected dimension indices were filtered to placed dimensions.
-        let placed = dimensions[j].placed.as_ref().unwrap();
-        let want = Want {
-            id: dimensions[j].id.clone(),
-            views: Vec::new(),
-            value: dimensions[j].value,
-            terms: dimensions[j].terms.clone(),
-            measurements: dimensions[j].measurements.clone(),
-            basis: dimensions[j].basis.clone(),
-            shape: Shape::Callout {
-                arcs: Vec::new(),
-                sites: Vec::new(),
-            },
-            turning: None,
-        };
-        dimensions[j].placed = Some(super::placement::relabel(placed, &was, &want));
+        fold_into(dimensions, j, ms);
         dimensions[i].placed = None;
         dimensions[i].state = crate::items::State::Covered {
             by: dimensions[j].id.clone(),
         };
+    }
+}
+
+/// A radius exception whose blend no principal view sees as an arc (its axis is oblique) has
+/// no leader of its own. When a fillet leader already states the same radius, its `n×` count
+/// takes the blends' exact claims, as [`consolidate`] does for a blend leader, so the radius is
+/// stated and a general radius note need not be withdrawn for it.
+pub(crate) fn fold_unattached(
+    a: &Analysis,
+    dimensions: &mut [super::PlannedDimension],
+    problems: &mut Vec<Problem>,
+    spec: &crate::model::Spec,
+    given: &crate::model::Spec,
+) {
+    let groups = groups(a);
+    let general = general(&groups);
+    for (i, group) in groups.iter().enumerate() {
+        if Some(i) == general || !sites_by_view(a, group).is_empty() {
+            continue;
+        }
+        let ids: Vec<&str> = group.iter().map(|f| f.id.as_str()).collect();
+        if dimensions.iter().any(|d| {
+            d.measurements
+                .iter()
+                .any(|m| ids.contains(&m.feature.as_str()))
+        }) {
+            continue;
+        }
+        // Invariant: Groups are nonempty and contain only features with a read radius.
+        let Some(j) = fillet_peer(dimensions, radius(group[0]).unwrap(), spec, given) else {
+            continue;
+        };
+        fold_into(dimensions, j, measurements(group));
+        problems.retain(|p| {
+            !(p.code == "feature_not_dimensioned"
+                && p.subjects.len() == 1
+                && ids.contains(&p.subjects[0].as_str()))
+        });
     }
 }
 
