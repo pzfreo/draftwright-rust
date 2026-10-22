@@ -375,7 +375,7 @@ fn stating(plan: &Plan, a: &Analysis, kind: &str) -> Vec<(String, String, String
 }
 
 #[test]
-fn ctc01_hex_boss_states_its_size_across_flats_and_its_height_is_covered() {
+fn ctc01_hex_boss_states_its_size_across_flats_and_its_height() {
     let Some(corpus) = corpus::dir() else {
         eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
         return;
