@@ -9,7 +9,10 @@
 //!   of the profile, so its diameter is stated across it in a view that shows the profile
 //!   (draftwright leads to it from its diameter column there); any other boss reads as a circle
 //!   looking down its axis, so its diameter is called out with a leader in that view, identical
-//!   bosses along one axis counted once (`2× ø22.9`), as draftwright collapses them;
+//!   bosses along one axis counted once (`2× ø22.9`), as draftwright collapses them. A thread
+//!   or knurl the boss owns ([`crate::pmi_lowering::manufacturing`]) follows the diameter, an
+//!   external thread's designation in place of it, as on a turned step; that boss keeps a
+//!   callout of its own;
 //! - for a **polygonal** boss, its size across flats instead, called out in the view down its
 //!   axis with a leader to a flat: `HEX 100 A/F` for six sides, `4-SIDED 25.4 A/F` otherwise, as
 //!   draftwright prints them. Identical polygonal bosses along one axis are counted once, as
@@ -347,6 +350,20 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             Err(why) => problems.push(not_dimensioned(f, &why)),
         }
     }
+    // A thread or knurl a boss owns follows its diameter, as a turned step's does
+    // ([`super::turned`], `_manufacturing_suffix`).
+    let manufacturing = if bosses.is_empty() {
+        crate::pmi_lowering::Manufacturing::default()
+    } else {
+        crate::pmi_lowering::manufacturing(analysis)
+    };
+    let carried = |id: &str, terms: &mut Vec<String>| {
+        // An external thread's designation stands in place of the diameter (ISO 6410).
+        if manufacturing.replaces_diameter(id) {
+            terms.retain(|t| !t.starts_with('ø'));
+        }
+        terms.extend(manufacturing.terms(id).0);
+    };
     let on_turning = |b: &Boss| {
         matches!(b.section, Section::Round(_))
             && cx.turned.as_ref().is_some_and(|t| {
@@ -363,8 +380,9 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         .collect();
 
     let mut out = Vec::new();
-    // Callouts by axis, side count (0 for a cylinder) and size.
-    let mut circles: BTreeMap<(usize, u64, i64), Vec<usize>> = BTreeMap::new();
+    // Callouts by axis, side count (0 for a cylinder) and size; a boss carrying a thread or knurl
+    // keeps its own callout (one annotation per owner), keyed by its index + 1 (0 means shared).
+    let mut circles: BTreeMap<(usize, u64, i64, usize), Vec<usize>> = BTreeMap::new();
     let mut order = Vec::new();
     let mut located: BTreeMap<(&'static str, usize, i64), Vec<usize>> = BTreeMap::new();
     for (i, b) in bosses.iter().enumerate() {
@@ -389,20 +407,26 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                 let mut c = at;
                 a[j] -= r;
                 c[j] += r;
+                let id = b.feature.id.as_str();
+                let mut terms = vec![format!("ø{}", fmt(diameter))];
+                carried(id, &mut terms);
                 out.push(Want {
-                id: want_id(&b.feature.id, "boss.diameter"),
+                id: want_id(id, "boss.diameter"),
                 views: vec![views[0]],
                 value: diameter,
-                terms: vec![format!("ø{}", fmt(diameter))],
-                measurements: vec![Measurement {
+                terms,
+                measurements: std::iter::once(Measurement {
                     feature: b.feature.id.clone(),
                     parameter: "boss.diameter".into(),
                     value: diameter,
-                }],
+                })
+                .chain(super::turned::claims(&manufacturing, vec![id], diameter))
+                .collect(),
                 turning: None,
                 basis: format!(
-                    "the part is turned about {}, and this boss is a band of its profile: its diameter is stated across it in a view that shows the profile",
-                    AXES[b.axis]
+                    "the part is turned about {}, and this boss is a band of its profile: its diameter is stated across it in a view that shows the profile{}",
+                    AXES[b.axis],
+                    super::turned::carries(&manufacturing, &[id], "boss")
                 ),
                 shape: Shape::Linear {
                     a,
@@ -414,13 +438,18 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                 },
             });
             } else {
+                let own = if manufacturing.on(&b.feature.id).is_empty() {
+                    0
+                } else {
+                    i + 1
+                };
                 let k = match &b.section {
-                    Section::Round(d) => (b.axis, 0, key(*d)),
+                    Section::Round(d) => (b.axis, 0, key(*d), own),
                     Section::Polygon {
                         sides,
                         across_flats,
                         ..
-                    } => (b.axis, *sides, key(*across_flats)),
+                    } => (b.axis, *sides, key(*across_flats), own),
                 };
                 let members = circles.entry(k).or_default();
                 if members.is_empty() {
@@ -510,6 +539,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         {
             Section::Round(d) => {
                 terms.push(format!("ø{}", fmt(*d)));
+                carried(&first.feature.id, &mut terms);
                 (
                     "boss.diameter",
                     *d,
@@ -641,7 +671,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             )
         } else {
             basis
-        };
+        } + &super::turned::carries(&manufacturing, &[&first.feature.id], "boss");
         out.push(Want {
             id: want_id(&first.feature.id, parameter),
             views,
@@ -657,6 +687,11 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                         Section::Polygon { across_flats, .. } => across_flats,
                     },
                 })
+                // Only a round callout prints what the boss carries, so only it claims it.
+                .chain(
+                    super::turned::claims(&manufacturing, vec![first.feature.id.as_str()], value)
+                        .filter(|_| parameter == "boss.diameter"),
+                )
                 .collect(),
             turning: None,
             basis,

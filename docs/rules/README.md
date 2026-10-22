@@ -38,8 +38,8 @@ Counts are computed from the merged YAML entries:
 | --- | --- | --- | --- | --- |
 | `adr.yaml` | 4 | 69 | 61 | 26 |
 | `lint.yaml` | 2 | 130 | 14 | 20 |
-| `issues.yaml` | 7 | 107 | 50 | 26 |
-| **All** | **13** | **306** | **125** | **72** |
+| `issues.yaml` | 6 | 108 | 50 | 26 |
+| **All** | **12** | **307** | **125** | **72** |
 
 The evaluation of 2026-10-22 re-read the 30 rules then pending against main (alpha.12) and
 closed 17. Two were met in full (LINT-code-pmi_source_text_mismatch, ISSUE-1143-e) and 14 are

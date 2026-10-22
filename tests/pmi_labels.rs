@@ -190,6 +190,53 @@ fn sheet_requirements_are_on_the_title_block_beside_it_and_in_the_notes() {
     assert!(text.iter().any(|t| t == "1  Break sharp edges 0.2 max"));
 }
 
+/// GRM-03 presents its general tolerance and default finish on the part's own solid (#15, its
+/// manifold solid brep), not on a face: they are the part's, so they are lowered to the title
+/// block and beside it, not refused as unresolved items.
+#[test]
+fn requirements_presented_on_the_parts_own_solid_are_document_level() {
+    let (_, a) = analysed("GRM-03_thumbwheel_drive_screw_AP242_PMI");
+    let plan = cache::default_plan(&a, true);
+    let kinds: Vec<(&str, &str, &str)> = plan
+        .requirements
+        .iter()
+        .map(|q| (q.kind.as_str(), q.text.as_str(), q.carrier.as_str()))
+        .collect();
+    assert_eq!(
+        kinds,
+        [
+            ("general_tolerance", "ISO 2768-m", "title_block"),
+            ("default_surface_finish", "Ra 3.2", "sheet"),
+        ]
+    );
+    let cell = plan
+        .sheet
+        .title_cells
+        .iter()
+        .find(|c| c.field == "general_tolerance")
+        .unwrap();
+    assert_eq!(cell.value.as_deref(), Some("ISO 2768-m"));
+    assert!(plan.requirements[1].placed.is_some());
+    for source in [
+        "manufacturing_requirement:#2016",
+        "manufacturing_requirement:#2012",
+    ] {
+        assert!(
+            codes(&plan, source).is_empty(),
+            "{source}: {:?}",
+            codes(&plan, source)
+        );
+    }
+    assert!(
+        plan.problems
+            .iter()
+            .all(|p| p.code != "general_tolerance_missing"
+                && (p.code != "pmi_not_extracted" || p.severity == "info")),
+        "{:#?}",
+        plan.problems
+    );
+}
+
 #[test]
 fn the_specs_tolerance_wins_and_a_different_pmi_one_is_reported() {
     let (_, a) = analysed("spool_fits");

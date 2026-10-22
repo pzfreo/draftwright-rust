@@ -2214,7 +2214,22 @@ impl PartReader<'_> {
         }
     }
 
-    /// The faces and edges of the part among Part 21 *items*; another item is not resolved.
+    /// Whether Part 21 item *i* is a solid of this part: a requirement presented on the part's
+    /// own solid applies to the whole part (document level), not to a face or edge of it.
+    fn own_solid(&self, i: u64) -> bool {
+        ["MANIFOLD_SOLID_BREP", "BREP_WITH_VOIDS"].iter().any(|e| {
+            ref_of(self.doc, i, e, 1).is_some_and(|shell| {
+                ["CLOSED_SHELL", "OPEN_SHELL"].iter().any(|s| {
+                    refs_of(self.doc, shell, s, 1)
+                        .iter()
+                        .any(|&f| self.def.face_index(f).is_some())
+                })
+            })
+        })
+    }
+
+    /// The faces and edges of the part among Part 21 *items*; the part's own solid anchors
+    /// nothing ([`Self::own_solid`]), and another item is not resolved.
     fn item_support(&self, items: &BTreeSet<u64>) -> Support {
         let mut s = Support::default();
         for &i in items {
@@ -2222,7 +2237,7 @@ impl PartReader<'_> {
                 self.anchor(Anchor::Face(FaceIndex(f)), &mut s);
             } else if let Some(e) = self.def.edge_index(i) {
                 self.anchor(Anchor::Edge(EdgeIndex(e)), &mut s);
-            } else {
+            } else if !self.own_solid(i) {
                 s.unresolved.push(format!(
                     "{UNRESOLVED}: presented item #{i} is neither a face nor an edge of part {}",
                     self.p
