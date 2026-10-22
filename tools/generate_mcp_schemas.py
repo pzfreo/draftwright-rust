@@ -43,6 +43,7 @@ line_fields = {name: nullable(B) for name in
                ('hidden', 'centre_marks', 'centre_lines', 'thread_depiction', 'knurl_depiction')}
 spec['properties']['sheet']['properties'].update(line_fields)
 spec['properties']['sheet']['properties']['keep_layout'] = nullable(B)
+spec['properties']['sheet']['properties']['zones'] = nullable(B)
 spec['properties']['views']['additionalProperties'] = obj({**line_fields, 'detail':nullable(detail)}, extra=True)
 # Share the base map/list shapes while retaining each view/declaration constraint.
 # The common pattern and the named property both apply (draft 2020-12).

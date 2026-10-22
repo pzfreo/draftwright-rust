@@ -1044,6 +1044,17 @@
             }
           ]
         },
+        "zones": {
+          "anyOf": [
+            {
+              "type": "boolean",
+              "description": "ISO 5457 grid zones and centring marks on every sheet (default true). false omits both, except zones cited by section cross-references, which stay with a sheet_zones_kept info finding."
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "view_gutter": {
           "anyOf": [
             {

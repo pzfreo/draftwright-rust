@@ -225,6 +225,7 @@ catalogue! {
     "sheet_label_replaced" => Advisory, Code, "Automatic document numbering replaces the authored sheet label.";
     "sheet_preference_exceeded" => Advisory, Code, "A usable drawing needs larger paper or more sheets than preferred.";
     "sheet_renumbered" => Advisory, Code, "The document sheets were renumbered consecutively.";
+    "sheet_zones_kept" => Advisory, Code, "Section cross-references cite the grid zones, so they stay on the sheet.";
     "slot_requirement_missing" => Incomplete, Requirement, "The drawing does not state this required feature parameter.";
     "slot_requirement_unverifiable" => Incomplete, Requirement, "The drawing does not prove this required feature parameter.";
     "spec_entries_inactive" => Decision, Code, "Authored settings do not apply to any current item.";

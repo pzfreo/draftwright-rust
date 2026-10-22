@@ -231,7 +231,9 @@ Descriptions state the actual changes in drawing language. Sheet descriptions ad
 sets the nearest sheet size and/or scale that fit (`docs/model.md`); `sheet/references` (boolean, default false) opts into automatic parenthesized reference
 dimensions; pins and per-dimension reference style keep explicit intent. `sheet/projection` (`first`
 or `third`) is a spec path like `sheet/size` and `sheet/scale`, and the regenerated schemas
-(the `spec_schema` response / `schemas/spec.json`) list it.
+(the `spec_schema` response / `schemas/spec.json`) list it. `sheet/zones` (boolean, default
+true) draws ISO 5457 grid zones and centring marks on every sheet; `false` omits them unless
+section cross-references cite zones (`sheet_zones_kept` info).
 
 `item_options.settable` maps escaped Spec paths to accepted `choices`, numeric `range`
 (inclusive, with `integer` where needed), tolerance `forms`, or title `fields`. A

@@ -13,7 +13,7 @@ fn fixture(name: &str) -> PathBuf {
 }
 
 #[test]
-fn zone_labels_are_drawn_on_every_multi_sheet_border_only() {
+fn zone_labels_are_drawn_on_every_multi_sheet_border() {
     for size in ["A4", "A3", "A2", "A1", "A0"] {
         let s = serde_json::from_value(json!({"sheet":{"size":size,"scale":"1:1"},"sheets":{"max":2},"tables":[{"id":"t:1","sheet":2,"rows":[["ISSUED"]]}]})).unwrap();
         let (part, analysis) = model::analyse_with(
@@ -347,5 +347,135 @@ fn title_block_is_flush_with_the_frame_on_every_sheet() {
             assert_eq!(on(0, w - MARGIN), 1, "sheet {}", sheet.number);
             assert_eq!(on(1, MARGIN), 1, "sheet {}", sheet.number);
         }
+    }
+}
+    }
+}
+
+/// The four centring marks drawn on a sheet, or none.
+fn centring_marks(drawing: &draftwright::output::Drawing) -> Vec<[[f64; 2]; 2]> {
+    drawing
+        .layers
+        .iter()
+        .filter(|l| l.name == "centring_marks")
+        .flat_map(|l| &l.items)
+        .map(|i| match i {
+            draftwright::output::Item::Edge(draftwright::output::Curve::Line(a, b)) => [*a, *b],
+            other => panic!("a centring mark is a line: {other:?}"),
+        })
+        .collect()
+}
+
+fn margin_labels(drawing: &draftwright::output::Drawing) -> usize {
+    drawing
+        .text
+        .iter()
+        .filter(|t| {
+            t.at[0] < 10.
+                || t.at[1] < 10.
+                || t.at[0] > drawing.page[0] - 10.
+                || t.at[1] > drawing.page[1] - 10.
+        })
+        .count()
+}
+
+/// ISO 5457: each mark runs from the trimmed edge at a side's midpoint across the margin, to
+/// the frame or at most 5 mm inside it, at least 0.7 mm wide.
+fn assert_centring_marks(drawing: &draftwright::output::Drawing) {
+    let [w, h] = drawing.page;
+    let marks = centring_marks(drawing);
+    assert_eq!(marks.len(), 4, "{marks:?}");
+    let layer = drawing
+        .layers
+        .iter()
+        .find(|l| l.name == "centring_marks")
+        .unwrap();
+    assert!(layer.style.width >= 0.7);
+    let starts = [[w / 2., 0.], [w / 2., h], [0., h / 2.], [w, h / 2.]];
+    for ([a, b], start) in marks.iter().zip(starts) {
+        assert_eq!(*a, start);
+        let depth = (b[0] - a[0]).abs() + (b[1] - a[1]).abs();
+        assert!((10.0..=15.0 + 1e-9).contains(&depth), "{a:?} → {b:?}");
+        assert!(
+            b[0] == a[0] || b[1] == a[1],
+            "a mark is perpendicular to its side"
+        );
+    }
+}
+
+#[test]
+fn every_sheet_has_zones_and_centring_marks_by_default_and_none_when_off() {
+    let (part, analysis) = model::analyse_with(
+        &fixture("parts/plate.step"),
+        Some(&fixture("recognition/plate.json")),
+    )
+    .unwrap();
+    let font = draftwright::text::Font::new(api::MONO.to_vec()).unwrap();
+    for (spec, sheets) in [
+        (json!({}), 1),
+        (json!({"sheet":{"size":"A2","scale":"1:1"}}), 1),
+        (
+            json!({"sheet":{"size":"A4","scale":"1:1"},"sheets":{"max":2},"tables":[{"id":"t:1","sheet":2,"rows":[["ISSUED"]]}]}),
+            2,
+        ),
+    ] {
+        let on: model::Spec = serde_json::from_value(spec.clone()).unwrap();
+        let mut off_json = spec.clone();
+        off_json["sheet"]["zones"] = json!(false);
+        let off: model::Spec = serde_json::from_value(off_json).unwrap();
+        let shown = model::plan_recovered(&analysis, &on).unwrap();
+        let hidden = model::plan_recovered(&analysis, &off).unwrap();
+        assert_eq!(shown.sheets.len() + 1, sheets, "{spec}");
+        for sheet in std::iter::once(&shown.sheet).chain(&shown.sheets) {
+            assert_eq!(sheet.zones, Some(sheets::zones(sheet.page)), "{spec}");
+        }
+        for sheet in std::iter::once(&hidden.sheet).chain(&hidden.sheets) {
+            assert_eq!(sheet.zones, None, "{spec}");
+        }
+        assert!(!hidden.problems.iter().any(|p| p.code == "sheet_zones_kept"));
+        // The furniture is in the margin: the setting changes no view, scale or annotation.
+        let layout = |p: &model::Plan| {
+            let mut v = serde_json::to_value(p).unwrap();
+            v["spec"] = json!(null);
+            v["sheet"]["zones"] = json!(null);
+            for s in v["sheets"].as_array_mut().into_iter().flatten() {
+                s["zones"] = json!(null);
+            }
+            v
+        };
+        assert_eq!(layout(&shown), layout(&hidden), "{spec}");
+        let drawn = model::render_sheets(&part, &analysis, &shown, &font).unwrap();
+        let bare = model::render_sheets(&part, &analysis, &hidden, &font).unwrap();
+        for (d, b) in drawn.iter().zip(&bare) {
+            assert_centring_marks(d);
+            assert!(margin_labels(d) > 0);
+            assert!(centring_marks(b).is_empty());
+            assert_eq!(margin_labels(b), 0);
+            assert_eq!(d.sheet.views.len(), b.sheet.views.len());
+            for (x, y) in d.sheet.views.iter().zip(&b.sheet.views) {
+                assert_eq!((&x.name, x.bbox), (&y.name, y.bbox));
+            }
+        }
+    }
+}
+
+#[test]
+fn cited_zones_stay_when_switched_off_and_are_reported_once() {
+    let root = PathBuf::from(std::env::var("DRAFTWRIGHT_CORPUS").unwrap());
+    let (part, analysis) = model::analyse_native(&root.join("mfcadpp/10224.step")).unwrap();
+    let spec = serde_json::from_value(json!({"sheet":{"size":"A3","scale":"2:1","zones":false},"sheets":{"max":2},"views":{"iso":{"sheet":2},"section_aa":{"sheet":2}}})).unwrap();
+    let p = model::plan_recovered(&analysis, &spec).unwrap();
+    assert!(p.views.iter().any(|v| v.xref.is_some()));
+    assert!(p.sheet.zones.is_some() && p.sheets.iter().all(|s| s.zones.is_some()));
+    let kept: Vec<_> = p
+        .problems
+        .iter()
+        .filter(|q| q.code == "sheet_zones_kept")
+        .collect();
+    assert_eq!(kept.len(), 1, "{kept:?}");
+    assert_eq!(kept[0].severity, "info");
+    let font = draftwright::text::Font::new(api::MONO.to_vec()).unwrap();
+    for d in model::render_sheets(&part, &analysis, &p, &font).unwrap() {
+        assert_centring_marks(&d);
     }
 }

@@ -456,6 +456,10 @@ pub struct SheetSpec {
     /// False retains uncited symbols in the plan as explicit user omissions.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub uncited_datums: Option<bool>,
+    /// ISO 5457 grid zones and centring marks on every sheet (default true). False omits
+    /// both, unless a section cross-reference cites a zone ([`crate::sheets::furnish`]).
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub zones: Option<bool>,
     /// Draw automatically determined dimensions in parentheses; omitted by default.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub references: Option<bool>,
@@ -3488,6 +3492,7 @@ pub fn plan_recovered(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid>
         matches!(&prepared, std::borrow::Cow::Owned(_)),
         &mut plan,
     );
+    crate::sheets::furnish(&mut plan);
     crate::fixes::retain_local_layout(&mut plan);
     Ok(plan)
 }
@@ -4063,6 +4068,7 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
         matches!(&prepared, std::borrow::Cow::Owned(_)),
         &mut plan,
     );
+    crate::sheets::furnish(&mut plan);
     crate::fixes::retain_local_layout(&mut plan);
     Ok(plan)
 }
@@ -8044,6 +8050,10 @@ fn render_sheet_with(
     )
 }
 
+/// ISO 5457 centring-mark line width (at least 0.7 mm) and its reach inside the frame, mm.
+const CENTRING_MARK: f64 = 0.7;
+const CENTRING_INSET: f64 = 5.0;
+
 /// Assembles a geometry layer with the plan's annotations and sheet furniture. Each dimension
 /// and PMI item uses [`render_item`], so a caller can draw a changed item alone.
 pub fn render_annotations(
@@ -9401,6 +9411,50 @@ fn render_annotations_with_cuts(
             name: "projection_symbol".into(),
             style,
             items: ink,
+        });
+    }
+    if plan.sheet.zones.is_some() {
+        // ISO 5457 centring marks: heavy lines at each side's midpoint, from the trimmed edge
+        // to 5 mm inside the frame. A mark stops at the frame where it would meet the title
+        // block, a table or any other drawn ink.
+        let clear = |b: [f64; 4]| {
+            let pad = 0.5 * CENTRING_MARK + 1.0;
+            !sheet
+                .items
+                .iter()
+                .flat_map(|d| std::iter::once(d.ink).chain(d.label))
+                .chain(sheet.views.iter().map(|v| v.bbox))
+                .any(|o| {
+                    o[0] < b[2] + pad && b[0] < o[2] + pad && o[1] < b[3] + pad && b[1] < o[3] + pad
+                })
+        };
+        let reach = MARGIN + CENTRING_INSET;
+        let (cx, cy) = (0.5 * w, 0.5 * h);
+        let marks = [
+            ([cx, 0.], [cx, MARGIN], [cx, reach]),
+            ([cx, h], [cx, h - MARGIN], [cx, h - reach]),
+            ([0., cy], [MARGIN, cy], [reach, cy]),
+            ([w, cy], [w - MARGIN, cy], [w - reach, cy]),
+        ];
+        let items = marks
+            .into_iter()
+            .map(|(edge, frame, inside)| {
+                let b = [
+                    frame[0].min(inside[0]),
+                    frame[1].min(inside[1]),
+                    frame[0].max(inside[0]),
+                    frame[1].max(inside[1]),
+                ];
+                Item::Edge(Curve::Line(edge, if clear(b) { inside } else { frame }))
+            })
+            .collect();
+        let mut style = layer_styles()[0].1.clone();
+        style.width = CENTRING_MARK;
+        style.weight = 70;
+        layers.push(Layer {
+            name: "centring_marks".into(),
+            style,
+            items,
         });
     }
     crate::label_text::capture(plan, &mut sheet);

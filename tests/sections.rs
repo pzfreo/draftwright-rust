@@ -143,7 +143,14 @@ fn section_a_a_is_planned_placed_and_drawn() {
         })
         .count();
     assert!(hatch > 20, "{hatch} hatch lines");
-    let texts: Vec<&str> = drawing.text.iter().map(|t| t.text.as_str()).collect();
+    // Zone letters in the margin are not section letters.
+    let [w, h] = plan.sheet.page;
+    let texts: Vec<&str> = drawing
+        .text
+        .iter()
+        .filter(|t| t.at[0] > 10. && t.at[1] > 10. && t.at[0] < w - 10. && t.at[1] < h - 10.)
+        .map(|t| t.text.as_str())
+        .collect();
     assert!(texts.contains(&"SECTION A\u{2013}A"), "{texts:?}");
     assert_eq!(texts.iter().filter(|t| **t == "A").count(), 2);
 

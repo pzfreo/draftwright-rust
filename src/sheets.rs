@@ -59,6 +59,32 @@ pub fn zones(page: [f64; 2]) -> Zones {
     Zones { columns, rows }
 }
 
+/// ISO 5457 sheet furniture: grid zones (and the centring marks drawn with them) on every
+/// sheet unless `sheet/zones` is false. Zones a section cross-reference cites stay, reported
+/// once as `sheet_zones_kept`.
+pub(crate) fn furnish(plan: &mut Plan) {
+    let cited = plan
+        .views
+        .iter()
+        .any(|v| v.xref.is_some() || v.cut.as_ref().is_some_and(|c| c.xref.is_some()));
+    let off = plan.spec.sheet.zones == Some(false);
+    let draw = !off || cited;
+    plan.sheet.zones = draw.then(|| zones(plan.sheet.page));
+    for sheet in &mut plan.sheets {
+        sheet.zones = draw.then(|| zones(sheet.page));
+    }
+    if off && cited && !plan.problems.iter().any(|p| p.code == "sheet_zones_kept") {
+        plan.problems.push(problem(
+            "sheet_zones_kept",
+            "info",
+            "sheet",
+            "Grid zones are kept despite sheet/zones false: section cross-references cite them."
+                .into(),
+            vec![Op::remove("sheet/zones")],
+        ));
+    }
+}
+
 /// ISO 5457: numbers left to right, letters top to bottom, omitting I and O.
 pub fn zone(page: [f64; 2], point: [f64; 2]) -> String {
     let grid = zones(page);

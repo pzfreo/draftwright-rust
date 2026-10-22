@@ -221,6 +221,7 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `sheet_label_replaced` | advisory | Automatic document numbering replaces the authored sheet label. |
 | `sheet_preference_exceeded` | advisory | A usable drawing needs larger paper or more sheets than preferred. |
 | `sheet_renumbered` | advisory | The document sheets were renumbered consecutively. |
+| `sheet_zones_kept` | advisory | Section cross-references cite the grid zones, so they stay on the sheet. |
 | `slot_requirement_missing` | incomplete | The drawing does not state this required feature parameter. |
 | `slot_requirement_unverifiable` | incomplete | The drawing does not prove this required feature parameter. |
 | `spec_entries_inactive` | decision | Authored settings do not apply to any current item. |

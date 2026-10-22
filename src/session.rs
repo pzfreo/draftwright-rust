@@ -1636,6 +1636,7 @@ fn settable(
             json!({"forms":["non-negative paper mm (default 25; 0 disables)"]}),
         );
         fields.insert("sheet/uncited_datums".into(), choices(json!([true, false])));
+        fields.insert("sheet/zones".into(), json!({"choices":[true,false], "consequences":["ISO 5457 grid zones and centring marks on every sheet by default; false omits both unless section cross-references cite zones."]}));
         fields.insert("sheet/references".into(), choices(json!([false, true])));
         fields.insert("sheet/fit_limits".into(), choices(json!([false, true])));
         fields.insert("sheet/fit_deviations".into(), choices(json!([false, true])));
