@@ -13,19 +13,6 @@
     "reason": "Two slots of the same 14.97 length at mirrored positions: their lengths lie on different spans, so each is a dimension of its own feature. draftwright's slot width coalescing (`_slot_shared_width_key`) needs the same view, width axis and the same two width edges, which these do not share; the port's `share` (src/dims/mod.rs) applies the same one-span rule, extended to slot lengths and boss heights. Default nominal precision now preserves the modelled hundredths; these same item IDs and distinct physical spans remain repeated."
   },
   {
-    "part": "nist/nist_ctc_01_asme1_rd.stp",
-    "view": "front",
-    "label": "50",
-    "rotation": 90,
-    "items": [
-      "d:f:polygonal_boss:1/boss_height.length",
-      "d:step_level/step_height.length.h50"
-    ],
-    "verdict": "distinct-quantities",
-    "draftwright": "m_bossheight_z0 '50' in the front; it plans the 50 rung and withholds it at 1:5 (lint step_dim_withheld: 'approved step height(s) span less than 12.4 mm on the page'); known_dimensions.json lists the rung (undetermined, the legibility gate).",
-    "reason": "The hexagonal boss's height runs from the plate's top (100) to the boss's top (150); the rung runs from the part's base to the slot floor at 50. Different spans and quantities with the same value. Whether the rung is drawn at this scale is the legibility-gate question already listed in known_dimensions.json, not a repeat."
-  },
-  {
     "part": "nist/nist_ctc_04_asme1_rd.stp",
     "view": "plan",
     "label": "140",
