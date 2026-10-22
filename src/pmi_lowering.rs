@@ -3579,7 +3579,7 @@ fn tip_chamfers_cover(
 /// What is not owned is refused with draftwright's reason, never dropped: a record a face of
 /// which another requirement already claims, whose reading left blockers, whose faces are not
 /// one exact cylinder, whose text disagrees with its cylinder, or that no feature or several
-/// own. A requirement a boss owns is refused too: the port prints none on a boss's diameter yet.
+/// own. A requirement a boss owns prints on the boss's diameter callout, as a turned step's does.
 pub fn manufacturing(analysis: &Analysis) -> Manufacturing {
     let mut out = Manufacturing::default();
     let Some(Reading::Read(report)) = &analysis.pmi else {
@@ -3749,11 +3749,6 @@ pub fn manufacturing(analysis: &Analysis) -> Manufacturing {
                 if claims[&(owner, name)] > 1 {
                     Some(format!(
                         "ambiguous {name} ownership: multiple manufacturing requirements claim canonical feature"
-                    ))
-                } else if o.kind == "boss" {
-                    Some(format!(
-                        "it belongs to boss {} (draftwright prints it on the boss's diameter), and the port prints no thread or knurl on a boss's callout yet",
-                        o.id
                     ))
                 } else {
                     let (suffix, text, through) = match &aspect {

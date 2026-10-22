@@ -4,6 +4,9 @@
 //! callout, the leadered label, the default finish beside the title block); the Spec wins over
 //! the file's PMI with a warning; what cannot be read or attached is refused or reported.
 
+#[path = "common/corpus.rs"]
+mod corpus;
+
 use std::io::Read as _;
 use std::path::{Path, PathBuf};
 
@@ -307,6 +310,37 @@ fn m10_and_a_knurl_on_the_spindle_print_after_their_diameters() {
         refused
             .iter()
             .any(|p| p.message.contains("exceeds its length 18"))
+    );
+}
+
+/// A thread or knurl on a boss prints on the boss's diameter callout, as a turned step's does:
+/// nist_ftc_06's 2× ø31.75 and 2× ø22.86 bosses, one of each pair carrying it, keep a callout
+/// of their own (one annotation per owner), the thread's designation in place of the diameter.
+#[test]
+fn a_thread_and_a_knurl_on_bosses_print_on_their_diameter_callouts() {
+    let Some(dir) = corpus::dir() else {
+        eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
+        return;
+    };
+    let (_, a) = corpus::analyse(&dir, "nist/nist_ftc_06_asme1_rd.stp", "ftc06");
+    let s = spec(json!({"features": {
+        "f:boss:5": {"thread": {"designation": "M31.75x1.5"}},
+        "f:boss:6": {"knurl": {"pattern": "straight", "pitch": 1}}
+    }}));
+    let plan = model::plan(&a, &s).unwrap();
+    let thread = dimension(&plan, "d:f:boss:5/boss.diameter");
+    assert_eq!(thread.label, "M31.75 x 1.5");
+    assert!(thread.measurements.iter().any(|m| m.parameter == "thread"));
+    assert!(thread.measurements.iter().all(|m| m.feature != "f:boss:7"));
+    let knurl = dimension(&plan, "d:f:boss:6/boss.diameter");
+    assert_eq!(knurl.label, "ø22.86\nSTRAIGHT KNURL P1");
+    assert!(knurl.measurements.iter().any(|m| m.parameter == "knurl"));
+    assert_eq!(dimension(&plan, "d:f:boss:7/boss.diameter").label, "ø31.75");
+    assert_eq!(dimension(&plan, "d:f:boss:8/boss.diameter").label, "ø22.86");
+    assert!(
+        problems(&plan, "pmi_not_lowered").is_empty(),
+        "{:?}",
+        plan.problems
     );
 }
 

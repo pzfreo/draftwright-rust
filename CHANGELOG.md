@@ -17,6 +17,10 @@ All notable changes to draftwright-rust are recorded here, in the style of
     size, scale, view placement and annotations do not change.
   - `sheet/zones: false` omits the zones and centring marks. Zones that section
     cross-references cite (`SHEET n, ZONE …`) stay, with one `sheet_zones_kept` info finding.
+- **Thread depth lint.** A modelled internal thread shorter than the hole it is cut in must
+  state its depth: lint reports `hole_requirement_missing` for `thread.depth` when the callout
+  claiming the thread gives no `↧` depth. cgb243's M14×1.5 and two M62×1.5 threads are reported;
+  the callout does not print the depth yet.
 
 ### Changed
 
@@ -44,6 +48,14 @@ All notable changes to draftwright-rust are recorded here, in the style of
   - A closed chain leaves its longest member to the total, never a short shoulder, and lint
     accepts a length the stated chain determines (cgb217: the 1 mm shoulder is drawn and the
     `45` is covered; `axial_length_missing` 1 → 0).
+- **Document PMI on the part's own solid.** A general tolerance or default finish presented on
+  the part's solid, not on a face, is a requirement of the whole part. GRM-03's ISO 2768-m now
+  fills the GEN. TOL. cell and its Ra 3.2 is drawn beside the title block. Before, both were
+  `pmi_not_extracted` errors and the sheet reported `general_tolerance_missing`.
+- **Threads and knurls on bosses.** A Spec or AP242 thread or knurl on a boss prints on the
+  boss's diameter callout, as on a turned step: an external thread's designation replaces the
+  diameter (`M31.75 x 1.5`), and the boss keeps a callout of its own. Before, it was a
+  `pmi_not_lowered` error worded with internal names.
 
 ## 0.1.0-alpha.12 (2026-10-22)
 

@@ -298,7 +298,7 @@ fn diameters(
                         parameter: "step.diameter".into(),
                         value: c.diameter,
                     })
-                    .chain(claims(manufacturing, &members, b.diameter))
+                    .chain(claims(manufacturing, ids(&members), b.diameter))
                     .collect(),
                 basis: format!("{}{}", if n == 2 {
                     format!(
@@ -317,7 +317,7 @@ fn diameters(
                             ""
                         }
                     )
-                }, carries(manufacturing, &members)),
+                }, carries(manufacturing, &ids(&members), "turned step")),
                 terms,
                 shape: Shape::Callout { arcs: Vec::new(),
                     sites: members.iter().flat_map(|(_, c)| sites(c)).collect(),
@@ -371,30 +371,28 @@ fn length(first: &Feature, members: &[&Banded], terms: Vec<String>, basis: Strin
     }
 }
 
-/// The claims a diameter of *members*, *value* across, makes on the AP242 threads and knurls
-/// they carry: one measurement of feature `pmi:<source>` each.
-fn claims<'a>(
+/// The claims a diameter *value* across makes on the AP242 threads and knurls the features
+/// *ids* carry: one measurement of feature `pmi:<source>` each.
+pub(super) fn claims<'a>(
     manufacturing: &'a Manufacturing,
-    members: &'a [&Banded],
+    ids: Vec<&'a str>,
     value: f64,
 ) -> impl Iterator<Item = Measurement> + 'a {
-    members.iter().flat_map(move |(f, _)| {
-        manufacturing
-            .on(&f.id)
-            .into_iter()
-            .map(move |o| Measurement {
-                feature: o.id.clone(),
-                parameter: o.aspect.into(),
-                value,
-            })
+    ids.into_iter().flat_map(move |id| {
+        manufacturing.on(id).into_iter().map(move |o| Measurement {
+            feature: o.id.clone(),
+            parameter: o.aspect.into(),
+            value,
+        })
     })
 }
 
-/// The clause a diameter's basis gives the threads and knurls *members* carry, or none.
-fn carries(manufacturing: &Manufacturing, members: &[&Banded]) -> String {
-    let sources: Vec<&str> = members
+/// The clause a diameter's basis gives the threads and knurls the features *ids* carry, each
+/// a *noun* (a turned step, a boss), or none.
+pub(super) fn carries(manufacturing: &Manufacturing, ids: &[&str], noun: &str) -> String {
+    let sources: Vec<&str> = ids
         .iter()
-        .flat_map(|(f, _)| manufacturing.on(&f.id))
+        .flat_map(|id| manufacturing.on(id))
         .map(|o| o.source.as_str())
         .collect();
     if sources.is_empty() {
@@ -410,7 +408,7 @@ fn carries(manufacturing: &Manufacturing, members: &[&Banded]) -> String {
         "the part's AP242"
     };
     format!(
-        "; it carries {author} thread or knurl ({}), {}, as draftwright gives one to the turned step whose cylinder it names (lower_ap242_manufacturing_requirements)",
+        "; it carries {author} thread or knurl ({}), {}, as draftwright gives one to the {noun} whose cylinder it names (lower_ap242_manufacturing_requirements)",
         sources.join(", "),
         if manufacturing.tags.is_empty() {
             "printed after its diameter"
@@ -418,6 +416,11 @@ fn carries(manufacturing: &Manufacturing, members: &[&Banded]) -> String {
             "referred to the manufacturing requirements table"
         }
     )
+}
+
+/// The IDs of *members*' features.
+fn ids<'a>(members: &[&'a Banded]) -> Vec<&'a str> {
+    members.iter().map(|(f, _)| f.id.as_str()).collect()
 }
 
 fn mean(members: &[&Banded]) -> f64 {
@@ -1007,7 +1010,7 @@ fn overall(
         parameter: "step.diameter".into(),
         value: b.diameter,
     }));
-    measurements.extend(claims(manufacturing, share, t.diameter));
+    measurements.extend(claims(manufacturing, ids(share), t.diameter));
     let stands = match share.len() {
         1 => "; it is also the diameter of the one band that size",
         2 => "; it is also the diameter of the two separate bands that size",
@@ -1023,7 +1026,7 @@ fn overall(
         basis: format!(
             "the part is turned whole about {}: its largest diameter is its overall size across the axis, in a view that shows the profile{stands}{}",
             AXES[t.axis],
-            carries(manufacturing, share)
+            carries(manufacturing, &ids(share), "turned step")
         ),
         shape: Shape::Linear {
             a: corner(radial, lo[radial], lo),

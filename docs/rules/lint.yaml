@@ -260,8 +260,9 @@
     module: "linting/hole_coverage.py"
     issues: [1143, 1061]
     tests: [tests/test_issue_1370_double_d_completeness_evidence.py]
-  status: pending
-  rust_note: "Partly done (2026-10-22 evaluation): the double-D across-flats half is checked as LINT-profiled_bore_coverage-double_d. A modelled thread now has a length (its callout keeps a thread.length measurement as evidence; src/modelled_threads.rs), and a Spec-authored thread length prints as MIN FULL THREAD (tests/spec_notes.rs). Still pending: lint::holes has no thread-depth requirement of its own, and no test checks one."
+  status: ported
+  rust_test: "src/lint/holes.rs::tests::an_internal_thread_shorter_than_its_hole_states_its_depth"
+  rust_note: "The double-D across-flats size is checked as LINT-profiled_bore_coverage-double_d. The thread half: a modelled internal thread shorter than the recognised hole it is cut in (`lint::holes::thread_depth`, read from the modelled thread record as lint reads the Analysis) adds requirement `thread.depth` to hole coverage (`lint::holes::thread_depths`), missing when the callout claiming the thread states no `↧` depth; a Spec or AP242 thread states its length as MIN FULL THREAD (tests/spec_notes.rs). The modelled thread callout does not print the depth yet (cgb243 f:modelled_thread:1 is reported missing): printing it on cgb243 exposed a leader-placement overlap, left for the leaders stream."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream holes-and-threads"
 
 - id: LINT-hole_coverage-grouping_count
