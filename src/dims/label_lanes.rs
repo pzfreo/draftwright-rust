@@ -512,13 +512,23 @@ pub(super) fn alternatives_placed<'a>(
         let centre = (0.5 * (lo + hi - width)).clamp(low, high);
         positions.extend([centre, low, high]);
         positions.push(p.label_box[k].clamp(low, high));
+        positions.retain(|at| *at >= low && *at <= high);
+        // Peers' edges, kept only within the span (the order sorted below is total).
+        let within = |at: &f64| *at >= low && *at <= high;
         for q in others {
-            positions.extend([q.label_box[k] - CLEAR - width, q.label_box[k + 2] + CLEAR]);
+            positions.extend(
+                [q.label_box[k] - CLEAR - width, q.label_box[k + 2] + CLEAR]
+                    .into_iter()
+                    .filter(within),
+            );
             for [a, b] in &q.lines {
-                positions.extend([a[k].min(b[k]) - CLEAR - width, a[k].max(b[k]) + CLEAR]);
+                positions.extend(
+                    [a[k].min(b[k]) - CLEAR - width, a[k].max(b[k]) + CLEAR]
+                        .into_iter()
+                        .filter(within),
+                );
             }
         }
-        positions.retain(|at| *at >= low && *at <= high);
         if outside_arrows {
             // Text inside the span comes first; failing that, just past an arrow tail.
             tail.extend([hi + ARROW + 1.0, lo - ARROW - 1.0 - width]);
@@ -755,6 +765,9 @@ fn settle_inventory_uncached(
                 0
             }
         };
+        // Ranks are fixed for this dimension and its peers: work them out once.
+        let own_rank = rank(d);
+        let ranks: Vec<_> = others.iter().map(|q| rank(q)).collect();
         let allowed = |c: &Placed, prepared: &[LabelContacts]| {
             // A longer label may need another lane, but must not jump past an overall
             // extent or reverse datum-location order. Same-rank sizes may still skip
@@ -766,17 +779,18 @@ fn settle_inventory_uncached(
                 && (c.arrows[0][0][normal] - p.arrows[0][0][normal]).abs() < 1e-6)
                 || others
                     .iter()
-                    .filter(|q| q.kind == "linear" && q.view == d.view)
-                    .filter_map(|q| Some((*q, q.placed.as_ref()?)))
-                    .filter(|(_, q)| {
+                    .zip(&ranks)
+                    .filter(|(q, _)| q.kind == "linear" && q.view == d.view)
+                    .filter_map(|(q, rank)| Some((*q, *rank, q.placed.as_ref()?)))
+                    .filter(|(_, _, q)| {
                         q.arrows.len() == 2
                             && q.rotation == p.rotation
                             && (q.arrows[0][0][normal] - centre) * (p.arrows[0][0][normal] - centre)
                                 > 0.
                     })
-                    .all(|(q, placed)| {
-                        let order = rank(d).cmp(&rank(q)).then_with(|| {
-                            if rank(d) == 1 {
+                    .all(|(q, rank, placed)| {
+                        let order = own_rank.cmp(&rank).then_with(|| {
+                            if own_rank == 1 {
                                 d.value.total_cmp(&q.value)
                             } else {
                                 std::cmp::Ordering::Equal

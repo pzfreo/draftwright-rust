@@ -2176,6 +2176,17 @@ pub(crate) fn settle_after_furniture(
             if budget.is_some_and(|budget| length(&c.segments()) > budget + 1e-6) {
                 return false;
             }
+            // The measured counts below are required terms of the conjunction that follows;
+            // refuse on them before paying for the live-contact and extension scans.
+            if !(c.text <= before.text
+                && c.hard <= before.hard
+                && c.crossings <= before.crossings
+                && c.furniture <= before.furniture
+                && c.grazing <= before.grazing
+                && c.beside <= before.beside)
+            {
+                return false;
+            }
             let live = live_contacts(&c.placed());
             let contacts = extension_contacts(&extensions, &c.segments(), c.label_box);
             (c.text < before.text
@@ -2299,6 +2310,27 @@ pub(crate) fn settle_after_furniture(
                     if compact {
                         return None;
                     }
+                    // `measure_at`, except that a route `acceptable` must refuse on its geometry
+                    // alone (its direction, shelf and length budget), or whose page, view and
+                    // material blockers or grazing already exceed the old route's, is not
+                    // measured further: the annotation tier only adds to `hard`.
+                    let ring_measure = |tip: P2, elbow: P2, end: P2, right: bool| {
+                        // A measured candidate keeps these tip, elbow and end points.
+                        if (elbow[0] - tip[0]) * (end[0] - elbow[0]) < -1e-9
+                            || budget.is_some_and(|budget| {
+                                length(&[[tip, elbow], [elbow, end]]) > budget + 1e-6
+                            })
+                        {
+                            return None;
+                        }
+                        let mut c = measure_at_bounds(&job, tip, elbow, end, right, &page)?;
+                        if !radial(&c) || c.hard > before.hard || c.grazing > before.grazing {
+                            return None;
+                        }
+                        measure_fixed(&mut c, &job, &fixed);
+                        c.measure_features(&job);
+                        Some(c)
+                    };
                     let mut fallback = partial.clone();
                     let mut centres = vec![(tip, elbow)];
                     if let Some((b, _)) = &established {
@@ -2317,8 +2349,11 @@ pub(crate) fn settle_after_furniture(
                                     ];
                                     if reference.is_none() {
                                         let right = elbow[0] >= tip[0];
-                                        if let Some(c) =
-                                            measure(&job, tip, elbow, right, &fixed, &page)
+                                        let end = [
+                                            elbow[0] + if right { SHOULDER } else { -SHOULDER },
+                                            elbow[1],
+                                        ];
+                                        if let Some(c) = ring_measure(tip, elbow, end, right)
                                             && acceptable(&c)
                                         {
                                             return Some(c);
@@ -2337,9 +2372,9 @@ pub(crate) fn settle_after_furniture(
                                                 elbow,
                                                 frame.scale() * crate::model::projected_ink::GRID,
                                             );
-                                            if let Some(c) = measure_at(
-                                                &job, attached, elbow, end, right, &fixed, &page,
-                                            ) && acceptable(&c)
+                                            if let Some(c) =
+                                                ring_measure(attached, elbow, end, right)
+                                                && acceptable(&c)
                                             {
                                                 if c.clear() {
                                                     return Some(c);
@@ -4670,7 +4705,7 @@ impl SegmentIndex {
         }
     }
 
-    fn collect_beside(&self, line: [P2; 2], found: &mut Vec<[P2; 2]>) {
+    fn collect_beside(&self, line: [P2; 2], found: &mut Vec<(f64, f64)>) {
         // Any interval within the 0.3 mm perpendicular band must meet
         // these expanded closed bounds, including a nearly diagonal run.
         if !self.meets_padded_line(line, 0.3 + 1e-9) {
@@ -4681,7 +4716,7 @@ impl SegmentIndex {
                 child.collect_beside(line, found);
             }
         } else {
-            found.extend(&self.ink);
+            found.extend(self.ink.iter().filter_map(|e| along_interval(line, *e)));
         }
     }
 
@@ -4695,9 +4730,13 @@ impl SegmentIndex {
         if let Some(&result) = self.besides.borrow().get(&key) {
             return result;
         }
-        let mut ink = Vec::new();
-        self.collect_beside(line, &mut ink);
-        let result = runs_beside(line, &ink);
+        // As in [`runs_beside`]: a segment of 2 mm or less cannot run beside anything.
+        if (line[1][0] - line[0][0]).hypot(line[1][1] - line[0][1]) <= 2.0 + 1e-6 {
+            return false;
+        }
+        let mut intervals = Vec::new();
+        self.collect_beside(line, &mut intervals);
+        let result = covered_run(line, intervals);
         let mut saved = self.besides.borrow_mut();
         if saved.len() >= 8192 {
             saved.clear();
@@ -4794,7 +4833,18 @@ fn model_contacts(model: &[[P2; 2]], grid: &Grid, q: P2, label: [f64; 4]) -> (us
 
 /// Whether a leader segment runs within 0.3 mm of the given line-work for over 2 mm.
 pub(super) fn runs_beside(s: [P2; 2], ink: &[[P2; 2]]) -> bool {
-    let mut intervals: Vec<_> = ink.iter().filter_map(|e| along_interval(s, *e)).collect();
+    // Every interval is a fraction of the segment, so a segment of 2 mm or less has no run.
+    if (s[1][0] - s[0][0]).hypot(s[1][1] - s[0][1]) <= 2.0 + 1e-6 {
+        return false;
+    }
+    covered_run(
+        s,
+        ink.iter().filter_map(|e| along_interval(s, *e)).collect(),
+    )
+}
+
+/// Whether the [`along_interval`]s of line-work beside *s* join into a run of over 2 mm.
+fn covered_run(s: [P2; 2], mut intervals: Vec<(f64, f64)>) -> bool {
     intervals.sort_by(|a, b| a.0.total_cmp(&b.0));
     let length = (s[1][0] - s[0][0]).hypot(s[1][1] - s[0][1]);
     let (mut start, mut stop) = (0.0_f64, 0.0_f64);
@@ -6096,6 +6146,15 @@ fn measure_fixed(c: &mut Candidate, job: &Job, fixed: &Fixed) {
         v.dedup();
     }
     let crossings = (crossed.len() + text.len()) as u32;
+    let model_run = {
+        let run = OnceCell::new();
+        move || {
+            *run.get_or_init(|| {
+                job.model
+                    .is_some_and(|model| segs.iter().any(|s| model.runs_beside(*s)))
+            })
+        }
+    };
     if job.corridors {
         // The same finite 1 mm extension corridor used by the route acceptance
         // check participates in the initial solve, before a route becomes fixed.
@@ -6110,10 +6169,7 @@ fn measure_fixed(c: &mut Candidate, job: &Job, fixed: &Fixed) {
                 })
                 .count() as u32;
         }
-        if job
-            .model
-            .is_some_and(|model| segs.iter().any(|s| model.runs_beside(*s)))
-        {
+        if model_run() {
             hard += 1;
         }
     }
@@ -6122,13 +6178,7 @@ fn measure_fixed(c: &mut Candidate, job: &Job, fixed: &Fixed) {
     c.furniture = furniture.len() as u32;
     c.furniture_hard = furniture_hard;
     c.furniture_text = furniture_text.len() as u32;
-    c.beside = besides.len() as u32
-        + u32::from(
-            job.silhouette.is_none()
-                && job
-                    .model
-                    .is_some_and(|model| c.segments().iter().any(|s| model.runs_beside(*s))),
-        );
+    c.beside = besides.len() as u32 + u32::from(job.silhouette.is_none() && model_run());
     c.text = text.len() as u32;
     c.clearance = clearance.len() as u32;
     c.fixed_measured = true;
