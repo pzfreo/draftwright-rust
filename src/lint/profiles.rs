@@ -316,7 +316,7 @@ pub fn evidence(part: &haecceity::Part) -> Vec<Source> {
                     let loops = &part.faces[f].loops;
                     let outer = part.outer_loop(f);
                     let unsplit = outer.is_none() && loops.len() > 1;
-                    let inner = quiddity::features::wire_seed::inner_wires(part, f)
+                    let inner = crate::quiddity_evidence::inner_wires(part, f)
                         .iter()
                         .map(|edges| wire(part, edges))
                         .collect();

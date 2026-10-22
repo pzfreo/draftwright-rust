@@ -437,11 +437,14 @@ fn real_wheel_full_wire_evidence_reconciles_authored_gear() {
     doc.records[index]
         .parameters
         .insert("repeat_count".into(), count);
+    // A profile whose axis quiddity left in the part's own frame is left out, not misread.
     doc.records[index].local.push("axis".into());
     assert!(
-        draftwright::bridge::native::read(&part, &doc)
-            .unwrap_err()
-            .contains("own frame")
+        !draftwright::bridge::native::read(&part, &doc)
+            .unwrap()
+            .evidence
+            .iter()
+            .any(|e| e.family == "repeating_radial_profiles")
     );
     let profiles: Vec<_> = a
         .recognition

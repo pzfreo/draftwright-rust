@@ -332,7 +332,8 @@ fn rounding(kind: &str, path: &str) -> f64 {
     match (kind, field) {
         ("fillet" | "chamfer", "at" | "corner") => 1e-3,
         ("turned_step", "lo" | "hi") => 1e-3,
-        ("countersink", "location") => 1e-4,
+        // Rounded in quiddity's frame and again on the file's grid (quiddity-rust 0.1.0).
+        ("countersink", "location") => 1e-3,
         ("groove" | "paired_ramp_step", "at") => 1e-3,
         ("flat", "at" | "stock_span" | "axis_line") => 1e-3,
         ("angled_step", "at" | "corner") => 1e-3,
@@ -1900,9 +1901,10 @@ fn slot_patterns_name_their_member_slots() {
     let p = patterns[0];
     assert_eq!(p.id, "f:slot_pattern:1");
     assert_eq!(p.fingerprint.subtype, "SlotArray");
+    // quiddity 0.1.0 orders the members in the part's own frame, which runs the other way.
     assert_eq!(
         p.parameters["slots"],
-        serde_json::json!(["f:slot:1", "f:slot:2", "f:slot:3"])
+        serde_json::json!(["f:slot:3", "f:slot:2", "f:slot:1"])
     );
     for f in slots.iter().copied().chain([p]) {
         let pattern = f.fingerprint.pattern.as_ref().unwrap();
@@ -2217,9 +2219,12 @@ fn corpus_pads_are_pythons() {
 #[test]
 fn modelled_threads_and_refusals_survive_recognition_and_analysis_json() {
     let (part, mut doc) = document("turned");
-    assert_eq!(doc.schema_version, "quiddity-rust/recognition/3");
-    native::read(&part, &doc).unwrap();
-    doc.schema_version = native::SCHEMA_VERSION.into();
+    assert_eq!(doc.schema_version, native::SCHEMA_VERSION);
+    for legacy in &native::SCHEMA_VERSIONS[..2] {
+        let mut old = doc.clone();
+        old.schema_version = (*legacy).into();
+        native::read(&part, &old).unwrap();
+    }
     let parameters = serde_json::json!({
         "axis": {"point": [0, 0, 0], "direction": [0, 0, 1]},
         "side": "external", "major_diameter": 20, "minor_diameter": 19,
@@ -2346,7 +2351,15 @@ fn modelled_threads_and_refusals_survive_recognition_and_analysis_json() {
             .unwrap_err()
             .contains("face claims")
     );
+    // A thread whose axis quiddity left in the part's own frame is left out, not misread.
     let mut bad = doc.clone();
     bad.records[index].local.push("axis".into());
-    assert!(native::read(&part, &bad).unwrap_err().contains("own frame"));
+    assert!(
+        !native::read(&part, &bad)
+            .unwrap()
+            .features
+            .iter()
+            .any(|f| f.faces == doc.records[index].faces)
+    );
+    assert!(native::left_in_frame(&bad.records[index]));
 }

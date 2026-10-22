@@ -55,28 +55,20 @@ const END_MARGIN: f64 = 0.6;
 /// quiddity: what [`crate::model::Analysis`] records for the ladder. A level is kept as quiddity's
 /// `step_level_records` keeps it: strictly inside its solid's height by the end margin.
 pub(crate) fn evidence(part: &haecceity::Part) -> (Vec<LevelSupport>, Vec<Riser>) {
-    use quiddity::features::levels::{
-        FaceLevelOptions, RiserOptions, face_levels_with_faces, recognise_risers,
-    };
+    use crate::quiddity_evidence::{face_levels_with_faces, recognise_risers};
     let scope = |faces: &[usize]| {
         let s = faces
             .first()
             .and_then(|f| part.solids.iter().position(|s| s.faces.contains(f)));
         s.map_or_else(|| part.bounds(), |s| part.solid_bounds(s))
     };
-    let opts = FaceLevelOptions {
-        tol: None,
-        min_area_frac: 0.01,
-    };
-    let supports = face_levels_with_faces(part, &opts)
+    let supports = face_levels_with_faces(part, 0.01)
         .into_iter()
         .filter_map(|(level, faces)| {
             let b = scope(&faces);
             let margin = END_MARGIN.min((b.max[2] - b.min[2]).max(0.0) * 0.25);
             let inside = b.min[2] + margin < level.z && level.z < b.max[2] - margin;
-            // quiddity reads both spans of every level it finds with its faces.
-            // Invariant: The level reader checks both transverse spans before constructing a level.
-            let (x, y) = (level.x_span.expect("x span"), level.y_span.expect("y span"));
+            let (x, y) = (level.x_span, level.y_span);
             inside.then_some(LevelSupport {
                 z: level.z,
                 x_span: [x.0, x.1],
@@ -84,7 +76,7 @@ pub(crate) fn evidence(part: &haecceity::Part) -> (Vec<LevelSupport>, Vec<Riser>
             })
         })
         .collect();
-    let risers = recognise_risers(part, &RiserOptions::default())
+    let risers = recognise_risers(part)
         .into_iter()
         .map(|r| Riser {
             vertical: r.vertical,

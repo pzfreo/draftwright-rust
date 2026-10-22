@@ -41,8 +41,7 @@ pub struct Source {
 pub fn evidence(part: &haecceity::Part) -> Vec<Source> {
     (0..part.faces.len())
         .filter_map(|face| {
-            let source =
-                quiddity::features::outer_profile::planar_outer_profile(part, face).ok()?;
+            let source = crate::quiddity_evidence::planar_outer_profile(part, face)?;
             Some(Source {
                 face,
                 body_faces: source.body_faces,
