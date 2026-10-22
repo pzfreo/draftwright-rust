@@ -785,3 +785,22 @@ fn string_post_face_finishes_stay_on_a4_and_reach_a_trimmed_cylinder_head_on() {
         lint.iter().map(|p| &p.code).collect::<Vec<_>>()
     );
 }
+
+#[test]
+fn a_thread_length_whose_callout_is_omitted_is_reported_not_lost() {
+    let (_part, a) = plate();
+    let id = "d:f:hole_pattern:1/bore.diameter";
+    let s = spec(json!({
+        "features": {"f:hole_pattern:1": {"thread": {"designation": "M6x1-6H", "length": 4}}},
+        "dimensions": {id: {"omit": true}}
+    }));
+    let plan = model::plan_recovered(&a, &s).unwrap();
+    assert!(plan.dimensions.iter().all(|d| d.id != id));
+    // The omission keeps the label it would have printed, thread length included.
+    let omitted = plan.omitted.iter().find(|o| o.id == id).expect("omitted");
+    assert_eq!(omitted.label, "4× M6-6H ↧ 4\n⌀6 THRU (2×2)");
+    // And the thread the Spec authored is reported as not drawn.
+    let lost = problems(&plan, "pmi_not_drawn");
+    assert_eq!(lost.len(), 1, "{:?}", plan.problems);
+    assert_eq!(lost[0].refs, ["spec:features/f:hole_pattern:1/thread"]);
+}

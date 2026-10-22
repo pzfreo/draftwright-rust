@@ -109,7 +109,9 @@ latest merge, composed precision/fit behavior, catalogue audit and validation.
 
 When a rule is ported, its status becomes `ported` and it gains `rust_test:`, the test that
 checks it. A rule ported only in part stays `pending`, with `rust_test:` for the part that is
-checked and `rust_note:` saying what is ported and what is not. When it is translated, it gains
+checked and `rust_note:` saying what is ported and what is not. A rule whose unimplemented
+clauses are retired by a dated decision is `ported`, and its `rust_note:` names each retired
+clause and why (2026-10-22 evaluation). When it is translated, it gains
 `rust_rule:`, the rule it became, and `rust_note:` describing its Rust mechanism and limits,
 with `rust_test:` when a test or test suite is named. When it is retired, it gains `why:`;
 the 2026-10-16 triage also records the reason and dated maintainer approval in `rust_note:`.

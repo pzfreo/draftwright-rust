@@ -420,28 +420,41 @@ fn a_fillet_radius_tip_moved_off_its_arc_is_reported() {
         "arc":{"centre":[0.0,0.0,0.0],"radius":3.0,"u":[1.0,0.0,0.0],"v":[0.0,1.0,0.0],"start":0.0,"sweep":std::f64::consts::FRAC_PI_2},
         "axis":[0.0,0.0,1.0],"centre_open":true,"tips":[]
     }])).unwrap());
+    // The shaft runs along the tip's own radial, through the centre, so only the tip's place
+    // on the trimmed arc can raise a finding.
     let check = |deg: f64, r: f64| {
         let t = deg.to_radians();
         let tip = page(r * t.cos(), r * t.sin());
-        let elbow = page(3.0 * t.cos() - 6.0, 3.0 * t.sin() - 6.0);
-        found(
-            &a,
-            &drawing(
-                ALONG_Z,
-                vec![callout(
-                    "d:r",
-                    &[("f:fillet:1", "fillet.radius")],
-                    tip,
-                    elbow,
-                )],
-            ),
-            "radius_leader",
-        )
+        let elbow = page(-5.5 * t.cos(), -5.5 * t.sin());
+        let draw = drawing(
+            ALONG_Z,
+            vec![callout(
+                "d:r",
+                &[("f:fillet:1", "fillet.radius")],
+                tip,
+                elbow,
+            )],
+        );
+        lint::lint(&a, &draw)
+            .into_iter()
+            .filter(|i| i.code.starts_with("radius_leader"))
+            .map(|i| (i.code, i.annotation.unwrap_or_default(), i.message))
+            .collect::<Vec<_>>()
     };
     assert!(check(45.0, 3.0).is_empty());
-    let off = one("radius_leader_not_radial", "d:r");
-    assert_eq!(check(180.0, 3.0), off);
-    assert_eq!(check(45.0, 3.5), off);
+    for (deg, r) in [(180.0, 3.0), (45.0, 3.5)] {
+        let issues = check(deg, r);
+        assert_eq!(issues.len(), 1, "{deg} {r}: {issues:?}");
+        let (code, name, message) = &issues[0];
+        assert_eq!(
+            (code.as_str(), name.as_str()),
+            ("radius_leader_not_radial", "d:r")
+        );
+        assert!(
+            message.contains("does not touch its named trimmed profile arc"),
+            "{deg} {r}: {message}"
+        );
+    }
 }
 
 #[test]

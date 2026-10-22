@@ -391,7 +391,7 @@
     corpus_parts: ["issue_915_case_study_2.step"]
   status: ported
   rust_test: "issue_drafting::a_rungs_witnesses_stand_on_its_levels_support"
-  rust_note: "Ported (2026-10-22 evaluation): the ladder's witnesses stand on each level's own support (src/dims/levels.rs; both witness lines of each height start at its level's support, not the part's box), and a level with no recorded support is reported (step_level_support_missing). Detail views use the rectangular free-space search and their own crop (src/detail.rs, src/layout.rs). Translated: Python's single spacing solve for a dense plan view is the leader router's joint assignment of a view's callouts (src/dims/leaders.rs), one bounded search over all of them rather than arrival order. issue_915_case_study_2.step is not among the parts here."
+  rust_note: "Ported (2026-10-22 evaluation): the ladder's witnesses stand on each level's own support (src/dims/levels.rs; both witness lines of each height start at its level's support, not the part's box), and a level with no recorded support is reported (step_level_support_missing). Detail views use the rectangular free-space search and their own crop (src/detail.rs, src/layout.rs). Python's single spacing solve for a dense plan view maps to the leader router's joint assignment of a view's callouts (src/dims/leaders.rs), one bounded search over all of them rather than arrival order. issue_915_case_study_2.step is not among the parts here."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream detail-views"
 
 - id: ISSUE-916-a
@@ -1332,7 +1332,7 @@
     corpus_parts: []
   status: ported
   rust_test: "issue_drafting::every_authored_tolerance_reaches_the_label_that_claims_it; dimensions::planned_hole_tables::approved_diameter_tolerances_reach_every_scheduled_size_cell_verbatim"
-  rust_note: "Ported (2026-10-22 evaluation): on the five fixtures and thirteen sampled parts, every dimension given its own band prints that band exactly once and no other's, or the plan reports tolerance_withheld, view_plan_incomplete or tolerance_not_shown; on plate each band is drawn in exactly one text run. A hole table's size cells carry approved diameter tolerances verbatim. Not part of this rule: tolerances on a callout's compound terms (counterbore, countersink and spotface sizes, a bore's depth). Those terms have no dimension ID on which to author a band; that is a separate capability, not a lost tolerance."
+  rust_note: "Ported (2026-10-22 evaluation): on the five fixtures and thirteen sampled parts, every dimension given its own band prints that band exactly once and no other's, or the plan reports tolerance_withheld, view_plan_incomplete or tolerance_not_shown; on plate each band is drawn in exactly one text run. A hole table's size cells carry approved diameter tolerances verbatim. Deferred as a separate capability: tolerances on a callout's compound terms (counterbore, countersink and spotface sizes, a bore's depth). Those terms have no dimension ID on which to author a band, so no approved tolerance is dropped for want of them."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream holes-and-threads"
 
 - id: ISSUE-1215-d
@@ -1426,7 +1426,7 @@
     corpus_parts: ["GRM-03"]
   status: ported
   rust_test: "issue_trust::a_claim_is_credited_only_when_its_text_states_the_value; dimensions::planned_hole_tables::schedule_cell_evidence_checks_approved_tolerance_precision_and_through_wording"
-  rust_note: "Ported (2026-10-22 evaluation): hole coverage reads a claiming callout term by term (src/lint/holes.rs::Callout). Each size is credited only when the term that states it rounds from the part's value at its printed precision; a repeat count, a grid's (r×c), a bolt circle's diameter, a tolerance or another size of the same value confirms nothing. Hole-table cells are checked for approved tolerance precision and through wording. Retired: a term parser per annotation family. The other families' marks carry their measurement as a typed claim (lint::parameters), so there is no compound term to misread."
+  rust_note: "Ported (2026-10-22 evaluation): hole coverage reads a claiming callout term by term (src/lint/holes.rs::Callout). Each size is credited only when the term that states it rounds from the part's value at its printed precision; a repeat count, a grid's (r×c), a bolt circle's diameter, a tolerance or another size of the same value confirms nothing. Hole-table cells are checked for approved tolerance precision and through wording. Retired: a term parser per annotation family. The families sharing lint::parameters still credit a claiming mark when any number in its label rounds from the value (holes::states), a repeat count included, so '2× R3' would confirm a 2 mm fillet; that is accepted because the port prints each of those labels from the same value it claims, so a count cannot stand in for a missing size on a drawing the port made. Retired: locations and pitches verified against their own spans. The port plans those dimensions from the measured geometry they claim, and the location lint (src/lint/location.rs) judges them through witness stations with holes::states, not by re-measuring each label's drawn span; span ownership belongs to the dimension-ownership work, not this rule."
   owner: draftwright
   port_note: "triage 2026-10-16: PORT, value low, size S, stream lint-and-reporting"
 
@@ -2088,8 +2088,8 @@
       - "tests/test_issue_1360_thread_depth.py::test_thread_depth_width_estimation_and_rendering_share_one_suffix"
     corpus_parts: []
   status: ported
-  rust_test: "rendering::spec_notes::m6_on_the_plate_hole_pattern_prints_on_its_callout; rendering::spec_notes::m10_and_a_knurl_on_the_spindle_print_after_their_diameters; core::pmi_thread_knurl::an_internal_threads_bore_fit_stays_on_its_tapping_drill"
-  rust_note: "Ported (2026-10-22 evaluation; stream K1b, src/spec_notes.rs): a thread prints on its hole's callout, and its length (features/<id>/thread/length) prints there as the minimum full thread (⌀4.2 ↧ 9.2 M5x0.8-6H; 8 MIN FULL THREAD); one deeper than its blind hole is reported, not drawn (pmi_not_lowered). An internal thread's bore fit stays on its tapping drill and never leaks onto a counterbore. Translated: 'addressable' is the Spec path features/<id>/thread/length rather than a separate dimension ID."
+  rust_test: "rendering::spec_notes::m6_on_the_plate_hole_pattern_prints_on_its_callout; rendering::spec_notes::m10_and_a_knurl_on_the_spindle_print_after_their_diameters; rendering::spec_notes::a_thread_length_whose_callout_is_omitted_is_reported_not_lost; core::pmi_thread_knurl::an_internal_threads_bore_fit_stays_on_its_tapping_drill"
+  rust_note: "Ported (2026-10-22 evaluation; stream K1b, src/spec_notes.rs): a thread prints on its hole's callout, and its length (features/<id>/thread/length) prints there as the minimum full thread (⌀4.2 ↧ 9.2 M5x0.8-6H; 8 MIN FULL THREAD); one deeper than its blind hole is reported, not drawn (pmi_not_lowered). A thread length cannot survive without its callout head: when the Spec omits the callout, the plan lists it under omitted with the thread and length it would have printed, and reports the Spec's thread as pmi_not_drawn. An internal thread's bore fit stays on its tapping drill and never leaks onto a counterbore. 'Addressable' is read as the Spec path features/<id>/thread/length rather than a separate dimension ID."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream holes-and-threads"
 
 - id: ISSUE-1369-a
