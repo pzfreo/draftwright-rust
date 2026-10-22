@@ -6,6 +6,14 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### Changed
+
+- **The title block sits flush with the frame.** Following ISO 7200, its right and bottom edges
+  are now the frame line on every sheet, instead of 1 mm inside it, which drew a doubled line
+  with a thin gap. Those two sides are drawn once, as the frame's line. Its size and contents
+  are unchanged; the views reserve exactly its area, and the scale note, projection symbol and
+  default Ra symbol move with it.
+
 ## 0.1.0-alpha.12 (2026-10-22)
 
 Still on quiddity-rust `0.1.0-alpha.8`. The move to quiddity-rust 0.1.0 is waiting on

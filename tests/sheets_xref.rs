@@ -285,3 +285,67 @@ fn small_part_remote_zones_match_drawn_view_and_cutting_letter() {
         assert!((centre(views[0].bbox)[0] - centre(views[1].bbox)[0]).abs() > 150.);
     }
 }
+
+/// ISO 7200: the title block's right and bottom edges are the frame's, on every sheet, drawn
+/// once (the frame's line), and no view lies on it.
+#[test]
+fn title_block_is_flush_with_the_frame_on_every_sheet() {
+    use draftwright::layout::MARGIN;
+    use draftwright::output::{Curve, Item};
+    let (part, analysis) = model::analyse_with(
+        &fixture("parts/plate.step"),
+        Some(&fixture("recognition/plate.json")),
+    )
+    .unwrap();
+    let font = draftwright::text::Font::new(api::MONO.to_vec()).unwrap();
+    for spec in [
+        json!({}),
+        json!({"sheet":{"size":"A4","scale":"1:1"},"sheets":{"max":2},"tables":[{"id":"t:1","sheet":2,"rows":[["ISSUED"]]}]}),
+    ] {
+        let p = model::plan_recovered(&analysis, &serde_json::from_value(spec).unwrap()).unwrap();
+        let sheets: Vec<_> = std::iter::once(&p.sheet).chain(&p.sheets).collect();
+        let drawings = model::render_sheets(&part, &analysis, &p, &font).unwrap();
+        assert_eq!(drawings.len(), sheets.len());
+        for (sheet, drawing) in sheets.iter().zip(&drawings) {
+            let [w, _] = sheet.page;
+            let tb = sheet.title_block;
+            assert!(
+                (tb[2] - (w - MARGIN)).abs() < 1e-9,
+                "sheet {}: {tb:?}",
+                sheet.number
+            );
+            assert!(
+                (tb[1] - MARGIN).abs() < 1e-9,
+                "sheet {}: {tb:?}",
+                sheet.number
+            );
+            for v in p.views.iter().filter(|v| v.sheet == sheet.number) {
+                let a = v.area;
+                assert!(
+                    a[2] <= tb[0] || a[0] >= tb[2] || a[3] <= tb[1] || a[1] >= tb[3],
+                    "sheet {}: {} {a:?} on the title block {tb:?}",
+                    sheet.number,
+                    v.id
+                );
+            }
+            // One line along each shared side: the frame's.
+            let on = |k: usize, at: f64| {
+                drawing
+                    .layers
+                    .iter()
+                    .flat_map(|l| &l.items)
+                    .filter(|i| match i {
+                        Item::Edge(Curve::Line(a, b)) => {
+                            (a[k] - at).abs() < 1e-9
+                                && (b[k] - at).abs() < 1e-9
+                                && (a[1 - k] - b[1 - k]).abs() > 1e-9
+                        }
+                        _ => false,
+                    })
+                    .count()
+            };
+            assert_eq!(on(0, w - MARGIN), 1, "sheet {}", sheet.number);
+            assert_eq!(on(1, MARGIN), 1, "sheet {}", sheet.number);
+        }
+    }
+}
