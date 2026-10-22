@@ -82,3 +82,49 @@ macro_rules! pmi_cases {
         pmi_files!(part_cases, $check);
     };
 }
+
+/// The quality parts (`tools/quality_parts.txt`, from the corpus), one entry per manifest line
+/// and in its order; `quality_cases!` names a test case after each part.
+macro_rules! quality_files {
+    ($emit:ident $(, $check:ident)?) => { $emit!($($check;)?
+        cgb203 => "cadgenbench_inputs/cgb203.step",
+        cgb207 => "cadgenbench_inputs/cgb207.step",
+        cgb241 => "cadgenbench_inputs/cgb241.step",
+        cgb245 => "cadgenbench_inputs/cgb245.step",
+        grm_03_thumbwheel_drive_screw => "gramel/GRM-03_thumbwheel_drive_screw.step",
+        grm_05_depth_lock_bolt => "gramel/GRM-05_depth_lock_bolt.step",
+        string_post => "gramel/string_post.step",
+        nist_ctc_01_asme1_rd => "nist/nist_ctc_01_asme1_rd.stp",
+        nist_ctc_02_asme1_rc => "nist/nist_ctc_02_asme1_rc.stp",
+        nist_ctc_03_asme1_rc => "nist/nist_ctc_03_asme1_rc.stp",
+        nist_ctc_04_asme1_rd => "nist/nist_ctc_04_asme1_rd.stp",
+        nist_ctc_05_asme1_rd => "nist/nist_ctc_05_asme1_rd.stp",
+        nist_ftc_06_asme1_rd => "nist/nist_ftc_06_asme1_rd.stp",
+        nist_ftc_07_asme1_rd => "nist/nist_ftc_07_asme1_rd.stp",
+        nist_ftc_08_asme1_rc => "nist/nist_ftc_08_asme1_rc.stp",
+        nist_ftc_09_asme1_rd => "nist/nist_ftc_09_asme1_rd.stp",
+        nist_ftc_10_asme1_rb => "nist/nist_ftc_10_asme1_rb.stp",
+        sm_hanger => "ttt_inputs/sm-hanger.step",
+        mfcadpp_1000 => "mfcadpp/1000.step",
+        mfcadpp_10000 => "mfcadpp/10000.step",
+        mfcadpp_10007 => "mfcadpp/10007.step",
+        mfcadpp_10020 => "mfcadpp/10020.step",
+        mfcadpp_10033 => "mfcadpp/10033.step",
+        mfcadpp_10038 => "mfcadpp/10038.step",
+        mfcadpp_1004 => "mfcadpp/1004.step",
+        mfcadpp_10046 => "mfcadpp/10046.step",
+        mfcadpp_10047 => "mfcadpp/10047.step",
+        mfcadpp_10049 => "mfcadpp/10049.step",
+        mfcadpp_10060 => "mfcadpp/10060.step",
+        mfcadpp_10063 => "mfcadpp/10063.step",
+    ); };
+}
+macro_rules! quality_inventory {
+    ($($name:ident => $file:literal),+ $(,)?) => { pub const QUALITY_FILES: &[&str] = &[$($file),+]; };
+}
+quality_files!(quality_inventory);
+macro_rules! quality_cases {
+    ($check:ident) => {
+        quality_files!(part_cases, $check);
+    };
+}

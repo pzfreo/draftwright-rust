@@ -1,9 +1,11 @@
 """Regression checks for disabled autodiscovery and compiled inventory drift."""
 from pathlib import Path
+import re
 import tempfile
 import unittest
 
 import check_test_binaries as guard
+import test_shards
 
 
 class TestBinaryGuard(unittest.TestCase):
@@ -36,10 +38,14 @@ mod nested {
 }
 part_cases!(parts; alpha => "a.step", beta => "b.step");
 pmi_cases!(pmi);
+quality_cases!(quality);
 ''')
         (root / 'tests/common/support.rs').write_text('''
 macro_rules! pmi_files {
     ($emit:ident) => { $emit!(one => "one.step", two => "two.step"); };
+}
+macro_rules! quality_files {
+    ($emit:ident) => { $emit!(q1 => "q/1.step"); };
 }
 ''')
 
@@ -50,7 +56,7 @@ macro_rules! pmi_files {
             expected, reached = guard.inventory(root)
             self.assertEqual(expected, {'group': {
                 'cases::first', 'cases::nested::second', 'cases::parts::alpha',
-                'cases::parts::beta', 'cases::pmi::one', 'cases::pmi::two'}})
+                'cases::parts::beta', 'cases::pmi::one', 'cases::pmi::two', 'cases::quality::q1'}})
             self.assertEqual(len(reached), 3)
 
     def test_new_unreferenced_file_fails_even_in_a_nested_directory(self):
@@ -86,6 +92,36 @@ macro_rules! pmi_files {
         self.assertIn('cargo nextest list --archive-file nextest-archive.tar.zst', harness)
         manifest = guard.tomllib.loads((guard.ROOT / 'Cargo.toml').read_text())
         self.assertFalse(manifest['package']['autotests'])
+
+    def test_duration_shards_partition_the_listed_tests(self):
+        def case(status):
+            return {'filter-match': {'status': status}}
+        listing = {'rust-suites': {
+            'a': {'binary-id': 'a', 'testcases': {f't{i}': case('matches') for i in range(40)}},
+            'b': {'binary-id': 'b', 'testcases': {'slow': case('matches'), 'left_out': case('mismatch')}}}}
+        tests = test_shards.listed(listing)
+        self.assertEqual(len(tests), 41)
+        self.assertNotIn(('b', 'left_out'), tests)
+        durations = {'b slow': 100.0, 'a t0': 50.0, 'a t1': 1.0}
+        for n in (1, 3, 7):
+            shards, load = test_shards.assign(tests, durations, n)
+            self.assertEqual(sorted(t for shard in shards for t in shard), tests)
+            self.assertEqual(shards, test_shards.assign(list(reversed(tests)), durations, n)[0])
+        shards, _ = test_shards.assign(tests, durations, 3)
+        self.assertEqual(len([s for s in shards if {('b', 'slow'), ('a', 't0')} & set(s)]), 2)
+        self.assertEqual(test_shards.filterset([('b', 'slow'), ('a', 't1'), ('a', 't0')]),
+                         '(binary_id(=a) & (test(=t0) | test(=t1))) | (binary_id(=b) & (test(=slow)))')
+
+    def test_ci_runs_every_duration_shard(self):
+        workflow = (guard.ROOT / '.github/workflows/ci.yml').read_text()
+        job = workflow.split('  test:', 1)[1].split('\n  # ', 1)[0].split('\n  quality-pins:', 1)[0]
+        shards = re.search(r'shard: \[([^\]]*)\]', job).group(1).split(', ')
+        self.assertEqual(shards[-1], 'harness')
+        n = len(shards) - 1
+        self.assertEqual(shards[:-1], [f'{k}/{n}' for k in range(1, n + 1)])
+        self.assertIn('tools/test_shards.py --list nextest-list.json --shard ${{ matrix.shard }}', job)
+        self.assertIn('--profile ci -E "$filter"', job)
+        self.assertNotIn('--partition', job)
 
 
 if __name__ == '__main__':
