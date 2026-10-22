@@ -531,7 +531,8 @@ fn a_sheet_the_spec_names_is_never_escalated() {
 
 /// ISSUE-1378-a, the planner's part: a hole callout's leader tip touches the rim of a hole it
 /// names. On every part, each placed hole callout's arrow tip lies on the projected bore circle
-/// of one of the members it claims, in its view. Lint's check of the drawn tip, double-D
+/// of one of the members it claims, in its view (an inclined bore's, an end of the ellipse's
+/// major axis). Lint's check of the drawn tip, double-D
 /// profiles included, is `tests/leader_rules.rs` (stream K4).
 #[test]
 fn a_hole_callouts_tip_is_on_the_rim_of_a_hole_it_names() {
@@ -554,8 +555,20 @@ fn a_hole_callouts_tip_is_on_the_rim_of_a_hole_it_names() {
                 .filter_map(|m| read.get(m.feature.as_str()))
                 .any(|h| {
                     let c = page_of(v, analysis, h.at);
-                    let r = (tip[0] - c[0]).hypot(tip[1] - c[1]);
-                    (r - 0.5 * v.scale * h.diameter).abs() < 1e-3
+                    if h.principal.is_some() {
+                        let r = (tip[0] - c[0]).hypot(tip[1] - c[1]);
+                        return (r - 0.5 * v.scale * h.diameter).abs() < 1e-3;
+                    }
+                    // An inclined bore shows its rim as an ellipse; the tip is an end of its major
+                    // axis: the full radius square to the projected axis, at a rim along the bore.
+                    let e = page_of(v, analysis, [0, 1, 2].map(|k| h.at[k] + h.direction[k]));
+                    let a = [e[0] - c[0], e[1] - c[1]];
+                    let la = a[0].hypot(a[1]);
+                    let q = [tip[0] - c[0], tip[1] - c[1]];
+                    let across = (q[0] * a[1] - q[1] * a[0]).abs() / la;
+                    let along = (q[0] * a[0] + q[1] * a[1]) / (la * la);
+                    (across - 0.5 * v.scale * h.diameter).abs() < 1e-3
+                        && (-1e-6..=h.depth.unwrap_or(0.0) + 1e-6).contains(&along)
                 });
             assert!(on_rim, "{name}: {} tip at {tip:?}", d.id);
         }
