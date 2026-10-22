@@ -25,6 +25,12 @@ All notable changes to draftwright-rust are recorded here, in the style of
   with a thin gap. Those two sides are drawn once, as the frame's line. Its size and contents
   are unchanged; the views reserve exactly its area, and the scale note, projection symbol and
   default Ra symbol move with it.
+- The Python-rules catalogue (`docs/rules`) applies the 2026-10-22 evaluation of the 30 pending
+  rules: 2 met in full and 14 ported for what Rust implements, each naming the clauses retired
+  and why; `leader_shaft_unverified` retired; ISSUE-958-a and ARCH0020-1 left pending on
+  quiddity (quiddity-rust #69–#73); stale notes corrected. 13 rules remain pending. Two new
+  tests check that a fillet radius leader moved off its arc is reported, and that omitting a
+  threaded hole's callout reports its thread rather than losing it.
 
 ## 0.1.0-alpha.12 (2026-10-22)
 

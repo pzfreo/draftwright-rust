@@ -1379,10 +1379,10 @@
     adr: "archive 0003 'The escalation ladder'; 0009 Amendment 1; 0014; 0004 Amendment 2026-06-20"
     issues: [351, 352, 306, 54]
     tests: []
-  status: pending
-  rust_note: "Partly ported (src/hole_table.rs, model::plan_escalated): a hole callout or location placed off the sheet is dropped, reported with draftwright's code (callout_dropped, location_ref_dropped; off_axis_location_dropped at info), and a callout or plan-view location drop escalates to the pattern balloon or the hole table with balloons under draftwright's gates (at least 16 holes outside a pattern), the table transactional; unresolved drops are required losses the layout recovery (model::recover) tries a scale or sheet for; the Plan item's basis records a table's replacement. Detail views now recover approved crowded axial chains, heads and prismatic rungs (src/detail.rs); exact owned IDs move through the normal dimension planner. Still pending: the general Escalation remedies list and non-detail collision remedies. Stage H1 adds the table rung before any drop (tests/planned_hole_tables.rs::crowding_selects_a_schedule_before_any_item_is_dropped). Stage J detail views now reserve space during sheet choice, before iso fitting."
+  status: ported
+  rust_note: "Ported (2026-10-22 evaluation; src/hole_table.rs, model::plan_escalated, src/detail.rs): crowding selects a pattern balloon or hole schedule before any item is dropped, a table without every balloon is withdrawn whole, crowded axial chains, heads and prismatic rungs move to detail views with their own camera and scale, and layout recovery (model::recover) tries a scale or sheet; only what remains unresolved is reported with draftwright's *_dropped codes. Retired: the Escalation object, since the remedies are the planner's fixed sequence and each loss carries its code; and drop-on-collision, since the planner does not drop an item for colliding."
   port_note: "triage 2026-10-16: PORT, value medium, size L, stream detail-views"
-  rust_test: "dimensions::hole_tables::ftc09_keeps_every_hole_item_with_the_reserved_recess_lanes; dimensions::hole_tables::ftc08_keeps_every_hole_item_with_the_reserved_recess_lanes; dimensions::hole_tables::a_starved_dense_sheet_reports_every_dropped_hole_item"
+  rust_test: "dimensions::planned_hole_tables::crowding_selects_a_schedule_before_any_item_is_dropped; dimensions::hole_tables::a_table_without_every_balloon_is_withdrawn_whole; dimensions::hole_tables::a_starved_dense_sheet_reports_every_dropped_hole_item; rendering::detail_views::crowded_prismatic_rungs_and_y_chains_use_their_own_camera_and_scale"
 
 - id: ARCH0009-3
   statement: "A central hole's callout on a prismatic part stays on the view-centre row; on a turned part a coaxial bore's callout is pushed off the centre-line instead."
@@ -2012,7 +2012,7 @@
     tests: ["test_issue_1357_framed_activation.py", "test_issue_1357_pmi_frame.py"]
   status: pending
   port_note: "triage 2026-10-16: PORT, value low, size M, stream regression-pins"
-  rust_note: "Not ported here: quiddity-rust checks its recognisers under rigid motion, but no test plans a moved part and compares the Analysis's features and the plan's views; the port does not use framed recognition. Full invariance requires a cross-cutting canonical working Part shared by Analysis, projection, stock extents and PMI/frame correlation; it also crosses the separately owned datum/GD&T placement boundary."
+  rust_note: "Stays pending (2026-10-22 evaluation): waits on the quiddity 0.1.0 upgrade (draftwright-rust #166; quiddity-rust #69 to #72). quiddity-rust checks its recognisers under rigid motion, but no test here plans a moved part and compares the Analysis's features and the plan's views, and the port does not use framed recognition."
 
 - id: ARCH0020-2
   statement: "Each turned body gets its own step chain anchored to its own silhouette: equal lengths on parallel shafts keep separate marks, and if no conflict-free lane exists a chain is dropped with a required-outcome diagnostic rather than drawn over a sibling."
