@@ -339,8 +339,8 @@ fn every_plan_item_has_a_state_and_every_problem_subject_is_a_live_item() {
 }
 
 /// The same on the quality parts (`tools/quality_parts.txt`, from the corpus), planned as the
-/// command line plans them, one case per part. Automatic preferences retain every default
-/// item; explicitly overcrowded author choices retain the same loss-state/reporting contract.
+/// command line plans them, one case per part. Automatic preferences retain every item, with
+/// and without hole tables; explicitly overcrowded author choices retain the same loss-state/reporting contract.
 fn on_the_quality_part(file: &str) {
     let Some(dir) = corpus::dir() else {
         eprintln!("SKIPPED: the corpus is not found");
@@ -363,6 +363,11 @@ fn on_the_quality_part(file: &str) {
     let plan = model::plan_recovered(&a, &ladder).unwrap();
     consistent(file, &plan, &a, &ladder);
     sheet_rule::assert_preferences(&plan);
+    assert_eq!(
+        not_drawable(&plan),
+        0,
+        "{file}: the ladder (no hole table) quality drawings retain every item"
+    );
     let forced = overcrowded();
     let plan = model::plan_recovered(&a, &forced).unwrap();
     consistent(file, &plan, &a, &forced);
@@ -407,8 +412,9 @@ fn on_the_quality_parts_too() {
         not_drawable(&plan) > 0,
         "the explicitly starved drawing still exercises not-drawable states"
     );
-    // The default drawings drop nothing (each case asserts it), so this is the sum the
-    // whole-manifest test asserted: some overcrowded quality drawing drops an item.
+    // The ladder drawings drop nothing (each case asserts it), so this is the sum the
+    // whole-manifest test asserted over ladder plus overcrowded drawings: some overcrowded
+    // quality drawing drops an item.
     let forced = overcrowded();
     let dropped = files.iter().any(|file| {
         let a = cache::native(&dir.join(file)).1;

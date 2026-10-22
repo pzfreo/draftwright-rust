@@ -135,6 +135,13 @@ jobs:
           cargo nextest run --archive-file nextest-archive.tar.zst \
             --tool-config-file "test-shards:$PWD/shard-priorities.toml" \
             --workspace-remap . --extract-to . --extract-overwrite --profile ci -E "$filter"
+          # Every test assigned to this shard ran (the filterset names each one once).
+          expected=$(grep -o 'test(=' <<<"$filter" | wc -l)
+          ran=$(grep -o '<testcase ' target/nextest/ci/junit.xml | wc -l)
+          if [ "$expected" != "$ran" ]; then
+            echo "::error::shard ${{ matrix.shard }} was assigned $expected tests but ran $ran"
+            exit 1
+          fi
       # Durations for refreshing tools/test-durations.json (tools/test_shards.py --record).
       - if: always() && matrix.shard != 'harness'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
