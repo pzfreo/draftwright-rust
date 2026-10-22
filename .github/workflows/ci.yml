@@ -9,6 +9,13 @@ on:
 permissions:
   contents: read
 
+# A newer push to the same pull request cancels its superseded run. Every other run (each push
+# to main, each dispatch) has a group of its own: GitHub cancels a group's *pending* run when a
+# newer one queues even without cancel-in-progress, so a shared main group could skip a commit.
+concurrency:
+  group: ci-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 env:
   CARGO_TERM_COLOR: always
   CARGO_BUILD_JOBS: "8"
@@ -19,6 +26,8 @@ env:
 # fmt and clippy run beside the build; the build compiles every test binary once into a nextest
 # archive, and the archive's tests run in parallel jobs. Every test of `cargo test --release`
 # runs in exactly one of them (doc-tests, which nextest does not run, run in the build job).
+# The acceptance jobs need only the release executable, which the `binary` job builds in
+# about half the build's time, so they start before the test binaries are linked.
 jobs:
   # A pull request that changes only release metadata (versions, notes) runs lint alone;
   # tools/release_only.py says what counts. Pushes to main always run every job.
@@ -74,8 +83,30 @@ jobs:
           tool: nextest@0.9.146
       - run: cargo nextest archive --release --archive-file nextest-archive.tar.zst
       - run: cargo test --doc --release
-      # nextest's cargo test build also produces CARGO_BIN_EXE_draftwright. Reuse that
-      # release executable and this job's pinned corpus in every acceptance job.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: nextest-archive
+          path: nextest-archive.tar.zst
+          retention-days: 1
+
+  # The release executable alone (the library and the `draftwright` binary, the same profile
+  # and features as the archive's CARGO_BIN_EXE_draftwright), with this job's pinned corpus,
+  # for every acceptance job.
+  binary:
+    needs: changes
+    if: needs.changes.outputs.release_only != 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+        with:
+          repository: pzfreo/quiddity
+          ref: 6d544e060cd0eeb4442d2196e5df757b5a15ea55
+          path: quiddity
+          sparse-checkout: tests/corpus
+      - run: rustup toolchain install
+      - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+      - run: cargo build --release --locked --bin draftwright
       - run: |
           test -x target/release/draftwright
           tar -czf acceptance-inputs.tar.gz target/release/draftwright quiddity/tests/corpus
@@ -83,11 +114,6 @@ jobs:
         with:
           name: acceptance-inputs
           path: acceptance-inputs.tar.gz
-          retention-days: 1
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: nextest-archive
-          path: nextest-archive.tar.zst
           retention-days: 1
 
   test:
@@ -153,48 +179,96 @@ jobs:
             "${bin[0]}"
           done
 
+  # The quality-pins measurements (30 parts unpinned, the 270 runs of the nine random-pin
+  # cells, the AP242 CTC/FTC sources, and the rest of the 66-part repeated-span survey) run
+  # once each, balanced across these shards (tools/ci_acceptance.py shard_tasks).
+  # quality-gate compares them with one same-binary baseline, enforces every cell, and
+  # requires no repeated span on any survey part.
+  quality-pins:
+    name: acceptance (quality-pins-${{ matrix.shard }}-7)
+    needs: binary
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4, 5, 6, 7]
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: acceptance-inputs
+      - run: tar -xzf acceptance-inputs.tar.gz
+      - run: python3 -I tools/ci_acceptance.py --job quality-pins --shard ${{ matrix.shard }}/7 --out target/acceptance
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: acceptance-quality-pins-${{ matrix.shard }}-7
+          path: target/acceptance/
+          if-no-files-found: error
+          retention-days: 14
+      # What quality-gate reads: the shard's results and the unpinned and AP242 drawings.
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: quality-gate-input-${{ matrix.shard }}-7
+          path: |
+            target/acceptance/quality-pins/shard.json
+            target/acceptance/quality-pins/quality/
+            target/acceptance/quality-pins/ap242/*.plan.json
+          if-no-files-found: error
+          retention-days: 1
+
+  quality-gate:
+    name: acceptance (quality-gate)
+    needs: [binary, quality-pins]
+    # Compare whatever the shards measured, even when one of them failed; a missing shard
+    # fails the gate.
+    if: ${{ !cancelled() && needs.binary.result == 'success' }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: acceptance-inputs
+      - run: tar -xzf acceptance-inputs.tar.gz
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          pattern: quality-gate-input-*
+          path: target/shards
+      - run: python3 -I tools/ci_acceptance.py --job quality-gate --require-go --shards-dir target/shards --out target/acceptance
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: always()
+        with:
+          name: acceptance-quality-gate
+          path: target/acceptance/
+          if-no-files-found: error
+          retention-days: 14
+
   acceptance:
     name: acceptance (${{ matrix.label }})
-    needs: build
+    needs: binary
     runs-on: ubuntu-latest
     timeout-minutes: ${{ matrix.timeout }}
     strategy:
       fail-fast: false
       matrix:
-        # Hosted measurements: 342 s baseline + 432 s per pin cell. Each shard
-        # measures a fresh same-binary baseline; nine shards enforce all 270 runs.
         include:
-          - {job: quality-pins, label: quality-pins-1-1, pin_args: "--pin-cell 1-1", timeout: 30}
-          - {job: quality-pins, label: quality-pins-1-3, pin_args: "--pin-cell 1-3", timeout: 30}
-          - {job: quality-pins, label: quality-pins-1-8, pin_args: "--pin-cell 1-8", timeout: 30}
-          - {job: quality-pins, label: quality-pins-2-1, pin_args: "--pin-cell 2-1", timeout: 30}
-          - {job: quality-pins, label: quality-pins-2-3, pin_args: "--pin-cell 2-3", timeout: 30}
-          - {job: quality-pins, label: quality-pins-2-8, pin_args: "--pin-cell 2-8", timeout: 30}
-          - {job: quality-pins, label: quality-pins-3-1, pin_args: "--pin-cell 3-1", timeout: 30}
-          - {job: quality-pins, label: quality-pins-3-3, pin_args: "--pin-cell 3-3", timeout: 30}
-          - {job: quality-pins, label: quality-pins-3-8, pin_args: "--pin-cell 3-8", timeout: 30}
-          # The 63-part survey runs as four interleaved slices of the sorted part
-          # names (the slices partition the survey); each keeps the 3600 s per-call
-          # budget, and the job limit stays at 120 min.
-          - {job: repeated-spans, label: repeated-spans-1-4, pin_args: "--survey-shard 1/4", timeout: 120}
-          - {job: repeated-spans, label: repeated-spans-2-4, pin_args: "--survey-shard 2/4", timeout: 120}
-          - {job: repeated-spans, label: repeated-spans-3-4, pin_args: "--survey-shard 3/4", timeout: 120}
-          - {job: repeated-spans, label: repeated-spans-4-4, pin_args: "--survey-shard 4/4", timeout: 120}
-          - {job: mcp, label: mcp, pin_args: "", timeout: 10}
-          - {job: plan-time, label: plan-time, pin_args: "", timeout: 30}
-          # cgb243 and threaded_connector_109, the slow tail's renders (#43 item 3).
-          - {job: render-tail, label: render-tail, pin_args: "", timeout: 30}
+          # Each budget runs alone in turn: plan-time, then the slow tail's renders
+          # (cgb243 and threaded_connector_109, #43 item 3), then the MCP evaluation.
+          - {job: budgets, label: budgets, pin_args: "--job plan-time --job render-tail --job mcp", timeout: 70}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
-        if: matrix.job == 'mcp'
+        if: matrix.job == 'budgets'
         with:
           node-version: '22'
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: acceptance-inputs
       - run: tar -xzf acceptance-inputs.tar.gz
-      - run: python3 -I tools/ci_acceptance.py --job ${{ matrix.job }} ${{ matrix.pin_args }} --out target/acceptance
+      - run: python3 -I tools/ci_acceptance.py ${{ matrix.pin_args }} --out target/acceptance
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:

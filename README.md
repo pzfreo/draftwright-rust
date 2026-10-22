@@ -213,7 +213,7 @@ plan, never hidden:
   AP242 CTC-01 improves from 25 to 10 crossing warnings: **2 leader × leader**,
   **5 leader × dimension line**, **3 leader × extension line**, **0 leader × arrow shaft**
   and **0 leaders through text**. Its R5 callout retains main's above-part fallback and
-  reported radial violation when no compliant improving route fits. CI's `quality-pins` job
+  reported radial violation when no compliant improving route fits. CI's `quality-gate` job
   holds all six counts on the 30 quality parts and four AP242 CTC/FTC fixtures to their
   recorded per-part baseline from merged origin/main: zero where zero today, never more.
   The recording command is in `tools/check_leader_crossings.py`'s docstring.
