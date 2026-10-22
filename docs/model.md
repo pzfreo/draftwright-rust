@@ -577,7 +577,14 @@ hard-findings, required-drops, scale and sheet-count ranking, with an explanatio
 One `sheet_preference_exceeded` info/advisory notice identifies the size, sheet
 count or both exceeded, the actual paper/scale/count, and why the preferred layout
 was refused. `Plan.sheet_candidates` and `sheet.basis` record the preferences and
-individual decisions. Explicit `sheet/size` or `sheet/scale` bypasses this search.
+individual decisions. A request whose reserved footprints (each view's outline at the
+smallest readable scale plus its baseline annotation bands, the aligned principal views,
+and the tables) cannot fit its paper is not planned: its candidate carries
+`kind: "ruled_out"`, no `scales`, and an outcome starting `ruled out: ` that states the
+first failed condition in paper mm against the paper's drawable area, for example
+`ruled out: view v:front with its annotation bands needs at least 305 × 217 mm at 1:2;
+A4 drawable area is 277 × 190 mm; 1:2 is the smallest readable scale`. Planned
+candidates carry no `kind`. Explicit `sheet/size` or `sheet/scale` bypasses this search.
 Automatic feasibility is checked before pin replay. A subsequent explicit drag
 keeps its ink and reports any off-sheet placement, as on a single sheet. A bare pin
 holds the finished drawing, after its route repair. Pins in a multi-sheet choice
