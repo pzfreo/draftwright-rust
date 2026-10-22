@@ -24,7 +24,6 @@ cases = {
     "two-slots": Compound(children=[slotted, Pos(0, 60, 0) * slotted]),
     "two-pads": Compound(children=[padded, Pos(120, 0, 0) * padded]),
     "two-pockets": Compound(children=[pocketed, Pos(120, 0, 0) * pocketed]),
-    "two-channels": Compound(children=[channel, Pos(0, 0, 60) * channel]),
     "two-channels-reversed": Compound(children=[Pos(0, 0, 60) * channel, channel]),
 }
 # ARCH0009-3: Python tests/test_layout_generalisation.py plus two block proportions.
@@ -43,5 +42,9 @@ cases.update({
         - Cylinder(0.8, 8, align=(Align.CENTER, Align.CENTER, b))
     ),
 })
+# two-channels.step is not exported here: build123d wrote this Compound([channel,
+# Pos(0, 0, 60) * channel]) with one occurrence of the block, so the file held one solid. The
+# committed file is quiddity-rust's tests/fixtures/two_channels_ordered.step: the reversed file
+# below with its two occurrences' placements swapped (quiddity-rust #73).
 for name, part in cases.items():
     export_step(part, out / f"{name}.step")

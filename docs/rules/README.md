@@ -38,8 +38,8 @@ Counts are computed from the merged YAML entries:
 | --- | --- | --- | --- | --- |
 | `adr.yaml` | 4 | 69 | 61 | 26 |
 | `lint.yaml` | 2 | 130 | 14 | 20 |
-| `issues.yaml` | 6 | 108 | 50 | 26 |
-| **All** | **12** | **307** | **125** | **72** |
+| `issues.yaml` | 5 | 109 | 50 | 26 |
+| **All** | **11** | **308** | **125** | **72** |
 
 The evaluation of 2026-10-22 re-read the 30 rules then pending against main (alpha.12) and
 closed 17. Two were met in full (LINT-code-pmi_source_text_mismatch, ISSUE-1143-e) and 14 are
@@ -49,7 +49,9 @@ leader-geometry clauses). LINT-code-leader_shaft_unverified is retired, since ty
 always carry their leader lines and view transforms. ISSUE-958-a (owned by quiddity) and
 ARCH0020-1 (waiting on the quiddity 0.1.0 upgrade) stay pending with updated notes, and the
 notes on the two remaining PORT rules were corrected. Every cited test was checked to exist.
-What still depends on quiddity: ISSUE-958-a on quiddity-rust #73, ARCH0020-1 on #69 to #72,
+ISSUE-958-a was later ported: its one-against-two channel count was a fixture that held a
+single solid (quiddity-rust #73, closed), now replaced. What still depends on quiddity:
+ARCH0020-1 on #69 to #72,
 and ISSUE-1143-e's NIST CTC-04 case (pocket-rim chamfer corners misread as countersink seats)
 on #76.
 
