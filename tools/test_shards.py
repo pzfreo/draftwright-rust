@@ -11,6 +11,11 @@ so the N shards partition it; stale durations only cost balance, never coverage.
   cargo nextest list --archive-file A --profile ci --message-format json > list.json
   python3 tools/test_shards.py --list list.json --shard 3/8   # prints the shard's filterset
 
+--priorities PATH also writes a nextest tool config (pass it as --tool-config-file) that
+starts the shard's tests longest first: a 270 s test that starts 460 s into its shard sets
+the shard's wall time. The repository's own `ci` overrides (the exclusive latency gates)
+take precedence over it; it takes precedence over the `default` profile's hand-kept order.
+
 Refresh the record from the JUnit reports of a CI run's test shards (artifacts test-junit-*):
   python3 tools/test_shards.py --record junit-dir
 """
@@ -60,6 +65,17 @@ def filterset(tests):
                       for b, names in by_binary.items())
 
 
+def priorities(tests, durations):
+    """A nextest tool config ranking the tests of 10 s or more by recorded duration."""
+    buckets = {}
+    for test in tests:
+        seconds = durations.get(f'{test[0]} {test[1]}', 0)
+        if seconds >= 10:
+            buckets.setdefault(min(99, round(seconds / 4)), []).append(test)
+    return ''.join(f"[[profile.ci.overrides]]\nfilter = '{filterset(group)}'\npriority = {p}\n\n"
+                   for p, group in sorted(buckets.items(), reverse=True))
+
+
 def record(directory):
     durations = {}
     for path in sorted(Path(directory).glob('**/*.xml')):
@@ -75,6 +91,8 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     parser.add_argument('--list', type=Path, help='nextest list --message-format json output')
     parser.add_argument('--shard', type=shard_arg, metavar='K/N')
+    parser.add_argument('--priorities', type=Path, metavar='TOML',
+                        help='Also write the shard\'s longest-first nextest tool config here')
     parser.add_argument('--record', type=Path, metavar='JUNIT_DIR')
     args = parser.parse_args()
     if args.record:
@@ -83,11 +101,14 @@ def main():
         parser.error('give --list and --shard, or --record')
     tests = listed(json.loads(args.list.read_text()))
     k, n = args.shard
-    shards, load = assign(tests, json.loads(DURATIONS.read_text()), n)
+    durations = json.loads(DURATIONS.read_text())
+    shards, load = assign(tests, durations, n)
     if not shards[k - 1]:
         raise SystemExit(f'shard {k}/{n} has no tests')
     print(f'shard {k}/{n}: {len(shards[k - 1])} of {len(tests)} tests, '
           f'{load[k - 1] / 60:.1f} of {sum(load) / 60:.1f} recorded test-minutes', file=sys.stderr)
+    if args.priorities:
+        args.priorities.write_text(priorities(shards[k - 1], durations))
     print(filterset(shards[k - 1]))
 
 

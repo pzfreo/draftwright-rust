@@ -130,8 +130,10 @@ jobs:
         run: |
           cargo nextest list --archive-file nextest-archive.tar.zst \
             --workspace-remap . --profile ci --message-format json > nextest-list.json
-          filter=$(python3 -I tools/test_shards.py --list nextest-list.json --shard ${{ matrix.shard }})
+          filter=$(python3 -I tools/test_shards.py --list nextest-list.json --shard ${{ matrix.shard }} \
+            --priorities "$PWD/shard-priorities.toml")
           cargo nextest run --archive-file nextest-archive.tar.zst \
+            --tool-config-file "test-shards:$PWD/shard-priorities.toml" \
             --workspace-remap . --extract-to . --extract-overwrite --profile ci -E "$filter"
       # Durations for refreshing tools/test-durations.json (tools/test_shards.py --record).
       - if: always() && matrix.shard != 'harness'
