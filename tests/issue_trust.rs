@@ -583,6 +583,21 @@ fn every_number_on_the_sheet_carries_a_claim() {
                 continue;
             }
             let [x, y] = run.at;
+            // The planned ISO 5457 grid's column numbers, centred on their fields in the top
+            // and bottom margins, state no measurement.
+            if let Some(grid) = &plan.sheet.zones
+                && let Ok(n) = run.text.parse::<u32>()
+                && (1..=grid.columns).contains(&n)
+            {
+                let [w, h] = plan.sheet.page;
+                let margin = draftwright::layout::MARGIN;
+                let centre = (f64::from(n) - 0.5) * w / f64::from(grid.columns);
+                if (x - centre).abs() < 1e-9
+                    && ((y - margin / 2.).abs() < 1e-9 || (y - (h - margin / 2.)).abs() < 1e-9)
+                {
+                    continue;
+                }
+            }
             assert!(
                 (x0..=x1).contains(&x) && (y0..=y1).contains(&y),
                 "{name}: {:?} at {:?} is claimed by no annotation",
