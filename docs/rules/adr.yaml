@@ -2012,7 +2012,7 @@
     tests: ["test_issue_1357_framed_activation.py", "test_issue_1357_pmi_frame.py"]
   status: pending
   port_note: "triage 2026-10-16: PORT, value low, size M, stream regression-pins"
-  rust_note: "Stays pending (2026-10-22 evaluation): waits on the quiddity 0.1.0 upgrade (draftwright-rust #166; quiddity-rust #69 and #70). quiddity-rust checks its recognisers under rigid motion, but no test here plans a moved part and compares the Analysis's features and the plan's views, and the port does not use framed recognition."
+  rust_note: "Stays pending (2026-10-22 evaluation): waits on the quiddity 0.1.0 upgrade (draftwright-rust #166; quiddity-rust #69 to #72). quiddity-rust checks its recognisers under rigid motion, but no test here plans a moved part and compares the Analysis's features and the plan's views, and the port does not use framed recognition."
 
 - id: ARCH0020-2
   statement: "Each turned body gets its own step chain anchored to its own silhouette: equal lengths on parallel shafts keep separate marks, and if no conflict-free lane exists a chain is dropped with a required-outcome diagnostic rather than drawn over a sibling."

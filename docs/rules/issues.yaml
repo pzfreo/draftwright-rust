@@ -359,7 +359,6 @@
   status: ported
   rust_test: "src/lint/prismatic.rs::tests::a_pad_is_defined_by_its_sizes_height_and_location; src/lint/prismatic.rs::tests::a_pocket_is_located_by_symmetry_the_datum_or_a_stated_location; audits::completeness_rules::each_raised_pad_states_its_footprint_height_and_location; issue_trust::a_callout_certifies_only_the_holes_it_claims"
   rust_note: "Ported (2026-10-22 evaluation): on test_issue_885's case study a pad with one size taken off is reported, not credited from an aligned sibling, and omitted furniture reports every pad gap; a pocket is located only by its own stated locations, symmetry, the datum or an open edge, and a misprinted location locates nothing. Pad and pocket lint credits sizes and locations by feature ID (src/lint/pads.rs, src/lint/pockets.rs, src/lint/prismatic.rs). Retired: the completeness-score clause; the port computes no completeness score, and every gap is a finding."
-  owner: draftwright
   port_note: "triage 2026-10-16: PORT, value low, size S, stream regression-pins"
 
 - id: ISSUE-909-a
@@ -836,8 +835,7 @@
     corpus_parts: []
   status: ported
   rust_test: "dimensions::coverage_holes::a_second_countersink_seat_is_unverifiable_without_recounting_the_bore; dimensions::coverage_holes::a_real_two_face_bore_reports_only_its_unattributed_seat; dimensions::coverage_holes::independent_countersink_fixtures_keep_each_seat_and_reject_misleading_ink"
-  rust_note: "Ported (2026-10-22 evaluation): a countersink seat not joined to a hole, such as the second seat of a two-sided bore, is counted as its own unverifiable requirement with no invented owner and without recounting the bore; a real two-face bore reports only its unattributed seat, and independent countersink fixtures keep each seat and reject misleading ink."
-  owner: draftwright
+  rust_note: "Ported (2026-10-22 evaluation): a countersink seat not joined to a hole, such as the second seat of a two-sided bore, is counted as its own unverifiable requirement with no invented owner and without recounting the bore; a real two-face bore reports only its unattributed seat, and independent countersink fixtures keep each seat and reject misleading ink. On NIST CTC-04 all 12 seats arrive unjoined because their drill bores are not recognised (quiddity-rust #74); each is reported unverifiable (24 hole_requirement_unverifiable, angle and diameter per seat), and the countersunk holes are not drawn until that is fixed."
   port_note: "triage 2026-10-16: PORT, value low, size M, stream holes-and-threads"
 
 - id: ISSUE-1144-a
@@ -870,7 +868,7 @@
     corpus_parts: []
   status: ported
   rust_test: "dimensions::planned_hole_tables::approved_fit_limits_survive_in_each_size_cell; dimensions::planned_hole_tables::approved_diameter_tolerances_reach_every_scheduled_size_cell_verbatim; dimensions::planned_hole_tables::schedule_cell_evidence_checks_approved_tolerance_precision_and_through_wording; dimensions::planned_hole_tables::semantic_pmi_callouts_remain_source_carrying_beside_the_schedule"
-  rust_note: "Ported (2026-10-22 evaluation; src/hole_table.rs::rows): an automatic table replaces only callouts it can state and clears only the drops of items it replaces; semantic PMI callouts keep their native callouts beside the schedule; approved fit limits and diameter tolerances reach each size cell verbatim, and schedule-cell evidence checks tolerance precision and through wording. THRU is printed as the callout prints it. Retired: authored through-wording, which has no Spec field (the table states THRU from the geometry, as the callout does); and the additive user-requested table, since hole_table=always selects a replacement representation and a table without every balloon is withdrawn whole (dimensions::hole_tables::a_table_without_every_balloon_is_withdrawn_whole)."
+  rust_note: "Ported (2026-10-22 evaluation; src/hole_table.rs::rows): an automatic table replaces only callouts it can state and clears only the drops of items it replaces; semantic PMI callouts keep their native callouts beside the schedule; approved fit limits and diameter tolerances reach each size cell verbatim, and schedule-cell evidence checks tolerance precision and through wording. THRU is printed as the callout prints it. A decorated or threaded hole callout is never replaced by an automatic table: a callout carrying any measurement besides bore.diameter and bore.depth (a thread, a counterbore, countersink or spotface seat) or a Spec tolerance keeps its own callout, and its drop stays reported; in a planned schedule, recess and thread wording is carried into the size cell verbatim. Retired: authored through-wording, which has no Spec field (the table states THRU from the geometry, as the callout does); and the additive user-requested table, since hole_table=always selects a replacement representation and a table without every balloon is withdrawn whole (dimensions::hole_tables::a_table_without_every_balloon_is_withdrawn_whole)."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream tables"
 
 - id: ISSUE-1144-c
@@ -1332,7 +1330,7 @@
     corpus_parts: []
   status: ported
   rust_test: "issue_drafting::every_authored_tolerance_reaches_the_label_that_claims_it; dimensions::planned_hole_tables::approved_diameter_tolerances_reach_every_scheduled_size_cell_verbatim"
-  rust_note: "Ported (2026-10-22 evaluation): on the five fixtures and thirteen sampled parts, every dimension given its own band prints that band exactly once and no other's, or the plan reports tolerance_withheld, view_plan_incomplete or tolerance_not_shown; on plate each band is drawn in exactly one text run. A hole table's size cells carry approved diameter tolerances verbatim. Deferred as a separate capability: tolerances on a callout's compound terms (counterbore, countersink and spotface sizes, a bore's depth). Those terms have no dimension ID on which to author a band, so no approved tolerance is dropped for want of them."
+  rust_note: "Ported (2026-10-22 evaluation): on the five fixtures and thirteen sampled parts, every dimension given its own band prints that band exactly once and no other's, or the plan reports tolerance_withheld, view_plan_incomplete or tolerance_not_shown; on plate each band is drawn in exactly one text run. A hole table's size cells carry approved diameter tolerances verbatim. Retired from this rule as a separate capability: tolerances on a callout's compound terms (counterbore, countersink and spotface sizes, a bore's depth). Those terms have no dimension ID on which to author a band, so no approved tolerance is dropped for want of them."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream holes-and-threads"
 
 - id: ISSUE-1215-d
@@ -1427,7 +1425,6 @@
   status: ported
   rust_test: "issue_trust::a_claim_is_credited_only_when_its_text_states_the_value; dimensions::planned_hole_tables::schedule_cell_evidence_checks_approved_tolerance_precision_and_through_wording"
   rust_note: "Ported (2026-10-22 evaluation): hole coverage reads a claiming callout term by term (src/lint/holes.rs::Callout). Each size is credited only when the term that states it rounds from the part's value at its printed precision; a repeat count, a grid's (r×c), a bolt circle's diameter, a tolerance or another size of the same value confirms nothing. Hole-table cells are checked for approved tolerance precision and through wording. Retired: a term parser per annotation family. The families sharing lint::parameters still credit a claiming mark when any number in its label rounds from the value (holes::states), a repeat count included, so '2× R3' would confirm a 2 mm fillet; that is accepted because the port prints each of those labels from the same value it claims, so a count cannot stand in for a missing size on a drawing the port made. Retired: locations and pitches verified against their own spans. The port plans those dimensions from the measured geometry they claim, and the location lint (src/lint/location.rs) judges them through witness stations with holes::states, not by re-measuring each label's drawn span; span ownership belongs to the dimension-ownership work, not this rule."
-  owner: draftwright
   port_note: "triage 2026-10-16: PORT, value low, size S, stream lint-and-reporting"
 
 - id: ISSUE-1217-b
@@ -2191,7 +2188,6 @@
   status: ported
   rust_test: "dimensions::dims_stock::lint_finds_the_stock_stated; dimensions::dims_stock::rigid_motion_moves_the_views_but_not_the_statements"
   rust_note: "Ported (2026-10-22 evaluation): polygonal stock is dimensioned (ARCH0015-4), lint checks both requirements (across flats and length) on roll17 and four other bars, and rigid motion of the part moves the views but not the statements. Retired: the leader and witness geometry clauses. They are unreachable: a pin moves only a dimension's bend, so a leader cannot be moved off its flat, nor a witness off the cap span."
-  owner: draftwright
   port_note: "triage 2026-10-16: PORT, value low, size M, stream leaders-and-tips"
 
 - id: ISSUE-1373-a
@@ -2242,7 +2238,6 @@
   status: ported
   rust_test: "dimensions::dims_edges::equal_fillets_share_one_counted_callout; rendering::leader_rules::fillet_radius_shafts_use_the_fillets_own_cylindrical_evidence; rendering::leader_rules::a_radius_tip_lands_on_the_trimmed_profile_arc; rendering::leader_rules::a_fillet_radius_tip_moved_off_its_arc_is_reported"
   rust_note: "Ported (2026-10-22 evaluation): each fillet is one requirement, and equal fillets share one n× R callout that keeps every member's fillet.radius measurement. Lint reads the drawn tip against the round's own trimmed arc (src/lint/leaders.rs): a fillet.radius tip moved past its arc or off its circle is reported (radius_leader_not_radial), as a blend.radius tip off its profile arc is (radius_leader_target_mismatch)."
-  owner: draftwright
   port_note: "triage 2026-10-16: PORT, value medium, size S, stream leaders-and-tips"
 
 - id: ISSUE-1374-c
@@ -2372,7 +2367,7 @@
     corpus_parts: []
   status: ported
   rust_test: "audits::completeness_rules::an_oriented_slot_is_called_out_once_with_both_requirements_on_its_rim"
-  rust_note: "Ported (2026-10-22 evaluation; stream K5): a free-direction slot is dimensioned by one callout carrying both requirements, its arrow on the physical rotated rim (checked within 0.001 mm on mfcadpp_holdout/467, turned about 27°). Not part of this port: leaving pattern members to the pattern. That needs quiddity's oriented-slot pattern record, which native check_oriented_slot_patterns validates and discards (#1430); until then equal slots share one n× callout."
+  rust_note: "Ported (2026-10-22 evaluation; stream K5): a free-direction slot is dimensioned by one callout carrying both requirements, its arrow on the physical rotated rim (checked within 0.001 mm on mfcadpp_holdout/467, turned about 27°). Retired from this rule as a separate capability: leaving pattern members to the pattern. That needs quiddity's oriented-slot pattern record, which native check_oriented_slot_patterns validates and discards (#1430); until then equal slots share one n× callout. Retired: the rigid-motion clause. No rotated copy of a slot fixture exists, and making one means a transformed STEP through quiddity; invariance of the recognised slot under rigid motion is quiddity-rust's (it checks its recognisers under rigid motion), and draftwright's half, one callout with its tip on the rim, is exercised on a slot turned about 27° from the axes rather than an axis-aligned one."
   port_note: "triage 2026-10-16: PORT, value low, size S, stream regression-pins"
 
 - id: ISSUE-1432-b
