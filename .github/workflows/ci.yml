@@ -102,10 +102,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Eight duration-balanced shards of the `ci` profile's tests (tools/test_shards.py),
+        # Seven duration-balanced shards of the `ci` profile's tests (tools/test_shards.py),
         # and the binaries it leaves out run whole under their own harness
         # (.config/nextest.toml says why).
-        shard: [1/8, 2/8, 3/8, 4/8, 5/8, 6/8, 7/8, 8/8, harness]
+        shard: [1/7, 2/7, 3/7, 4/7, 5/7, 6/7, 7/7, harness]
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
