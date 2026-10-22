@@ -29,6 +29,11 @@ WEIGHTS = {
     'nist_ctc_01_asme1_rd': 9, 'nist_ctc_03_asme1_rc': 4, '10020': 3, 'string_post': 2.4,
     'sm-hanger': 2.2, 'nist_ctc_02_asme1_ap242-e2': 91, 'nist_ftc_10_asme1_ap242-e2': 32,
     'nist_ftc_07_asme1_ap242-e2': 16, 'nist_ctc_01_asme1_ap242-e1': 5,
+    # Survey-only parts (review off), timed on a loaded machine and scaled to the above.
+    'nist_stc_09_asme1_ap242-e4': 77, 'nist_stc_10_asme1_ap242-e2': 51, 'nist_stc_06_asme1_ap242-e3': 37,
+    'bracket_positions': 29, 'hw_every_kind': 14, 'spool_fits': 11, 'nist_ctc_01_merge': 9,
+    '10190': 9, 'hw_spool_fits_intent': 8, 'hw_thread_replaced': 8, 'flanged_spool_132': 7,
+    'hw_thread_removed': 7,
 }
 CORPUS_REV = '6d544e060cd0eeb4442d2196e5df757b5a15ea55'
 spec = importlib.util.spec_from_file_location('quality', ROOT / 'tools/quality.py')
@@ -78,10 +83,14 @@ def ap242_fixtures():
 
 def quality_tasks():
     """Every measurement of the quality-pins job: each quality part unpinned, each part in
-    each of the nine random-pin cells, and each AP242 CTC/FTC source."""
+    each of the nine random-pin cells, each AP242 CTC/FTC source, and the rest of the
+    repeated-span survey (its verdict reads the plan, so the unpinned quality and AP242
+    measurements serve the survey for their parts)."""
     parts = sorted(names(manifest('quality_parts.txt')))
+    ap242 = [Path(f.stem).stem for f in ap242_fixtures()]
+    rest = sorted(survey_names() - set(parts) - set(ap242))
     return ([('quality', p) for p in parts] + [(f'pins-{c}', p) for c in PIN_CELLS for p in parts]
-            + [('ap242', Path(f.stem).stem) for f in ap242_fixtures()])
+            + [('ap242', p) for p in ap242] + [('survey', p) for p in rest])
 
 
 def shard_tasks(k, n):
@@ -220,6 +229,12 @@ class Run:
         for fixture in ap242_fixtures():
             files[Path(fixture.stem).stem] = out / 'ap242-inputs' / fixture.stem
             files[Path(fixture.stem).stem].write_bytes(gzip.decompress(fixture.read_bytes()))
+        try:
+            for path in survey.inputs(args.corpus, out / 'survey-inputs'):
+                files.setdefault(path.stem, path)
+        except AssertionError as error:
+            self.steps.append({'name': 'survey-inputs', 'passed': False, 'error': str(error)})
+            return
         tasks = shard_tasks(k, n)
         plans, lock = {}, threading.Lock()
 
@@ -244,6 +259,10 @@ class Run:
                     return quality.one(files[name], binary, out / 'quality', timeout=timeout)[1]
                 if kind == 'ap242':
                     return quality.one(files[name], binary, out / 'ap242', timeout=timeout)[1]
+                if kind == 'survey':
+                    # The survey's own per-call budget; review feeds only quality cells.
+                    return quality.one(files[name], binary, out / 'survey', review=False,
+                                       timeout=getattr(args, 'part_timeout', None) or 3600)[1]
                 seed, pins = map(int, kind[5:].split('-'))
                 spec, ids = quality.random_pins(unpinned(name), name, seed, pins)
                 path = out / kind / 'pinned' / f'{name}.spec.json'
@@ -334,6 +353,15 @@ class Run:
                            'observed_exit_code': rejected.returncode, 'expected_exit_code': 1})
         self.step('label-lane-locality', [*py, ROOT / 'tools/check_label_lanes.py',
                   '--current', quality_out, '--after-binary', binary])
+        # The repeated-span survey: no placed linear span repeats on any of its 66 parts.
+        verdicts = read(ROOT / 'tests/fixtures/known_repeated_spans.json')
+        surveyed = {**merged['quality'], **merged['ap242'], **merged['survey']}
+        (out / 'survey').mkdir()
+        write(out / 'survey' / 'baseline.json', surveyed)
+        if all(v['verdict'] == 'rust-correct' and v['evidence'].strip() for v in verdicts):
+            self.verify('survey', 'survey', surveyed, None)
+        else:
+            self.steps.append({'name': 'survey', 'passed': False, 'error': 'unreviewed repeated-span verdict'})
         baseline = merged['quality']
         for cell in PIN_CELLS:
             seed, pins = map(int, cell.split('-'))
@@ -406,7 +434,9 @@ def main():
     parser.add_argument('--results', type=Path)
     parser.add_argument('--documents-dir', type=Path, help='Check saved MCP judge documents and PNGs')
     args = parser.parse_args()
-    jobs = list(JOBS) if not args.job or 'all' in args.job else list(dict.fromkeys(args.job))
+    # quality-gate holds the survey verdict, so `all` leaves the standalone survey out.
+    everything = [job for job in JOBS if job != 'repeated-spans']
+    jobs = everything if not args.job or 'all' in args.job else list(dict.fromkeys(args.job))
     args.job = 'all' if not args.job or 'all' in args.job else args.job[0] if len(jobs) == 1 else 'several'
     if any(t is not None and t <= 0 for t in (args.part_timeout, args.step_timeout)):
         parser.error('timeouts must be positive')
