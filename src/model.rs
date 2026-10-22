@@ -497,6 +497,11 @@ pub struct SheetSpec {
     /// `n:m`, from ISO 5455's series.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub scale: Option<String>,
+    /// Dimension-line spacing: unset uses normal 10/7 mm lanes and falls back to compact
+    /// 7/5.5 mm on the same sheet before a smaller scale or larger paper; `normal` forbids
+    /// that fallback and `compact` uses compact lanes directly.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub dimension_spacing: Option<DimensionSpacing>,
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub title: BTreeMap<String, String>,
     /// Legacy spelling of `fit_deviations`; explicit values remain supported.
@@ -518,6 +523,23 @@ pub struct SheetSpec {
     /// symbol beside the title block, as an AP242 one on the part is drawn ([`crate::spec_notes`]).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub default_finish: Option<crate::spec_notes::FinishSpec>,
+}
+
+/// Sheet-wide dimension-line spacing ([`SheetSpec::dimension_spacing`]).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum DimensionSpacing {
+    /// First line 10 mm from the outline, then 7 mm between lines.
+    #[default]
+    Normal,
+    /// First line 7 mm from the outline, then 5.5 mm between lines.
+    Compact,
+}
+
+impl DimensionSpacing {
+    pub fn is_normal(&self) -> bool {
+        *self == Self::Normal
+    }
 }
 
 fn view_gutter<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<f64>, D::Error> {
@@ -768,6 +790,9 @@ pub struct PlannedSheet {
     /// Resolved projection furniture; absent in plans written before the symbol was ported.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub projection_symbol: Option<title_block::ProjectionPlaced>,
+    /// The dimension-line spacing the drawing was planned with; absent means normal.
+    #[serde(default, skip_serializing_if = "DimensionSpacing::is_normal")]
+    pub dimension_spacing: DimensionSpacing,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -1874,7 +1899,7 @@ pub fn recover(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, In
     let bytes = serde_json::to_vec(&(analysis_key, spec, &first, crate::nominal::comparison()))
         // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
         .expect("plan inputs serialize");
-    let key: [u8; 32] = Sha256::digest(&bytes).into();
+    let key = crate::planning::spaced_digest(&Sha256::digest(&bytes).into());
     let mut plan = if let Some(plan) = MEMO.get(&key) {
         plan
     } else {
@@ -2037,7 +2062,7 @@ fn compact_authored_row(analysis: &Analysis, plan: &mut Plan) {
 const LARGE_SHEET: usize = 2;
 
 /// Whether the part's views fit A3 at 1:1 (maintainer, 2026-10-15): drawn full size, each with
-/// one dimension row ([`layout::DIM_PAD`]) on either side, the row of views (the front with the
+/// one dimension row ([`layout::dim_pad`]) on either side, the row of views (the front with the
 /// side and any sections beside it) is no wider than A3's usable paper and the column (the plan
 /// above the front) no taller. Such a part exhausts single- and multi-sheet A4/A3 plans
 /// before the automatic search admits A2 or larger.
@@ -2056,12 +2081,12 @@ pub(crate) fn fits_a3_at_full_size(analysis: &Analysis, first: &Plan) -> bool {
     let row: f64 = views
         .iter()
         .filter(|v| v.id != "v:plan")
-        .map(|v| size(v)[0] + 2.0 * layout::DIM_PAD)
+        .map(|v| size(v)[0] + 2.0 * layout::dim_pad())
         .sum();
     let column: f64 = views
         .iter()
         .filter(|v| v.id == "v:plan" || v.id == "v:front")
-        .map(|v| size(v)[1] + 2.0 * layout::DIM_PAD)
+        .map(|v| size(v)[1] + 2.0 * layout::dim_pad())
         .sum();
     row <= w - 2.0 * layout::MARGIN && column <= h - 2.0 * layout::MARGIN
 }
@@ -2092,51 +2117,60 @@ pub(crate) fn established_key(spec: &Spec) -> Vec<u8> {
 /// decisions. This comparison never replaces the full native final inventory.
 pub(crate) fn established_drawing(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     let key = established_key(spec);
-    let reference = crate::planning::memo(
-        analysis,
-        "prepared-established-drawing",
-        key.clone(),
-        || {
-            let mut reference = analysis.clone();
-            reference.features.retain(|f| f.kind != "section_recess");
-            let mut base = Spec {
-                hole_table: spec.hole_table,
-                pmi: spec.pmi,
-                origin: spec.origin.clone(),
-                ..Spec::default()
-            };
-            // This unrendered historical route template must not change with the
-            // paper preferences. The recipient has its own ordered sheet search, just
-            // as when packing annotation blocks from an explicit A0 template.
-            base.sheet.preferred_max_size = Some("A0".into());
-            base.sheet.projection = spec.sheet.projection.clone();
-            base.sheet.references = spec.sheet.references;
-            crate::planning::with(&reference, || {
-                // This recipe precedes the added notch bands as well as native recesses.
-                // Otherwise a displaced leader becomes its own established route, and
-                // refinement cannot detect the new model-edge or arrowhead contact.
-                // Only the comparison scope omits these annotations; the final solve
-                // retains the original source evidence and every notch requirement.
-                crate::planning::store(
-                    &reference,
-                    "v_notches",
-                    Vec::new(),
-                    Vec::<crate::lint::notch_evidence::Notch>::new(),
-                );
-                // Preserve the established presentation when reserving old routes.
-                // The actual drawing may move an occluded circular statement to its
-                // visible profile after those other routes have claimed their ink.
-                crate::planning::store(&reference, "canonical-circular-recipes", Vec::new(), true);
-                // Keep the established compact corridors as an unrendered
-                // comparison; live placements are remeasured at faithful widths.
-                if crate::nominal::geometry_eligible(&reference) {
-                    crate::nominal::with_comparison(|| plan_automatic(&reference, &base))
-                } else {
-                    plan_automatic(&reference, &base)
-                }
-            })
-        },
-    );
+    // A historical route template: the established normal-spacing drawing, whatever the
+    // candidate's dimension spacing.
+    let reference = crate::dims::with_compact(false, || {
+        crate::planning::memo(
+            analysis,
+            "prepared-established-drawing",
+            key.clone(),
+            || {
+                let mut reference = analysis.clone();
+                reference.features.retain(|f| f.kind != "section_recess");
+                let mut base = Spec {
+                    hole_table: spec.hole_table,
+                    pmi: spec.pmi,
+                    origin: spec.origin.clone(),
+                    ..Spec::default()
+                };
+                // This unrendered historical route template must not change with the
+                // paper preferences. The recipient has its own ordered sheet search, just
+                // as when packing annotation blocks from an explicit A0 template.
+                base.sheet.preferred_max_size = Some("A0".into());
+                base.sheet.projection = spec.sheet.projection.clone();
+                base.sheet.references = spec.sheet.references;
+                crate::planning::with(&reference, || {
+                    // This recipe precedes the added notch bands as well as native recesses.
+                    // Otherwise a displaced leader becomes its own established route, and
+                    // refinement cannot detect the new model-edge or arrowhead contact.
+                    // Only the comparison scope omits these annotations; the final solve
+                    // retains the original source evidence and every notch requirement.
+                    crate::planning::store(
+                        &reference,
+                        "v_notches",
+                        Vec::new(),
+                        Vec::<crate::lint::notch_evidence::Notch>::new(),
+                    );
+                    // Preserve the established presentation when reserving old routes.
+                    // The actual drawing may move an occluded circular statement to its
+                    // visible profile after those other routes have claimed their ink.
+                    crate::planning::store(
+                        &reference,
+                        "canonical-circular-recipes",
+                        Vec::new(),
+                        true,
+                    );
+                    // Keep the established compact corridors as an unrendered
+                    // comparison; live placements are remeasured at faithful widths.
+                    if crate::nominal::geometry_eligible(&reference) {
+                        crate::nominal::with_comparison(|| plan_automatic(&reference, &base))
+                    } else {
+                        plan_automatic(&reference, &base)
+                    }
+                })
+            },
+        )
+    });
     crate::planning::store(analysis, "established-drawing", key, reference.clone());
     if let Ok(plan) = &reference {
         crate::planning::store(analysis, "established-route-policy", Vec::new(), true);
@@ -3407,6 +3441,7 @@ pub(crate) fn pin_base(spec: &Spec) -> Spec {
     base.sheet.scale = spec.sheet.scale.clone();
     base.sheet.preferred_max_size = spec.sheet.preferred_max_size.clone();
     base.sheet.preferred_max_sheets = spec.sheet.preferred_max_sheets;
+    base.sheet.dimension_spacing = spec.sheet.dimension_spacing;
     base.sheet.projection = spec.sheet.projection.clone();
     base.sheet.fit_deviations = spec.sheet.fit_deviations;
     base.sheet.references = spec.sheet.references;
@@ -3470,15 +3505,20 @@ fn plan_recovered_inner(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invali
         } else {
             crate::sheet_policy::select(analysis, spec)?
         };
-        let effective = crate::spec_gdt::effective(analysis, &plan.spec)?;
-        // Repair only the selected drawing. Candidate paper/scale trials keep their
-        // established costs, so a clearer route cannot force a larger sheet.
-        crate::dims::callout_routes::finish(effective.as_ref(), spec, &mut plan);
-        crate::dims::pmi_policy::audit(effective.as_ref(), &plan.spec.clone(), &mut plan);
-        if crate::dims::pmi_policy::carries(effective.as_ref()) || !spec.origin.is_empty() {
-            crate::fixes::attach(effective.as_ref(), &mut plan);
-        }
-        Ok(plan)
+        // Finish the selected drawing with the spacing it was planned with, which may be the
+        // automatic compact fallback ([`crate::sheet_policy`]).
+        let compact = plan.sheet.dimension_spacing == DimensionSpacing::Compact;
+        crate::dims::with_compact(compact, || {
+            let effective = crate::spec_gdt::effective(analysis, &plan.spec)?;
+            // Repair only the selected drawing. Candidate paper/scale trials keep their
+            // established costs, so a clearer route cannot force a larger sheet.
+            crate::dims::callout_routes::finish(effective.as_ref(), spec, &mut plan);
+            crate::dims::pmi_policy::audit(effective.as_ref(), &plan.spec.clone(), &mut plan);
+            if crate::dims::pmi_policy::carries(effective.as_ref()) || !spec.origin.is_empty() {
+                crate::fixes::attach(effective.as_ref(), &mut plan);
+            }
+            Ok(plan)
+        })
     })
 }
 
@@ -3494,8 +3534,10 @@ pub(crate) fn plan_automatic(analysis: &Analysis, spec: &Spec) -> Result<Plan, I
     ))
     // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
     .expect("planning inputs serialize");
-    crate::planning::memo(analysis, "finished-plan", key, || {
-        plan_automatic_uncached(analysis, spec)
+    crate::dims::spaced(spec, || {
+        crate::planning::memo(analysis, "finished-plan", key, || {
+            plan_automatic_uncached(analysis, spec)
+        })
     })
 }
 
@@ -4033,15 +4075,17 @@ fn plan_inner(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
         return crate::dims::pmi_policy::ignore(analysis, spec, plan);
     }
     crate::planning::with(analysis, || {
-        let mut plan = plan_with(analysis, spec, false, false, None, false, false)?;
-        finish_nominal_plan(analysis, spec, &mut plan);
-        crate::dims::callout_routes::finish(analysis, spec, &mut plan);
-        if !crate::placement_intent::has_pins(spec) {
-            plan.record_dimension_labels();
-        }
-        crate::dims::pmi_policy::audit(analysis, spec, &mut plan);
-        crate::fixes::attach(analysis, &mut plan);
-        Ok(plan)
+        crate::dims::spaced(spec, || {
+            let mut plan = plan_with(analysis, spec, false, false, None, false, false)?;
+            finish_nominal_plan(analysis, spec, &mut plan);
+            crate::dims::callout_routes::finish(analysis, spec, &mut plan);
+            if !crate::placement_intent::has_pins(spec) {
+                plan.record_dimension_labels();
+            }
+            crate::dims::pmi_policy::audit(analysis, spec, &mut plan);
+            crate::fixes::attach(analysis, &mut plan);
+            Ok(plan)
+        })
     })
 }
 
@@ -5298,6 +5342,11 @@ fn plan_with_presentation(
         title,
         title_cells,
         projection_symbol: Some(title_block::projection(g.title_block, first_angle)),
+        dimension_spacing: if crate::dims::compact() {
+            DimensionSpacing::Compact
+        } else {
+            DimensionSpacing::Normal
+        },
     };
     if let Some(base) = &canonical {
         sheet.page = base.sheet.page;
@@ -6774,7 +6823,7 @@ pub(crate) fn radius_edit_reference(
         // retain their identical reference without planning it again.
         static MEMO: crate::planning::BoundedMemo<Option<Plan>> =
             crate::planning::BoundedMemo::new(128);
-        let digest: [u8; 32] = Sha256::digest(&key).into();
+        let digest = crate::planning::spaced_digest(&Sha256::digest(&key).into());
         if let Some(reference) = MEMO.get(&digest) {
             return reference;
         }
@@ -7418,6 +7467,7 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
                         | "sheets"
                         | "sheets/max"
                         | "sheets/smallest_scale"
+                        | "sheet/dimension_spacing"
                 )
             )
         });

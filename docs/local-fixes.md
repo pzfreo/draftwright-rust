@@ -6,6 +6,8 @@ A local fix sets the existing `sheet/size`, `sheet/scale` and `sheets/max` field
 sheet selection, view repacking, measured refits or final gutters. Measured linear
 reservation bounds still include the complete drawn ink, without re-packing carriers.
 Paper and scale alone do not bypass those later layout stages, so the boolean is necessary.
+When the drawing fell back to compact dimension spacing, the fix also sets
+`sheet/dimension_spacing: compact`, so the retained layout keeps its lanes.
 The Spec contains no captured page coordinates or required-item lists. It remains
 readable author intent and reconstructs independently of an editor session.
 
@@ -33,7 +35,7 @@ a clean alternative before returning that disclosed trade. Errors are rejected r
 than offered. This limits verification cost. Actual apply remains authoritative for
 interactions with other placements and information retention.
 
-A later explicit paper, scale or sheet-count edit releases an inherited
+A later explicit paper, scale, sheet-count or dimension-spacing edit releases an inherited
 `sheet/keep_layout` guard. Setting the boolean explicitly in that same batch keeps
 the local promise and refuses conflicting sheet choices. Thus stateless edits can
 progress from a local repair to an intentional sheet change without a hidden lock.

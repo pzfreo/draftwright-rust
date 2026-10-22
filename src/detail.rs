@@ -653,8 +653,8 @@ fn pads(d: &Detail) -> [f64; 4] {
                 .iter()
                 .filter(|id| id.ends_with("/step.length"))
                 .count();
-            crate::dims::FIRST
-                + rows.saturating_sub(1) as f64 * crate::dims::LANE
+            crate::dims::first_line()
+                + rows.saturating_sub(1) as f64 * crate::dims::lane_pitch()
                 + 2.0 * crate::dims::TEXT
         } else {
             12.0

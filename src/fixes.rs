@@ -15,6 +15,7 @@ pub fn path_scope(path: &str) -> Scope {
         ("sheets/**", Sheet),
         ("sheet/size", Sheet),
         ("sheet/scale", Sheet),
+        ("sheet/dimension_spacing", Sheet),
         ("hole_table", Sheet),
         ("dimension_source", Sheet),
         ("dimension_schemes/**", Sheet),
@@ -89,7 +90,11 @@ pub fn scope(ops: &[Op]) -> Scope {
                 && op.op == "set"
                 && matches!(
                     op.path.as_str(),
-                    "sheet/keep_layout" | "sheet/size" | "sheet/scale" | "sheets/max"
+                    "sheet/keep_layout"
+                        | "sheet/size"
+                        | "sheet/scale"
+                        | "sheets/max"
+                        | "sheet/dimension_spacing"
                 ))
         })
         .collect();
@@ -218,6 +223,10 @@ fn op_description(op: &Op) -> String {
             "lay out the whole sheet again".into()
         },
         "sheet/size" => text.map_or_else(|| choose("paper size"), |v| format!("use {v} paper")),
+        "sheet/dimension_spacing" => text.map_or_else(
+            || choose("dimension spacing"),
+            |v| format!("keep {v} dimension spacing"),
+        ),
         "sheet/title/tolerance" => text.map_or_else(
             || "remove the general tolerance from the title block".into(),
             |v| if v == "UNSPECIFIED" {
@@ -439,7 +448,11 @@ pub(crate) fn retain_local_layout(plan: &mut crate::model::Plan) {
                 fix.ops.retain(|op| {
                     !matches!(
                         op.path.as_str(),
-                        "sheet/keep_layout" | "sheet/size" | "sheet/scale" | "sheets/max"
+                        "sheet/keep_layout"
+                            | "sheet/size"
+                            | "sheet/scale"
+                            | "sheets/max"
+                            | "sheet/dimension_spacing"
                     )
                 });
                 fix.ops
@@ -449,12 +462,25 @@ pub(crate) fn retain_local_layout(plan: &mut crate::model::Plan) {
                 fix.ops
                     .push(Op::set("sheet/scale", serde_json::json!(plan.sheet.scale)));
                 fix.ops.push(Op::set("sheets/max", serde_json::json!(1)));
+                // An automatic compact fallback is part of the retained layout.
+                if plan.spec.sheet.dimension_spacing.is_none()
+                    && plan.sheet.dimension_spacing == crate::model::DimensionSpacing::Compact
+                {
+                    fix.ops.push(Op::set(
+                        "sheet/dimension_spacing",
+                        serde_json::json!("compact"),
+                    ));
+                }
             } else {
                 fix.minimum_scope = Some(Scope::Sheet);
                 fix.ops.retain(|op| {
                     !matches!(
                         op.path.as_str(),
-                        "sheet/keep_layout" | "sheet/size" | "sheet/scale" | "sheets/max"
+                        "sheet/keep_layout"
+                            | "sheet/size"
+                            | "sheet/scale"
+                            | "sheets/max"
+                            | "sheet/dimension_spacing"
                     )
                 });
                 if plan.spec.sheet.keep_layout == Some(true) {

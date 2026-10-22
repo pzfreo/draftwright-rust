@@ -6,6 +6,27 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### Added
+
+- **Compact dimension spacing.** Dimension lines stay 10 mm from the outline and 7 mm apart
+  when there is room. When a one-sheet candidate runs out of room, the same paper and scale
+  are tried with compact spacing before a smaller scale, larger paper or more sheets: the
+  first line 7 mm from the outline, then 5.5 mm between lines (1.5 mm clear above each
+  label, and clear of the 2 mm extension overshoot).
+  - The retry runs only for a lack of room compact lanes could cover (space drops, page-fit
+    verdicts, dimension ink off the sheet, or clipping within the lanes' possible saving), not
+    for overlaps or unrelated furniture. The existing usable test (overlaps, leaders,
+    legibility, losses) still gates compact candidates. Splits onto more sheets keep normal
+    lanes.
+  - `sheet/dimension_spacing: normal | compact` sets the intent: `normal` forbids the
+    fallback, `compact` uses compact lanes directly.
+  - The plan records `sheet.dimension_spacing: "compact"` when used (absent means normal),
+    and the sheet choice says "with compact dimension spacing". The Spec is unchanged.
+  - A local fix offered on a compact drawing keeps `sheet/dimension_spacing: compact` with
+    its paper, scale and count.
+  - Drawings that change: 1013 goes from A3 2:1 to A4 1:1. The prismatic test fixture
+    without its isometric stays at A4 2:1 instead of 1:1.
+
 ## 0.1.0-alpha.11 (2026-10-21)
 
 ### Added

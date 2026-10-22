@@ -1,7 +1,7 @@
 //! Bounded label alternatives on settled ink. GD&T and callout routes are immutable obstacles;
 //! moving a dimension may remove contact, but may never add it (ISSUE-1334-a).
 use super::placement::{Page, boxes_overlap, crosses, ink_points};
-use super::{ARROW, LANE, Placed, PlannedDimension};
+use super::{ARROW, Placed, PlannedDimension, lane_pitch};
 use crate::model::{Analysis, PlannedSheet, PlannedView, Spec};
 
 const CLEAR: f64 = 1.0;
@@ -843,7 +843,7 @@ fn settle_inventory_uncached(
         };
         // A single occupied rung may be skipped; fixed-ink obstructions never justify
         // a farther search. Two paper lanes is the absolute movement bound.
-        let next = promote(p, LANE);
+        let next = promote(p, lane_pitch());
         let next_occupied = others.iter().any(|q| shared_span_contact(&next, q));
         let chained = others.iter().any(|q| {
             q.view == d.view
@@ -861,9 +861,11 @@ fn settle_inventory_uncached(
         })
             // Restoring an overall may spend two outward lanes beyond the old
             // footprint. Page fit, every contact and peer clearance still gate it.
-            .take_while(|n| restore_extent || !outside(&promote(p, *n as f64 * LANE), region))
+            .take_while(|n| {
+                restore_extent || !outside(&promote(p, *n as f64 * lane_pitch()), region)
+            })
             .find_map(|n| {
-                let lane = promote(p, n as f64 * LANE);
+                let lane = promote(p, n as f64 * lane_pitch());
                 let flexible = outside(p, area)
                     || others
                         .iter()
@@ -946,7 +948,7 @@ mod tests {
                     let q = dimension("peer", kind, 12., peer);
                     let bounds = ink_bounds(q.placed.as_ref().unwrap());
                     for n in 0..=2 {
-                        let lane = promote(&original, f64::from(n) * LANE);
+                        let lane = promote(&original, f64::from(n) * lane_pitch());
                         let prepared = LabelContacts::new(&lane, &q);
                         let clearance = LabelClearance::new(&original, q.placed.as_ref().unwrap());
                         for at in -20..=20 {
@@ -1113,7 +1115,7 @@ mod tests {
         settle_inventory(&analysis, &spec, &sheet, &[], &mut items, &fixed);
         assert_eq!(items, settled);
         let mut occupied = original.clone();
-        occupied[1].placed = Some(promote(occupied[1].placed.as_ref().unwrap(), -LANE));
+        occupied[1].placed = Some(promote(occupied[1].placed.as_ref().unwrap(), -lane_pitch()));
         settle_inventory(&analysis, &spec, &sheet, &[], &mut occupied, &fixed);
         assert_eq!(
             occupied[0].placed.as_ref().unwrap().arrows[0][0][1],

@@ -186,7 +186,9 @@ includes the summary. See [finding impact](docs/finding-impact.md) for all codes
 ## Known limitations
 
 Automatic layout tries `sheet/preferred_max_size` (default A3) and
-`sheet/preferred_max_sheets` (default 2) before larger paper. Principal views can
+`sheet/preferred_max_sheets` (default 2) before larger paper, and tries compact
+dimension spacing (7 mm first line, 5.5 mm pitch; `sheet/dimension_spacing`) on a
+sheet before a smaller scale or larger paper. Principal views can
 use separate sheets with their annotations. If a readable, unclipped drawing
 needs more paper, one `sheet_preference_exceeded` advisory explains the choice;
 `sheets.max` remains a hard limit. Reported unsupported requirements and required

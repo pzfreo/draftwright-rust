@@ -1106,6 +1106,20 @@
             }
           ]
         },
+        "dimension_spacing": {
+          "anyOf": [
+            {
+              "enum": [
+                "normal",
+                "compact"
+              ],
+              "description": "Dimension-line spacing. Unset: 10 mm first line, 7 mm pitch, with 7/5.5 mm compact lanes tried on the same sheet before a smaller scale or larger paper. normal forbids that fallback; compact uses it directly."
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "fit_limits": {
           "anyOf": [
             {

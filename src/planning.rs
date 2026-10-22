@@ -192,7 +192,7 @@ pub(crate) fn memo<T: Clone + 'static>(
     let Some(values) = values else {
         return prepare();
     };
-    let key = (name, key);
+    let key = (name, spaced(key));
     if let Some(value) = values.borrow().get(&key) {
         // Invariant: Preparation keys include TypeId::of::<T>(); only T is stored for that key.
         return value.downcast_ref::<T>().expect("preparation type").clone();
@@ -215,7 +215,7 @@ pub(crate) fn lookup<T: Clone + 'static>(
         active
             .values
             .borrow()
-            .get(&(name, key.to_vec()))
+            .get(&(name, spaced(key.to_vec())))
             // Invariant: Preparation keys include TypeId::of::<T>(); only T is stored for that key.
             .map(|v| v.downcast_ref::<T>().expect("preparation type").clone())
     })
@@ -231,7 +231,7 @@ pub(crate) fn store<T: 'static>(analysis: &Analysis, name: &'static str, key: Ve
             active
                 .values
                 .borrow_mut()
-                .insert((name, key), Box::new(value));
+                .insert((name, spaced(key)), Box::new(value));
         }
     });
 }
@@ -245,13 +245,37 @@ pub(crate) fn enabled(analysis: &Analysis) -> bool {
     })
 }
 
+/// Compact dimension spacing ([`crate::dims::compact`]) changes placements, so it keys every
+/// planning memo: normal-spacing keys are unchanged and compact ones are kept apart.
+fn spaced(mut key: Vec<u8>) -> Vec<u8> {
+    if crate::dims::compact() {
+        // 0xFF never occurs in the UTF-8 JSON keys, and closes any raw byte key.
+        key.extend_from_slice(b"\xffcompact-spacing");
+    }
+    key
+}
+
+/// A cross-call digest key for a placement result, kept apart under compact spacing. Geometric
+/// caches (projections, wrapped label text) do not use it and stay shared.
+pub(crate) fn spaced_digest(key: &[u8; 32]) -> [u8; 32] {
+    if crate::dims::compact() {
+        let mut hasher = Sha256::new();
+        hasher.update(key);
+        hasher.update(b"compact-spacing");
+        hasher.finalize().into()
+    } else {
+        *key
+    }
+}
+
 /// Placement policies held in the planning scope are inputs to exact result caches too.
-pub(crate) fn policy_key(analysis: &Analysis) -> (bool, bool, bool, Option<[u8; 32]>) {
+pub(crate) fn policy_key(analysis: &Analysis) -> (bool, bool, bool, Option<[u8; 32]>, bool) {
     (
         lookup::<bool>(analysis, "canonical-circular-recipes", &[]).unwrap_or(false),
         lookup::<bool>(analysis, "established-route-policy", &[]).unwrap_or(false),
         crate::nominal::comparison(),
         TRIAL_RADIUS_REFERENCE.with(|r| r.borrow().as_ref().map(|r| r.1)),
+        crate::dims::compact(),
     )
 }
 

@@ -543,5 +543,5 @@ fn a_body_local_corridor_preserves_an_authored_unpinned_lane() {
             .unwrap()
             .arrows[0][0][0]
     };
-    assert!((x(0) - x(1) - draftwright::dims::LANE).abs() < 1e-6);
+    assert!((x(0) - x(1) - draftwright::dims::LANE_NORMAL).abs() < 1e-6);
 }

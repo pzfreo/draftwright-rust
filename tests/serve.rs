@@ -146,12 +146,15 @@ fn the_service_answers_each_line() {
     );
     let fixed: Vec<draftwright::items::Op> =
         serde_json::from_value(problems[0]["fix"].clone()).unwrap();
-    assert_eq!(fixed.len(), 5);
+    // Compact dimension lanes keep A4 at 2:1 without the isometric (#163); the retained
+    // layout keeps that spacing.
+    assert_eq!(fixed.len(), 6);
     for (path, value) in [
         ("sheet/keep_layout", json!(true)),
         ("sheet/size", json!("A4")),
-        ("sheet/scale", json!("1:1")),
+        ("sheet/scale", json!("2:1")),
         ("sheets/max", json!(1)),
+        ("sheet/dimension_spacing", json!("compact")),
     ] {
         assert_eq!(
             fixed.iter().find(|op| op.path == path).unwrap().value,
