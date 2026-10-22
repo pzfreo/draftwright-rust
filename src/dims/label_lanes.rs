@@ -755,6 +755,9 @@ fn settle_inventory_uncached(
                 0
             }
         };
+        // Ranks are fixed for this dimension and its peers: work them out once.
+        let own_rank = rank(d);
+        let ranks: Vec<_> = others.iter().map(|q| rank(q)).collect();
         let allowed = |c: &Placed, prepared: &[LabelContacts]| {
             // A longer label may need another lane, but must not jump past an overall
             // extent or reverse datum-location order. Same-rank sizes may still skip
@@ -766,17 +769,18 @@ fn settle_inventory_uncached(
                 && (c.arrows[0][0][normal] - p.arrows[0][0][normal]).abs() < 1e-6)
                 || others
                     .iter()
-                    .filter(|q| q.kind == "linear" && q.view == d.view)
-                    .filter_map(|q| Some((*q, q.placed.as_ref()?)))
-                    .filter(|(_, q)| {
+                    .zip(&ranks)
+                    .filter(|(q, _)| q.kind == "linear" && q.view == d.view)
+                    .filter_map(|(q, rank)| Some((*q, *rank, q.placed.as_ref()?)))
+                    .filter(|(_, _, q)| {
                         q.arrows.len() == 2
                             && q.rotation == p.rotation
                             && (q.arrows[0][0][normal] - centre) * (p.arrows[0][0][normal] - centre)
                                 > 0.
                     })
-                    .all(|(q, placed)| {
-                        let order = rank(d).cmp(&rank(q)).then_with(|| {
-                            if rank(d) == 1 {
+                    .all(|(q, rank, placed)| {
+                        let order = own_rank.cmp(&rank).then_with(|| {
+                            if own_rank == 1 {
                                 d.value.total_cmp(&q.value)
                             } else {
                                 std::cmp::Ordering::Equal
