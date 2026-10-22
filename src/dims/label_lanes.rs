@@ -512,13 +512,23 @@ pub(super) fn alternatives_placed<'a>(
         let centre = (0.5 * (lo + hi - width)).clamp(low, high);
         positions.extend([centre, low, high]);
         positions.push(p.label_box[k].clamp(low, high));
+        positions.retain(|at| *at >= low && *at <= high);
+        // Peers' edges, kept only within the span (the order sorted below is total).
+        let within = |at: &f64| *at >= low && *at <= high;
         for q in others {
-            positions.extend([q.label_box[k] - CLEAR - width, q.label_box[k + 2] + CLEAR]);
+            positions.extend(
+                [q.label_box[k] - CLEAR - width, q.label_box[k + 2] + CLEAR]
+                    .into_iter()
+                    .filter(within),
+            );
             for [a, b] in &q.lines {
-                positions.extend([a[k].min(b[k]) - CLEAR - width, a[k].max(b[k]) + CLEAR]);
+                positions.extend(
+                    [a[k].min(b[k]) - CLEAR - width, a[k].max(b[k]) + CLEAR]
+                        .into_iter()
+                        .filter(within),
+                );
             }
         }
-        positions.retain(|at| *at >= low && *at <= high);
         if outside_arrows {
             // Text inside the span comes first; failing that, just past an arrow tail.
             tail.extend([hi + ARROW + 1.0, lo - ARROW - 1.0 - width]);
