@@ -587,6 +587,7 @@ pub fn check(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     issues.extend(hole_patterns::coverage(analysis, marks));
     assembly_coverage(analysis, &mut issues);
     issues.extend(pmi_coverage::coverage(analysis, marks));
+    redundancy::determined(analysis, printed, &mut issues);
     issues.extend(redundancy::coverage(analysis, printed));
     issues.extend(redundancy::references(analysis, printed));
     if location::active(analysis, printed) {

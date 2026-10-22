@@ -174,6 +174,24 @@ pub(crate) fn span(a: &Analysis, feature: &str, parameter: &str) -> Option<Span>
         let h = f.parameters.get("height")?.as_f64()?;
         return Some(Span::new(k, at[k], at[k] - axis[k].signum() * h));
     }
+    // A polygonal boss's record gives its axis letter, centre and the base and top stations
+    // along that axis, in quiddity's frame (ctc01's hexagon: 0 to 50 along z).
+    if f.kind == "polygonal_boss" && parameter == "boss_height.length" {
+        let p = &f.parameters;
+        let local = ["x", "y", "z"]
+            .iter()
+            .position(|k| Some(*k) == p.get("axis").and_then(|v| v.as_str()))?;
+        let mut unit = [0.; 3];
+        unit[local] = 1.;
+        let k = principal(crate::bridge::holes::dir_to_part(&frame(a), unit))?;
+        let centre = point(p.get("center"))?;
+        let station = |name: &str| {
+            let mut q = centre;
+            q[local] = p.get(name)?.as_f64()?;
+            Some(to_part(&frame(a), q)[k])
+        };
+        return Some(Span::new(k, station("base")?, station("top")?));
+    }
     None
 }
 
@@ -248,7 +266,6 @@ pub fn coverage(a: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
         if m.text.starts_with('(') && m.text.ends_with(')') || m.name.starts_with("suppressed:") {
             continue;
         }
-        let mut own_spans = Vec::new();
         for c in &m.claims {
             let key = (&c.feature, &c.parameter);
             let repeated = claims.insert(key, i).filter(|j| *j != i);
@@ -264,24 +281,8 @@ pub fn coverage(a: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
                 issue.related = vec![marks[j].name.clone()];
                 issues.push(issue);
             }
-            if m.text.contains('×') {
-                continue;
-            }
-            // A plane interval, or an outside diameter's or A/F's support planes across it.
-            let found: Vec<Span> = match span(a, &c.feature, &c.parameter) {
-                Some(s) => vec![s],
-                None => (0..3)
-                    .filter_map(|k| external_span(a, &c.feature, &c.parameter, k))
-                    .collect(),
-            };
-            for s in found {
-                if holes::states(&m.text, s.hi - s.lo)
-                    && !own_spans.iter().any(|p: &Span| p.same(s))
-                {
-                    own_spans.push(s);
-                }
-            }
         }
+        let own_spans = stated_spans(a, m);
         // A stated width fixes the centre line between the walls too.
         let halves: Vec<Span> = m
             .claims
@@ -338,6 +339,63 @@ pub fn coverage(a: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
         edges.extend(halves.into_iter().map(|s| (s, i)));
     }
     issues
+}
+
+/// The support-plane intervals mark *m* states: each claim's plane interval, or an outside
+/// diameter's or A/F's support planes across it, whose length its text prints. A counted mark
+/// (`3× 10`) states no single interval.
+fn stated_spans(a: &Analysis, m: &Mark) -> Vec<Span> {
+    let mut own: Vec<Span> = Vec::new();
+    if m.text.contains('×') {
+        return own;
+    }
+    for c in &m.claims {
+        let found: Vec<Span> = match span(a, &c.feature, &c.parameter) {
+            Some(s) => vec![s],
+            None => (0..3)
+                .filter_map(|k| external_span(a, &c.feature, &c.parameter, k))
+                .collect(),
+        };
+        for s in found {
+            if holes::states(&m.text, s.hi - s.lo) && !own.iter().any(|p| p.same(s)) {
+                own.push(s);
+            }
+        }
+    }
+    own
+}
+
+/// ISSUE-1505-b: the planner leaves one member of a closed chain to its stated total and the
+/// other members (`State::Covered`), so a length requirement nothing claims is still met when
+/// the drawing's controlling dimensions walk from one of its support planes to the other. Drops
+/// each `missing` finding on an axial length, boss height or polygonal boss height they determine.
+pub fn determined(a: &Analysis, marks: &[Mark], issues: &mut Vec<LintIssue>) {
+    const CODES: [&str; 3] = [
+        "axial_length_missing",
+        "boss_height_missing",
+        "polygonal_boss_requirement_missing",
+    ];
+    if a.solid_count.is_some_and(|n| n > 1)
+        || !issues.iter().any(|i| CODES.contains(&i.code.as_str()))
+    {
+        return;
+    }
+    let edges: Vec<(Span, usize)> = marks
+        .iter()
+        .enumerate()
+        .filter(|(_, m)| {
+            !(m.text.starts_with('(') && m.text.ends_with(')') || m.name.starts_with("suppressed:"))
+        })
+        .flat_map(|(i, m)| stated_spans(a, m).into_iter().map(move |s| (s, i)))
+        .collect();
+    issues.retain(|i| {
+        let [r] = i.requirements.as_slice() else {
+            return true;
+        };
+        !(CODES.contains(&i.code.as_str())
+            && i.annotation.is_none()
+            && span(a, &r.feature, &r.parameter).is_some_and(|s| path(&edges, s).is_some()))
+    });
 }
 
 /// An outside size's physical support planes; a bore never supplies this evidence.

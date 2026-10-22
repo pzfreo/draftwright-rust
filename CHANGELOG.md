@@ -32,6 +32,19 @@ All notable changes to draftwright-rust are recorded here, in the style of
   tests check that a fillet radius leader moved off its arc is reported, and that omitting a
   threaded hole's callout reports its thread rather than losing it.
 
+### Fixed
+
+- **One owner per measurement** in four more cases (ADR1-8, ADR4-U1, ISSUE-1505-b).
+  - A recess location on a stated face level is stated once, by the level's rung, even when the
+    two print their value to different precisions (ftc09: `128.100` and `128.1` → `128.100`).
+  - Equal sizes over one span are counted together when recognition reads their ends a few
+    micrometres apart (cgb202: `255` and `3× 255` → `4× 255`).
+  - A polygonal boss's height on a stated level is conveyed by that level and the overall, as a
+    round boss's is (ctc01: `50` → covered by the `100` rung and `150` overall).
+  - A closed chain leaves its longest member to the total, never a short shoulder, and lint
+    accepts a length the stated chain determines (cgb217: the 1 mm shoulder is drawn and the
+    `45` is covered; `axial_length_missing` 1 → 0).
+
 ## 0.1.0-alpha.12 (2026-10-22)
 
 Still on quiddity-rust `0.1.0-alpha.8`. The move to quiddity-rust 0.1.0 is waiting on

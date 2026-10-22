@@ -670,6 +670,16 @@
     "reason": "The 2026-10-16 maintainer decision prefers a complete clean principal drawing to an optional crop. This same approved height is now drawn once in the front view, with its original requirement identity, support and value. The comparison continues to assert the exact view, label, identity and count; no tolerance is transferred."
   },
   {
+    "part": "ctc01",
+    "side": "python",
+    "family": "boss",
+    "view": "front",
+    "label": "50",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "One owner per measurement (ADR4-U1): the hex boss f:polygonal_boss:1 stands from the 100 face level to the 150 top, so its 50 height is closed by the stated 100 rung and the 150 overall. Rust reads the polygonal boss's support planes (src/lint/redundancy.rs::span) and leaves the height covered by the 100 rung, as it does a round boss's; Python prints it as a third controlling dimension of the closed chain. tests/h5_chains.rs::ctc01_polygonal_boss_height_is_conveyed_by_its_level_and_the_overall guards it."
+  },
+  {
     "part": "grm03",
     "side": "python",
     "family": "turned_step",

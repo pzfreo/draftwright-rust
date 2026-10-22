@@ -382,15 +382,13 @@ fn ctc01_hex_boss_states_its_size_across_flats_and_its_height() {
     };
     let a = analysed(&corpus, "ctc01");
     let plan = model::plan(&a, &Spec::default()).unwrap();
-    // As on draftwright's sheet: HEX 100 A/F in the plan, its height 50 in the front. The port
-    // also locates a boss, but this one stands at the centre of the 2×2 hole grid, whose own
-    // location (400, 225) conveys it (ARCH0009-6).
+    // HEX 100 A/F in the plan, as on draftwright's sheet. Its height 50 runs from the 100 face
+    // level to the 150 top, so the stated rung and overall convey it (ADR4-U1; draftwright
+    // prints it, a listed parity difference). The port also locates a boss, but this one stands
+    // at the centre of the 2×2 hole grid, whose own location (400, 225) conveys it (ARCH0009-6).
     assert_eq!(
         stating(&plan, &a, "polygonal_boss"),
-        strs(&[
-            ("boss_height.length", "front", "50"),
-            ("polygon_across_flats.length", "plan", "HEX 100 A/F"),
-        ])
+        strs(&[("polygon_across_flats.length", "plan", "HEX 100 A/F")])
     );
     let across = plan
         .dimensions
@@ -420,11 +418,12 @@ fn ctc01_hex_boss_states_its_size_across_flats_and_its_height() {
     let again = model::plan(&a, &spec).unwrap();
     assert!(again.dimensions.iter().all(|d| d.id != across.id));
     assert!(again.omitted.iter().any(|o| o.id == across.id));
+    // The covered height keeps its ID, so it stays addressable.
     assert!(
         again
-            .dimensions
+            .omitted
             .iter()
-            .any(|d| d.id.contains("polygonal_boss:1/boss_height"))
+            .any(|o| o.id.contains("polygonal_boss:1/boss_height"))
     );
 }
 
