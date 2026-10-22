@@ -2649,8 +2649,8 @@
       - "tests/test_issue_1505_short_axial_chains.py::test_detail_retracts_only_recovered_main_view_length_drops"
     corpus_parts: []
   status: pending
-  rust_note: "Partial: X-head and Y-chain requests carry exact approved requirement IDs through the normal planner; Z terminal flanges also get a head detail. Saved chain IDs and all 14 string-post tolerances remain addressable. Omitted dimensions are not reconstructed in the crop. Still pending: general nonterminal off-page Z-chain recovery and solid Boolean cut caps; the current kernel clips exact projected intervals."
-  rust_test: "dimensions::dims_turned::a_short_shoulder_never_erases_its_neighbours_lengths"
+  rust_note: "Partial: X-head and Y-chain requests carry exact approved requirement IDs through the normal planner; Z terminal flanges also get a head detail. Saved chain IDs and all 14 string-post tolerances remain addressable. Omitted dimensions are not reconstructed in the crop. Stream one-owner: a closed chain leaves its longest same-kind member to the total, never a short shoulder (src/dims/redundancy.rs::longest_member), and lint accepts a band length the stated chain determines (src/lint/redundancy.rs::determined; cgb217's 1 mm shoulder is drawn, its 45 covered). Still pending: general nonterminal off-page Z-chain recovery and solid Boolean cut caps; the current kernel clips exact projected intervals."
+  rust_test: "dimensions::dims_turned::a_short_shoulder_never_erases_its_neighbours_lengths; tests/h5_chains.rs::cgb217_keeps_its_short_shoulder_and_leaves_the_longest_band_to_the_total"
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream detail-views"
 
 - id: ISSUE-1511-a

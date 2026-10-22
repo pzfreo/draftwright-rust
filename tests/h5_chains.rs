@@ -336,7 +336,9 @@ fn a_pinned_reference_keeps_its_ink_and_reports_a_broken_controlling_chain() {
     let base: Spec =
         serde_json::from_value(json!({"sheet":{"references":true},"sheets":{"max":1}})).unwrap();
     let full = model::plan_recovered(&a, &base).unwrap();
-    let reference = full.dimensions.iter().find(|d| d.label == "(0.5)").unwrap();
+    // ISSUE-1505-b: the chain leaves its longest band, not the 0.5 shoulder, to the total.
+    let reference = full.dimensions.iter().find(|d| d.reference).unwrap();
+    assert_ne!(reference.label, "(0.5)");
     let spec = model::edit(&base, &json!([
         {"op":"set", "path":"sheet/references", "value":false},
         {"op":"set", "path":format!("dimensions/{}/place", draftwright::items::key(&reference.id)), "value":{"pinned":true}},
@@ -377,7 +379,7 @@ fn a_pinned_reference_keeps_its_ink_and_reports_a_broken_controlling_chain() {
             .find(|d| d.id == reference.id)
             .unwrap()
             .label,
-        "0.5"
+        reference.label.trim_matches(['(', ')'])
     );
 }
 
@@ -697,4 +699,145 @@ fn automatic_references_are_covered_without_losing_controlling_dimensions() {
             "{issues:?}"
         );
     }
+}
+
+/// A corpus part's native analysis trimmed to the features a case needs (`draftwright analyse`,
+/// with its ink, profiles and other features emptied): planning the whole part is too slow for a
+/// debug test, and these cases depend only on the kept features and the part's box and levels.
+fn trimmed(part: &str) -> Analysis {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join(format!("tests/fixtures/one_owner/{part}.analysis.json"));
+    serde_json::from_str(&std::fs::read_to_string(path).unwrap()).unwrap()
+}
+
+/// The drawn dimensions claiming *feature*'s *parameter*, each by its ID and label.
+fn owners(p: &Plan, feature: &str, parameter: &str) -> Vec<(String, String)> {
+    p.dimensions
+        .iter()
+        .filter(|d| {
+            d.measurements
+                .iter()
+                .any(|m| m.feature == feature && m.parameter == parameter)
+        })
+        .map(|d| (d.id.clone(), d.label.clone()))
+        .collect()
+}
+
+fn covered_by(p: &Plan, id: &str) -> String {
+    let o = p
+        .omitted
+        .iter()
+        .find(|o| o.id == id)
+        .unwrap_or_else(|| panic!("{id} is not omitted"));
+    match &o.state {
+        draftwright::items::State::Covered { by } => {
+            assert!(
+                p.dimensions
+                    .iter()
+                    .any(|d| &d.id == by && d.placed.is_some())
+            );
+            by.clone()
+        }
+        other => panic!("{id}: {other:?}"),
+    }
+}
+
+/// ADR1-8: ftc09's top seat lies on the 128.1 face level; its location and the level's rung are
+/// one station from the base, stated once (the rung prints its modelled value as `128.100`).
+#[test]
+fn ftc09_states_a_seat_on_a_face_level_once() {
+    let a = trimmed("ftc09");
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    let seat = owners(&p, "f:section_recess:3", "seat_location.location.z");
+    assert_eq!(seat.len(), 1);
+    assert_eq!(seat[0].0, "d:step_level/step_height.length.h128_1");
+    assert_eq!(
+        covered_by(&p, "d:f:section_recess:3/seat_location.location.z"),
+        seat[0].0
+    );
+}
+
+/// ADR1-8: cgb202's four ø10 rods run between the same two planes (recognition reads one end at
+/// 152.500000015, the others at 152.500002497): one counted `4× 255`.
+#[test]
+fn cgb202_counts_its_equal_rods_once() {
+    let a = trimmed("cgb202");
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    let rods: Vec<_> = (3..=6)
+        .flat_map(|n| owners(&p, &format!("f:boss:{n}"), "boss_height.length"))
+        .collect();
+    let one = (
+        "d:f:boss:3/boss_height.length".to_string(),
+        "4× 255".to_string(),
+    );
+    assert_eq!(rods, vec![one; 4]);
+}
+
+/// ADR4-U1: ctc01's hexagonal boss stands on the 100 level, and the 150 overall closes it; its 50
+/// height is conveyed by the rung and the overall, and lint, reading the same chain, agrees.
+#[test]
+fn ctc01_polygonal_boss_height_is_conveyed_by_its_level_and_the_overall() {
+    let a = trimmed("ctc01");
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    assert!(owners(&p, "f:polygonal_boss:1", "boss_height.length").is_empty());
+    covered_by(&p, "d:f:polygonal_boss:1/boss_height.length");
+    for id in [
+        "d:envelope/height.length",
+        "d:step_level/step_height.length.h100",
+    ] {
+        assert!(
+            p.dimensions.iter().any(|d| d.id == id && !d.reference),
+            "{id}"
+        );
+    }
+    let shown = model::plan(&a, &references()).unwrap();
+    let boss = shown
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:f:polygonal_boss:1/boss_height.length")
+        .unwrap();
+    assert_eq!((boss.label.as_str(), boss.reference), ("(50)", true));
+    let issues = lint::check(&a, &marks(&p));
+    assert!(
+        !issues.iter().any(|i| matches!(
+            i.code.as_str(),
+            "polygonal_boss_requirement_missing" | "closed_dimension_chain"
+        )),
+        "{issues:?}"
+    );
+}
+
+/// ISSUE-1505-b: cgb217's turned chain closes on its 60 overall. The 1 mm end shoulder keeps its
+/// own length; the longest band (45) is the member the overall and the others determine, and
+/// lint agrees that every band length is stated.
+#[test]
+fn cgb217_keeps_its_short_shoulder_and_leaves_the_longest_band_to_the_total() {
+    let a = trimmed("cgb217");
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    let shoulder = owners(&p, "f:turned_step:3", "step.length");
+    assert_eq!(shoulder.len(), 1);
+    assert_eq!(shoulder[0].1, "1");
+    assert!(owners(&p, "f:turned_step:5", "step.length").is_empty());
+    assert_eq!(
+        covered_by(&p, "d:f:turned_step:5/step.length"),
+        "d:envelope/height.length"
+    );
+    let issues = lint::check(&a, &marks(&p));
+    assert!(
+        !issues.iter().any(|i| matches!(
+            i.code.as_str(),
+            "axial_length_missing" | "closed_dimension_chain"
+        )),
+        "{issues:?}"
+    );
+    // Without the overall, the 45 is no longer determined: lint reports it missing.
+    let partial: Vec<_> = marks(&p)
+        .into_iter()
+        .filter(|m| m.name != "d:envelope/height.length")
+        .collect();
+    assert!(
+        lint::check(&a, &partial)
+            .iter()
+            .any(|i| i.id == "l:axial_length_missing:f:turned_step:5/step.length")
+    );
 }

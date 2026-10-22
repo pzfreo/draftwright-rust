@@ -977,7 +977,7 @@ pub(super) fn consolidate(
                         && s.1 == t.1
                         && (s.2 - t.2).abs() <= crate::lint::redundancy::TOL
                         && (s.3 - t.3).abs() <= crate::lint::redundancy::TOL
-                }) && kept[i].0.terms == kept[j].0.terms
+                }) && carries(&kept[j].0.terms, &kept[i].0)
                     && given[i] == given[j]
             })
             .min_by_key(|&j| {
@@ -1012,6 +1012,16 @@ pub(super) fn consolidate(
         i += 1;
         keep
     });
+}
+
+/// Whether a carrier labelled *terms* states recess location *w* too: the same text, or one plain
+/// size that prints *w*'s value as lint reads it (ftc09's ladder rung prints its modelled
+/// 128.100003 as `128.100`, which states the seat's recorded 128.1: one station, one owner).
+fn carries(terms: &[String], w: &Want) -> bool {
+    terms == w.terms.as_slice()
+        || matches!((terms, w.terms.as_slice()), ([t], [own])
+            if t.parse::<f64>().is_ok() && own.parse::<f64>().is_ok()
+                && crate::lint::holes::states(t, w.value))
 }
 
 #[cfg(test)]

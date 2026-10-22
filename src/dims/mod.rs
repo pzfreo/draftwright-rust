@@ -3852,7 +3852,7 @@ fn correlated_sets(
 }
 
 /// One span, one dimension (ARCH0009-6): kept items stating the same [`SHARED`] size or
-/// datum distance across the same span (the same view and axis, raw ends within 1e-6 mm,
+/// datum distance across the same span (the same view and axis, raw ends within 0.01 mm,
 /// and the same label and basic status, so different stated sizes or bands never collapse).
 /// Datum distances include different planners' statements, such as a location and a level.
 /// A boss height can also state its face level; only the bosses enter the count.
@@ -3867,6 +3867,9 @@ fn share_statements(
     cross_family: bool,
 ) {
     const SAME_SPAN: f64 = 1e-6;
+    // Recognition rounds stations to hundredths: cgb202's four ø10 rods end on one plane, read
+    // as 152.500000015 and 152.500002497, so the span's ends compare within its tolerance.
+    const SPAN_ENDS: f64 = crate::lint::redundancy::TOL;
     type Span = (String, &'static str, usize, f64, f64, String, f64, bool);
     let coordinate = |p: &str| {
         p.starts_with("location")
@@ -3918,8 +3921,8 @@ fn share_statements(
                         && diameter(&t.0)))
             && s.1 == t.1
             && s.2 == t.2
-            && (s.3 - t.3).abs() <= SAME_SPAN
-            && (s.4 - t.4).abs() <= SAME_SPAN
+            && (s.3 - t.3).abs() <= SPAN_ENDS
+            && (s.4 - t.4).abs() <= SPAN_ENDS
             && s.5 == t.5
             && (s.6 - t.6).abs() <= SAME_SPAN
             && s.7 == t.7

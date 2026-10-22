@@ -289,6 +289,10 @@ pub(super) fn consolidate(
                 );
                 gone.insert(i);
             } else {
+                // ISSUE-1505-b: a short shoulder is never the member a chain leaves to its total.
+                // Of the walk's members (the total aside), the longest one free to yield is.
+                let (i, route) =
+                    longest_member(a, kept, given, &references, &mut edges, i, s, route);
                 let by: Vec<String> = route.iter().map(|j| kept[*j].0.id.clone()).collect();
                 let carriers = by.join(", ");
                 references.insert(kept[i].0.id.clone(), by);
@@ -447,6 +451,81 @@ pub(super) fn consolidate(
     });
     references
 }
+/// The member of a closed chain to show as reference, and the stated members that determine it:
+/// the longest of the walk's controlling members other than its total (the longest interval of
+/// the cycle), when that is longer than *i*, the interval that closed the walk; otherwise *i*.
+/// A member can yield only when it is untoleranced, states no PMI, is not an overall extent and
+/// determines no reference already made, and only one stating the same parameter as *i*. When
+/// one does, *i* takes its place among the edges.
+#[allow(clippy::too_many_arguments)]
+fn longest_member(
+    a: &Analysis,
+    kept: &[Kept],
+    given: &[Vec<String>],
+    references: &References,
+    edges: &mut Vec<(Span, usize)>,
+    i: usize,
+    s: Span,
+    route: Vec<usize>,
+) -> (usize, Vec<usize>) {
+    let length = |j: usize| interval(a, &kept[j].0).map_or(0., |p| p.hi - p.lo);
+    let on_edges = |j: usize| edges.iter().any(|e| e.1 == j);
+    if !route.iter().all(|&j| on_edges(j)) {
+        return (i, route);
+    }
+    let Some(total) = route
+        .iter()
+        .copied()
+        .chain([i])
+        .max_by(|&x, &y| length(x).total_cmp(&length(y)))
+    else {
+        return (i, route);
+    };
+    // Only a member of the same kind as *i* (a band's length for a band's, say): a slot's length
+    // never yields to its location.
+    let kind = |j: usize| kept[j].0.measurements.first().map(|m| m.parameter.as_str());
+    let free = |j: usize| {
+        kind(j) == kind(i)
+            && given[j].is_empty()
+            && !crate::dims::is_envelope_extent(&kept[j].0.id)
+            && !kept[j]
+                .0
+                .measurements
+                .iter()
+                .any(|m| m.feature.starts_with("pmi:"))
+            && !references.values().any(|by| by.contains(&kept[j].0.id))
+    };
+    let pick = route
+        .iter()
+        .copied()
+        .filter(|&j| j != total && free(j) && length(j) > length(i) + TOL)
+        .max_by(|&x, &y| {
+            length(x)
+                .total_cmp(&length(y))
+                .then(kept[y].0.id.cmp(&kept[x].0.id))
+        });
+    let Some(pick) = pick else {
+        return (i, route);
+    };
+    let Some(target) = interval(a, &kept[pick].0) else {
+        return (i, route);
+    };
+    let before = edges.clone();
+    edges.retain(|e| e.1 != pick);
+    edges.push((s, i));
+    match path(edges, target) {
+        Some(mut found) if found.len() > 1 => {
+            // The total first: it is the dimension the omitted member is conveyed by.
+            found.sort_by_key(|&j| j != total);
+            (pick, found)
+        }
+        _ => {
+            *edges = before;
+            (i, route)
+        }
+    }
+}
+
 /// Ladder shoulders standing on a slot's walls close against the slot's stated width: with its
 /// centre-line location also stated, every such shoulder is determined; otherwise, of two
 /// shoulders on both walls, the farther is. A determined shoulder is shown as reference.
