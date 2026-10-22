@@ -318,6 +318,13 @@
     },
     {
       "part": "ftc06",
+      "code": "chamfer_leader_target_unverifiable",
+      "count": 1,
+      "verdict": "rust-correct",
+      "reason": "Info, not a gap: the 2× chamfer callout in the side view (f:chamfer:6, f:chamfer:7) is a turned chamfer, but no coaxial turned band holds its station, so lint cannot build the bevel's meridian to check the leader tip (src/lint/leaders.rs, chamfer_leader_target_mismatch). The drawing is unchanged from main; the entry goes if recognition finds the band."
+    },
+    {
+      "part": "ftc06",
       "code": "channel_requirement_unverifiable",
       "count": 7,
       "verdict": "rust-correct",

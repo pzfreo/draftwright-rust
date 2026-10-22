@@ -252,7 +252,7 @@ fn quad_gap(q: [P; 4], t: P) -> f64 {
 /// side of its axis, and its end edges, trimmed by the flats that cut it; or, seen along its axis,
 /// its trimmed circle. Err when its record cannot be read.
 fn step_gap(analysis: &Analysis, p: &Projection, f: &Feature, tip: P) -> Result<f64, String> {
-    use crate::lint::turned as t;
+    use super::turned as t;
     let b = t::band(&holes::frame(analysis), f)?;
     let cuts = t::cuts(analysis, &b);
     let mut a = [0.0; 3];
@@ -317,7 +317,7 @@ fn step_gap(analysis: &Analysis, p: &Projection, f: &Feature, tip: P) -> Result<
 fn chamfer_gap(analysis: &Analysis, p: &Projection, f: &Feature, tip: P) -> Result<f64, String> {
     let frame = holes::frame(analysis);
     if f.kind == "oriented_chamfer" {
-        let b = crate::lint::oriented_chamfers::read(analysis, f)?;
+        let b = super::oriented_chamfers::read(analysis, f)?;
         let along = |q: V3| dot([0, 1, 2].map(|k| q[k] - b.corner[k]), b.run);
         let mid = along(b.at);
         let at = |leg: V3, l: f64, s: f64| {
@@ -373,12 +373,12 @@ fn chamfer_gap(analysis: &Analysis, p: &Projection, f: &Feature, tip: P) -> Resu
         gap
     };
     if q.get("turned").and_then(serde_json::Value::as_bool) == Some(true) {
-        let bands = crate::lint::turned::all_bands(analysis);
+        let bands = super::turned::all_bands(analysis);
         // Its coaxial band's axis, or the one axis line every band about *k* shares (a part
         // turned whole, as the planner turns it).
         let (j, m) = ((k + 1) % 3, (k + 2) % 3);
-        let along: Vec<&crate::lint::turned::Band> = bands.iter().filter(|b| b.axis == k).collect();
-        let on = crate::lint::turned::coaxial(&bands, k, at, l1.max(l2))
+        let along: Vec<&super::turned::Band> = bands.iter().filter(|b| b.axis == k).collect();
+        let on = super::turned::coaxial(&bands, k, at, l1.max(l2))
             .map(|b| b.on)
             .or_else(|| {
                 let first = along.first()?;
@@ -391,7 +391,7 @@ fn chamfer_gap(analysis: &Analysis, p: &Projection, f: &Feature, tip: P) -> Resu
                     .then_some(first.on)
             })
             .ok_or("no coaxial turned band holds its station")?;
-        let b = crate::lint::turned::Band {
+        let b = super::turned::Band {
             axis: k,
             on,
             lo: at[k],
@@ -691,8 +691,12 @@ pub(super) fn check(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
             // A miss is proven only when every claimed member could be measured: the tip
             // may sit on a member this view cannot verify.
             if !reasons.is_empty() {
+                // Literal codes, so the finding-impact source inventory sees each one.
                 found(
-                    &format!("{noun}_leader_target_unverifiable"),
+                    match noun {
+                        "chamfer" => "chamfer_leader_target_unverifiable",
+                        _ => "step_diameter_leader_target_unverifiable",
+                    },
                     ids,
                     parameter,
                     format!(
@@ -703,7 +707,10 @@ pub(super) fn check(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
                 );
             } else {
                 found(
-                    &format!("{noun}_leader_target_mismatch"),
+                    match noun {
+                        "chamfer" => "chamfer_leader_target_mismatch",
+                        _ => "step_diameter_leader_target_mismatch",
+                    },
                     ids,
                     parameter,
                     format!("{}: the {what} (it lies {best:.3} mm from it)", a.name),
