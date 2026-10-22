@@ -1162,6 +1162,14 @@ fn detail_routes(a: &Analysis, wants: &mut [Want], views: &[PlannedView]) {
     }
 }
 
+/// A callout's leader sites for the view that carries it, once chosen: a boss's profile
+/// stations, a flat-cut turned band's trimmed outline, a fillet's proven arc in that view.
+fn route_sites(analysis: &Analysis, w: &mut Want, view: &str) {
+    bosses::route_profile(analysis, w, view);
+    turned::route_profile(analysis, w, view);
+    edges::route_profile(analysis, w, view);
+}
+
 /// The view that carries each of *wants*: its first choice that is shown (in *frames*) and does
 /// not look along it (a turned part's diameter turns to the radial axis the view shows). A later
 /// choice says so in its basis; its ID stays. Those with none keep the views that were shown but look along them.
@@ -1197,7 +1205,7 @@ fn route(
             break;
         }
         if let Some(v) = view {
-            bosses::route_profile(analysis, w, v);
+            route_sites(analysis, w, v);
         }
         if let Some(v) = view
             && v != w.views[0]
@@ -4284,7 +4292,7 @@ pub(crate) fn callout_members(
             .copied()
             .find(|n| *n == name)
     }) {
-        bosses::route_profile(analysis, w, name);
+        route_sites(analysis, w, name);
     }
     let Shape::Callout { sites, arcs } = &w.shape else {
         return Vec::new();
@@ -4756,7 +4764,7 @@ pub(crate) fn refine_inventory(
             }
         }
         let name = d.view.trim_start_matches("v:");
-        bosses::route_profile(analysis, &mut w, name);
+        route_sites(analysis, &mut w, name);
         let view = NAMES
             .iter()
             .copied()

@@ -118,6 +118,223 @@ pub fn band(frame: &[[f64; 3]; 4], f: &Feature) -> Result<Band, String> {
     })
 }
 
+/// A flat that cuts a band's cylinder: its outward unit direction square to the band's axis and
+/// its distance from the axis, in the part's frame, and its span along the axis.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Cut {
+    pub normal: [f64; 3],
+    pub distance: f64,
+    pub lo: f64,
+    pub hi: f64,
+}
+
+/// The Analysis's `flat` features that cut band *b*: about its own axis line (the flat's foot
+/// lies its `axis_distance` from the band's axis), inside its radius, over part of its span.
+pub fn cuts(analysis: &Analysis, b: &Band) -> Vec<Cut> {
+    let q = frame(analysis);
+    let k = b.axis;
+    let r = 0.5 * b.diameter;
+    let mut out = Vec::new();
+    for f in analysis.features.iter().filter(|f| f.kind == "flat") {
+        let p = &f.parameters;
+        let (Some(at), Some(dir), Some(distance), Some(span)) = (
+            point(p.get("at")),
+            point(p.get("axis_direction")),
+            p.get("axis_distance").and_then(Value::as_f64),
+            p.get("stock_span").and_then(Value::as_array),
+        ) else {
+            continue;
+        };
+        let [Some(s0), Some(s1)] = [0, 1].map(|i| span.get(i).and_then(Value::as_f64)) else {
+            continue;
+        };
+        if principal(dir_to_part(&q, dir)) != Some(k)
+            || !distance.is_finite()
+            || distance >= r - 1e-6
+        {
+            continue;
+        }
+        let foot = to_part(&q, at);
+        let mut v = [0.0; 3];
+        for j in (0..3).filter(|&j| j != k) {
+            v[j] = foot[j] - b.on[j];
+        }
+        let n = (v[0] * v[0] + v[1] * v[1] + v[2] * v[2]).sqrt();
+        if n < 1e-9 || (n - distance).abs() > 1e-3 * distance.max(1.0) {
+            continue;
+        }
+        // The span's ends: the foot moved along the flat's axis to each recorded station.
+        let along = at[0] * dir[0] + at[1] * dir[1] + at[2] * dir[2];
+        let [e0, e1] =
+            [s0, s1].map(|s| to_part(&q, [0, 1, 2].map(|i| at[i] + (s - along) * dir[i]))[k]);
+        let (lo, hi) = (e0.min(e1).max(b.lo), e0.max(e1).min(b.hi));
+        if hi - lo > 1e-6 {
+            out.push(Cut {
+                normal: v.map(|x| x / n),
+                distance: n,
+                lo,
+                hi,
+            });
+        }
+    }
+    out
+}
+
+fn cross(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {
+    [
+        a[1] * b[2] - a[2] * b[1],
+        a[2] * b[0] - a[0] * b[2],
+        a[0] * b[1] - a[1] * b[0],
+    ]
+}
+
+fn dot3(a: [f64; 3], b: [f64; 3]) -> f64 {
+    a[0] * b[0] + a[1] * b[1] + a[2] * b[2]
+}
+
+/// The point of band *b*'s cylinder at station *t*, trimmed by those of *cuts* over *t*, that lies
+/// farthest along *d* (a unit direction square to its axis): a proven point of the cylinder face
+/// whose projection is the band's outline in any view whose page shows *d* across the axis. None
+/// when no material is left at *t*.
+pub fn extreme(b: &Band, cuts: &[Cut], t: f64, d: [f64; 3]) -> Option<[f64; 3]> {
+    let mut a = [0.0; 3];
+    a[b.axis] = 1.0;
+    let e = cross(a, d);
+    let r = 0.5 * b.diameter;
+    let live: Vec<(f64, f64)> = cuts
+        .iter()
+        .filter(|c| c.lo - 1e-9 <= t && t <= c.hi + 1e-9)
+        .map(|c| (dot3(c.normal, e).atan2(dot3(c.normal, d)), c.distance))
+        .collect();
+    let feasible = |th: f64| {
+        live.iter()
+            .all(|&(phi, h)| r * (th - phi).cos() <= h + 1e-9 * r.max(1.0))
+    };
+    let mut best: Option<f64> = None;
+    let candidates = std::iter::once(0.0).chain(live.iter().flat_map(|&(phi, h)| {
+        let alpha = (h / r).clamp(-1.0, 1.0).acos();
+        [phi - alpha, phi + alpha]
+    }));
+    for th in candidates {
+        if feasible(th) && best.is_none_or(|b| th.cos() > b.cos() + 1e-12) {
+            best = Some(th);
+        }
+    }
+    let th = best?;
+    let mut p = b.on;
+    p[b.axis] = t;
+    Some([0, 1, 2].map(|i| p[i] + r * (th.cos() * d[i] + th.sin() * e[i])))
+}
+
+/// Band *b*'s outline as a view looking along *toward* shows it, across its axis on the side of
+/// *d* (`toward × axis`, or its opposite): a segment along the axis for each run of its span over
+/// which the same cuts apply. Empty when the view looks along the axis.
+pub fn outline(b: &Band, cuts: &[Cut], d: [f64; 3]) -> Vec<[[f64; 3]; 2]> {
+    let mut stations = vec![b.lo, b.hi];
+    for c in cuts {
+        stations.extend([c.lo, c.hi].into_iter().filter(|s| b.lo < *s && *s < b.hi));
+    }
+    stations.sort_by(f64::total_cmp);
+    stations.dedup_by(|x, y| (*x - *y).abs() < 1e-9);
+    let mut out = Vec::new();
+    for w in stations.windows(2) {
+        let mid = 0.5 * (w[0] + w[1]);
+        if let Some(p) = extreme(b, cuts, mid, d) {
+            let (mut p0, mut p1) = (p, p);
+            p0[b.axis] = w[0];
+            p1[b.axis] = w[1];
+            out.push([p0, p1]);
+        }
+    }
+    out
+}
+
+/// Band *b*'s circle at station *t*, trimmed by the cuts over it, as arcs about its axis (as a
+/// view looking along the axis shows its cylinder).
+pub fn arcs(b: &Band, cuts: &[Cut], t: f64) -> Vec<crate::arc::ProfileArc> {
+    let k = b.axis;
+    let mut u = [0.0; 3];
+    u[(k + 1) % 3] = 1.0;
+    let mut a = [0.0; 3];
+    a[k] = 1.0;
+    let v = cross(a, u);
+    let r = 0.5 * b.diameter;
+    let live: Vec<(f64, f64)> = cuts
+        .iter()
+        .filter(|c| c.lo - 1e-9 <= t && t <= c.hi + 1e-9)
+        .map(|c| (dot3(c.normal, v).atan2(dot3(c.normal, u)), c.distance))
+        .collect();
+    let mut centre = b.on;
+    centre[k] = t;
+    let arc = |start: f64, sweep: f64| crate::arc::ProfileArc {
+        centre,
+        radius: r,
+        u,
+        v,
+        start,
+        sweep,
+    };
+    if live.is_empty() {
+        return vec![arc(0.0, 2.0 * std::f64::consts::PI)];
+    }
+    let tau = 2.0 * std::f64::consts::PI;
+    let mut ends: Vec<f64> = live
+        .iter()
+        .flat_map(|&(phi, h)| {
+            let alpha = (h / r).clamp(-1.0, 1.0).acos();
+            [phi - alpha, phi + alpha]
+        })
+        .map(|x| x.rem_euclid(tau))
+        .collect();
+    ends.sort_by(f64::total_cmp);
+    ends.dedup_by(|x, y| (*x - *y).abs() < 1e-12);
+    let inside = |th: f64| live.iter().all(|&(phi, h)| r * (th - phi).cos() <= h);
+    (0..ends.len())
+        .filter_map(|i| {
+            let (s, e) = (ends[i], ends[(i + 1) % ends.len()]);
+            let sweep = if i + 1 == ends.len() {
+                e + tau - s
+            } else {
+                e - s
+            };
+            (sweep > 1e-9 && inside(s + 0.5 * sweep)).then(|| arc(s, sweep))
+        })
+        .collect()
+}
+
+/// The band a treatment (a chamfer or fillet) turned about world axis *k*, through *at*, of size
+/// *size*, turns about: the coaxial band whose span (widened by the treatment's size) contains its
+/// station and whose radius reaches it, the nearest such.
+pub fn coaxial(bands: &[Band], k: usize, at: [f64; 3], size: f64) -> Option<&Band> {
+    let (j, m) = ((k + 1) % 3, (k + 2) % 3);
+    let size = size + 1e-6;
+    bands
+        .iter()
+        .filter(|b| b.axis == k)
+        .filter_map(|b| {
+            let rho = (at[j] - b.on[j]).hypot(at[m] - b.on[m]);
+            let outside = (b.lo - at[k]).max(at[k] - b.hi).max(0.0);
+            (outside <= size && rho <= 0.5 * b.diameter + size).then_some((
+                outside,
+                (0.5 * b.diameter - rho).abs(),
+                b,
+            ))
+        })
+        .min_by(|a, b| a.0.total_cmp(&b.0).then(a.1.total_cmp(&b.1)))
+        .map(|(_, _, b)| b)
+}
+
+/// Every readable turned step's band, in the part's frame, groove-owned or not.
+pub fn all_bands(analysis: &Analysis) -> Vec<Band> {
+    let q = frame(analysis);
+    analysis
+        .features
+        .iter()
+        .filter(|f| f.kind == "turned_step")
+        .filter_map(|f| band(&q, f).ok())
+        .collect()
+}
+
 /// The turned steps that are bands of their own (no groove owns them), or why groove ownership
 /// cannot be decided.
 pub fn bands(analysis: &Analysis) -> Result<Vec<&Feature>, String> {

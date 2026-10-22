@@ -63,6 +63,8 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `boss_height_requirement_missing` | incomplete | The drawing does not state this required feature parameter. |
 | `boss_height_requirement_unverifiable` | incomplete | The drawing does not prove this required feature parameter. |
 | `callout_dropped` | incomplete | A required drawing item was dropped before it could be stated. |
+| `chamfer_leader_target_mismatch` | readability | The chamfer leader points at the wrong geometry. |
+| `chamfer_leader_target_unverifiable` | readability | The chamfer leader target cannot be verified. |
 | `chamfer_requirement_missing` | incomplete | The drawing does not state this required feature parameter. |
 | `chamfer_requirement_unverifiable` | incomplete | The drawing does not prove this required feature parameter. |
 | `channel_requirement_missing` | incomplete | The drawing does not state this required feature parameter. |
@@ -228,6 +230,8 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `spec_from_other_revision` | decision | The user must decide whether to rebind settings from another revision. |
 | `spec_overrides_pmi` | decision | The user-authored control replaces a different PMI control. |
 | `spec_refines_pmi` | advisory | The authored designation refines a Specify-written thread. |
+| `step_diameter_leader_target_mismatch` | readability | The turned diameter leader points at the wrong geometry. |
+| `step_diameter_leader_target_unverifiable` | readability | The turned diameter leader target cannot be verified. |
 | `step_general_tolerance_disagreement` | decision | The authored and PMI general tolerances disagree. |
 | `step_level_support_missing` | incomplete | Missing shoulder support prevents the step level being stated. |
 | `step_material_ambiguous` | decision | The STEP records do not identify one material to use. |

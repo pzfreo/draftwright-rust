@@ -10,10 +10,12 @@
 //!   arc, the bevel edge-on), [`end_on`] its axis; a turned one (quiddity's `turned`, a toroidal
 //!   round or conical bevel about the shaft) reads in the shaft's profile, [`profile_views`]. A
 //!   record is never guessed to be turned (ISSUE-1281-a).
-//! - **Leader site:** the record's `at`. A turned treatment on a part turned whole is rotated
-//!   about the turning axis onto the profile its view shows, as draftwright's
-//!   `_turned_profile_site` does about the nearest external shaft (ISSUE-1276-a, in part: the
-//!   port knows only the whole part's axis, so on any other part the physical site is kept).
+//! - **Leader site:** the record's `at`. A turned treatment is rotated onto the profile its view
+//!   shows about the coaxial turned band whose span holds its station (or, failing one, a part
+//!   turned whole's axis), as draftwright's `_turned_profile_site` does about the nearest
+//!   external shaft (ISSUE-1276-a); a parallel shaft elsewhere does not attract it. A fillet
+//!   callout whose site misses every arc its view sees end-on leads instead to the middle half
+//!   of its members' trimmed arcs there ([`route_profile`], E4), never to a straight edge.
 //! - **Oriented chamfers** state the true support-plane leg and section angle in a leader
 //!   callout. No projected angle is measured. Equal treatments share the existing C callout;
 //!   a principal-edge member retains presentation ownership when both families occur.
@@ -30,6 +32,7 @@ use super::turned::Turned;
 use super::{AXES, Context, Measurement, P3, Planner, Problem, Shape, Want, end_on, fmt, key};
 use crate::bridge::Feature;
 use crate::bridge::holes::{point, principal};
+use crate::lint::turned::Band;
 
 pub(super) const PLANNER: Planner = Planner {
     kinds: &["chamfer", "fillet", "oriented_chamfer"],
@@ -161,23 +164,100 @@ fn edge<'a>(cx: &Context, f: &'a Feature) -> Result<Edge<'a>, String> {
     })
 }
 
-/// Where the leader points: the record's point *at*, or for a turned treatment about *axis* on a
-/// part turned whole about it (*whole*), that point turned about the axis onto the profile, on the
-/// side it already lies. The site is set at the treatment's radius from the axis along both
-/// transverse axes, so it projects onto the profile in either profile view, whichever placement
-/// uses (only its projection is used).
-fn site(whole: Option<&Turned>, at: P3, axis: usize, turned: bool) -> P3 {
-    let Some(t) = whole.filter(|t| turned && t.axis == axis) else {
+/// The point on the axis a treatment turned about world axis *k*, through *at*, of size *size*
+/// turns about: that of the coaxial turned band whose span (widened by the treatment's size)
+/// contains its station and whose radius reaches it, the nearest such; else that of a part turned
+/// whole (*whole*) about *k*; else none.
+fn turning_axis(bands: &[Band], whole: Option<&Turned>, k: usize, at: P3, size: f64) -> Option<P3> {
+    crate::lint::turned::coaxial(bands, k, at, size)
+        .map(|b| b.on)
+        .or_else(|| whole.filter(|t| t.axis == k).map(|t| t.on))
+}
+
+/// Where the leader points: the record's point *at*, or for a treatment turned about the axis
+/// line through *on* along *axis*, that point turned about the axis onto the profile, on the side
+/// it already lies. The site is set at the treatment's radius from the axis along both transverse
+/// axes, so it projects onto the profile in either profile view, whichever placement uses (only
+/// its projection is used).
+fn site(on: Option<P3>, at: P3, axis: usize) -> P3 {
+    let Some(on) = on else {
         return at;
     };
     let (j, k) = ((axis + 1) % 3, (axis + 2) % 3);
-    let r = (at[j] - t.on[j]).hypot(at[k] - t.on[k]);
+    let r = (at[j] - on[j]).hypot(at[k] - on[k]);
     let mut p = at;
     for c in [j, k] {
-        let sign = if at[c] - t.on[c] < -1e-9 { -1.0 } else { 1.0 };
-        p[c] = t.on[c] + sign * r;
+        let sign = if at[c] - on[c] < -1e-9 { -1.0 } else { 1.0 };
+        p[c] = on[c] + sign * r;
     }
     p
+}
+
+/// A fillet callout's leader sites in view *view* once it is chosen, when a site misses every arc
+/// the view sees end-on: its members' trimmed arcs that the view sees end-on ([`crate::radius`]'s
+/// evidence), so the tip lands on a drawn arc, never on a straight edge. A callout whose sites all
+/// lie on such arcs, or none of whose members shows an arc there, keeps its sites.
+pub(super) fn route_profile(analysis: &crate::model::Analysis, w: &mut Want, view: &str) {
+    let Shape::Callout { sites, arcs } = &mut w.shape else {
+        return;
+    };
+    let Some((_, toward)) = super::TOWARD.iter().find(|(n, _)| *n == view) else {
+        return;
+    };
+    if !arcs.is_empty()
+        || !w
+            .measurements
+            .iter()
+            .any(|m| m.parameter == "fillet.radius")
+    {
+        return;
+    }
+    // Any isometric projection along the line of sight serves to test a point against an arc.
+    let k = (0..3).find(|&k| toward[k] != 0.0).unwrap_or(0);
+    let (a, b) = ((k + 1) % 3, (k + 2) % 3);
+    let page = |p: P3| [p[a], p[b]];
+    let mut shown = Vec::new();
+    for m in w
+        .measurements
+        .iter()
+        .filter(|m| m.parameter == "fillet.radius")
+    {
+        if let Ok(more) = crate::radius::projected(analysis, &m.feature, *toward, page) {
+            shown.extend(more);
+        }
+    }
+    if shown.is_empty() {
+        return;
+    }
+    if sites
+        .iter()
+        .all(|(p, r)| *r == 0.0 && shown.iter().any(|arc| arc.on_arc(page(*p))))
+    {
+        return;
+    }
+    // The middle half of each arc the view sees end-on: the leader's tip is set on it radially
+    // towards its elbow ([`super::leaders`]' rim tip), so it meets the arc radially.
+    let mut middles = Vec::new();
+    for m in w
+        .measurements
+        .iter()
+        .filter(|m| m.parameter == "fillet.radius")
+    {
+        for arc in analysis.radius_arcs.get(&m.feature).into_iter().flatten() {
+            let n = arc.axis.iter().map(|x| x * x).sum::<f64>().sqrt();
+            if n > 1e-12
+                && ((0..3).map(|i| arc.axis[i] * toward[i]).sum::<f64>() / n).abs() > 1.0 - 1e-9
+            {
+                let mut middle = arc.arc.clone();
+                middle.start += 0.25 * middle.sweep;
+                middle.sweep *= 0.5;
+                middles.push(middle);
+            }
+        }
+    }
+    if !middles.is_empty() {
+        *arcs = middles;
+    }
 }
 
 /// A group's key: its family (chamfers 0, fillets 1) and what its members share ([`Edge::same`]).
@@ -224,6 +304,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     });
 
     let rank = |id: &str| analysis.features.iter().position(|f| f.id == id);
+    let bands = crate::lint::turned::all_bands(analysis);
     let mut out = Vec::new();
     for ((family, _), members) in groups {
         // The presentation the leader points into: the most populous axis and view.
@@ -285,7 +366,12 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         }
         let sites = visible
             .iter()
-            .map(|e| (site(cx.turned.as_ref(), e.at, e.axis, e.turned), 0.0))
+            .map(|e| {
+                let on = (e.turned && !e.oriented)
+                    .then(|| turning_axis(&bands, cx.turned.as_ref(), e.axis, e.at, e.value))
+                    .flatten();
+                (site(on, e.at, e.axis), 0.0)
+            })
             .collect();
         out.push(Want {
             id: super::want_id(&first.feature.id, first.parameter),
@@ -321,25 +407,44 @@ mod tests {
         assert!(!c_form(31.75, 14.805, 25.0));
     }
 
-    /// ISSUE-1276-a, in part: a turned treatment's leader site is set at its radius off the
-    /// part's turning axis along both transverse axes, keeping its axial station and side, so it
-    /// projects onto the profile in either profile view (front shows x, side y); anything else
-    /// keeps its physical point.
+    /// ISSUE-1276-a: a turned treatment's leader site is set at its radius off its turning axis
+    /// along both transverse axes, keeping its axial station and side, so it projects onto the
+    /// profile in either profile view (front shows x, side y); with no turning axis it keeps its
+    /// physical point.
     #[test]
     fn a_turned_site_turns_onto_the_profile() {
-        let t = Turned {
-            axis: 2,
-            on: [1.0, 2.0, 0.0],
-            diameter: 20.0,
-        };
+        let on = [1.0, 2.0, 0.0];
         // 3-4-5 off the axis, behind the front view's plane.
         let at = [1.0 + 3.0, 2.0 + 4.0, 7.0];
-        assert_eq!(site(Some(&t), at, 2, true), [6.0, 7.0, 7.0]);
+        assert_eq!(site(Some(on), at, 2), [6.0, 7.0, 7.0]);
         let below = [1.0 - 3.0, 2.0 + 4.0, 7.0];
-        assert_eq!(site(Some(&t), below, 2, true), [-4.0, 7.0, 7.0]);
-        // Not turned, about another axis, or on a part not turned whole: unchanged.
-        assert_eq!(site(Some(&t), at, 2, false), at);
-        assert_eq!(site(Some(&t), at, 0, true), at);
-        assert_eq!(site(None, at, 2, true), at);
+        assert_eq!(site(Some(on), below, 2), [-4.0, 7.0, 7.0]);
+        assert_eq!(site(None, at, 2), at);
+    }
+
+    /// ISSUE-1276-a: the turning axis is the coaxial band's whose span holds the treatment's
+    /// station, not only a part turned whole; a parallel shaft elsewhere does not attract it.
+    #[test]
+    fn a_treatment_turns_about_the_band_that_holds_it() {
+        let band = |on: P3, lo: f64, hi: f64, diameter: f64| Band {
+            axis: 2,
+            on,
+            lo,
+            hi,
+            diameter,
+        };
+        let shaft = band([0.0, 0.0, 279.4], 279.4, 482.6, 63.5);
+        let other = band([200.0, 0.0, 0.0], 0.0, 500.0, 63.5);
+        let bands = [other, shaft];
+        let at = [0.0, -28.575, 479.425];
+        let on = turning_axis(&bands, None, 2, at, 6.35);
+        assert_eq!(on, Some([0.0, 0.0, 279.4]));
+        assert_eq!(site(on, at, 2), [28.575, -28.575, 479.425]);
+        // Beyond every band's span, or about another axis: no turning axis.
+        assert_eq!(
+            turning_axis(&bands, None, 2, [0.0, -28.575, 600.0], 6.35),
+            None
+        );
+        assert_eq!(turning_axis(&bands, None, 0, at, 6.35), None);
     }
 }

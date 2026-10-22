@@ -65,6 +65,18 @@ All notable changes to draftwright-rust are recorded here, in the style of
   boss's diameter callout, as on a turned step: an external thread's designation replaces the
   diameter (`M31.75 x 1.5`), and the boss keeps a callout of its own. Before, it was a
   `pmi_not_lowered` error worded with internal names.
+- **Leader tips on flat-cut bands, chamfers and fillets** land on the feature's own drawn
+  face.
+  - A turned diameter on a band that flats cut is read first in the profile view where the
+    band's outline is its cylinder. Elsewhere it leads to the edge of the trimmed cylinder on the
+    flat, not to the full circle in air (string_post's ø3.4, ctc05's ø558.8).
+  - A turned chamfer or fillet turns about the coaxial band that holds it, not only about the
+    axis of a part turned whole. ctc05's 4× C6.35 no longer tips at the shaft's axis.
+  - A fillet callout whose tip would miss every arc its view sees end-on now leads to one of
+    its members' arcs, never a straight edge (ftc10's 41× R1).
+  - Lint checks turned-diameter and chamfer leader tips against those faces
+    (`step_diameter_leader_target_mismatch`, `chamfer_leader_target_mismatch`). Each has an
+    `…_unverifiable` info when the view cannot show the target.
 
 ## 0.1.0-alpha.12 (2026-10-22)
 

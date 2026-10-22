@@ -21,6 +21,16 @@
 //! - `radius_leader_not_radial`: the drawn shaft (automatic or pinned) must meet the
 //!   middle 25–75% of that profile, within 15 degrees of radial, from either side.
 //! - `radius_leader_target_unverifiable`: a straight blend's target cannot be read.
+//! - `step_diameter_leader_target_mismatch` (ISSUE-1374-d): a callout claiming a turned step's
+//!   `step.diameter` has its tip on the band's own drawn cylinder: its outline each side of its
+//!   axis and its end edges, trimmed by the flats that cut it ([`crate::lint::turned::cuts`]),
+//!   or, seen along its axis, the arcs left between the flats. `…_unverifiable` (info) when the
+//!   record cannot be read.
+//! - `chamfer_leader_target_mismatch` (ISSUE-1374-a): a `chamfer.length` or
+//!   `oriented_chamfer.length` tip lies on the bevel: a turned bevel's meridian, turned about its
+//!   coaxial band onto the outline (or its ring, seen along the axis); a prismatic bevel's
+//!   section seen along its edge; an oriented bevel's face. `…_unverifiable` (info) when the view
+//!   cannot show it (a prismatic edge not seen end-on) or the record cannot be read.
 //!
 //! - `leader_crosses_silhouette` (draftwright's structural check, #796/#798): a callout's shaft,
 //!   after leaving the material at its tip, cuts back into it in its own view, measured by
@@ -208,12 +218,226 @@ fn double_d_gap(
     Ok(Some(gap))
 }
 
+/// The page distance from *t* to segment *a*–*b*.
+fn segment_gap(a: P, b: P, t: P) -> f64 {
+    let d = [b[0] - a[0], b[1] - a[1]];
+    let n = d[0] * d[0] + d[1] * d[1];
+    let s = if n < 1e-24 {
+        0.0
+    } else {
+        (((t[0] - a[0]) * d[0] + (t[1] - a[1]) * d[1]) / n).clamp(0.0, 1.0)
+    };
+    (t[0] - a[0] - s * d[0]).hypot(t[1] - a[1] - s * d[1])
+}
+
+/// The page distance from *t* to the convex quadrilateral *q* (zero inside it).
+fn quad_gap(q: [P; 4], t: P) -> f64 {
+    let side = |i: usize| {
+        let (a, b) = (q[i], q[(i + 1) % 4]);
+        (b[0] - a[0]) * (t[1] - a[1]) - (b[1] - a[1]) * (t[0] - a[0])
+    };
+    let sides = [0, 1, 2, 3].map(side);
+    if sides.iter().all(|s| *s >= 0.0) || sides.iter().all(|s| *s <= 0.0) {
+        return 0.0;
+    }
+    (0..4)
+        .map(|i| segment_gap(q[i], q[(i + 1) % 4], t))
+        .fold(f64::INFINITY, f64::min)
+}
+
+/// The page distance from *tip* to turned step *f*'s cylinder as *p* draws it: its outline on each
+/// side of its axis, and its end edges, trimmed by the flats that cut it; or, seen along its axis,
+/// its trimmed circle. Err when its record cannot be read.
+fn step_gap(analysis: &Analysis, p: &Projection, f: &Feature, tip: P) -> Result<f64, String> {
+    use crate::lint::turned as t;
+    let b = t::band(&holes::frame(analysis), f)?;
+    let cuts = t::cuts(analysis, &b);
+    let mut a = [0.0; 3];
+    a[b.axis] = 1.0;
+    let mut stations = vec![b.lo, b.hi];
+    stations.extend(cuts.iter().flat_map(|c| [c.lo, c.hi]));
+    stations.sort_by(f64::total_cmp);
+    if p.end_on(a) {
+        let mut gap = f64::INFINITY;
+        for w in stations.windows(2).filter(|w| w[1] - w[0] > 1e-9) {
+            for arc in t::arcs(&b, &cuts, 0.5 * (w[0] + w[1])) {
+                let (c, r, span) = arc.projected(|q| p.page(q));
+                let d = (tip[0] - c[0]).hypot(tip[1] - c[1]);
+                if span.contains(
+                    (tip[1] - c[1]).atan2(tip[0] - c[0]),
+                    TOLERANCE / r.max(1e-9),
+                ) {
+                    gap = gap.min((d - r).abs());
+                }
+            }
+        }
+        return Ok(gap);
+    }
+    let t3 = p.view.toward;
+    let u = unit([
+        t3[1] * a[2] - t3[2] * a[1],
+        t3[2] * a[0] - t3[0] * a[2],
+        t3[0] * a[1] - t3[1] * a[0],
+    ])
+    .ok_or("the view looks along its axis")?;
+    let mut gap = f64::INFINITY;
+    for d in [u, u.map(|x| -x)] {
+        for [q0, q1] in t::outline(&b, &cuts, d) {
+            gap = gap.min(segment_gap(p.page(q0), p.page(q1), tip));
+        }
+    }
+    // The end edges, from one side's outline to the other's.
+    for end in [b.lo, b.hi] {
+        let inside = if end == b.lo {
+            b.lo + 1e-6
+        } else {
+            b.hi - 1e-6
+        };
+        if let (Some(mut q0), Some(mut q1)) = (
+            t::extreme(&b, &cuts, inside, u),
+            t::extreme(&b, &cuts, inside, u.map(|x| -x)),
+        ) {
+            q0[b.axis] = end;
+            q1[b.axis] = end;
+            gap = gap.min(segment_gap(p.page(q0), p.page(q1), tip));
+        }
+    }
+    Ok(gap)
+}
+
+/// The page distance from *tip* to chamfer *f*'s bevel as *p* draws it, or why the view cannot
+/// show it. A turned bevel (a cone about its coaxial band) reads in profile as its meridian
+/// through its record's point turned onto the outline, either way the bevel may slope; or, seen
+/// along its axis, as the ring it covers. A prismatic bevel reads seen along its edge, as its
+/// section through the record's point, its legs along the two axes square to the edge. An oriented
+/// bevel is its face: the quadrilateral its legs and run span.
+fn chamfer_gap(analysis: &Analysis, p: &Projection, f: &Feature, tip: P) -> Result<f64, String> {
+    let frame = holes::frame(analysis);
+    if f.kind == "oriented_chamfer" {
+        let b = crate::lint::oriented_chamfers::read(analysis, f)?;
+        let along = |q: V3| dot([0, 1, 2].map(|k| q[k] - b.corner[k]), b.run);
+        let mid = along(b.at);
+        let at = |leg: V3, l: f64, s: f64| {
+            p.page(
+                [0, 1, 2].map(|k| b.corner[k] + l * leg[k] + (mid + s * 0.5 * b.length) * b.run[k]),
+            )
+        };
+        return Ok(quad_gap(
+            [
+                at(b.u, b.legs[0], -1.0),
+                at(b.u, b.legs[0], 1.0),
+                at(b.v, b.legs[1], 1.0),
+                at(b.v, b.legs[1], -1.0),
+            ],
+            tip,
+        ));
+    }
+    let q = &f.parameters;
+    let at = point(q.get("at"))
+        .map(|l| to_part(&frame, l))
+        .ok_or("its record gives no point on it (at)")?;
+    let k = q
+        .get("axis")
+        .and_then(serde_json::Value::as_str)
+        .and_then(|a| ["x", "y", "z"].iter().position(|x| *x == a))
+        .and_then(|i| {
+            let mut d = [0.0; 3];
+            d[i] = 1.0;
+            holes::principal(dir_to_part(&frame, d))
+        })
+        .ok_or("its record gives no principal axis")?;
+    let leg = |name: &str| {
+        q.get(name)
+            .and_then(serde_json::Value::as_f64)
+            .filter(|x| x.is_finite() && *x > 0.0)
+            .ok_or(format!("its record gives no {name}"))
+    };
+    let (l1, l2) = (leg("leg1")?, leg("leg2")?);
+    let mut a = [0.0; 3];
+    a[k] = 1.0;
+    // The bevel's section through *centre*, along *along* and *across* (unit, square to each
+    // other), either way it slopes and either way round its legs lie.
+    let section = |centre: V3, along: V3, across: V3| {
+        let mut gap = f64::INFINITY;
+        for (la, lr) in [(l1, l2), (l2, l1)] {
+            for s in [-1.0, 1.0] {
+                let e = [0, 1, 2].map(|i| 0.5 * (la * along[i] + s * lr * across[i]));
+                let q0 = p.page([0, 1, 2].map(|i| centre[i] + e[i]));
+                let q1 = p.page([0, 1, 2].map(|i| centre[i] - e[i]));
+                gap = gap.min(segment_gap(q0, q1, tip));
+            }
+        }
+        gap
+    };
+    if q.get("turned").and_then(serde_json::Value::as_bool) == Some(true) {
+        let bands = crate::lint::turned::all_bands(analysis);
+        // Its coaxial band's axis, or the one axis line every band about *k* shares (a part
+        // turned whole, as the planner turns it).
+        let (j, m) = ((k + 1) % 3, (k + 2) % 3);
+        let along: Vec<&crate::lint::turned::Band> = bands.iter().filter(|b| b.axis == k).collect();
+        let on = crate::lint::turned::coaxial(&bands, k, at, l1.max(l2))
+            .map(|b| b.on)
+            .or_else(|| {
+                let first = along.first()?;
+                along
+                    .iter()
+                    .all(|b| {
+                        (b.on[j] - first.on[j]).abs() <= 1e-3
+                            && (b.on[m] - first.on[m]).abs() <= 1e-3
+                    })
+                    .then_some(first.on)
+            })
+            .ok_or("no coaxial turned band holds its station")?;
+        let b = crate::lint::turned::Band {
+            axis: k,
+            on,
+            lo: at[k],
+            hi: at[k],
+            diameter: 0.0,
+        };
+        let rho = (at[j] - b.on[j]).hypot(at[m] - b.on[m]);
+        if p.end_on(a) {
+            let c = p.page(b.on);
+            let d = (tip[0] - c[0]).hypot(tip[1] - c[1]);
+            return Ok(((d - p.scale * rho).abs() - p.scale * 0.5 * l1.max(l2)).max(0.0));
+        }
+        let t3 = p.view.toward;
+        let u = unit([
+            t3[1] * a[2] - t3[2] * a[1],
+            t3[2] * a[0] - t3[0] * a[2],
+            t3[0] * a[1] - t3[1] * a[0],
+        ])
+        .ok_or("the view looks along its axis")?;
+        let mut gap = f64::INFINITY;
+        for w in [u, u.map(|x| -x)] {
+            let mut o = b.on;
+            o[k] = at[k];
+            let o = [0, 1, 2].map(|i| o[i] + rho * w[i]);
+            gap = gap.min(section(o, a, w));
+        }
+        return Ok(gap);
+    }
+    if !p.end_on(a) {
+        return Err("the view does not see its edge end-on, where its bevel shows edge-on".into());
+    }
+    let (j, m) = ((k + 1) % 3, (k + 2) % 3);
+    let (mut ej, mut em) = ([0.0; 3], [0.0; 3]);
+    ej[j] = 1.0;
+    em[m] = 1.0;
+    Ok(section(at, ej, em))
+}
+
 fn issue(code: &str, name: &str, view: &str, tip: P, message: String, why: &str) -> LintIssue {
     LintIssue {
         sheet: None,
         id: format!("l:{code}:{name}"),
         code: code.into(),
-        severity: if code == "radius_leader_target_unverifiable" {
+        severity: if matches!(
+            code,
+            "radius_leader_target_unverifiable"
+                | "step_diameter_leader_target_unverifiable"
+                | "chamfer_leader_target_unverifiable"
+        ) {
             Severity::Info
         } else {
             Severity::Warning
@@ -418,6 +642,79 @@ pub(super) fn check(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
                         "drawn tip must be on a recorded circular boundary edge, within its angular span",
                     );
                 }
+            }
+        }
+        // A turned step's diameter, and a chamfer's size, against the faces they name.
+        for (parameters, noun, gap) in [
+            (
+                &["step.diameter"][..],
+                "step_diameter",
+                step_gap as fn(&Analysis, &Projection, &Feature, P) -> Result<f64, String>,
+            ),
+            (
+                &["chamfer.length", "oriented_chamfer.length"][..],
+                "chamfer",
+                chamfer_gap,
+            ),
+        ] {
+            // One callout may count members of several of these families (principal and
+            // oriented chamfers): its tip need only meet one member's face.
+            let ids: Vec<&str> = parameters.iter().flat_map(|p| claimed(p)).collect();
+            let Some(parameter) = parameters.iter().find(|p| !claimed(p).is_empty()) else {
+                continue;
+            };
+            let (mut gaps, mut reasons) = (Vec::new(), Vec::new());
+            for f in analysis
+                .features
+                .iter()
+                .filter(|f| ids.contains(&f.id.as_str()))
+            {
+                match gap(analysis, &p, f, tip) {
+                    Ok(g) => gaps.push(g),
+                    Err(why) => reasons.push(why),
+                }
+            }
+            reasons.sort();
+            reasons.dedup();
+            let (what, leader) = if noun == "chamfer" {
+                (
+                    "chamfer leader tip does not touch its named bevel",
+                    "chamfer",
+                )
+            } else {
+                (
+                    "diameter leader tip does not touch its named turned surface",
+                    "diameter",
+                )
+            };
+            let best = gaps.iter().copied().fold(f64::INFINITY, f64::min);
+            if gaps.is_empty() {
+                found(
+                    if noun == "chamfer" {
+                        "chamfer_leader_target_unverifiable"
+                    } else {
+                        "step_diameter_leader_target_unverifiable"
+                    },
+                    ids,
+                    parameter,
+                    format!(
+                        "{}: the {leader} leader's target cannot be verified in this view",
+                        a.name
+                    ),
+                    &reasons.join("; "),
+                );
+            } else if best > TOLERANCE {
+                found(
+                    if noun == "chamfer" {
+                        "chamfer_leader_target_mismatch"
+                    } else {
+                        "step_diameter_leader_target_mismatch"
+                    },
+                    ids,
+                    parameter,
+                    format!("{}: the {what} (it lies {best:.3} mm from it)", a.name),
+                    "drawn tip is off the named physical surface's projected outline",
+                );
             }
         }
         // The shaft against the material it left at its tip.
