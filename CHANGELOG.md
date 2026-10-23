@@ -6,6 +6,56 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+## 0.1.0-alpha.13 (2026-10-23)
+
+Now on quiddity-rust **v0.1.1** (previously `0.1.0-alpha.8`). This release fixes quiddity-rust
+#69, #70, #71, #75 and #76, and improves #72. Some drawings get worse, and those regressions are
+accepted for this alpha (listed under **Known regressions** below). Fixes are planned for alpha.14,
+on quiddity 0.1.2 and in draftwright.
+
+### quiddity-rust v0.1.1
+
+- **Grid and frames.** Framed positions are on the 0.001 mm grid (#69) and near-axis frames are
+  treated as axis-aligned (#70), so draftwright's origin-relative re-rounding and near-axis remap
+  are removed. A sub-floor snap stays for values quiddity still publishes with frame round-off.
+- **Plates, CTC-04 and CTC-05.**
+  - GRM-03's plate is 2.5 thick again, not 2.25 (#71).
+  - CTC-04's 12 false countersinks, which were pocket-rim chamfer corners, are gone (#76).
+  - CTC-05's shaft outline is drawn visible (#75).
+- **Framed records restored to file axes.** Records on frames that are only partly aligned have
+  their turned-step ends, turned-profile axes and flat axis lines mapped back to file axes.
+  threaded_connector_109 keeps its 7 turned steps, 3 grooves and flat, and stays A3 1:5.
+- **Speed.** Planning CTC-02 rc costs 1.13× main's instructions; FTC-06 is unchanged.
+- **WASM size.** The raw WASM grows by 622 KB, to 17.34 MB. The size budget is re-baselined on
+  that build, with a ceiling of 19.1 MB.
+
+### Known regressions (fix in alpha.14)
+
+- **Frame inference rotates axis-aligned parts** (quiddity-rust #81).
+  - CTC-02 AP242: +15 undimensioned features, and "10× R25" is lost.
+  - FTC-07 AP242: A1 1:1 → A2 1:2, +21 undimensioned features.
+- **Layouts that change with the move to framed records.**
+  - FTC-06: A1 1:2 → A2 1:5.
+  - FTC-10: 1×A1 → 2×A2.
+  - STC-06 AP242: A0 1:1 → A2 1:5.
+  - 10119: A4 2:1 → 1:1.
+  - CTC-01 rd: the radius-centre table is no longer planned, and 4× R25 is a placed callout.
+  - CTC-01 merge: 21 → 30 warnings.
+- **Other changes in quiddity's output.**
+  - CTC-02 rc: the 49.5 hole array is not found (#82).
+  - Countersunk holes lose their seat (#83).
+  - 1000.step: the plate's top is off the grid (#84).
+  - whistle_frame_reference: the plate is 7.3 thick, not 7.0 (#85).
+- **Draftwright's handling of framed records.**
+  - cgb202: 16 fillets are read as blends (51 → 86 warnings, 1 error).
+  - cgb207: "ALL UNSPECIFIED RADII" is not planned, and R5 is undimensioned.
+  - cgb245: slot ends round the other way on a 0.005 tie.
+- **Random-pin acceptance.**
+  - FTC-10 fails five pin cells, because pin replay on multi-sheet plans re-packs the views
+    (draftwright #170).
+  - CTC-03 fails one pin cell.
+  - Both are listed in `tools/known-pin-failures.json`; every other part and cell must pass.
+
 ### Added
 
 - **ISO 5457 sheet furniture on every sheet.** Grid zones (numbers along the top and bottom,
@@ -32,8 +82,8 @@ All notable changes to draftwright-rust are recorded here, in the style of
   default Ra symbol move with it.
 - The Python-rules catalogue (`docs/rules`) applies the 2026-10-22 evaluation of the 30 pending
   rules: 2 met in full and 14 ported for what Rust implements, each naming the clauses retired
-  and why; `leader_shaft_unverified` retired; ISSUE-958-a and ARCH0020-1 left pending on
-  quiddity (quiddity-rust #69–#73); stale notes corrected. 13 rules remain pending. Two new
+  and why; `leader_shaft_unverified` retired; ARCH0020-1 left pending on
+  quiddity (quiddity-rust #69–#72); stale notes corrected. 12 rules remain pending. Two new
   tests check that a fillet radius leader moved off its arc is reported, and that omitting a
   threaded hole's callout reports its thread rather than losing it.
 - **Profile-angle lint credits determined corners.** Two kinds of outer-profile corner no
@@ -45,6 +95,16 @@ All notable changes to draftwright-rust are recorded here, in the style of
   Real gaps still report: the corners on cgb202, cgb207, CTC-03, CTC-04 and FTC-08 have no
   stated size or angle on the drawing. Drawings are unchanged.
 
+- **ISSUE-958-a ported.** The forward-order two-channels fixture held only one occurrence of
+  the channelled block, so it reported one channel (reported upstream as quiddity-rust #73, which
+  was the fixture, not recognition). It is replaced with quiddity-rust's
+  `two_channels_ordered.step`, and both orders now report two channels.
+- **Ruled-out sheet requests say why.** A paper and sheet-count request that cannot fit at any
+  readable scale was already skipped without planning. Its candidate now carries
+  `kind: "ruled_out"` and an outcome giving the first condition that fails, in paper mm against
+  the drawable area (for example FTC-09: `A4 up to 1: ruled out: view v:front with its annotation
+  bands needs at least 305 × 217 mm at 1:2; A4 drawable area is 277 × 190 mm; …`). The same
+  requests are skipped as before.
 ### Fixed
 
 - **Holes and bosses on inclined axes get a callout** instead of none (defect E2). The callout
@@ -103,6 +163,20 @@ All notable changes to draftwright-rust are recorded here, in the style of
   length with the extent along the bar, and its `HEX … A/F` callout with the extents across
   it that the regular section reaches, whatever its roll. The three false
   `missing_principal_dimension` warnings on the stock bars (roll17 among them) are gone.
+
+### Performance
+
+- **Late callout repair.** Routes the repair must refuse on geometry or on their first
+  measurement are skipped before they are measured, and repeated measurements are computed
+  once. Planning the quality set costs about 25% fewer instructions, and every plan and sheet
+  SVG is byte-identical.
+
+### Development
+
+- CI: quality-pins measures each part once per cell and gates in one job; the acceptance jobs
+  start from a separate binary build; test shards are balanced by recorded duration. A main run
+  takes about 22 minutes, down from 32. A push to main that changes only release metadata runs
+  lint alone when CI passed on its parent.
 
 ## 0.1.0-alpha.12 (2026-10-22)
 
