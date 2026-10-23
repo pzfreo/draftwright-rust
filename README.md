@@ -282,8 +282,7 @@ every corpus-backed test; without it they are skipped.
 ## Taking a new haecceity
 
 haecceity and Rust quiddity come by git from `pzfreo/quiddity-rust`. They are pinned to the
-0.1.1 release candidate, commit `9af17e58` (to move to the `v0.1.1` tag once it is published),
-by `rev` in `Cargo.toml` and one commit in `Cargo.lock`. To follow the development branch again,
+`v0.1.1` tag (commit `a27b7064`) in `Cargo.toml` and that one commit in `Cargo.lock`. To follow the development branch again,
 set `branch = "main"` in place of `tag` in `Cargo.toml`; then, to move the pin to what is pushed
 on that branch:
 
