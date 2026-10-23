@@ -275,7 +275,7 @@ fn omitted_references_leave_the_isometric_caption_clear_of_projection_bands() {
             }
             assert_eq!(
                 p.dimensions.iter().filter(|d| d.reference).count(),
-                if references { 3 } else { 0 }
+                if references { 5 } else { 0 }
             );
         }
     }
