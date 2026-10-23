@@ -18,6 +18,7 @@ use super::{
     AXES, Context, Measurement, NAMES, Omitted, P3, Planner, Problem, Shape, Want, end_on, fmt,
     key, point, want_id,
 };
+use crate::arc::ProfileArc;
 use crate::bridge::{HolePattern, holes};
 use crate::model::Analysis;
 
@@ -35,13 +36,16 @@ pub(super) const SPOTFACE: &str = "⌴SF";
 /// Member sites projected into a view, as integer keys.
 type Sites = Vec<(i64, i64)>;
 
-/// A recognised hole the callout grammar can state: read by [`holes::Hole::read`], along a
-/// principal axis, with its depth when it is blind.
+/// A recognised hole the callout grammar can state: read by [`holes::Hole::read`], with its
+/// depth when it is blind.
 #[derive(Clone, Debug)]
 struct Hole<'a> {
     read: holes::Hole<'a>,
-    /// The world axis it lies along.
+    /// The world axis it lies along, or, for an inclined hole, the one it lies most nearly along
+    /// ([`oblique_axes`]).
     axis: usize,
+    /// Whether its axis is inclined to every principal axis, so no standard view sees it end-on.
+    inclined: bool,
 }
 
 impl<'a> std::ops::Deref for Hole<'a> {
@@ -123,13 +127,93 @@ impl Hole<'_> {
 /// A hole as the callout grammar reads it, or why it cannot state it.
 fn hole<'a>(read: Result<holes::Hole<'a>, String>) -> Result<Hole<'a>, String> {
     let read = read?;
-    let (axis, _) = read
-        .principal
-        .ok_or("its axis is not along x, y or z, so no standard view looks along it")?;
     if !read.through && read.depth.is_none() {
         return Err("it is blind and has no depth".into());
     }
-    Ok(Hole { read, axis })
+    let (axis, inclined) = match read.principal {
+        Some((k, _)) => (k, false),
+        None => (oblique_axes(read.direction)[0], true),
+    };
+    Ok(Hole {
+        read,
+        axis,
+        inclined,
+    })
+}
+
+/// The world axes an inclined direction *d* is seen across, as an ellipse rather than edge-on,
+/// most nearly end-on first: by its components' size, the first axis on an exact tie (a hole at
+/// 45° between two views is seen equally well in either; x, then y, then z, so the plan view,
+/// which carries most of a part's dimensions, comes last).
+pub(super) fn oblique_axes(d: P3) -> Vec<usize> {
+    let mut axes: Vec<usize> = (0..3).filter(|&k| d[k].abs() >= 1e-6).collect();
+    axes.sort_by(|&i, &j| d[j].abs().total_cmp(&d[i].abs()).then(i.cmp(&j)));
+    axes
+}
+
+/// The direction toward the viewer of the view along world axis *k*.
+pub(super) fn toward(k: usize) -> P3 {
+    super::TOWARD
+        .iter()
+        .find(|(n, _)| *n == end_on(k))
+        .map(|(_, t)| *t)
+        // Invariant: The fixed principal view table includes one view along each coordinate axis.
+        .expect("a view along each axis")
+}
+
+/// Where a leader may land on a circle of *radius* about *centre*, square to unit direction *d*,
+/// in the view along world axis *k* that sees it as an ellipse: the two ends of the ellipse's
+/// major axis, the points that keep the circle's full radius and where a leader pointing at the
+/// centre meets the rim square-on. Each is a zero-length arc, so the tip lands exactly on the
+/// projected rim (the leaders place tips on circular arcs); both are points of the circle itself,
+/// so they lie on its rim in any view.
+pub(super) fn rim_tips(centre: P3, d: P3, radius: f64, k: usize) -> [ProfileArc; 2] {
+    let t = toward(k);
+    let u = [
+        d[1] * t[2] - d[2] * t[1],
+        d[2] * t[0] - d[0] * t[2],
+        d[0] * t[1] - d[1] * t[0],
+    ];
+    let n = u.iter().map(|c| c * c).sum::<f64>().sqrt();
+    let u = u.map(|c| c / n);
+    let v = [
+        d[1] * u[2] - d[2] * u[1],
+        d[2] * u[0] - d[0] * u[2],
+        d[0] * u[1] - d[1] * u[0],
+    ];
+    [0.0, std::f64::consts::PI].map(|start| ProfileArc {
+        centre,
+        radius,
+        u,
+        v,
+        start,
+        sweep: 0.0,
+    })
+}
+
+/// Where a leader may land on an inclined hole's bore, for each view that sees it as an ellipse
+/// ([`oblique_axes`]): [`rim_tips`] on the bore's circle at the end nearer that view's viewer
+/// (where its recess, if any, ends; a through hole drilled towards the viewer shows its exit).
+fn hole_tips(h: &Hole) -> Vec<ProfileArc> {
+    let d = h.direction;
+    let along = |t: f64| [0, 1, 2].map(|j| h.at[j] + t * d[j]);
+    let sunk = h
+        .counterbore
+        .or(h.spotface)
+        .and_then(|r| r.depth)
+        .unwrap_or(0.0);
+    let mut out = Vec::new();
+    for k in oblique_axes(d) {
+        let t = toward(k);
+        let centre = match h.depth {
+            Some(depth) if h.through && (0..3).map(|j| d[j] * t[j]).sum::<f64>() > 0.0 => {
+                along(depth)
+            }
+            _ => along(sunk),
+        };
+        out.extend(rim_tips(centre, d, 0.5 * h.diameter, k));
+    }
+    out
 }
 
 /// The holes' callouts, the pitches of their patterns and their locations, with the problems met
@@ -160,6 +244,20 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                             // Invariant: The hole reader refuses blind records without a finite positive depth.
                             fmt(h.depth.expect("a blind hole has its depth")),
                             bottom.unwrap_or("none given")
+                        ),
+                        subjects: vec![f.id.clone()],
+                        ..Default::default()
+                    });
+                }
+                if h.inclined {
+                    // As an inclined boss's (super::bosses): its size is called out below.
+                    problems.push(Problem {
+                        id: format!("p:feature_not_dimensioned:{}", f.id),
+                        code: "feature_not_dimensioned".into(),
+                        severity: "warning".into(),
+                        message: format!(
+                            "{}'s location is not dimensioned: its axis is inclined to every principal axis, so it needs a view square to it; its size is called out where it is seen most nearly end-on.",
+                            crate::wording::capital(&crate::wording::feature(f))
                         ),
                         subjects: vec![f.id.clone()],
                         ..Default::default()
@@ -428,6 +526,14 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     for (_, members) in &groups {
         let first = &holes[members[0]];
         let view = end_on(first.axis);
+        let views: Vec<&'static str> = if first.inclined {
+            oblique_axes(first.direction)
+                .into_iter()
+                .map(end_on)
+                .collect()
+        } else {
+            vec![view]
+        };
         let mut terms = Vec::new();
         if members.len() > 1 {
             terms.push(format!("{}×", members.len()));
@@ -468,23 +574,35 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                 }
             );
         }
-        let note = members
+        let mut note = members
             .iter()
             .find_map(|m| declined.get(m))
             .map_or(String::new(), |d| format!("; {d}"));
+        let seen = if first.inclined {
+            "most nearly end-on"
+        } else {
+            "end-on"
+        };
+        let arcs: Vec<ProfileArc> = if first.inclined {
+            note += "; its axis is inclined to every principal axis, so it shows there as an ellipse, the leader to its bore's rim, and it is not located (that needs a view square to its axis)";
+            members.iter().flat_map(|&m| hole_tips(&holes[m])).collect()
+        } else {
+            Vec::new()
+        };
         callouts.push(Want {
             id: want_id(&first.feature.id, "bore.diameter"),
-            views: vec![view],
+            views,
             value: first.diameter,
             terms,
             measurements,
             turning: None,
             basis: if members.len() > 1 {
-                format!("identical holes drilled from one face are called out once and counted, where they are seen end-on{note}{threaded}")
+                format!("identical holes drilled from one face are called out once and counted, where they are seen {seen}{note}{threaded}")
             } else {
-                format!("a hole's size is called out where it is seen end-on{note}{threaded}")
+                format!("a hole's size is called out where it is seen {seen}{note}{threaded}")
             },
-            shape: Shape::Callout { arcs: Vec::new(),
+            shape: Shape::Callout {
+                arcs,
                 sites: members
                     .iter()
                     .map(|&m| (holes[m].at, 0.5 * holes[m].diameter))
@@ -493,6 +611,9 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         });
         for &m in members {
             let h = &holes[m];
+            if h.inclined {
+                continue; // no standard view measures across its axis
+            }
             let (u, v) = in_view(h.axis);
             for k in [u, v] {
                 if let Some(t) = &turned
@@ -965,5 +1086,39 @@ mod tests {
             location("f:hole:1", "location.length.x", 40.0, "40"),
         ]);
         assert_eq!(kept, ["d:f:hole:2/location.length.x"]);
+    }
+
+    #[test]
+    fn an_inclined_axis_is_seen_most_nearly_end_on_first_and_never_edge_on() {
+        // ctc04's counterbored holes: 22° off z, in the y–z plane, so never seen in the side view.
+        assert_eq!(oblique_axes([0.0, -0.375, 0.927]), [2, 1]);
+        // cgb217's ⌀10.2: 13° off x.
+        assert_eq!(oblique_axes([-0.974, -0.226, 0.0]), [0, 1]);
+        // ctc03's holes at 45° between x and z: a tie, the first axis taken.
+        let h = std::f64::consts::FRAC_1_SQRT_2;
+        assert_eq!(oblique_axes([h, 0.0, -h]), [0, 2]);
+    }
+
+    #[test]
+    fn rim_tips_lie_on_the_circle_at_its_full_radius_across_the_view() {
+        let d = [0.0, -0.375f64, 0.927];
+        let n = (d[1] * d[1] + d[2] * d[2]).sqrt();
+        let d = [0.0, d[1] / n, d[2] / n];
+        let c = [10.0, 20.0, 30.0];
+        for k in oblique_axes(d) {
+            let tips = rim_tips(c, d, 6.0, k);
+            for t in &tips {
+                let p = t.point(t.start);
+                let r: Vec<f64> = (0..3).map(|j| p[j] - c[j]).collect();
+                // On the circle: at its radius from the centre, square to the axis.
+                assert!((r.iter().map(|x| x * x).sum::<f64>().sqrt() - 6.0).abs() < 1e-9);
+                assert!((0..3).map(|j| r[j] * d[j]).sum::<f64>().abs() < 1e-9);
+                // Square to the view's axis, so the view sees the full radius there.
+                assert!(r[k].abs() < 1e-9);
+                assert_eq!(t.sweep, 0.0);
+            }
+            let [a, b] = tips.map(|t| t.point(t.start));
+            assert!((0..3).all(|j| (a[j] + b[j] - 2.0 * c[j]).abs() < 1e-9));
+        }
     }
 }

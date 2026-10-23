@@ -208,5 +208,47 @@
   "crossing": "line:d:f:slot:2/slot_length.length",
   "verdict": "rust-wrong",
   "reason": "Existing location ladders cross the plan view. Adding the real cutting-plane letters and wing/arrow outlines changes this callout's feasible routes: three prior extension contacts disappear and three other ladder contacts remain. The exhaustive leaders test still rejects new and stale entries; total stays 39. This obstacle hook does not repair the G2/G3 location ladder. New fixed-ink clearance and per-part no-worsening are independently checked by centrelines.rs and quality.py; see G6 fix status and known_centrelines.json."
+ },
+ {
+  "part": "ctc04 (native)",
+  "callout": "d:f:hole:32/bore.diameter",
+  "crossing": "label:d:f:slot:4/slot_length.length",
+  "verdict": "rust-wrong",
+  "reason": "Came with cx/inclined-holes (defect E2): ctc04's counterbored holes (hole:32 group) and their ⌀10.106 bores (hole:48 group) lie 22° off z and had no callout; they are now called out in the plan, which sees them most nearly end-on, from labels right of the view on this test's A1 1:5 sheet (native analysis, no PMI). The 2× 285.28 slot-length dimension line runs up the plan's right lane (x 176.6, y 209.6–266.7) through this label; the plan reports it as annotation_ink_overlap. The 10 plan callouts are placed together by a joint search that stops at its 200000-step bound (annotation_leader_search_capped), and leaders::refine re-routes a label crossed by a line only for an edited label or a section recess, so nothing moves it. The cause is the leader engine's bounded search and refinement, not the callout. On the command line's default sheet (PMI first) the same callouts cross only the 92.7 extension line and have no ink overlap."
+ },
+ {
+  "part": "ctc04 (native)",
+  "callout": "d:f:hole:32/bore.diameter",
+  "crossing": "line:d:f:hole:56/location.length.x",
+  "verdict": "rust-wrong",
+  "reason": "Came with cx/inclined-holes (defect E2): ctc04's counterbored holes (hole:32 group) and their ⌀10.106 bores (hole:48 group) lie 22° off z and had no callout; they are now called out in the plan, which sees them most nearly end-on, from labels right of the view on this test's A1 1:5 sheet (native analysis, no PMI). Its shaft runs right from the hidden bore out of the plan, across the extension line of hole:56's x location 473.588, which runs up through the view; reported as annotation_leader_crossing. Every route from these bores, inside the boss amid the ladders' extension lines, crosses some (as the entries above for hole_pattern:3 and :11)."
+ },
+ {
+  "part": "ctc04 (native)",
+  "callout": "d:f:hole:32/bore.diameter",
+  "crossing": "line:d:f:hole_pattern:1/pitch.length",
+  "verdict": "rust-wrong",
+  "reason": "Came with cx/inclined-holes (defect E2): ctc04's counterbored holes (hole:32 group) and their ⌀10.106 bores (hole:48 group) lie 22° off z and had no callout; they are now called out in the plan, which sees them most nearly end-on, from labels right of the view on this test's A1 1:5 sheet (native analysis, no PMI). Its shaft runs right from the hidden bore out of the plan, across the extension line of hole_pattern:1's 2× 75 pitch, which runs up through the view; reported as annotation_leader_crossing. Every route from these bores, inside the boss amid the ladders' extension lines, crosses some (as the entries above for hole_pattern:3 and :11)."
+ },
+ {
+  "part": "ctc04 (native)",
+  "callout": "d:f:hole:48/bore.diameter",
+  "crossing": "label:d:f:slot:4/slot_length.length",
+  "verdict": "rust-wrong",
+  "reason": "Came with cx/inclined-holes (defect E2): ctc04's counterbored holes (hole:32 group) and their ⌀10.106 bores (hole:48 group) lie 22° off z and had no callout; they are now called out in the plan, which sees them most nearly end-on, from labels right of the view on this test's A1 1:5 sheet (native analysis, no PMI). The 2× 285.28 slot-length dimension line runs up the plan's right lane (x 176.6, y 209.6–266.7) through this label; the plan reports it as annotation_ink_overlap. The 10 plan callouts are placed together by a joint search that stops at its 200000-step bound (annotation_leader_search_capped), and leaders::refine re-routes a label crossed by a line only for an edited label or a section recess, so nothing moves it. The cause is the leader engine's bounded search and refinement, not the callout. On the command line's default sheet (PMI first) the same callouts cross only the 92.7 extension line and have no ink overlap."
+ },
+ {
+  "part": "ctc04 (native)",
+  "callout": "d:f:hole:48/bore.diameter",
+  "crossing": "line:d:f:hole:56/location.length.x",
+  "verdict": "rust-wrong",
+  "reason": "Came with cx/inclined-holes (defect E2): ctc04's counterbored holes (hole:32 group) and their ⌀10.106 bores (hole:48 group) lie 22° off z and had no callout; they are now called out in the plan, which sees them most nearly end-on, from labels right of the view on this test's A1 1:5 sheet (native analysis, no PMI). Its shaft runs right from the hidden bore out of the plan, across the extension line of hole:56's x location 473.588, which runs up through the view; reported as annotation_leader_crossing. Every route from these bores, inside the boss amid the ladders' extension lines, crosses some (as the entries above for hole_pattern:3 and :11)."
+ },
+ {
+  "part": "ctc04 (native)",
+  "callout": "d:f:hole:48/bore.diameter",
+  "crossing": "line:d:f:hole_pattern:1/pitch.length",
+  "verdict": "rust-wrong",
+  "reason": "Came with cx/inclined-holes (defect E2): ctc04's counterbored holes (hole:32 group) and their ⌀10.106 bores (hole:48 group) lie 22° off z and had no callout; they are now called out in the plan, which sees them most nearly end-on, from labels right of the view on this test's A1 1:5 sheet (native analysis, no PMI). Its shaft runs right from the hidden bore out of the plan, across the extension line of hole_pattern:1's 2× 75 pitch, which runs up through the view; reported as annotation_leader_crossing. Every route from these bores, inside the boss amid the ladders' extension lines, crosses some (as the entries above for hole_pattern:3 and :11)."
  }
 ]

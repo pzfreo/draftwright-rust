@@ -39,6 +39,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use serde_json::Value;
 
 use super::envelope::profile_views;
+use super::holes as holes_dims;
 use super::{
     AXES, Context, Measurement, NAMES, Omitted, P3, Planner, Problem, QFrame, Shape, Want, add,
     end_on, fmt, key, point, scale3, want_id,
@@ -112,6 +113,111 @@ fn read<'a>(f: &'a Feature, frame: &QFrame) -> Result<Boss<'a>, String> {
         section: Section::Round(diameter),
         height,
     })
+}
+
+/// A cylindrical boss whose axis is inclined to every principal axis, in the part's frame: no
+/// standard view looks down it, so only its diameter is stated ([`inclined_callouts`]).
+struct Inclined<'a> {
+    feature: &'a Feature,
+    /// The centre of its top, its outward axis (unit), and the centre of its base when its height
+    /// is known.
+    top: P3,
+    dir: P3,
+    base: Option<P3>,
+    diameter: f64,
+}
+
+/// A cylindrical boss record ([`read`]) whose axis is readable but inclined; none otherwise.
+fn read_inclined<'a>(f: &'a Feature, frame: &QFrame) -> Option<Inclined<'a>> {
+    let p = &f.parameters;
+    let dir = holes::dir_to_part(&frame.0, point(p.get("axis"))?);
+    let n = dir.iter().map(|c| c * c).sum::<f64>().sqrt();
+    if n == 0.0 || principal(dir).is_some() {
+        return None;
+    }
+    let dir = dir.map(|c| c / n);
+    let top = frame.point(point(p.get("location"))?);
+    let height = p.get("height").and_then(Value::as_f64).filter(|h| *h > 0.0);
+    Some(Inclined {
+        feature: f,
+        top,
+        dir,
+        base: height.map(|h| add(top, scale3(dir, -h))),
+        diameter: p.get("diameter").and_then(Value::as_f64)?,
+    })
+}
+
+/// Inclined bosses' diameters, called out as an inclined hole's are ([`super::holes`]): in the
+/// views that see them as ellipses, most nearly end-on first, the leader to a major-axis end of
+/// the rim nearer the viewer (its top when it faces the viewer, else its base). Bosses of one
+/// diameter along one line are counted once, as principal ones along one axis are: keyed on the
+/// direction, either way along it (as [`holes::Hole::requirement`] keys a hole's, signed), so
+/// every member is seen as the first is.
+fn inclined_callouts(inclined: &[Inclined]) -> Vec<Want> {
+    let mut groups: BTreeMap<([i64; 3], i64), Vec<&Inclined>> = BTreeMap::new();
+    let mut order = Vec::new();
+    for b in inclined {
+        // Its largest component made positive: one key for both ways along the line.
+        let sign = b.dir[holes_dims::oblique_axes(b.dir)[0]].signum();
+        let k = (b.dir.map(|c| holes::size_key(sign * c)), key(b.diameter));
+        let members = groups.entry(k).or_default();
+        if members.is_empty() {
+            order.push(k);
+        }
+        members.push(b);
+    }
+    order
+        .into_iter()
+        .map(|k| {
+            let members = &groups[&k];
+            let first = members[0];
+            let n = members.len();
+            let mut terms = Vec::new();
+            if n > 1 {
+                terms.push(format!("{n}×"));
+            }
+            terms.push(format!("ø{}", fmt(first.diameter)));
+            let axes = holes_dims::oblique_axes(first.dir);
+            let arcs = members
+                .iter()
+                .flat_map(|b| {
+                    holes_dims::oblique_axes(b.dir).into_iter().flat_map(|k| {
+                        let t = holes_dims::toward(k);
+                        let facing = (0..3).map(|j| b.dir[j] * t[j]).sum::<f64>() > 0.0;
+                        let end = if facing { b.top } else { b.base.unwrap_or(b.top) };
+                        holes_dims::rim_tips(end, b.dir, 0.5 * b.diameter, k)
+                    })
+                })
+                .collect();
+            Want {
+                id: want_id(&first.feature.id, "boss.diameter"),
+                views: axes.into_iter().map(end_on).collect(),
+                value: first.diameter,
+                terms,
+                measurements: members
+                    .iter()
+                    .map(|b| Measurement {
+                        feature: b.feature.id.clone(),
+                        parameter: "boss.diameter".into(),
+                        value: b.diameter,
+                    })
+                    .collect(),
+                turning: None,
+                basis: format!(
+                    "{}; its axis is inclined to every principal axis, so it is called out where it is seen most nearly end-on, as an ellipse, the leader to its rim",
+                    if n > 1 {
+                        format!("{n} bosses of one diameter are called out once and counted")
+                    } else {
+                        "a boss's diameter is called out with a leader".to_string()
+                    }
+                ),
+                shape: Shape::Callout {
+                    sites: members.iter().map(|b| (b.top, 0.5 * b.diameter)).collect(),
+                    arcs,
+                },
+            }
+        })
+        .collect()
 }
 
 /// A polygonal boss as quiddity records it (`axis` a letter of its frame, `base` and `top` along
@@ -336,9 +442,21 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     let [lo, _] = analysis.envelope;
     let mut problems = Vec::new();
     let mut bosses = Vec::new();
+    let mut inclined: Vec<Inclined> = Vec::new();
     for f in &analysis.features {
         let read = match f.kind.as_str() {
             "boss" if groove_floor(analysis, f) || turned_band(analysis, f) => {
+                continue;
+            }
+            "boss" if let Some(b) = read_inclined(f, &cx.frame) => {
+                problems.push(Problem {
+                    message: format!(
+                        "{}'s height and location are not dimensioned: its axis is inclined to every principal axis, so they need a view square to it; its diameter is called out where it is seen most nearly end-on.",
+                        crate::wording::capital(&crate::wording::feature(f))
+                    ),
+                    ..not_dimensioned(f, "")
+                });
+                inclined.push(b);
                 continue;
             }
             "boss" => read(f, &cx.frame),
@@ -702,6 +820,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         });
     }
 
+    out.extend(inclined_callouts(&inclined));
     for ((view, a, _), owners) in located {
         let first = &bosses[owners[0]];
         let d = first.top[a] - lo[a];

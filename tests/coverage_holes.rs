@@ -590,3 +590,64 @@ fn a_body_local_corridor_preserves_an_authored_unpinned_lane() {
     };
     assert!((x(0) - x(1) - draftwright::dims::LANE_NORMAL).abs() < 1e-6);
 }
+
+/// Defect E2: holes and bosses on inclined axes get a callout in the view that sees them most
+/// nearly end-on, instead of none.
+#[test]
+fn inclined_holes_and_bosses_are_called_out_where_seen_most_nearly_end_on() {
+    let (y, z) = (-0.375, 0.927); // 22° off z, as nist_ctc_04's counterbored holes
+    let hole = |n: usize, x: f64| {
+        feature(
+            "hole",
+            n,
+            json!({"axis":[0,y,z],"location":[x,0,10],"diameter":6,"depth":10.8,
+                "bottom":"through","cbore":null,"csink":null,"spotface":null}),
+        )
+    };
+    let boss = feature(
+        "boss",
+        3,
+        json!({"axis":[0,-y,-z],"location":[0,10,0],"diameter":12,"height":3}),
+    );
+    // As large, tilted as far but in the x–z plane: another line, so called out on its own.
+    let other = feature(
+        "boss",
+        4,
+        json!({"axis":[-y,0,-z],"location":[20,30,0],"diameter":12,"height":3}),
+    );
+    let a = analysis(vec![hole(1, -10.0), hole(2, 10.0), boss, other]);
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    let callout = |label: &str| {
+        p.dimensions
+            .iter()
+            .find(|d| d.label == label)
+            .unwrap_or_else(|| panic!("{label} is called out"))
+    };
+    let holes = callout("2× ⌀6 THRU");
+    assert_eq!(holes.view, "v:plan");
+    assert!(holes.placed.is_some());
+    assert_eq!(holes.measurements.len(), 2);
+    let bosses: Vec<_> = p.dimensions.iter().filter(|d| d.label == "ø12").collect();
+    assert_eq!(bosses.len(), 2, "{bosses:#?}");
+    for boss in bosses {
+        assert_eq!(boss.view, "v:plan");
+        assert!(boss.placed.is_some());
+        assert_eq!(boss.measurements.len(), 1);
+    }
+    // The holes' locations and the boss's height and location still need a view square to the
+    // axis, and say so.
+    let unstated: Vec<&str> = p
+        .problems
+        .iter()
+        .filter(|q| q.code == "feature_not_dimensioned")
+        .flat_map(|q| q.subjects.iter().map(String::as_str))
+        .collect();
+    assert_eq!(unstated, ["f:hole:1", "f:hole:2", "f:boss:3", "f:boss:4"]);
+    let findings = lint::check(&a, &marks(&a));
+    assert!(
+        !findings
+            .iter()
+            .any(|i| i.code == "hole_requirement_missing" || i.code == "feature_not_dimensioned"),
+        "{findings:#?}"
+    );
+}

@@ -677,7 +677,9 @@ fn the_plan_and_lint_agree_on_a_leader_cutting_back_into_the_material() {
         let at = text.find(before).unwrap_or_else(|| panic!("{text}")) + before.len();
         text[at..].split(' ').next().unwrap().to_string()
     };
-    let (planned, linted, plan) = reports([15.0, 0.0]);
+    // Down as well as out: the inclined pin's own callouts (ø10, ø6, ⌀4.2 ↧ 8) share the view and
+    // move its default place, so straight out from there now clears the plate.
+    let (planned, linted, plan) = reports([15.0, -15.0]);
     assert_eq!(planned.len(), 1, "{planned:#?}");
     assert_eq!(linted.len(), 1, "{linted:#?}");
     assert_eq!(linted[0].annotation.as_deref(), Some(ID));
@@ -694,7 +696,7 @@ fn the_plan_and_lint_agree_on_a_leader_cutting_back_into_the_material() {
         "{:?}",
         planned[0].fix
     );
-    let (planned, linted, _) = reports([-15.0, 0.0]);
+    let (planned, linted, _) = reports([-15.0, -15.0]);
     assert!(
         planned.is_empty() && linted.is_empty(),
         "{planned:#?} {linted:#?}"
