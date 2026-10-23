@@ -731,3 +731,58 @@ fn a_short_shoulder_never_erases_its_neighbours_lengths() {
         );
     }
 }
+
+/// ISSUE-1505-b: a thin shoulder in the middle of a vertical turned profile (0.2 long between a
+/// ø30 and a ø16 band, 200 overall) keeps its own length on the main view, beside its neighbour's
+/// 99.8; the longest band is the one the overall conveys. Nothing is off the sheet, so no
+/// shoulder detail is made (a detail only when no clean main-view statement exists), and lint
+/// finds every band length stated.
+#[test]
+fn a_nonterminal_thin_z_shoulder_keeps_its_length_on_the_main_view() {
+    let mut a = with_bands(&[
+        (q(0.0), q(100.0), 30.0),
+        (q(100.0), q(100.2), 40.0),
+        (q(100.2), q(200.0), 16.0),
+    ]);
+    a.envelope[1][2] = a.envelope[0][2] + 200.0;
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    let length = |id: &str| {
+        let d = p.dimensions.iter().find(|d| d.id == id).unwrap();
+        assert!(d.placed.is_some() && !d.reference, "{id}");
+        d.label.clone()
+    };
+    assert_eq!(length("d:f:turned_step:2/step.length"), "0.2");
+    assert_eq!(length("d:f:turned_step:3/step.length"), "99.8");
+    assert!(
+        p.omitted
+            .iter()
+            .any(|o| o.id == "d:f:turned_step:1/step.length"
+                && o.state
+                    == draftwright::items::State::Covered {
+                        by: "d:envelope/height.length".into()
+                    })
+    );
+    assert!(!p.views.iter().any(|v| v.id.contains("detail")));
+    let marks: Vec<Mark> = p
+        .dimensions
+        .iter()
+        .map(|d| Mark {
+            name: d.id.clone(),
+            view: Some(d.view.clone()),
+            text: d.label.clone(),
+            claims: d
+                .measurements
+                .iter()
+                .map(|m| Claim {
+                    feature: m.feature.clone(),
+                    parameter: m.parameter.clone(),
+                })
+                .collect(),
+        })
+        .collect();
+    let issues = lint::check(&a, &marks);
+    assert!(
+        !issues.iter().any(|i| i.code == "axial_length_missing"),
+        "{issues:?}"
+    );
+}
