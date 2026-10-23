@@ -172,7 +172,12 @@ pub(crate) fn validate(spec: &Spec) -> Result<(), Invalid> {
         return Ok(());
     }
     let max = maximum(spec);
-    let refuse = |message, choices| Invalid { message, choices };
+    let refuse = |message, choices| Invalid {
+        message,
+        choices,
+        path: None,
+        also: Vec::new(),
+    };
     if !(1..=9).contains(&max) {
         return Err(refuse(
             "sheets.max must be from 1 to 9.".into(),

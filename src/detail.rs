@@ -74,6 +74,8 @@ pub(crate) fn check(analysis: &Analysis, spec: &Spec) -> Result<(), Invalid> {
                 || d.scale_factor <= 1.0
             {
                 return Err(Invalid {
+                    path: None,
+                    also: Vec::new(),
                     message: format!(
                         "Detail {name} needs an identifier detail_a–detail_h and a scale_factor greater than one."
                     ),
@@ -87,6 +89,8 @@ pub(crate) fn check(analysis: &Analysis, spec: &Spec) -> Result<(), Invalid> {
                         && source == &format!("section_{0}{0}", section_label(spec).to_lowercase()))
                 {
                     return Err(Invalid {
+                        path: None,
+                        also: Vec::new(),
                         message: format!(
                             "Detail {name}: source view {source:?} does not exist in the plan for {}.",
                             d.around.members().join(", ")
@@ -101,16 +105,21 @@ pub(crate) fn check(analysis: &Analysis, spec: &Spec) -> Result<(), Invalid> {
                 }
                 if !source_available(analysis, spec, source) {
                     return Err(Invalid {
+                        path: None,
+                        also: Vec::new(),
                         message: format!(
                             "Detail {name}: source view v:{source} does not exist in the plan for {}.",
                             d.around_ids()
                         ),
                         choices: vec![],
-                    });
+                    }
+                    .at("views", name));
                 }
                 for (id, crop) in d.around.members().iter().zip(&members) {
                     if !visible(crop.bounds, source) {
                         return Err(Invalid {
+                            path: None,
+                            also: Vec::new(),
                             message: format!(
                                 "Detail {name}: feature or face {id:?} is not visible in view {source:?}: its crop projects to a degenerate region."
                             ),
@@ -180,6 +189,8 @@ fn source_available(a: &Analysis, spec: &Spec, source: &str) -> bool {
 fn members(a: &Analysis, name: &str, auth: &DetailSpec) -> Result<Vec<MemberCrop>, Invalid> {
     if auth.around.members().is_empty() {
         return Err(Invalid {
+            path: None,
+            also: Vec::new(),
             message: format!("Detail {name} needs at least one feature or face in around."),
             choices: vec![],
         });
@@ -189,12 +200,16 @@ fn members(a: &Analysis, name: &str, auth: &DetailSpec) -> Result<Vec<MemberCrop
             return Ok(feature_crop(a, f));
         }
         let faces = crate::spec_gdt::named_faces(a, id).map_err(|_| Invalid {
+            path: None,
+            also: Vec::new(),
             message: format!("Detail {name} names unknown feature or face {id:?}."),
             choices: a.features.iter().map(|f| f.id.clone()).chain(["face:<n>".into(), "top".into(), "bottom".into(), "left".into(), "right".into(), "front".into(), "back".into()]).collect(),
-        })?;
+        }.at("views", name))?;
         let mut bounds = None;
         for face in faces {
             let b = a.face_attachments[face].bounds.ok_or_else(|| Invalid {
+                path: None,
+                also: Vec::new(),
                 message: format!("Detail {name}: face {id:?} has no model-space crop; analyse the part again."), choices: vec![],
             })?;
             let b = [[b[0], b[1], b[2]], [b[3], b[4], b[5]]];
@@ -203,6 +218,8 @@ fn members(a: &Analysis, name: &str, auth: &DetailSpec) -> Result<Vec<MemberCrop
         // Invariant: Member validation requires a nonempty set of faces with finite bounds.
         let bounds = bounds.expect("named faces is nonempty");
         let source = ["front", "plan", "side"].into_iter().find(|source| visible(bounds, source)).ok_or_else(|| Invalid {
+            path: None,
+            also: Vec::new(),
             message: format!("Detail {name}: face {id:?} has no non-degenerate crop."), choices: vec![],
         })?;
         Ok(MemberCrop { bounds, source, primary: axes(source)[0], dimensions: vec![] })

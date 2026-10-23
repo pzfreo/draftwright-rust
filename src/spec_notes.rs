@@ -135,7 +135,12 @@ pub fn authors(spec: &Spec) -> bool {
 }
 
 fn invalid(message: String, choices: Vec<String>) -> Invalid {
-    Invalid { message, choices }
+    Invalid {
+        message,
+        choices,
+        path: None,
+        also: Vec::new(),
+    }
 }
 
 /// A metric designation's nominal size and pitch (the coarse pitch when it states none), or why

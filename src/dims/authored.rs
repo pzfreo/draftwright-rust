@@ -5,6 +5,8 @@ use crate::model::{Analysis, Invalid, Spec};
 
 fn invalid(message: impl Into<String>) -> Invalid {
     Invalid {
+        path: None,
+        also: Vec::new(),
         message: message.into(),
         choices: vec![],
     }
@@ -195,6 +197,8 @@ pub(super) fn append(a: &Analysis, s: &Spec, wants: &mut Vec<Want>) -> Result<()
         }) {
             if duplicate(a, &w, existing, refs, kind) {
                 return Err(Invalid {
+                    path: None,
+                    also: Vec::new(),
                     message: format!(
                         "{id} duplicates the quantity owned by {}; remove {id} and set tolerance/view/place on the existing owner (K6: one quantity, one owner).",
                         existing.id

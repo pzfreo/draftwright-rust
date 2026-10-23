@@ -73,6 +73,8 @@ impl<'de> Deserialize<'de> for GearSpec {
 
 fn invalid(message: impl Into<String>) -> Invalid {
     Invalid {
+        path: None,
+        also: Vec::new(),
         message: message.into(),
         choices: Vec::new(),
     }
@@ -276,7 +278,11 @@ pub(crate) fn effective<'a>(
                     "gears/{i}/on: use a turned/cylindrical feature or face:<n>"
                 )));
             }
-            let faces = crate::spec_gdt::feature_faces(&analysis, &g.on)?;
+            // The refusal names gears/<i>, not a features entry.
+            let faces = crate::spec_gdt::feature_faces(&analysis, &g.on).map_err(|mut e| {
+                e.path = None;
+                e
+            })?;
             if !faces.iter().any(|&f| {
                 analysis
                     .face_attachments
@@ -289,7 +295,11 @@ pub(crate) fn effective<'a>(
             }
             faces
         } else {
-            crate::spec_gdt::named_faces(&analysis, &g.on)?
+            // The refusal names gears/<i>, not a faces entry.
+            crate::spec_gdt::named_faces(&analysis, &g.on).map_err(|mut e| {
+                e.path = None;
+                e
+            })?
         };
         if faces.is_empty() {
             return Err(invalid(format!("gears/{i}/on has no faces")));

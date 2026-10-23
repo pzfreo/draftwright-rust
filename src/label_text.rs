@@ -23,6 +23,8 @@ pub enum Style {
 
 fn bad(id: &str, why: &str) -> Invalid {
     Invalid {
+        path: None,
+        also: Vec::new(),
         message: format!(
             "Label text for {id}: {why}. Use prefix/suffix wording or a template such as {{value}} AFTER PLATING; remove the override to restore automatic text."
         ),

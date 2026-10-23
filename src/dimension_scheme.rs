@@ -17,6 +17,8 @@ pub struct Scheme {
 
 pub(crate) fn invalid(message: impl Into<String>) -> Invalid {
     Invalid {
+        path: None,
+        also: Vec::new(),
         message: message.into(),
         choices: vec![],
     }

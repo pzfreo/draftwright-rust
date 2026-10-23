@@ -185,6 +185,8 @@ pub fn check(title: &BTreeMap<String, String>) -> Result<(), Invalid> {
     match title.keys().find(|k| !KEYS.iter().any(|(key, _)| key == k)) {
         None => Ok(()),
         Some(k) => Err(Invalid {
+            path: None,
+            also: Vec::new(),
             message: format!(
                 "The title block has no cell for sheet/title/{k}, so it would not be drawn."
             ),

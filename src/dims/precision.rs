@@ -49,6 +49,8 @@ pub(super) fn apply(spec: &Spec, wants: &mut [Want]) -> Result<(), Invalid> {
         return Ok(());
     }
     let bad = |message| Invalid {
+        path: None,
+        also: Vec::new(),
         message,
         choices: Vec::new(),
     };
@@ -65,10 +67,13 @@ pub(super) fn apply(spec: &Spec, wants: &mut [Want]) -> Result<(), Invalid> {
             )
         })
         .collect();
-    for id in spec.precision.keys() {
-        if !known.contains(id) {
-            return Err(bad(format!("There is no measurement {id:?} on this part.")));
-        }
+    let missing = spec
+        .precision
+        .keys()
+        .filter(|id| !known.contains(*id))
+        .map(|id| bad(format!("There is no measurement {id:?} on this part.")).at("precision", id));
+    if let Some(e) = Invalid::first_of(missing) {
+        return Err(e);
     }
     labels(spec, wants)
 }
@@ -81,6 +86,8 @@ pub(super) fn labels<'a>(
         return Ok(());
     }
     let bad = |message| Invalid {
+        path: None,
+        also: Vec::new(),
         message,
         choices: Vec::new(),
     };

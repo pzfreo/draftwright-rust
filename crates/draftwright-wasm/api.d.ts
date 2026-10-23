@@ -9,6 +9,7 @@ export class Engine {
   fragments(): string;
   free(): void;
   labelOffset(address: string): string;
+  openSpec(json: string): string;
   placementOptions(): string;
   plan(): string;
   planCount(): number;
@@ -30,6 +31,8 @@ export class Engine {
 export default function __wbg_init (module_or_path?: { module_or_path: InitInput | Promise<InitInput> } | InitInput | Promise<InitInput>): Promise<InitOutput>;
 
 export function initSync(module: { module: SyncInitInput } | SyncInitInput): InitOutput;
+
+export function specOps(before: string, after: string): string;
 
 export function start(): void;
 
@@ -68,6 +71,7 @@ export interface InitOutput {
   readonly engine_fragments: (a: number) => [number, number];
   readonly engine_labelOffset: (a: number, b: number, c: number) => [number, number, number, number];
   readonly engine_open: (a: number, b: number, c: number, d: number) => [number, number, number];
+  readonly engine_openSpec: (a: number, b: number, c: number) => [number, number, number, number];
   readonly engine_placementOptions: (a: number) => [number, number, number, number];
   readonly engine_plan: (a: number) => [number, number, number, number];
   readonly engine_planCount: (a: number) => number;
@@ -85,6 +89,7 @@ export interface InitOutput {
   readonly engine_spec: (a: number) => [number, number];
   readonly engine_undo: (a: number) => [number, number, number, number];
   readonly memory: WebAssembly.Memory;
+  readonly specOps: (a: number, b: number, c: number, d: number) => [number, number, number, number];
   readonly start: () => void;
 }
 

@@ -243,6 +243,8 @@ pub fn check(notes: &[NoteSpec]) -> Result<(), Invalid> {
     for (i, n) in notes.iter().enumerate() {
         if !well_formed(&n.id) {
             return Err(Invalid {
+                path: None,
+                also: Vec::new(),
                 message: format!(
                     "notes/{i} has the ID {:?}; a note's ID is n:<k>, k a whole number from 1 (n:1, n:2, …).",
                     n.id
@@ -252,6 +254,8 @@ pub fn check(notes: &[NoteSpec]) -> Result<(), Invalid> {
         }
         if notes[..i].iter().any(|m| m.id == n.id) {
             return Err(Invalid {
+                path: None,
+                also: Vec::new(),
                 message: format!(
                     "Two notes have the ID {:?} (notes/{i} and an earlier one); give each note its own.",
                     n.id
@@ -261,6 +265,8 @@ pub fn check(notes: &[NoteSpec]) -> Result<(), Invalid> {
         }
         if n.text.trim().is_empty() {
             return Err(Invalid {
+                path: None,
+                also: Vec::new(),
                 message: format!(
                     "Note {} (notes/{i}) has no text; give it its text, or remove it.",
                     n.id

@@ -141,7 +141,12 @@ pub(crate) fn has_pins(s: &Spec) -> bool {
             .any(|v| v.place.as_ref().is_some_and(|p| p.pinned))
 }
 pub(crate) fn check(s: &Spec) -> Result<(), Invalid> {
-    let error = |message: String, choices: Vec<String>| Invalid { message, choices };
+    let error = |message: String, choices: Vec<String>| Invalid {
+        message,
+        choices,
+        path: None,
+        also: Vec::new(),
+    };
     for (id, p) in s
         .dimensions
         .iter()

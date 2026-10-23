@@ -859,6 +859,8 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
         });
     }
     let mut best = best.ok_or_else(|| Invalid {
+        path: None,
+        also: Vec::new(),
         message: "No unclipped automatic drawing fits on supported paper within sheets.max; increase sheets/max or state an explicit layout.".into(),
         choices: vec!["sheets/max".into(),"sheet/size".into()],
     })?;
@@ -1047,6 +1049,8 @@ fn replay_pins(
         };
         let mut plan =
             crate::sheets::replay_views(analysis, &source, &canonical).ok_or_else(|| Invalid {
+                path: None,
+                also: Vec::new(),
                 message: "Pinned ink cannot fit in the retained annotated view frames; change its placement or remove the pin.".into(),
                 choices: vec!["dimensions/<id>/place".into()],
             })?;
