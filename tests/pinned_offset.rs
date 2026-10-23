@@ -497,3 +497,48 @@ fn pinning_a_view_on_a_step_allocated_multi_sheet_plan_keeps_its_frames() {
     assert!(!canonical.balloons.is_empty(), "the hole schedule is kept");
     assert_eq!(s.plan().dimensions.len(), canonical.dimensions.len());
 }
+
+/// A session's retained planning scope must not make a plan depend on earlier calls. On
+/// FTC-06 a fresh thread planned an offset pin and then its bare pin differently: the second
+/// call reused the first call's finished plan, which skipped the established route policies
+/// that planning activates, so three unrelated callouts took other routes. That was the CI
+/// flake in `pinning_every_callout_at_its_reported_offset_moves_nothing::ftc06`.
+#[test]
+fn a_retained_session_scope_plans_an_offset_pin_and_its_bare_pin_alike() {
+    let Some(dir) = corpus::dir() else { return };
+    let part = dir.join("nist/nist_ftc_06_asme1_rd.stp");
+    let open = || Session::open(&part, api::Features::Native, Spec::default()).unwrap();
+    let base = open();
+    let id = "d:f:boss:6/boss.diameter";
+    let at = base.callout_offset(id).unwrap();
+    let place = format!("dimensions/{}/place", key(id));
+    // Another worker has already planned the same requests: the process-wide caches hold
+    // them, while a fresh thread starts with an empty retained scope.
+    for pin in [
+        json!({"offset": at.offset, "pinned": true}),
+        json!({"pinned": true}),
+    ] {
+        open().apply(&[Op::set(&place, pin)], true).unwrap();
+    }
+    let (pinned, bare) = std::thread::scope(|scope| {
+        scope
+            .spawn(|| {
+                let mut s = open();
+                s.apply(
+                    &[Op::set(
+                        &place,
+                        json!({"offset": at.offset, "pinned": true}),
+                    )],
+                    true,
+                )
+                .unwrap();
+                let mut bare = open();
+                bare.apply(&[Op::set(&place, json!({"pinned": true}))], true)
+                    .unwrap();
+                (s.plan().dimensions.clone(), bare.plan().dimensions.clone())
+            })
+            .join()
+            .unwrap()
+    });
+    assert_eq!(pinned, bare);
+}
