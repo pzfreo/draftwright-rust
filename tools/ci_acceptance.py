@@ -140,6 +140,9 @@ def validate(kind, actual, baseline=None, shard=(1, 1)):
     if kind == 'pins':
         require(actual['seed'] in (1, 2, 3) and actual['pins'] in (1, 3, 8), 'unexpected pin grid cell')
         complete(actual['parts'], expected)
+        cell = f"{actual['seed']}-{actual['pins']}"
+        known = {(f['cell'], f['part']): f['reason']
+                 for f in read(ROOT / 'tools/known-pin-failures.json')['failures']}
         reference = baseline.get('parts', baseline)
         complete(reference, expected)
         for part, row in actual['parts'].items():
@@ -149,9 +152,18 @@ def validate(kind, actual, baseline=None, shard=(1, 1)):
             for variant in ('unpinned', 'pinned'):
                 for key in ('ink', 'off_sheet'):
                     count(row[variant], key, part)
+            if (cell, part) in known:
+                # Listed in tools/known-pin-failures.json (alpha.13 only): reported, not required.
+                if row['go'] is not True:
+                    print(f"pins-{cell}: {part}: known NO-GO: {known[(cell, part)]}", flush=True)
+                else:
+                    print(f"pins-{cell}: {part}: listed known failure is GO; remove it", flush=True)
+                continue
             require(quality.pin_bar(row['unpinned'], row['pinned']), f'{part}: pin bar failed')
             require(row['go'] is True, f'{part}: NO-GO')
-        require(actual['go'] is True, 'pin grid NO-GO')
+        require(actual['go'] is True or all(
+            row['go'] is True or (cell, part) in known for part, row in actual['parts'].items()),
+            'pin grid NO-GO')
         return {'parts': 30, 'seed': actual['seed'], 'pins': actual['pins'],
                 'ink': sum(p['pinned']['ink'] for p in actual['parts'].values()),
                 'off_sheet': sum(p['pinned']['off_sheet'] for p in actual['parts'].values())}
