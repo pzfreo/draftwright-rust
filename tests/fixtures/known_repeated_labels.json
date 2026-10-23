@@ -2,7 +2,7 @@
   {
     "part": "cadgenbench_inputs/cgb245.step",
     "view": "plan",
-    "label": "14.97",
+    "label": "14.96",
     "rotation": 0,
     "items": [
       "d:f:slot:1/slot_length.length",
@@ -10,7 +10,7 @@
     ],
     "verdict": "identical-features",
     "draftwright": "m_slot0_length '15.0' and m_slot1_length '15.0' in the plan, one per slot (slots at x -103.4 and +103.4).",
-    "reason": "Two slots of the same 14.97 length at mirrored positions: their lengths lie on different spans, so each is a dimension of its own feature. draftwright's slot width coalescing (`_slot_shared_width_key`) needs the same view, width axis and the same two width edges, which these do not share; the port's `share` (src/dims/mod.rs) applies the same one-span rule, extended to slot lengths and boss heights. Default nominal precision now preserves the modelled hundredths; these same item IDs and distinct physical spans remain repeated."
+    "reason": "Two slots of the same 14.96 length at mirrored positions: their lengths lie on different spans, so each is a dimension of its own feature. draftwright's slot width coalescing (`_slot_shared_width_key`) needs the same view, width axis and the same two width edges, which these do not share; the port's `share` (src/dims/mod.rs) applies the same one-span rule, extended to slot lengths and boss heights. Default nominal precision now preserves the modelled hundredths; these same item IDs and distinct physical spans remain repeated. quiddity-rust 0.1.0 measures sizes from raw geometry with decimal ties to even (alpha.9, #46), so the label moved from 14.97 to 14.96."
   },
   {
     "part": "nist/nist_ctc_04_asme1_rd.stp",
@@ -54,7 +54,7 @@
   {
     "part": "nist/nist_ftc_09_asme1_rd.stp",
     "view": "front",
-    "label": "6.34",
+    "label": "6.35",
     "rotation": 90,
     "items": [
       "d:f:slot:1/slot_width.length",
@@ -62,6 +62,19 @@
     ],
     "verdict": "identical-features",
     "draftwright": "plans slot0's and slot1's widths as two dimensions and drops both for room (lint slot_dim_dropped 'slot0 width' and 'slot1 width'); m_slot0_pos '130.2' claims both slots' common location.",
-    "reason": "Two 6.34-wide slots side by side at one x station have their widths on different spans along z, each its own dimension; draftwright's slot width coalescing (`_slot_shared_width_key`) needs the same view, width axis and the same two width edges, which these do not share; the port's `share` (src/dims/mod.rs) applies the same one-span rule, extended to slot lengths and boss heights. Default nominal precision now preserves the modelled hundredths; these same item IDs and distinct physical spans remain repeated."
+    "reason": "Two 6.35-wide slots side by side at one x station have their widths on different spans along z, each its own dimension; draftwright's slot width coalescing (`_slot_shared_width_key`) needs the same view, width axis and the same two width edges, which these do not share; the port's `share` (src/dims/mod.rs) applies the same one-span rule, extended to slot lengths and boss heights. Default nominal precision now preserves the modelled hundredths; these same item IDs and distinct physical spans remain repeated. quiddity-rust 0.1.0 measures sizes from raw geometry with decimal ties to even (alpha.9, #46), so the label moved from 6.34 to 6.35."
+  },
+  {
+    "part": "nist/nist_ctc_03_asme1_rc.stp",
+    "view": "plan",
+    "label": "19.05",
+    "rotation": 0,
+    "items": [
+      "d:f:slot:1/slot_width.length",
+      "d:f:slot:2/slot_width.length"
+    ],
+    "verdict": "identical-features",
+    "draftwright": "plans each slot's width as its own dimension, one per slot.",
+    "reason": "Two slots of the same 19.05 (3/4 in) width, each width on its own span: each is a dimension of its own feature, as the port's `share` (src/dims/mod.rs) one-span rule requires. Before quiddity-rust 0.1.0 one was labelled 19.04 and the other 19.05, so they did not repeat; quiddity now measures sizes from raw geometry with decimal ties to even (alpha.9, #46), and both read 19.05."
   }
 ]

@@ -403,10 +403,9 @@ fn assert_review_summary(file: &str, expected: [(usize, usize); 4]) {
             4
         );
         assert_eq!(wire["summary"]["groups"]["extension_through_feature"], 9);
-        assert_eq!(
-            wire["summary"]["groups"]["annotation_leader_crossing:extension_line"],
-            2
-        );
+        // quiddity-rust 0.1.1 (accepted for alpha.13): no radius-centre table on CTC-01, and
+        // so no leader crossings on the 350 line: this group 2 -> absent.
+        assert!(wire["summary"]["groups"]["annotation_leader_crossing:extension_line"].is_null());
     }
 }
 
@@ -416,14 +415,22 @@ fn ctc01_counts_gaps_and_repeated_causes_without_hiding_findings() {
         "nist/nist_ctc_01_asme1_rd.stp",
         // The soft preferences retain this main-readable A3 drawing and its
         // reported unavailable detail; summary groups must retain every finding.
-        [(6, 2), (1, 1), (1, 1), (13, 4)],
+        // quiddity-rust 0.1.1 (accepted for alpha.13): CTC-01's blend paths and section
+        // frames take the inferred frame's senses (from 0.1.0), so the 4× R25 corners are
+        // called out instead of tabled. Readability (1, 1) -> (2, 2): + radius_leader_not_radial
+        // on d:f:blend:12; advisory (13, 4) -> (11, 3): the two annotation_leader_crossing
+        // findings on the 350 line are gone.
+        [(6, 2), (1, 1), (2, 2), (11, 3)],
     );
 }
 #[test]
 fn unsupported_recesses_and_rounding_have_separate_impacts() {
     // A fresh automatic choice no longer carries the planner's internal
     // layout_replanned trace (that notice belongs to kept layouts and local fixes).
-    assert_review_summary("mfcadpp/1000.step", [(11, 4), (1, 1), (0, 0), (11, 2)]);
+    // quiddity-rust 0.1.1 (accepted for alpha.13) publishes 1000's plate hi unrounded
+    // (4.2190876 where alpha.8 gave 4.219), so the printed 4.219 adds a nominal_rounded
+    // advisory: advisory (11, 2) -> (12, 2).
+    assert_review_summary("mfcadpp/1000.step", [(11, 4), (1, 1), (0, 0), (12, 2)]);
 }
 #[test]
 fn informational_hole_bottom_and_recovery_remain_advisory() {

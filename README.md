@@ -281,9 +281,8 @@ every corpus-backed test; without it they are skipped.
 
 ## Taking a new haecceity
 
-haecceity and Rust quiddity come by git from `pzfreo/quiddity-rust`. Alpha 9 pins them to the
-`v0.1.0-alpha.8` tag (commit `c62081c6`),
-by `tag` in `Cargo.toml` and one commit in `Cargo.lock`. To follow the development branch again,
+haecceity and Rust quiddity come by git from `pzfreo/quiddity-rust`. They are pinned to the
+`v0.1.1` tag (commit `a27b7064`) in `Cargo.toml` and that one commit in `Cargo.lock`. To follow the development branch again,
 set `branch = "main"` in place of `tag` in `Cargo.toml`; then, to move the pin to what is pushed
 on that branch:
 
@@ -311,6 +310,6 @@ on that branch:
    4462375 was recorded: "4462375: haecceity and quiddity pinned to quiddity-rust 7f4b1a9. No
    API change." CI needs nothing: the dependency is public.
 
-Licensed AGPL-3.0, as draftwright is; so are haecceity and quiddity-rust (AGPL-3.0-only since
-quiddity-rust 8023ea7). The fonts in `fonts/` are IBM Plex, vendored from draftwright under the
+Licensed AGPL-3.0. haecceity and quiddity-rust are Apache-2.0 since quiddity-rust 0.1.0 (#55),
+which AGPL-3.0 code may use. The fonts in `fonts/` are IBM Plex, vendored from draftwright under the
 SIL Open Font License 1.1 (the `LICENSE-*-OFL.txt` files beside them).

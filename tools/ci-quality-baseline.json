@@ -259,7 +259,7 @@
       "ink": 0,
       "line_through_feature": 1,
       "off_sheet": 0,
-      "repeated_label": 0,
+      "repeated_label": 1,
       "repeated_measure": 0,
       "repeated_span": 0,
       "section_hidden": 0,

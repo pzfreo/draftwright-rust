@@ -35,7 +35,7 @@ const FORBIDDEN: [&str; 14] = [
 ];
 
 /// The `crate::` paths lint may use.
-const ALLOWED: [&str; 10] = [
+const ALLOWED: [&str; 11] = [
     "crate::model::Analysis",
     "crate::bridge",
     "crate::pmi",
@@ -46,6 +46,7 @@ const ALLOWED: [&str; 10] = [
     "crate::output",
     "crate::remedy_scope",
     "crate::finding",
+    "crate::quiddity_evidence",
 ];
 
 /// *source* with its comments and string and character literals blanked out.

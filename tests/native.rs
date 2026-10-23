@@ -332,7 +332,8 @@ fn rounding(kind: &str, path: &str) -> f64 {
     match (kind, field) {
         ("fillet" | "chamfer", "at" | "corner") => 1e-3,
         ("turned_step", "lo" | "hi") => 1e-3,
-        ("countersink", "location") => 1e-4,
+        // Rounded in quiddity's frame and again on the file's grid (quiddity-rust 0.1.0).
+        ("countersink", "location") => 1e-3,
         ("groove" | "paired_ramp_step", "at") => 1e-3,
         ("flat", "at" | "stock_span" | "axis_line") => 1e-3,
         ("angled_step", "at" | "corner") => 1e-3,
@@ -1810,13 +1811,13 @@ fn quiddity_and_haecceity_are_pinned_together() {
     assert_eq!(source("quiddity"), source("haecceity"));
 }
 
-/// Countersinks are on no part compared above (sheets' ctc04 has the corpus's only ones, and is
-/// not compared there yet), so ctc04's native countersinks are compared with Python quiddity
-/// 0.3.9's records in its recognition JSON directly: faces through `caller_index`, points and
-/// directions mapped from its frame. Every one agrees (the location within quiddity's 1e-4
-/// rounding).
+/// Python quiddity 0.3.9 reports 12 countersinks on ctc04 (its recognition JSON, faces through
+/// `caller_index`). They are the quarter-cone corner faces of the 5×45° pocket-rim chamfer, seated
+/// only on the pockets' R5 corner walls, not countersinks (quiddity-rust #76): since 0.1.1 a
+/// countersink's cone must run at least 270° round its axis. Native recognition reports none of
+/// them, and no countersink at all on ctc04.
 #[test]
-fn ctc04_countersinks_match_pythons_records() {
+fn ctc04_has_none_of_pythons_chamfer_corner_countersinks() {
     let Some(dir) = corpus::dir() else {
         eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
         return;
@@ -1824,63 +1825,22 @@ fn ctc04_countersinks_match_pythons_records() {
     let json: Value =
         serde_json::from_str(&gunzip(&fixture("recognition/sheets/ctc04.json.gz")).unwrap())
             .unwrap();
-    let q = &json["quiddity"];
-    let f = &q["frame"];
-    let v = |k: &str| bridge::holes::point(Some(&f[k])).unwrap();
-    let frame = [v("origin"), v("x"), v("y"), v("z")];
-    let caller: BTreeMap<u64, usize> = q["faces"]
-        .as_array()
-        .unwrap()
-        .iter()
-        .map(|f| {
-            (
-                f["index"].as_u64().unwrap(),
-                f["caller_index"].as_u64().unwrap() as usize,
-            )
-        })
-        .collect();
-    let py: Vec<(Vec<usize>, Map<String, Value>)> = q["features"]
+    let python = json["quiddity"]["features"]
         .as_array()
         .unwrap()
         .iter()
         .filter(|r| r["family"] == "countersinks")
-        .map(|r| {
-            let mut faces: Vec<usize> = r["constituent_faces"]
-                .as_array()
-                .unwrap()
-                .iter()
-                .map(|i| caller[&i.as_u64().unwrap()])
-                .collect();
-            faces.sort_unstable();
-            let mut record = r["record"].as_object().unwrap().clone();
-            record.remove("dependents");
-            (faces, other_to_part(&frame, &record))
-        })
-        .collect();
+        .count();
+    assert_eq!(python, 12);
     let (part, _) = model::analyse(&dir.join(facts::load("ctc04").binding.file)).unwrap();
     let rs = native::recognise(&part).unwrap();
-    let ours: Vec<&Feature> = rs
+    let ours: Vec<&Vec<usize>> = rs
         .features
         .iter()
         .filter(|f| f.kind == "countersink")
+        .map(|f| &f.faces)
         .collect();
-    assert_eq!((py.len(), ours.len()), (12, 12));
-    let within = |path: &str| rounding("countersink", path);
-    for (faces, p) in &py {
-        let h = ours
-            .iter()
-            .find(|h| h.faces == *faces)
-            .unwrap_or_else(|| panic!("no native countersink on faces {faces:?}"));
-        let mut diffs = Vec::new();
-        compare_within(
-            "parameters",
-            Some(&Value::Object(p.clone())),
-            Some(&Value::Object(h.parameters.clone())),
-            &within,
-            &mut diffs,
-        );
-        assert!(diffs.is_empty(), "{} {faces:?}: {diffs:?}", h.id);
-    }
+    assert!(ours.is_empty(), "{ours:?}");
 }
 
 /// A slot pattern names its member slots by their IDs, in quiddity's order, and gives them and
@@ -1900,9 +1860,10 @@ fn slot_patterns_name_their_member_slots() {
     let p = patterns[0];
     assert_eq!(p.id, "f:slot_pattern:1");
     assert_eq!(p.fingerprint.subtype, "SlotArray");
+    // quiddity 0.1.0 orders the members in the part's own frame, which runs the other way.
     assert_eq!(
         p.parameters["slots"],
-        serde_json::json!(["f:slot:1", "f:slot:2", "f:slot:3"])
+        serde_json::json!(["f:slot:3", "f:slot:2", "f:slot:1"])
     );
     for f in slots.iter().copied().chain([p]) {
         let pattern = f.fingerprint.pattern.as_ref().unwrap();
@@ -2217,9 +2178,12 @@ fn corpus_pads_are_pythons() {
 #[test]
 fn modelled_threads_and_refusals_survive_recognition_and_analysis_json() {
     let (part, mut doc) = document("turned");
-    assert_eq!(doc.schema_version, "quiddity-rust/recognition/3");
-    native::read(&part, &doc).unwrap();
-    doc.schema_version = native::SCHEMA_VERSION.into();
+    assert_eq!(doc.schema_version, native::SCHEMA_VERSION);
+    for legacy in &native::SCHEMA_VERSIONS[..2] {
+        let mut old = doc.clone();
+        old.schema_version = (*legacy).into();
+        native::read(&part, &old).unwrap();
+    }
     let parameters = serde_json::json!({
         "axis": {"point": [0, 0, 0], "direction": [0, 0, 1]},
         "side": "external", "major_diameter": 20, "minor_diameter": 19,
@@ -2346,7 +2310,15 @@ fn modelled_threads_and_refusals_survive_recognition_and_analysis_json() {
             .unwrap_err()
             .contains("face claims")
     );
+    // A thread whose axis quiddity left in the part's own frame is left out, not misread.
     let mut bad = doc.clone();
     bad.records[index].local.push("axis".into());
-    assert!(native::read(&part, &bad).unwrap_err().contains("own frame"));
+    assert!(
+        !native::read(&part, &bad)
+            .unwrap()
+            .features
+            .iter()
+            .any(|f| f.faces == doc.records[index].faces)
+    );
+    assert!(native::left_in_frame(&bad.records[index]));
 }
