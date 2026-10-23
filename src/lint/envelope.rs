@@ -109,6 +109,123 @@ fn boss(frame: &[[f64; 3]; 4], f: &Feature) -> Option<(usize, [f64; 3], f64)> {
     ))
 }
 
+/// What a whole-part polygonal stock's stated length or size across flats proves (ARCH0015-4:
+/// the stock's statements stand in place of the overall extents). Its length runs along its
+/// axis from base to top. Its size across flats fixes its regular cross-section, which the end
+/// view draws in its true orientation, so it proves each extent across the axis that the
+/// section's corners reach, whatever the bar's roll about its axis; it counts only when the
+/// record's ring reaches the part's box there, within the record's three-decimal rounding.
+/// Nothing is proved for a record that breaks quiddity's stock contract.
+fn stock(
+    analysis: &Analysis,
+    frame: &[[f64; 3]; 4],
+    f: &Feature,
+    parameter: &str,
+    mark: &str,
+    states: impl Fn(f64) -> bool,
+) -> Vec<Carrier> {
+    let Some(values) = super::polygonal::stock_wanted(analysis)
+        .into_iter()
+        .find(|w| w.feature.id == f.id && w.parameter == parameter)
+        .and_then(|w| w.values.ok())
+    else {
+        return Vec::new();
+    };
+    let p = &f.parameters;
+    let number = |name: &str| p.get(name).and_then(|v| v.as_f64());
+    let (Some(q), Some(centre), Some(base), Some(top)) = (
+        p.get("axis")
+            .and_then(|v| v.as_str())
+            .and_then(|a| ["x", "y", "z"].iter().position(|x| *x == a)),
+        point(p.get("center")),
+        number("base"),
+        number("top"),
+    ) else {
+        return Vec::new();
+    };
+    let mut unit = [0.0; 3];
+    unit[q] = 1.0;
+    let Some(k) = principal(crate::bridge::holes::dir_to_part(frame, unit)) else {
+        return Vec::new();
+    };
+    let at = |l: [f64; 3]| to_part(frame, l);
+    if parameter == "stock_length.length" {
+        let (mut b, mut t) = (centre, centre);
+        (b[q], t[q]) = (base, top);
+        let (lo, hi) = (at(b)[k], at(t)[k]);
+        return if values.iter().any(|&v| states(v)) {
+            vec![Carrier {
+                axis: k,
+                lo: lo.min(hi),
+                hi: lo.max(hi),
+                chain: None,
+                mark: mark.into(),
+            }]
+        } else {
+            Vec::new()
+        };
+    }
+    let Some(&af) = values.first() else {
+        return Vec::new();
+    };
+    if !states(af) {
+        return Vec::new();
+    }
+    // The section's corners: adjacent flats' lines, at half the size across flats from the
+    // centre, meet there (the contract has checked that they do, in ring order).
+    let (i, j) = match q {
+        0 => (1, 2),
+        1 => (0, 2),
+        _ => (0, 1),
+    };
+    let Some(normals) = p
+        .get("flat_directions")
+        .and_then(|v| v.as_array())
+        .map(|a| {
+            a.iter()
+                .filter_map(|v| point(Some(v)))
+                .map(|d| {
+                    let l = d[i].hypot(d[j]);
+                    [d[i] / l, d[j] / l]
+                })
+                .collect::<Vec<_>>()
+        })
+    else {
+        return Vec::new();
+    };
+    let n = normals.len();
+    let half = af / 2.0;
+    let corners: Vec<[f64; 3]> = (0..n)
+        .map(|m| {
+            let (a, o) = (normals[m], normals[(m + 1) % n]);
+            let det = a[0] * o[1] - a[1] * o[0];
+            let mut c = centre;
+            c[i] += half * (o[1] - a[1]) / det;
+            c[j] += half * (a[0] - o[0]) / det;
+            at(c)
+        })
+        .collect();
+    let [lo, hi] = analysis.envelope;
+    let tol = 1e-3 * af;
+    (0..3)
+        .filter(|&a| a != k)
+        .filter_map(|a| {
+            let low = corners.iter().map(|c| c[a]).fold(f64::INFINITY, f64::min);
+            let high = corners
+                .iter()
+                .map(|c| c[a])
+                .fold(f64::NEG_INFINITY, f64::max);
+            ((low - lo[a]).abs() <= tol && (high - hi[a]).abs() <= tol).then(|| Carrier {
+                axis: a,
+                lo: lo[a],
+                hi: hi[a],
+                chain: None,
+                mark: mark.into(),
+            })
+        })
+        .collect()
+}
+
 /// What each mark's stated claims prove along the part's axes.
 fn carriers(analysis: &Analysis, marks: &[Mark]) -> Vec<Carrier> {
     let frame = frame(analysis);
@@ -177,6 +294,9 @@ fn carriers(analysis: &Analysis, marks: &[Mark]) -> Vec<Carrier> {
                     {
                         out.extend(across(b.axis, b.on, b.diameter, &m.name));
                     }
+                }
+                ("polygonal_stock", "stock_length.length" | "polygon_across_flats.length") => {
+                    out.extend(stock(analysis, &frame, f, &c.parameter, &m.name, states));
                 }
                 ("boss", "boss.diameter") => {
                     if let Some((k, on, d)) = boss(&frame, f)

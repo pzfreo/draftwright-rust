@@ -194,6 +194,58 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     }
     (wants, problems)
 }
+/// A radius exception on an oblique axis is seen as an arc in no principal view, so it can have
+/// no leader of its own. When a fillet callout already states the same radius, it is counted
+/// there with its exact claim, as draftwright counts members that read in another view, so the
+/// leader is laid out with its final count and the exception is stated wherever it is drawn.
+pub(super) fn count_oblique(a: &Analysis, wants: &mut [Want], problems: &mut Vec<Problem>) {
+    let oblique = |f: &Feature| {
+        f.parameters
+            .get("path")
+            .and_then(|p| {
+                crate::lint::parameters::direction(
+                    &frame(a),
+                    p.get("direction").or(p.get("normal")),
+                )
+            })
+            .is_some_and(|d| principal(d).is_none())
+    };
+    let groups = groups(a);
+    let general = general(&groups);
+    for (i, group) in groups.iter().enumerate() {
+        if Some(i) == general || !group.iter().all(|f| oblique(f)) {
+            continue;
+        }
+        // Invariant: Groups are nonempty and contain only features with a read radius.
+        let r = radius(group[0]).unwrap();
+        let Some(w) = wants.iter_mut().find(|w| {
+            matches!(w.shape, Shape::Callout { .. })
+                && !w.measurements.is_empty()
+                && w.measurements
+                    .iter()
+                    .all(|m| m.parameter == "fillet.radius")
+                && fmt(w.value) == fmt(r)
+        }) else {
+            continue;
+        };
+        w.measurements.extend(measurements(group));
+        w.terms = vec![
+            format!("{}×", w.measurements.len()),
+            format!("R{}", fmt(w.value)),
+        ];
+        w.basis += &format!(
+            "; {} equal blend{} on an oblique axis, seen as an arc in no principal view, {} counted here",
+            group.len(),
+            if group.len() == 1 { "" } else { "s" },
+            if group.len() == 1 { "is" } else { "are" },
+        );
+        problems.retain(|p| {
+            !(p.code == "feature_not_dimensioned"
+                && group.iter().any(|f| p.subjects == [f.id.clone()]))
+        });
+    }
+}
+
 fn problem(f: &Feature, why: &str) -> Problem {
     Problem {
         id: format!("p:feature_not_dimensioned:{}", f.id),
@@ -322,8 +374,10 @@ pub(crate) fn consolidate(
             d.placed.is_some()
                 && d.measurements
                     .iter()
-                    .all(|m| m.parameter == "fillet.radius")
-                && !d.measurements.is_empty()
+                    .all(|m| m.parameter == "fillet.radius" || m.parameter == "blend.radius")
+                && d.measurements
+                    .iter()
+                    .any(|m| m.parameter == "fillet.radius")
                 && fmt(d.value) == fmt(dimensions[i].value)
                 && !overridden(spec, given, &d.id)
         }) else {

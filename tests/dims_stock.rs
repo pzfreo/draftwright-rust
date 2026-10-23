@@ -335,3 +335,80 @@ fn lint_finds_the_stock_stated() {
         );
     }
 }
+
+/// The overall extents the stock's statements stand in place of are stated (lint's
+/// `missing_principal_dimension` is silent): the length along the bar, and the size across flats
+/// across it, which fixes the regular section and so the extents its corners reach, the bar
+/// turned 17° too. Each mark proves only what its text states: without the A/F callout the two
+/// extents across the bar are missing, without the length the one along it, and a misprinted
+/// size across flats proves neither.
+#[test]
+fn the_stocks_statements_state_its_overall_extents() {
+    use draftwright::lint::{self, envelope};
+    let font = draftwright::text::Font::new(
+        std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("fonts/IBMPlexMono-Regular.ttf"))
+            .unwrap(),
+    )
+    .unwrap();
+    for name in PARTS {
+        let a = fixture(name, |_| {});
+        let (part, _) = model::analyse(&dir().join(format!("{name}.step"))).unwrap();
+        let plan = model::plan(&a, &Spec::default()).unwrap();
+        let drawing = model::render(&part, &a, &plan, &font).unwrap();
+        let marks = lint::marks(&drawing);
+        assert!(
+            envelope::coverage(&a, &marks).is_empty(),
+            "{name}: {:#?}",
+            envelope::outcomes(&a, &marks)
+        );
+        // The bar's axis in the part: the box's side as long as the stock.
+        let stock = a
+            .features
+            .iter()
+            .find(|f| f.kind == "polygonal_stock")
+            .unwrap();
+        let length =
+            stock.parameters["top"].as_f64().unwrap() - stock.parameters["base"].as_f64().unwrap();
+        let [lo, hi] = a.envelope;
+        let axis = ["x", "y", "z"][(0..3)
+            .find(|&k| (hi[k] - lo[k] - length).abs() < 1e-6)
+            .unwrap()];
+        let missing = |marks: &[lint::Mark]| {
+            let mut v: Vec<_> = envelope::outcomes(&a, marks)
+                .into_iter()
+                .filter(|o| o.state != lint::turned::State::Placed)
+                .map(|o| o.axis)
+                .collect();
+            v.sort();
+            v
+        };
+        let without = |parameter: &str| -> Vec<lint::Mark> {
+            marks
+                .iter()
+                .filter(|m| !m.claims.iter().any(|c| c.parameter == parameter))
+                .cloned()
+                .collect()
+        };
+        let across: Vec<_> = ["x", "y", "z"].into_iter().filter(|x| *x != axis).collect();
+        assert_eq!(
+            missing(&without("polygon_across_flats.length")),
+            across,
+            "{name}"
+        );
+        assert_eq!(missing(&without("stock_length.length")), [axis], "{name}");
+        let misprinted: Vec<_> = marks
+            .iter()
+            .cloned()
+            .map(|mut m| {
+                if m.claims
+                    .iter()
+                    .any(|c| c.parameter == "polygon_across_flats.length")
+                {
+                    m.text = m.text.replace("34.641", "34.7").replace("39.837", "39.9");
+                }
+                m
+            })
+            .collect();
+        assert_eq!(missing(&misprinted), across, "{name}");
+    }
+}
