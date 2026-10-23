@@ -30,11 +30,16 @@ env:
 # about half the build's time, so they start before the test binaries are linked.
 jobs:
   # A pull request that changes only release metadata (versions, notes) runs lint alone;
-  # tools/release_only.py says what counts. Pushes to main always run every job.
+  # tools/release_only.py says what counts. A push to main that changes only release metadata
+  # runs lint alone too, but only when CI already passed on the commit it was pushed onto, so
+  # the code it carries is code a full run has passed. Every other push runs every job.
   changes:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      actions: read
     outputs:
-      release_only: ${{ steps.check.outputs.release_only }}
+      release_only: ${{ steps.check.outputs.release_only || steps.push.outputs.release_only }}
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
         with:
@@ -42,6 +47,19 @@ jobs:
       - id: check
         if: github.event_name == 'pull_request'
         run: python3 -I tools/release_only.py ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }}
+      - id: push
+        if: github.event_name == 'push'
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BEFORE: ${{ github.event.before }}
+          AFTER: ${{ github.sha }}
+        run: |
+          passed=$(gh api "repos/$GITHUB_REPOSITORY/actions/workflows/ci.yml/runs?head_sha=$BEFORE&event=push&status=success" --jq '.total_count' || echo 0)
+          if [ "$passed" -gt 0 ]; then
+            python3 -I tools/release_only.py "$BEFORE" "$AFTER"
+          else
+            echo "CI has not passed on $BEFORE; running every job"
+          fi
 
   lint:
     runs-on: ubuntu-latest
