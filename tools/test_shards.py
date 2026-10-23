@@ -12,8 +12,8 @@ so the N shards partition it; stale durations only cost balance, never coverage.
   python3 tools/test_shards.py --list list.json --shard 3/8   # prints the shard's filterset
 
 --priorities PATH also writes a nextest tool config (pass it as --tool-config-file) that
-starts the shard's tests longest first: a 270 s test that starts 460 s into its shard sets
-the shard's wall time. The repository's own `ci` overrides (the exclusive latency gates)
+starts the shard's tests longest first, and unrecorded tests before them: a 270 s test that
+starts 460 s into its shard sets the shard's wall time. The repository's own `ci` overrides (the exclusive latency gates)
 take precedence over it; it takes precedence over the `default` profile's hand-kept order.
 
 Refresh the record from the JUnit reports of a CI run's test shards (artifacts test-junit-*):
@@ -66,12 +66,14 @@ def filterset(tests):
 
 
 def priorities(tests, durations):
-    """A nextest tool config ranking the tests of 10 s or more by recorded duration."""
+    """A nextest tool config ranking the tests of 10 s or more by recorded duration. A test with
+    no record (one added since the record, or from the base branch a pull request merges with)
+    starts first: it may be long, and a long test started last sets the shard's wall time."""
     buckets = {}
     for test in tests:
-        seconds = durations.get(f'{test[0]} {test[1]}', 0)
-        if seconds >= 10:
-            buckets.setdefault(min(99, round(seconds / 4)), []).append(test)
+        seconds = durations.get(f'{test[0]} {test[1]}')
+        if seconds is None or seconds >= 10:
+            buckets.setdefault(99 if seconds is None else min(99, round(seconds / 4)), []).append(test)
     return ''.join(f"[[profile.ci.overrides]]\nfilter = '{filterset(group)}'\npriority = {p}\n\n"
                    for p, group in sorted(buckets.items(), reverse=True))
 
