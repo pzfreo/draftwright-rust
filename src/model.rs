@@ -4212,24 +4212,21 @@ fn plan_with_presentation(
     // The spec the plan follows: across a revision, without the entries that cannot be trusted.
     let canonical = if crate::placement_intent::has_pins(spec) {
         let mut base = pin_base(spec);
-        if crate::planning::is_fixed_pair() {
+        // A multi-sheet request is planned by R5 allocation steps whose sheet-1 spec omits
+        // the moved views; its canonical is that allocation, not a single-sheet layout.
+        if crate::planning::is_fixed_pair()
+            || spec
+                .sheets
+                .as_ref()
+                .and_then(|s| s.max)
+                .is_some_and(|n| n > 1)
+        {
             // A trial's omitted automatic crops belong to its canonical frame too.
             // Reintroducing them here moves the peers of an otherwise bare pin.
-            // Allocation destinations and pins do not belong to this single-sheet reference.
-            base.views = spec
-                .views
-                .iter()
-                .filter(|(_, view)| view.omit)
-                .map(|(name, _)| {
-                    (
-                        name.clone(),
-                        ViewSpec {
-                            omit: true,
-                            ..Default::default()
-                        },
-                    )
-                })
-                .collect();
+            // Pins do not belong to this reference, nor do allocation destinations: a
+            // multi-sheet reference is the whole allocated drawing, with every sheet-1
+            // frame where it finally sits, not one allocation step's sheet 1.
+            base.views = crate::sheets::reference_views(spec);
             // A paper trial's sheet-count permission shapes its R5 allocation, so pin
             // offsets in a multi-sheet canonical are measured on that same allocation.
             if let Some(max) = spec.sheets.as_ref().and_then(|s| s.max).filter(|&n| n > 1) {

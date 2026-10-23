@@ -996,14 +996,15 @@ fn replay_pins(
     // Keep its ordinary pin replay when no forced paper was selected; a fixed-pair
     // replay can have a different nominal presentation even at the same scale.
     let raw = model::plan_automatic(analysis, base)?;
-    let mut plan = if only_bare_pins(&intent, base, &canonical) {
+    // The drawing the unpinned request finally shows, after the selected drawing's own
+    // route repair (plan_recovered's callout_routes::finish). Reported callout offsets
+    // are measured on it, so an offset at its automatic bend is a bare pin.
+    let mut held = canonical.clone();
+    let effective = crate::spec_gdt::effective(analysis, &held.spec)?;
+    crate::dims::callout_routes::finish(effective.as_ref(), base, &mut held);
+    let mut plan = if only_bare_pins(&intent, base, &held) {
         // A bare pin holds the selected finished ink, including peers on every
         // physical page. Re-solving sheet 1 would create a different pin origin.
-        // Hold the drawing the unpinned request finally shows, after the selected
-        // drawing's own route repair (plan_recovered's callout_routes::finish).
-        let mut held = canonical.clone();
-        let effective = crate::spec_gdt::effective(analysis, &held.spec)?;
-        crate::dims::callout_routes::finish(effective.as_ref(), base, &mut held);
         held.spec = intent.clone();
         for d in &mut held.dimensions {
             if intent

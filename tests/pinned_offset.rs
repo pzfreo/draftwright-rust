@@ -417,3 +417,83 @@ fn offset_members_expose_the_projected_arc_span() {
             .any(|m| m["span"]["sweep"].is_number())
     );
 }
+
+/// #170: on a multi-sheet plan (cgb243 plans its plan view onto a second A2 sheet by
+/// whole-view allocation) a callout pinned at its reported offset is a bare pin and
+/// keeps its ink. The offset is measured on the finished drawing, after its route
+/// repair. One callout only: every callout of cgb243 takes about 13 minutes.
+#[test]
+fn pinning_a_callout_at_its_reported_offset_on_a_multi_sheet_plan_moves_nothing() {
+    let Some(dir) = corpus::dir() else { return };
+    let part = dir.join("cadgenbench_inputs/cgb243.step.gz");
+    let id = "d:f:boss:1/boss.diameter";
+    let open = || Session::open(&part, api::Features::Native, Spec::default()).unwrap();
+    let placed = |s: &Session| -> Placed {
+        s.plan()
+            .dimensions
+            .iter()
+            .find(|d| d.id == id)
+            .and_then(|d| d.placed.clone())
+            .unwrap()
+    };
+    let base = open();
+    assert!(base.plan().views.iter().any(|v| v.sheet > 1));
+    let at = base.callout_offset(id).unwrap();
+    let mut s = open();
+    let place = format!("dimensions/{}/place", key(id));
+    s.apply(
+        &[Op::set(
+            &place,
+            json!({"offset": at.offset, "pinned": true}),
+        )],
+        true,
+    )
+    .unwrap();
+    assert_eq!(placed(&s), placed(&base), "{id} jumped");
+    assert_eq!(s.callout_offset(id).unwrap(), at);
+    let mut bare = open();
+    bare.apply(&[Op::set(&place, json!({"pinned": true}))], true)
+        .unwrap();
+    assert_eq!(s.plan().dimensions, bare.plan().dimensions);
+}
+
+/// #170: a view pinned where a step-allocated multi-sheet plan has it (CTC-04 on two A2
+/// sheets, section and isometric moved to sheet 2) replays that allocation: the same
+/// sheet-1 frames, the same pages and the same hole schedule.
+#[test]
+fn pinning_a_view_on_a_step_allocated_multi_sheet_plan_keeps_its_frames() {
+    let Some(dir) = corpus::dir() else { return };
+    let part = dir.join("nist/nist_ctc_04_asme1_rd.stp");
+    let forced = json!({"sheet": {"size": "A2", "scale": "1:5"}, "sheets": {"max": 2}});
+    let spec: Spec = serde_json::from_value(forced.clone()).unwrap();
+    let base = Session::open(&part, api::Features::Native, spec).unwrap();
+    let canonical = base.plan();
+    let front = canonical.views.iter().find(|v| v.id == "v:front").unwrap();
+    let plan = canonical.views.iter().find(|v| v.id == "v:plan").unwrap();
+    assert!(canonical.views.iter().any(|v| v.sheet > 1));
+    let mut pinned = forced;
+    pinned["views"] = json!({"plan": {"place": {
+        "relative_to": "front", "side": "above", "align": "projection", "pinned": true,
+        "gap": plan.area[1] - front.area[3],
+    }}});
+    let spec: Spec = serde_json::from_value(pinned).unwrap();
+    let s = Session::open(&part, api::Features::Native, spec).unwrap();
+    let frames = |p: &draftwright::model::Plan| {
+        p.views
+            .iter()
+            .filter(|v| v.sheet == 1)
+            .map(|v| (v.id.clone(), v.at))
+            .collect::<Vec<_>>()
+    };
+    let sheets = |p: &draftwright::model::Plan| {
+        p.views
+            .iter()
+            .map(|v| (v.id.clone(), v.sheet))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(sheets(s.plan()), sheets(canonical));
+    assert_eq!(frames(s.plan()), frames(canonical));
+    assert_eq!(s.plan().balloons.len(), canonical.balloons.len());
+    assert!(!canonical.balloons.is_empty(), "the hole schedule is kept");
+    assert_eq!(s.plan().dimensions.len(), canonical.dimensions.len());
+}

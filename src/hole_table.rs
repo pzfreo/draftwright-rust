@@ -2011,6 +2011,21 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
         base.sheet.size = plan.spec.sheet.size.clone();
         base.sheet.scale = plan.spec.sheet.scale.clone();
         base.hole_table = plan.spec.hole_table;
+        // A multi-sheet request's canonical plan is its whole R5 allocation: the same
+        // sheet permission, with the views this allocation moved after sheet 1.
+        if let Some(max) = plan
+            .spec
+            .sheets
+            .as_ref()
+            .and_then(|s| s.max)
+            .filter(|&n| n > 1)
+        {
+            base.sheets = Some(crate::sheets::SheetsSpec {
+                max: Some(max),
+                ..Default::default()
+            });
+            base.views = crate::sheets::reference_views(&plan.spec);
+        }
         crate::model::plan_automatic(analysis, &base).ok()
     } else if plan.spec.hole_table == Setting::Auto
         && crate::dims::has_new_native_recess_dimensions(analysis)

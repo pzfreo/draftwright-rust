@@ -474,6 +474,13 @@ fn allocate_inner(
             }
         }
     }
+    if moved.is_empty() && crate::placement_intent::has_pins(spec) {
+        // Pins are measured on the unpinned drawing. Start from the views its own
+        // allocation moved, so the pinned sheet 1 keeps that drawing's frames.
+        for (name, n) in pinned_allocation(analysis, spec)? {
+            moved.insert(name, n);
+        }
+    }
     let mut first = run(analysis, &working(analysis, spec, &moved))?;
     if !first.sheets.is_empty() && moved.is_empty() {
         return Ok(first);
@@ -589,6 +596,44 @@ fn allocate_inner(
     p.table_restore = None;
     p.status = crate::completeness::status(&p.problems);
     Ok(p)
+}
+
+/// A pinned request's unpinned reference views. Omitted views stay omitted. On a
+/// multi-sheet request a view assigned to a later sheet (an allocation step's moved
+/// view) is left to the reference's own allocation, so the reference is the whole
+/// unpinned drawing with every frame where it finally sits, not one step's sheet 1.
+pub(crate) fn reference_views(spec: &Spec) -> BTreeMap<String, model::ViewSpec> {
+    let multi = maximum(spec) > 1;
+    spec.views
+        .iter()
+        .filter(|(_, view)| view.omit && !(multi && view.sheet.is_some_and(|n| n > 1)))
+        .map(|(name, _)| {
+            let view = model::ViewSpec {
+                omit: true,
+                ..Default::default()
+            };
+            (name.clone(), view)
+        })
+        .collect()
+}
+
+/// The views (and rescue hole table) the unpinned request's own allocation puts after
+/// sheet 1. Pins never move frames, so the pinned replay starts from the same allocation.
+fn pinned_allocation(analysis: &Analysis, spec: &Spec) -> Result<BTreeMap<String, u32>, Invalid> {
+    let mut base = model::pin_base(spec);
+    base.sheets = spec.sheets.clone();
+    base.views = reference_views(spec);
+    let canonical = model::plan_automatic(analysis, &base)?;
+    let mut moved: BTreeMap<String, u32> = canonical
+        .views
+        .iter()
+        .filter(|v| v.sheet > 1)
+        .map(|v| (v.id.trim_start_matches("v:").to_string(), v.sheet))
+        .collect();
+    if let Some(table) = canonical.hole_table.as_ref().filter(|t| t.sheet > 1) {
+        moved.insert("hole_table".into(), table.sheet);
+    }
+    Ok(moved)
 }
 
 /// Relieve a small part on practical paper before opening the large-sheet ladder.

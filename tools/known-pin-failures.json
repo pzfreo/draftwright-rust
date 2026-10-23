@@ -2,11 +2,6 @@
   "format": "draftwright.known-pin-failures/1",
   "note": "Known random-pin NO-GO cells accepted for alpha.13 (quiddity-rust v0.1.1, PR #166). Each entry is one part in one seed-pins cell; every other part and cell must still be GO. Remove these entries in alpha.14.",
   "failures": [
-    {"cell": "1-1", "part": "nist_ctc_03_asme1_rc", "reason": "Pinning v:side at its own place re-packs the plan and iso views and drops the hole schedule (ink 0 -> 7); investigate in alpha.14."},
-    {"cell": "2-3", "part": "nist_ftc_10_asme1_rb", "reason": "FTC-10 plans on 2×A2 on quiddity-rust v0.1.1; pin replay on multi-sheet plans re-packs views (draftwright #170)."},
-    {"cell": "2-8", "part": "nist_ftc_10_asme1_rb", "reason": "FTC-10 plans on 2×A2 on quiddity-rust v0.1.1; pin replay on multi-sheet plans re-packs views (draftwright #170)."},
-    {"cell": "3-1", "part": "nist_ftc_10_asme1_rb", "reason": "FTC-10 plans on 2×A2 on quiddity-rust v0.1.1; pin replay on multi-sheet plans re-packs views (draftwright #170)."},
-    {"cell": "3-3", "part": "nist_ftc_10_asme1_rb", "reason": "FTC-10 plans on 2×A2 on quiddity-rust v0.1.1; pin replay on multi-sheet plans re-packs views (draftwright #170)."},
-    {"cell": "3-8", "part": "nist_ftc_10_asme1_rb", "reason": "FTC-10 plans on 2×A2 on quiddity-rust v0.1.1; pin replay on multi-sheet plans re-packs views (draftwright #170)."}
+    {"cell": "1-1", "part": "nist_ctc_03_asme1_rc", "reason": "Pinning v:side at its own place re-packs the plan and iso views and drops the hole schedule (ink 0 -> 7); investigate in alpha.14."}
   ]
 }
