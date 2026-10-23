@@ -1,4 +1,5 @@
-//! Process-local pure documents. Callers receive their own Analysis/Plan clones.
+//! Process-local pure documents, and default plans shared across processes on disk when
+//! DRAFTWRIGHT_TEST_PLAN_CACHE is set. Callers receive their own Analysis/Plan clones.
 //! Do not use these helpers in determinism tests: both runs must execute independently.
 #![allow(dead_code)]
 
@@ -8,6 +9,7 @@ use std::sync::{Arc, Mutex, OnceLock};
 
 use draftwright::haecceity::Part;
 use draftwright::model::{self, Analysis, Plan, Spec};
+use draftwright::plan_cache;
 use sha2::{Digest, Sha256};
 
 type Key = [u8; 32];
@@ -67,10 +69,16 @@ pub fn default_plan(analysis: &Analysis, recovered: bool) -> Plan {
     hash.update([u8::from(recovered)]);
     hash.update(serde_json::to_vec(analysis).unwrap());
     let cell = get(&CACHE, hash.finalize().into(), || {
+        // Shared across processes on disk when DRAFTWRIGHT_TEST_PLAN_CACHE names a directory
+        // (CI): keyed by the engine's source fingerprint and the whole Analysis and Spec, so
+        // only a plan this very engine made from these inputs is read ([`plan_cache`]).
+        let dir = std::env::var_os("DRAFTWRIGHT_TEST_PLAN_CACHE")
+            .filter(|v| !v.is_empty())
+            .map(std::path::PathBuf::from);
         if recovered {
-            model::plan_recovered(analysis, &Spec::default()).unwrap()
+            plan_cache::plan_recovered_in(dir.as_deref(), analysis, &Spec::default()).unwrap()
         } else {
-            model::plan(analysis, &Spec::default()).unwrap()
+            plan_cache::plan_in(dir.as_deref(), analysis, &Spec::default()).unwrap()
         }
     });
     cell.get().unwrap().clone()

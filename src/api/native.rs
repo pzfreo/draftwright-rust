@@ -89,14 +89,20 @@ pub fn plan_part(
     spec: &Spec,
 ) -> Result<Plan, Error> {
     let (_, analysis) = analysed(step, part, features)?;
-    Ok(model::plan_recovered(&analysis, spec)?)
+    Ok(planned(&analysis, spec)?)
 }
 
 /// The Plan for *analysis* (made by [`analyse`]) under *spec*. No STEP file is read; a document
 /// of a version [`model::plan`] does not read is refused. Every plan here has draftwright's
 /// layout recovery applied ([`model::plan_recovered`]).
 pub fn plan_analysed(analysis: &Analysis, spec: &Spec) -> Result<Plan, Error> {
-    Ok(model::plan_recovered(analysis, spec)?)
+    Ok(planned(analysis, spec)?)
+}
+
+/// [`model::plan_recovered`], through the plan cache that `DRAFTWRIGHT_PLAN_CACHE` names, when
+/// set ([`crate::plan_cache`]).
+fn planned(analysis: &Analysis, spec: &Spec) -> Result<Plan, model::Invalid> {
+    crate::plan_cache::plan_recovered_in(crate::plan_cache::dir().as_deref(), analysis, spec)
 }
 
 /// Where an operation that draws takes the part's Analysis from.
@@ -165,7 +171,7 @@ pub fn edit(spec: &Spec, ops: &Value) -> Result<Spec, Error> {
 /// problems include the drawing's: what could not be drawn as planned.
 fn drawn(step: &Path, given: Given, spec: &Spec) -> Result<(Analysis, Plan, Vec<Drawing>), Error> {
     let (part, analysis) = read(step, given)?;
-    let mut plan = model::plan_recovered(&analysis, spec)?;
+    let mut plan = planned(&analysis, spec)?;
     let font = Font::new(MONO.to_vec()).expect("the bundled font parses");
     let drawings = model::render_sheets(&part, &analysis, &plan, &font).map_err(|e| {
         Error::failed(format!(
