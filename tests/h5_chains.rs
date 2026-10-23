@@ -966,3 +966,38 @@ fn m10020_rungs_on_a_located_pockets_walls_yield_to_its_location_and_size() {
         ["l:closed_dimension_chain:step_level/step_height.length.h12_898"]
     );
 }
+
+/// ADR1-8: only a counted or compound label lets a rung yield in that pass. On mfcadpp 10020
+/// (pocket callouts on the sheet) with a plate from the 17.961 level to the 26.685 level, the
+/// 26.685 rung closes with the 17.961 rung and the plate's thickness, and no label is on that
+/// chain: both rungs stay controlling, with or without `references`.
+#[test]
+fn a_rung_closed_by_a_rung_and_a_plate_without_a_label_stays_controlling() {
+    let mut a = trimmed("m10020");
+    let mut plate = a.features[0].clone();
+    plate.id = "f:plate:1".into();
+    plate.kind = "plate".into();
+    plate.parameters = json!({
+        "axis": "z", "lo": 17.960969758681, "hi": 26.68510842796, "u": 4.0, "v": 2.5
+    })
+    .as_object()
+    .unwrap()
+    .clone();
+    a.features.push(plate);
+    for spec in [Spec::default(), references()] {
+        let p = model::plan(&a, &spec).unwrap();
+        assert!(
+            p.dimensions
+                .iter()
+                .any(|d| d.id == "d:f:section_recess:5/pocket_width.length")
+        );
+        for (id, label) in [
+            ("d:step_level/step_height.length.h17_961", "17.961"),
+            ("d:step_level/step_height.length.h26_685", "26.685"),
+            ("d:f:plate:1/thickness.length", "8.724"),
+        ] {
+            let d = p.dimensions.iter().find(|d| d.id == id).unwrap();
+            assert_eq!((d.label.as_str(), d.reference), (label, false), "{id}");
+        }
+    }
+}

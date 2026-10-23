@@ -58,8 +58,8 @@ on #76.
 
 The second one-owner stream (2026-10-23) ports compound counts and lone blind pockets into
 the support-plane walk: counted labels and compound callouts state their members' intervals,
-and a face-level rung they determine yields. ADR1-8, ADR4-U1 and ISSUE-1505-b gain tests but
-stay pending, so the counts are unchanged. ADR1-8 still lacks step legs, the other recess and
+and a face-level rung they determine yields. ADR1-8 and ADR4-U1 gain tests of the new
+behaviour and ISSUE-1505-b a test pinning existing behaviour; all three stay pending, so the counts are unchanged. ADR1-8 still lacks step legs, the other recess and
 hole depths and rebased ladder datums. ADR4-U1's angular sets and ISSUE-1505-b's off-page Z
 recovery and cut caps are proposed for retirement and await the maintainer's approval.
 

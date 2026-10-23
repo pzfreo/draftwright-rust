@@ -225,6 +225,12 @@ pub(super) fn consolidate(
     for &i in &compound {
         edges.extend(members(a, &kept[i].0).into_iter().map(|s| (s, i)));
     }
+    // Only a label that printed a member counts: a rung, diameter or point location has no
+    // interval either, and must not satisfy `rungs_on_compound_labels`' label guard.
+    let compound: Vec<usize> = compound
+        .into_iter()
+        .filter(|i| edges.iter().any(|e| e.1 == *i))
+        .collect();
     for i in order {
         // Invariant: kept contains only dimensions for which interval returned Some.
         let s = interval(a, &kept[i].0).unwrap();
