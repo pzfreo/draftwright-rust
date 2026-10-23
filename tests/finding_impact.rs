@@ -427,10 +427,7 @@ fn ctc01_counts_gaps_and_repeated_causes_without_hiding_findings() {
 fn unsupported_recesses_and_rounding_have_separate_impacts() {
     // A fresh automatic choice no longer carries the planner's internal
     // layout_replanned trace (that notice belongs to kept layouts and local fixes).
-    // quiddity-rust 0.1.1 (accepted for alpha.13) publishes 1000's plate hi unrounded
-    // (4.2190876 where alpha.8 gave 4.219), so the printed 4.219 adds a nominal_rounded
-    // advisory: advisory (11, 2) -> (12, 2).
-    assert_review_summary("mfcadpp/1000.step", [(11, 4), (1, 1), (0, 0), (12, 2)]);
+    assert_review_summary("mfcadpp/1000.step", [(11, 4), (1, 1), (0, 0), (11, 2)]);
 }
 #[test]
 fn informational_hole_bottom_and_recovery_remain_advisory() {

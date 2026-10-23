@@ -1909,9 +1909,11 @@ mod tests {
         };
         assert_eq!(at_limit(277.0).scale("A4", 1, 1.0), Some(1.0));
         assert_eq!(at_limit(277.01).scale("A4", 1, 1.0), None);
-        // mfcadpp 10163's aligned front and side estimate is within 5% of A4's drawable
-        // width at 1:2, and that full trial is the winner.
-        let Some(a) = corpus("mfcadpp/10163.step") else {
+        // mfcadpp 1013's aligned front and side estimate is within 5% of A4's drawable width
+        // at 2:1, and that full trial is run (it then loses to 1:1). It replaces 10163, which
+        // sat at this boundary at 1:2 until quiddity-rust's 0.1.2 candidate dropped its
+        // inward-facing false fillet (for #89) and A4 became usable at 1:1.
+        let Some(a) = corpus("mfcadpp/1013.step") else {
             return;
         };
         let p = model::plan_recovered(&a, &Spec::default()).unwrap();
@@ -1921,15 +1923,15 @@ mod tests {
                 p.sheet.scale.as_str(),
                 p.sheets.len()
             ),
-            ("A4", "1:2", 0)
+            ("A4", "1:1", 0)
         );
         let winner = p.sheet_candidates.last().unwrap();
         assert_eq!((winner.size.as_str(), winner.kind.as_deref()), ("A4", None));
-        assert_eq!(winner.scales, ["1:2"]);
+        assert_eq!(winner.scales, ["2:1", "1:1"]);
         crate::planning::with(&a, || {
             let baseline = model::plan_automatic(&a, &Spec::default()).unwrap();
             let estimate = Estimate::new(&a, &baseline);
-            assert!(estimate.fits("A4", 1, 0.5));
+            assert!(estimate.fits("A4", 1, 2.0));
             let wider = Estimate {
                 views: estimate
                     .views
@@ -1938,7 +1940,7 @@ mod tests {
                     .collect(),
                 ..estimate
             };
-            assert!(!wider.fits("A4", 1, 0.5));
+            assert!(!wider.fits("A4", 1, 2.0));
         });
     }
 
@@ -2016,10 +2018,12 @@ mod tests {
     fn bounded_trials_keep_clean_reductions_and_reject_new_ink() {
         for (file, size, scale) in [
             ("mfcadpp/10020.step", "A4", "1:1"),
-            // The former A4 reduction gains a leader/extension contact.
-            ("mfcadpp/10033.step", "A3", "2:1"),
-            // Whole-view packing clears the A4 frame at the original readable scale.
-            ("mfcadpp/10163.step", "A4", "1:2"),
+            // The former A4 reduction gained a leader/extension contact (A3 2:1); without
+            // the inward-facing false fillet quiddity-rust's 0.1.2 candidate drops (for #89),
+            // A4 at 1:1 is clean.
+            ("mfcadpp/10033.step", "A4", "1:1"),
+            // Whole-view packing clears the A4 frame; 1:1 since the 0.1.2 candidate (was 1:2).
+            ("mfcadpp/10163.step", "A4", "1:1"),
             // Usable on preferred A3, as on main: nothing clipped and nothing lost.
             ("cadgenbench_inputs/cgb245.step", "A3", "1:5"),
             ("nist/nist_ftc_07_asme1_rd.stp", "A3", "1:5"),

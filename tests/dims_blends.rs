@@ -755,40 +755,11 @@ fn radius_centre_table_credits_every_occurrence_and_rejects_wrong_locators(file:
 // A blend on an oblique axis has no arc in any principal view, so no leader of its own. An equal
 // fillet leader's count states it, so the general radius note is placed instead of withdrawn;
 // hiding that leader leaves the exception undrawn and the note withdrawn again, as an error.
-// cgb207 is not a case for alpha.13: see cgb207_states_its_radii_without_the_general_note.
 part_cases!(oblique_radius_exceptions_join_an_equal_fillet_leader;
     nist_ctc_03_asme1_rc => "nist/nist_ctc_03_asme1_rc.stp",
     nist_ftc_07_asme1_rd => "nist/nist_ftc_07_asme1_rd.stp",
+    cgb207 => "cadgenbench_inputs/cgb207.step",
 );
-
-/// quiddity-rust 0.1.1 (accepted for alpha.13): cgb207's frame is only partly aligned, so its
-/// R5 fillet's axis is restored as a direction off x, y and z and gets no leader of its own.
-/// On alpha.8 it joined an equal fillet leader (2× R5) and "ALL UNSPECIFIED RADII" was placed;
-/// now the general note is not planned (the R1 and R2 radii are called out, 12× R1 and 8× R2)
-/// and the R5 fillet is reported undimensioned. Draftwright framed-record handling, fix in
-/// alpha.14 (return cgb207 to oblique_radius_exceptions_join_an_equal_fillet_leader).
-#[test]
-fn cgb207_states_its_radii_without_the_general_note() {
-    let Some(dir) = corpus::dir() else { return };
-    let (_, a) = cache::native(&dir.join("cadgenbench_inputs/cgb207.step"));
-    let p = cache::default_plan(&a, false);
-    assert!(!p.problems.iter().any(|x| x.code == "notes_not_placed"));
-    assert!(
-        !p.notes
-            .iter()
-            .any(|n| n.text.starts_with("ALL UNSPECIFIED RADII"))
-    );
-    let undimensioned: Vec<_> = p
-        .problems
-        .iter()
-        .filter(|x| x.code == "feature_not_dimensioned")
-        .map(|x| x.message.as_str())
-        .collect();
-    assert_eq!(
-        undimensioned,
-        ["The R5 fillet is not dimensioned: its axis is not x, y or z."]
-    );
-}
 fn oblique_radius_exceptions_join_an_equal_fillet_leader(file: &str) {
     let Some(dir) = corpus::dir() else { return };
     let (part, a) = cache::native(&dir.join(file));
