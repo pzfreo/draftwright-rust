@@ -6,6 +6,16 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### Changed
+
+- **Leader and witness targets.** Lint checks flat, recess and slot callout tips against the
+  faces their records publish, never a pocket's open mouth or a seat's chord
+  (`flat_`, `recess_` and `slot_leader_target_*`), and a turned length's extension lines against
+  its band's shoulders (`step_length_witness_target_*`). A chamfer, turned diameter or turned
+  length whose leader or witness misses its feature no longer earns coverage credit.
+- **Obround pockets.** Their leaders no longer aim at the box corners beyond the end arcs; 20
+  MFCAD pocket callouts move onto the straight walls.
+
 ### Fixed
 
 - **Manufacturing table with no room.** When the thread and knurl requirements table has no place

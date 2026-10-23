@@ -272,6 +272,17 @@ pub fn marks(drawing: &Drawing) -> Vec<Mark> {
 pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
     let mut marks = marks(drawing);
     location::drawn_constraints(analysis, drawing, &mut marks);
+    // Stream K4: each callout's tip against the edge it names, and its shaft against the
+    // material (`leaders`). A callout whose leader or witness misses the physical feature it
+    // claims earns no credit for it (ISSUE-1374-a/d).
+    let (leader_issues, withdrawn) = leaders::check(analysis, drawing);
+    for w in &withdrawn {
+        for mark in marks.iter_mut().filter(|m| m.name == w.annotation) {
+            mark.claims.retain(|c| {
+                !(w.features.contains(&c.feature) && w.parameters.contains(&c.parameter.as_str()))
+            });
+        }
+    }
     let sites: std::collections::BTreeMap<_, _> = crate::bridge::holes::read(analysis)
         .into_iter()
         .filter_map(|(f, h)| Some((f.id.as_str(), h.ok()?.at)))
@@ -477,9 +488,7 @@ pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
     issues.extend(schedule_evidence::check(drawing));
     issues.extend(pmi_coverage::manufacturing_references(analysis, drawing));
     issues.extend(coverage::drawn_centre_marks(analysis, drawing));
-    // Stream K4: each callout's tip against the edge it names, and its shaft against the
-    // material (`leaders`).
-    issues.extend(leaders::check(analysis, drawing));
+    issues.extend(leader_issues);
     issues.extend(pmi_coverage::source_sites(analysis, drawing));
     issues
 }

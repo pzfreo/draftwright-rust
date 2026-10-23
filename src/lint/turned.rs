@@ -131,6 +131,11 @@ pub struct Cut {
 /// The Analysis's `flat` features that cut band *b*: about its own axis line (the flat's foot
 /// lies its `axis_distance` from the band's axis), inside its radius, over part of its span.
 pub fn cuts(analysis: &Analysis, b: &Band) -> Vec<Cut> {
+    flat_cuts(analysis, b).into_iter().map(|(_, c)| c).collect()
+}
+
+/// [`cuts`], each with the flat that makes it.
+pub fn flat_cuts<'a>(analysis: &'a Analysis, b: &Band) -> Vec<(&'a Feature, Cut)> {
     let q = frame(analysis);
     let k = b.axis;
     let r = 0.5 * b.diameter;
@@ -169,12 +174,15 @@ pub fn cuts(analysis: &Analysis, b: &Band) -> Vec<Cut> {
             [s0, s1].map(|s| to_part(&q, [0, 1, 2].map(|i| at[i] + (s - along) * dir[i]))[k]);
         let (lo, hi) = (e0.min(e1).max(b.lo), e0.max(e1).min(b.hi));
         if hi - lo > 1e-6 {
-            out.push(Cut {
-                normal: v.map(|x| x / n),
-                distance: n,
-                lo,
-                hi,
-            });
+            out.push((
+                f,
+                Cut {
+                    normal: v.map(|x| x / n),
+                    distance: n,
+                    lo,
+                    hi,
+                },
+            ));
         }
     }
     out

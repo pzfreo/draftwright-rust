@@ -56,6 +56,90 @@ pub fn location(analysis: &Analysis, f: &Feature) -> Result<(&'static str, f64),
     Ok((AXES[k], ends[0].min(ends[1]) - analysis.envelope[0][k]))
 }
 
+/// A through slot in the part's frame, as the planner places it (`dims::slots`): the axes it
+/// runs along, spans across and passes through, its ends along the first, its centre line on the
+/// second, its span through it, its width, and its end radius when its ends are proven arcs.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Outline {
+    pub long: usize,
+    pub wide: usize,
+    pub deep: usize,
+    pub ends: [f64; 2],
+    pub centre: f64,
+    pub through: [f64; 2],
+    pub width: f64,
+    pub end_radius: Option<f64>,
+}
+
+/// Slot *f*'s [`Outline`], or why its record cannot be read. quiddity rounds `lo`, `hi` and
+/// `w_center` to 0.01 mm in its own frame; the box around its faces (the fingerprint's position)
+/// is exact and is taken when it agrees within that rounding, as the planner takes it.
+pub fn outline(analysis: &Analysis, f: &Feature) -> Result<Outline, String> {
+    let p = &f.parameters;
+    let letter = |name: &str| {
+        p.get(name)
+            .and_then(Value::as_str)
+            .and_then(|a| AXES.iter().position(|x| *x == a))
+            .ok_or_else(|| format!("its record gives no {name}"))
+    };
+    let (ql, qw) = (letter("long_axis")?, letter("width_axis")?);
+    if ql == qw {
+        return Err("its long and width axes are the same".into());
+    }
+    let qd = 3 - ql - qw;
+    let frame = frame(analysis);
+    let world = |q: usize| {
+        let mut d = [0.0; 3];
+        d[q] = 1.0;
+        principal(dir_to_part(&frame, d)).ok_or("its axes lie along no axis of the part")
+    };
+    let (long, wide) = (world(ql)?, world(qw)?);
+    let deep = 3 - long - wide;
+    let (width, length) = (
+        parameters::size(f, "width")?,
+        parameters::size(f, "length")?,
+    );
+    let (lo, hi) = (parameters::size(f, "lo")?, parameters::size(f, "hi")?);
+    let w = parameters::size(f, "w_center")?;
+    let (d0, d1) = (parameters::size(f, "d_lo")?, parameters::size(f, "d_hi")?);
+    let point = |t: f64, d: f64| {
+        let mut q = [0.0; 3];
+        q[ql] = t;
+        q[qw] = w;
+        q[qd] = d;
+        to_part(&frame, q)
+    };
+    let (a, b) = (point(lo, d0), point(hi, d1));
+    let c = f.fingerprint.position;
+    let exact = |k: usize, recorded: f64| {
+        if (c[k] - recorded).abs() <= 0.01 {
+            c[k]
+        } else {
+            recorded
+        }
+    };
+    let along = exact(long, 0.5 * (a[long] + b[long]));
+    Ok(Outline {
+        long,
+        wide,
+        deep,
+        ends: [along - 0.5 * length, along + 0.5 * length],
+        centre: exact(wide, a[wide]),
+        through: [a[deep].min(b[deep]), a[deep].max(b[deep])],
+        width,
+        end_radius: p.get("end_radius").and_then(Value::as_f64),
+    })
+}
+
+/// The member slots of slot pattern *p*: the `slot` features inside its faces.
+pub fn members<'a>(analysis: &'a Analysis, p: &Feature) -> Vec<&'a Feature> {
+    analysis
+        .features
+        .iter()
+        .filter(|f| f.kind == "slot" && f.faces.iter().all(|i| p.faces.binary_search(i).is_ok()))
+        .collect()
+}
+
 /// The slot patterns, and the lone slots: every `slot` feature not inside a pattern's faces.
 fn split(analysis: &Analysis) -> (Vec<&Feature>, Vec<&Feature>) {
     let patterns: Vec<&Feature> = analysis

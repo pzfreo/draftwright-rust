@@ -112,6 +112,8 @@ catalogue! {
     "features_not_recognised" => Incomplete, Code, "Unsupported recognition leaves required feature information unstated.";
     "fillet_requirement_missing" => Incomplete, Requirement, "The drawing does not state this required feature parameter.";
     "fillet_requirement_unverifiable" => Incomplete, Requirement, "The drawing does not prove this required feature parameter.";
+    "flat_leader_target_mismatch" => Readability, Code, "The flat leader points at the wrong geometry.";
+    "flat_leader_target_unverifiable" => Readability, Code, "The flat leader target cannot be verified.";
     "flat_requirement_missing" => Incomplete, Requirement, "The drawing does not state this required feature parameter.";
     "flat_requirement_unverifiable" => Incomplete, Requirement, "The drawing does not prove this required feature parameter.";
     "gear_axis_mismatch" => Incomplete, Code, "The drawn evidence does not correctly state the required source information.";
@@ -211,6 +213,8 @@ catalogue! {
     "radius_leader_not_radial" => Readability, Code, "The radius leader does not meet its arc radially from either side.";
     "radius_leader_target_mismatch" => Readability, Code, "The radius leader points at the wrong geometry.";
     "radius_leader_target_unverifiable" => Readability, Code, "The radius leader target cannot be verified.";
+    "recess_leader_target_mismatch" => Readability, Code, "The recess leader points at the wrong geometry.";
+    "recess_leader_target_unverifiable" => Readability, Code, "The recess leader target cannot be verified.";
     "rectangular_blind_slot_requirement_missing" => Incomplete, Requirement, "The drawing does not state this required feature parameter.";
     "rectangular_blind_slot_requirement_unverifiable" => Incomplete, Requirement, "The drawing does not prove this required feature parameter.";
     "relief_profile_requirement_missing" => Incomplete, Requirement, "The drawing does not state this required feature parameter.";
@@ -229,6 +233,8 @@ catalogue! {
     "sheet_preference_exceeded" => Advisory, Code, "A usable drawing needs larger paper or more sheets than preferred.";
     "sheet_renumbered" => Advisory, Code, "The document sheets were renumbered consecutively.";
     "sheet_zones_kept" => Advisory, Code, "Section cross-references cite the grid zones, so they stay on the sheet.";
+    "slot_leader_target_mismatch" => Readability, Code, "The slot leader points at the wrong geometry.";
+    "slot_leader_target_unverifiable" => Readability, Code, "The slot leader target cannot be verified.";
     "slot_requirement_missing" => Incomplete, Requirement, "The drawing does not state this required feature parameter.";
     "slot_requirement_unverifiable" => Incomplete, Requirement, "The drawing does not prove this required feature parameter.";
     "spec_entries_inactive" => Decision, Code, "Authored settings do not apply to any current item.";
@@ -238,6 +244,8 @@ catalogue! {
     "step_diameter_leader_target_mismatch" => Readability, Code, "The turned diameter leader points at the wrong geometry.";
     "step_diameter_leader_target_unverifiable" => Readability, Code, "The turned diameter leader target cannot be verified.";
     "step_general_tolerance_disagreement" => Decision, Code, "The authored and PMI general tolerances disagree.";
+    "step_length_witness_target_mismatch" => Readability, Code, "The turned length's extension lines are off the band's shoulders.";
+    "step_length_witness_target_unverifiable" => Readability, Code, "The turned length's extension lines cannot be verified.";
     "step_level_support_missing" => Incomplete, Code, "Missing shoulder support prevents the step level being stated.";
     "step_material_ambiguous" => Decision, Code, "The STEP records do not identify one material to use.";
     "step_material_disagreement" => Decision, Code, "The authored and STEP materials disagree.";

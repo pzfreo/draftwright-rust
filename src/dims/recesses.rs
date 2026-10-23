@@ -198,11 +198,23 @@ fn pocket_wants(cx: &Context, out: &mut Vec<Want>, problems: &mut Vec<Problem>) 
             .as_ref()
             .is_some_and(|r| r.recogniser.starts_with("quiddity-rust "))
         {
+            // An obround's ends are semicircles of half its width: its walls are straight only
+            // between them, and quarter stations past them would lie in air beyond the arc
+            // (ARCH0017-6).
+            let obround = f
+                .parameters
+                .get("classification")
+                .and_then(|c| c.get("section_shape"))
+                .and_then(serde_json::Value::as_str)
+                == Some("obround");
+            let rounding = p
+                .corner_radius
+                .unwrap_or(if obround { 0.5 * p.width } else { 0.0 });
             for (normal, tangent, length) in [
                 (p.width_axis, p.long_axis, p.length),
                 (p.long_axis, p.width_axis, p.width),
             ] {
-                let straight = (length * 0.5 - p.corner_radius.unwrap_or(0.0)).max(0.0);
+                let straight = (length * 0.5 - rounding).max(0.0);
                 for side in [-1.0, 1.0] {
                     for station in [-0.5, 0.5] {
                         let (mut at, radius) = wall(normal, side);
