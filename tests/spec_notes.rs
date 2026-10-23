@@ -838,3 +838,37 @@ fn a_thread_length_whose_callout_is_omitted_is_reported_not_lost() {
     assert_eq!(lost.len(), 1, "{:?}", plan.problems);
     assert_eq!(lost[0].refs, ["spec:features/f:hole_pattern:1/thread"]);
 }
+
+/// LINT-hole_coverage-thread_and_profile, the authored half (draftwright's `thread.depth`, a
+/// `ThreadOperation`'s depth): a Spec thread's length on a hole prints as its depth after the
+/// designation (`4× M6-6H ↧ 4`), and lint requires that depth on the sheet. A callout that drops
+/// it, or states another, is a `pmi_source_text_mismatch` error naming the Spec thread.
+#[test]
+fn a_spec_threads_depth_on_its_holes_is_required_by_lint() {
+    let (part, a) = plate();
+    let id = "d:f:hole_pattern:1/bore.diameter";
+    let plan = model::plan_recovered(
+        &a,
+        &spec(json!({"features": {"f:hole_pattern:1": {"thread": {"designation": "M6x1-6H", "length": 4}}}})),
+    )
+    .unwrap();
+    assert_eq!(dimension(&plan, id).label, "4× M6-6H ↧ 4\n⌀6 THRU (2×2)");
+    let d = model::render(&part, &a, &plan, &font()).unwrap();
+    assert_eq!(pmi_lint(&a, &d), Vec::<String>::new());
+    let thread = d.annotations.iter().find(|m| m.name == id).unwrap().clone();
+    for (old, new) in [("↧ 4", "↧ 5"), (" ↧ 4", "")] {
+        let mut damaged = d.clone();
+        for &run in &thread.runs {
+            damaged.text[run].text = damaged.text[run].text.replace(old, new);
+        }
+        assert_ne!(runs(&damaged, id), runs(&d, id), "{old:?}");
+        let found = pmi_lint(&a, &damaged);
+        assert!(
+            found
+                .iter()
+                .any(|f| f.starts_with("pmi_source_text_mismatch")
+                    && f.contains("spec:features/f:hole_pattern:1/thread")),
+            "{old:?}: {found:?}"
+        );
+    }
+}

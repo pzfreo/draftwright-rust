@@ -1144,3 +1144,219 @@ fn an_internal_threads_bore_fit_stays_on_its_tapping_drill() {
         .unwrap();
     assert_eq!(d.label, "M2-6H ↧ 2.5\n⌀1.6 H7 ↧ 4");
 }
+
+/// ISSUE-1298-a, draftwright's fallback (`_place_manufacturing_schedule`): a manufacturing
+/// requirements table with no place on the sheet is an alternative presentation that is not
+/// used, so no callout says `SEE MFG n` and each prints its requirement in full, with no
+/// `table_not_placed` error. GRM-03's AP242 thumbwheel on A4 at 5:1: its views and callouts fit,
+/// its 95.6 × 42 mm table does not (before the fallback: `table_not_placed`, three
+/// `manufacturing_reference_unresolved` and two `pmi_source_text_mismatch` errors). The fallback
+/// drawing has no error of any kind, in the plan or found on the rendered sheet.
+#[test]
+fn a_manufacturing_table_with_no_place_falls_back_to_full_callouts() {
+    let (part, a) = analysed("GRM-03_thumbwheel_drive_screw_AP242_PMI");
+    let spec = |sheet: serde_json::Value| -> Spec {
+        let mut sheet = sheet;
+        sheet["callouts"] = serde_json::json!({"style": "note"});
+        serde_json::from_value(serde_json::json!({ "sheet": sheet })).unwrap()
+    };
+    // With room, the requirements go to the table, as before.
+    let roomy = model::plan(&a, &spec(serde_json::json!({}))).unwrap();
+    let table = roomy
+        .tables
+        .iter()
+        .find(|t| t.id == "manufacturing_requirements")
+        .expect("the table, with room");
+    assert!(table.placed.is_some());
+    let font =
+        draftwright::text::Font::open(&root().join("fonts").join(draftwright::dims::FONT)).unwrap();
+    let given = spec(serde_json::json!({"size": "A4", "scale": "5:1"}));
+    for plan in [
+        model::plan(&a, &given).unwrap(),
+        model::plan_recovered(&a, &given).unwrap(),
+    ] {
+        assert!(
+            !plan.problems.iter().any(|p| p.code == "table_not_placed"),
+            "{:#?}",
+            plan.problems
+        );
+        assert!(
+            plan.tables
+                .iter()
+                .all(|t| t.id != "manufacturing_requirements")
+        );
+        // The requested spec stays the plan's: the fallback is no authored override.
+        assert_eq!(plan.spec.sheet, given.sheet);
+        assert!(plan.spec.features.is_empty());
+        // The fallback says what it did, naming the requirements printed in full.
+        let fallback = plan
+            .problems
+            .iter()
+            .find(|p| p.code == "manufacturing_table_fallback")
+            .expect("an info finding naming the fallback");
+        assert_eq!(fallback.severity, "info");
+        assert!(fallback.refs.len() >= 2, "{fallback:#?}");
+        for source in &fallback.refs {
+            let labels = claimed(&plan, &a, source);
+            assert_eq!(labels.len(), 1, "{source}: {labels:?}");
+            let (id, label) = labels[0];
+            assert!(!label.contains("SEE MFG"), "{source}: {label:?}");
+            let basis = &plan.dimensions.iter().find(|d| d.id == id).unwrap().basis;
+            assert!(
+                basis.contains("manufacturing table fallback")
+                    && basis.contains("table has no place on the sheet")
+                    && !basis.contains("callouts/style Full"),
+                "{basis}"
+            );
+        }
+        let thread = plan
+            .dimensions
+            .iter()
+            .map(|d| d.label.split_whitespace().collect::<Vec<_>>().join(" "))
+            .find(|l| l.contains("MIN FULL THREAD"))
+            .expect("the thread in full");
+        assert!(thread.contains("M2 x 0.4-6H RH"), "{thread}");
+        // No hard finding: not in the plan, and not on the rendered sheet.
+        let errors: Vec<_> = plan
+            .problems
+            .iter()
+            .filter(|p| p.severity == "error")
+            .map(|p| &p.id)
+            .collect();
+        assert!(errors.is_empty(), "{errors:?}");
+        let drawing = model::render(&part, &a, &plan, &font).unwrap();
+        let found: Vec<_> = draftwright::lint::lint(&a, &drawing)
+            .into_iter()
+            .chain(draftwright::lint::structural::check_sheets(
+                std::slice::from_ref(&drawing),
+            ))
+            .filter(|i| i.severity == draftwright::lint::Severity::Error)
+            .map(|i| i.id)
+            .collect();
+        assert!(found.is_empty(), "{found:?}");
+    }
+}
+
+/// ISSUE-1298-a, `test_identical_typed_threads_on_distinct_owners_keep_two_owned_annotations`:
+/// two identical holes that each carry the same thread are not counted into one `2×` callout;
+/// each owner keeps a callout of its own stating its thread. bracket_positions' six ⌀10 through
+/// holes are one `6×` callout; with an M12 tap on two of them, those two print apart and the
+/// other four stay grouped.
+#[test]
+fn identical_threads_on_distinct_owners_keep_two_callouts() {
+    let (_, a) = analysed("bracket_positions");
+    let plain = model::plan(&a, &Spec::default()).unwrap();
+    assert!(
+        plain
+            .dimensions
+            .iter()
+            .any(|d| d.label.starts_with("6× ⌀10 ") && d.label.ends_with(" THRU")),
+        "{:?}",
+        plain
+            .dimensions
+            .iter()
+            .map(|d| &d.label)
+            .collect::<Vec<_>>()
+    );
+    let tap = serde_json::json!({"thread": {"designation": "M12x1.75-6H"}});
+    let spec: Spec = serde_json::from_value(
+        serde_json::json!({"features": {"f:hole:1": tap.clone(), "f:hole:2": tap}}),
+    )
+    .unwrap();
+    let plan = model::plan(&a, &spec).unwrap();
+    let threaded: Vec<(&str, &str)> = plan
+        .dimensions
+        .iter()
+        .filter(|d| d.label.contains("M12-6H"))
+        .map(|d| (d.id.as_str(), d.label.as_str()))
+        .collect();
+    let ids: Vec<&str> = threaded.iter().map(|t| t.0).collect();
+    assert_eq!(
+        ids,
+        ["d:f:hole:1/bore.diameter", "d:f:hole:2/bore.diameter"],
+        "{threaded:?}"
+    );
+    for (_, label) in &threaded {
+        assert!(
+            label.starts_with("M12-6H THRU\n⌀10 ") && label.ends_with(" THRU"),
+            "{label:?}"
+        );
+    }
+    assert_eq!(threaded[0].1, threaded[1].1);
+    assert!(
+        plan.dimensions
+            .iter()
+            .any(|d| d.label.starts_with("4× ⌀10 ") && d.label.ends_with(" THRU")),
+        "{:?}",
+        plan.dimensions.iter().map(|d| &d.label).collect::<Vec<_>>()
+    );
+    assert!(!plan.dimensions.iter().any(|d| d.label.contains("2× M12")));
+}
+
+/// ISSUE-1298-a, the tap drill (`ThreadRequirement.drill_*`, `test_internal_minimum_full_thread_
+/// cannot_exceed_tap_drill_depth`, `test_internal_tap_drill_depth_must_match_text_source_
+/// cylinder_and_blind_hole`): an internal thread's tapping drill is read with the thread, in its
+/// words and structured fields, and printed on its hole's callout; a minimum full thread deeper
+/// than the drill, or a drill depth its cylinder does not have, is refused with draftwright's
+/// reason, never drawn.
+#[test]
+fn a_tap_drill_is_read_with_its_thread_and_refused_when_inconsistent() {
+    let (_, a) = analysed("string_post_tapped");
+    let source = "manufacturing_requirement:#3157";
+    let m = draftwright::pmi_lowering::manufacturing(&a);
+    assert!(m.refused.is_empty());
+    let owned = m.owned.iter().find(|o| o.source == source).unwrap();
+    // The table's complete wording keeps the drill's diameter and depth.
+    assert!(owned.text.ends_with("; ⌀1.6 ↧ 4"), "{}", owned.text);
+    // The full thread case is draftwright's own, on the words alone (a structured statement
+    // paired with words that fail is refused as irreconcilable).
+    let set = |r: &mut Record, name: &str, from: &str, to: &str, v: f64| {
+        r.label = r.label.replace(from, to);
+        if name == "minimum full thread" {
+            r.fields.clear();
+        }
+        for (n, value) in &mut r.fields {
+            if n == name {
+                *value = Field::Length(v);
+            }
+        }
+    };
+    for (name, from, to, v, reason) in [
+        (
+            "minimum full thread",
+            "2.5 mm minimum full thread",
+            "5 mm minimum full thread",
+            5.0,
+            "thread minimum full thread cannot exceed drill depth",
+        ),
+        (
+            "tapping drill depth",
+            "x 4 mm full-diameter depth",
+            "x 5 mm full-diameter depth",
+            5.0,
+            "manufacturing requirement text disagrees with source cylinder",
+        ),
+        (
+            "tapping drill diameter",
+            "DIA 1.6 tapping drill",
+            "DIA 1.7 tapping drill",
+            1.7,
+            "manufacturing requirement text disagrees with source cylinder",
+        ),
+    ] {
+        let b = edit(&a, source, |r| set(r, name, from, to, v));
+        let m = draftwright::pmi_lowering::manufacturing(&b);
+        assert!(m.owned.iter().all(|o| o.source != source), "{name}");
+        assert!(
+            m.refused
+                .iter()
+                .any(|p| p.refs.first().is_some_and(|s| s == source)
+                    && p.message.ends_with(&format!("{reason}."))),
+            "{name}: {:#?}",
+            m.refused
+        );
+        let plan = model::plan(&b, &Spec::default()).unwrap();
+        assert!(refused(&plan, source).is_some(), "{name}");
+        assert!(claimed(&plan, &b, source).is_empty(), "{name}");
+    }
+}

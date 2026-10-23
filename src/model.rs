@@ -3483,6 +3483,92 @@ pub(crate) fn pin_base(spec: &Spec) -> Spec {
 /// caller (the library's [`crate::api`], so the command line, the JSON-lines service and MCP)
 /// is given. A plan that cannot be made is refused as [`plan`] refuses it.
 pub fn plan_recovered(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
+    let plan = plan_recovered_once(analysis, spec)?;
+    manufacturing_fallback(analysis, spec, plan, |s| plan_recovered_once(analysis, s))
+}
+
+/// draftwright's fallback for a manufacturing requirements table with no place on the finished
+/// sheet (`_place_manufacturing_schedule`: the table is an alternative presentation, so when it
+/// cannot be committed its short references are never emitted and the callouts print the
+/// requirements in full). The port places its callouts before the table, so the drawing is
+/// planned again with each scheduled requirement's owner in full wording, its `SEE MFG n`
+/// replaced by the complete suffix (`⌀1.6 ↧ 3.8 M2 x 0.4-6H RH; 2.5 MIN FULL THREAD`), and
+/// the `table_not_placed` error gone with the table. Only a drawing the paper policy could not
+/// give room to (an explicit sheet/size and sheet/scale) reaches this; the requested spec is
+/// kept as the plan's, so a re-plan reaches the same drawing, and an info finding
+/// `manufacturing_table_fallback` names the requirements printed in full. A full replan that is
+/// refused, or that still leaves the table unplaced (it cannot, having no table), keeps the first
+/// drawing and its error: the fallback never makes a plannable spec unplannable.
+///
+/// [`plan`] applies it too, so the canonical and reference replays used for pins and radius
+/// references see the fallback drawing whenever the requested spec reaches it; the paper policy's
+/// sheet trials plan with [`plan_automatic`] and never do.
+fn manufacturing_fallback(
+    analysis: &Analysis,
+    spec: &Spec,
+    plan: Plan,
+    replan: impl Fn(&Spec) -> Result<Plan, Invalid>,
+) -> Result<Plan, Invalid> {
+    let unplaced = format!("p:table_not_placed:{}", crate::pmi_lowering::SCHEDULE_ID);
+    if !plan.problems.iter().any(|p| p.id == unplaced) {
+        return Ok(plan);
+    }
+    let effective = crate::spec_gdt::effective(analysis, spec)?;
+    let m = crate::pmi_lowering::manufacturing_for(effective.as_ref(), spec);
+    let owners: Vec<(String, String)> = m
+        .tags
+        .iter()
+        .filter_map(|(source, _)| {
+            let o = m.owned.iter().find(|o| &o.source == source)?;
+            Some((o.owner.clone(), source.clone()))
+        })
+        .collect();
+    if owners.is_empty() {
+        return Ok(plan);
+    }
+    let mut full = spec.clone();
+    for (owner, _) in &owners {
+        full.features.entry(owner.clone()).or_default().callouts =
+            Some(crate::callouts::Settings {
+                style: crate::callouts::Style::Full,
+            });
+    }
+    let Ok(mut fallen) = replan(&full) else {
+        return Ok(plan);
+    };
+    if fallen.problems.iter().any(|p| p.id == unplaced) {
+        return Ok(plan);
+    }
+    fallen.spec = plan.spec;
+    for d in &mut fallen.dimensions {
+        for (_, source) in &owners {
+            d.basis = d.basis.replace(
+                &format!("callouts/style Full: {source} full wording requested"),
+                &format!(
+                    "manufacturing table fallback: {source} the manufacturing requirements table has no place on the sheet, so the callout states the requirement in full (draftwright's fallback; a larger sheet/size or smaller sheet/scale restores the table)"
+                ),
+            );
+        }
+    }
+    let sources: Vec<String> = owners.iter().map(|(_, s)| s.clone()).collect();
+    let mut subjects: Vec<String> = owners.iter().map(|(o, _)| o.clone()).collect();
+    subjects.dedup();
+    fallen.problems.push(Problem {
+        id: format!("p:manufacturing_table_fallback:{}", crate::pmi_lowering::SCHEDULE_ID),
+        code: "manufacturing_table_fallback".into(),
+        severity: "info".into(),
+        message: format!(
+            "The manufacturing requirements table has no place on the sheet, so the callouts state {} in full in place of SEE MFG references (draftwright's fallback). A larger sheet (sheet/size) or a smaller scale (sheet/scale) restores the table.",
+            sources.join(", ")
+        ),
+        subjects,
+        refs: sources,
+        ..Default::default()
+    });
+    Ok(fallen)
+}
+
+fn plan_recovered_once(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     if spec
         .sheet
         .view_gutter
@@ -4096,6 +4182,11 @@ fn gdt_misplaced(plan: &Plan) -> (usize, usize) {
 /// drawing's findings. That recovery is [`recover`], applied by [`plan_recovered`], never here:
 /// its tries are plans made by this function (ISSUE-1299-a).
 pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
+    let plan = plan_once(analysis, spec)?;
+    manufacturing_fallback(analysis, spec, plan, |s| plan_once(analysis, s))
+}
+
+fn plan_once(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     let prepared = crate::modelled_threads::planning(analysis, spec);
     let mut plan = crate::dims::pmi_policy::planning(|| plan_inner(&prepared, spec))?;
     crate::modelled_threads::source_hash(

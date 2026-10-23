@@ -6,6 +6,15 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### Fixed
+
+- **Manufacturing table with no room.** When the thread and knurl requirements table has no place
+  on the sheet (only reachable with an explicit `sheet/size` and `sheet/scale`), the callouts now
+  state each requirement in full instead of pointing with `SEE MFG n` to a table that is not drawn,
+  as draftwright does. The `table_not_placed` error goes away with the table, and the plan keeps
+  the requested spec; an info finding `manufacturing_table_fallback` names the requirements printed
+  in full. Drawings with room for the table are unchanged (ISSUE-1298-a).
+
 ## 0.1.0-alpha.13 (2026-10-23)
 
 Now on quiddity-rust **v0.1.1** (previously `0.1.0-alpha.8`). This release picks up quiddity-rust's fixes

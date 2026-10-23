@@ -578,9 +578,9 @@ pub fn manufacturing_size(rows: &[Vec<String>]) -> Option<[f64; 2]> {
 /// right clear of the views, the dimensions, the PMI and the title block, before the general
 /// notes and the spec's tables (draftwright commits it before its other furniture). A table
 /// that fits nowhere is a `table_not_placed` error naming it and the requirements it states,
-/// which stays in the plan undrawn; draftwright then prints the requirements on their callouts
-/// in full, which the port, whose callouts are placed by then, does not (a question for the
-/// maintainer).
+/// which stays in the plan undrawn; as draftwright then prints the requirements on their
+/// callouts in full, the finished drawing is planned again with them in full wording and no
+/// table (`model::manufacturing_fallback`).
 pub fn manufacturing(
     analysis: &Analysis,
     spec: &crate::model::Spec,

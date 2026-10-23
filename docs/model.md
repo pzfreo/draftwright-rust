@@ -1927,8 +1927,10 @@ parameter `thread` or `knurl`). With two or more owned and one suffix over 52 ch
 callout prints `SEE MFG n` instead and the plan's table `manufacturing_requirements` (`default:
 true`, `REF | MANUFACTURING REQUIREMENT`, the text wrapped at 44 characters, the second column
 left-aligned) states them in their source IDs' order, reserved when the sheet is chosen and placed
-before the notes; with no place it is `table_not_placed` (draftwright prints the suffixes in full
-instead: an open question). A threaded owner keeps a callout of its own. No owner, several owners,
+before the notes; with no place on the finished sheet the table is not used, as draftwright's
+fallback: the drawing is planned again with the owners in full wording, no `SEE MFG n`, and an
+info `manufacturing_table_fallback` naming them (`model::manufacturing_fallback`). A threaded
+owner keeps a callout of its own. No owner, several owners,
 or text that disagrees with the cylinder is `pmi_not_lowered` (error) with draftwright's reason; a
 requirement a boss owns is refused too, as the boss callout prints none yet
 (`tests/pmi_thread_knurl.rs`).
