@@ -813,11 +813,8 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
         }
     }
     issues.extend(unattached_countersinks(analysis));
-    let read = holes::read(analysis);
-    let readable: Vec<Hole> = read.iter().filter_map(|(_, h)| h.clone().ok()).collect();
-    issues.extend(thread_depths(analysis, marks, &readable));
     // A hole whose record cannot be read is reported, never left out of the count.
-    for (f, read) in read {
+    for (f, read) in holes::read(analysis) {
         if let Err(why) = read {
             issues.push(LintIssue {
                 sheet: None,
@@ -844,115 +841,6 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
                 fix: None,
             });
         }
-    }
-    issues
-}
-
-/// A modelled internal thread's depth, when it is shorter than the recognised hole it is cut in
-/// (`modelled_thread` record fields `side`, `axis`, `start`, `end`, read here rather than through
-/// `crate::modelled_threads`, which lint must not reach): the hole's callout states the bore, so
-/// the thread's own length is a requirement of the thread's callout. None for an external
-/// thread, an unreadable record, a thread no coaxial hole holds, or one that runs its hole's
-/// whole length.
-fn thread_depth(f: &crate::bridge::Feature, holes: &[Hole]) -> Option<f64> {
-    use haecceity::geom::{cross, dot, norm, sub, unit};
-    const TOL: f64 = 0.05;
-    let p = &f.parameters;
-    if p.get("side").and_then(|v| v.as_str()) != Some("internal") {
-        return None;
-    }
-    let number = |name: &str| p.get(name).and_then(|v| v.as_f64());
-    let axis = p.get("axis")?;
-    let on = holes::point(axis.get("point"))?;
-    let direction = unit(holes::point(axis.get("direction"))?)?;
-    let (start, end) = (number("start")?, number("end")?);
-    let length = end - start;
-    holes
-        .iter()
-        .find_map(|h| {
-            let along = dot(h.direction, direction);
-            let off = sub(h.at, on);
-            let depth = h.depth?;
-            let z0 = dot(off, direction);
-            let z1 = z0 + along * depth;
-            (along.abs() > 1. - 1e-6
-                && norm(cross(off, direction)) < TOL
-                && z0.min(z1) <= start + TOL
-                && z0.max(z1) >= end - TOL)
-                .then_some(depth)
-        })
-        .filter(|&depth| length > 0. && length < depth - TOL)
-        .map(|_| length)
-}
-
-/// A modelled internal thread shorter than the hole it is cut in states its depth on the callout
-/// that claims it (`M14×1.5 ↧ 9.1`; [`thread_depth`]): requirement `thread.depth`, missing when
-/// a mark claims the thread but no number after its `↧` states the depth
-/// (LINT-hole_coverage-thread_and_profile). The check reads the printed text, not the mark's
-/// `thread.length` measurement claim: the claim records the modelled span whether or not the
-/// label prints it, so only the `↧` term shows a reader the depth. A thread no mark claims (one
-/// a source requirement states instead) is not this check's.
-fn thread_depths(analysis: &Analysis, marks: &[Mark], read: &[Hole]) -> Vec<LintIssue> {
-    let mut issues = Vec::new();
-    for f in analysis
-        .features
-        .iter()
-        .filter(|f| f.kind == "modelled_thread")
-    {
-        let Some(depth) = thread_depth(f, read) else {
-            continue;
-        };
-        let id = &f.id;
-        let claiming: Vec<&Mark> = marks
-            .iter()
-            .filter(|m| {
-                m.claims
-                    .iter()
-                    .any(|c| c.feature == *id && c.parameter == "thread")
-            })
-            .collect();
-        let stated = |m: &&Mark| {
-            m.text.split('↧').skip(1).any(|after| {
-                numbers(after)
-                    .first()
-                    .is_some_and(|&(n, decimals)| rounds(n, decimals, depth))
-            })
-        };
-        let Some(first) = claiming.first() else {
-            continue;
-        };
-        if claiming.iter().any(stated) {
-            continue;
-        }
-        let what = fmt((depth * 10.).round() / 10.);
-        issues.push(LintIssue {
-            sheet: None,
-            id: format!("l:hole_requirement_missing:{id}/thread.depth"),
-            code: "hole_requirement_missing".into(),
-            severity: Severity::Warning,
-            message: format!(
-                "thread {id}: requirement thread.depth ({what}) is not stated on the sheet"
-            ),
-            at: None,
-            view: first.view.clone(),
-            subjects: vec![id.clone()],
-            requirements: vec![Requirement {
-                feature: id.clone(),
-                parameter: "thread.depth".into(),
-            }],
-            measurements: vec![format!("{id}/thread")],
-            sources: Vec::new(),
-            stage: None,
-            annotation: Some(first.name.clone()),
-            related: claiming.iter().skip(1).map(|m| m.name.clone()).collect(),
-            evidence: Some(format!(
-                "the thread's callout {:?} does not state its depth ↧ {what}; the thread is shorter than its hole",
-                first.text
-            )),
-            fix: Some(format!(
-                "State the thread's depth after its designation (\"↧ {what}\")."
-            )),
-        });
     }
     issues
 }
@@ -1047,44 +935,32 @@ mod tests {
         .unwrap()
     }
 
+    /// The modelled-thread half of LINT-hole_coverage-thread_and_profile is retired
+    /// (2026-10-23): a thread recognised from modelled geometry carries no `thread.depth`
+    /// requirement, since its trimmed span includes partial end turns and runouts and does not
+    /// prove a depth. Its extent is left to the ISO 6410 depiction; a depth is required only
+    /// when a Spec thread length or AP242 minimum full thread states one
+    /// (tests/spec_notes.rs::a_spec_threads_depth_on_its_holes_is_required_by_lint).
     #[test]
-    fn an_internal_thread_shorter_than_its_hole_states_its_depth() {
-        let mark = |text: &str| Mark {
+    fn a_modelled_thread_shorter_than_its_hole_requires_no_depth() {
+        let mark = Mark {
             name: "d:f:modelled_thread:1/thread".into(),
             view: Some("v:front".into()),
-            text: text.into(),
+            text: "M14×1.5".into(),
             claims: vec![Claim {
                 feature: "f:modelled_thread:1".into(),
                 parameter: "thread".into(),
             }],
         };
-        let missing = |a: &Analysis, text: &str| {
-            coverage(a, &[mark(text)])
-                .into_iter()
-                .filter(|i| i.requirements.iter().any(|r| r.parameter == "thread.depth"))
-                .map(|i| i.code)
-                .collect::<Vec<_>>()
-        };
         // 9.13 of thread at the top of a 19.1 hole, as in cgb243.
         let a = threaded(true, -1.13, 8.0, 0.0, 8.0, 19.1);
-        assert_eq!(missing(&a, "M14×1.5"), ["hole_requirement_missing"]);
-        assert!(missing(&a, "M14×1.5 ↧ 9.1").is_empty());
-        assert!(missing(&a, "M14×1.5 ↧ 9.13").is_empty());
-        assert_eq!(missing(&a, "M14×1.5 ↧ 8"), ["hole_requirement_missing"]);
-        // No mark claims the thread: not this check's.
+        let issues = coverage(&a, &[mark]);
         assert!(
-            coverage(&a, &[])
+            issues
                 .iter()
-                .all(|i| i.requirements.iter().all(|r| r.parameter != "thread.depth"))
+                .all(|i| i.requirements.iter().all(|r| r.parameter != "thread.depth")),
+            "{issues:#?}"
         );
-        // The hole's whole length, an external thread, or a hole off its axis: no depth.
-        for b in [
-            threaded(true, -11.1, 8.0, 0.0, 8.0, 19.1),
-            threaded(false, -1.13, 8.0, 0.0, 8.0, 19.1),
-            threaded(true, -1.13, 8.0, 15.0, 8.0, 19.1),
-        ] {
-            assert!(missing(&b, "M14×1.5").is_empty());
-        }
     }
 
     /// An Analysis of the holes *records* (quiddity's record fields, each with its `pattern`

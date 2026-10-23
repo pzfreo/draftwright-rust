@@ -41,24 +41,15 @@ fn modelled_thread_callouts_clear_labels_and_dimension_ink() {
             .collect();
         assert_eq!(labels, expected, "{file}");
         let drawing = model::render(&part, &analysis, &plan, &font).unwrap();
-        // cgb243's M14×1.5 and two M62×1.5 are shorter than the holes they are cut in; their
-        // callouts do not print the depth yet, so lint reports each one (thread.depth).
-        let mut depths: Vec<_> = draftwright::lint::lint(&analysis, &drawing)
+        // cgb243's M14×1.5 and two M62×1.5 are shorter than the holes they are cut in, but a
+        // modelled thread's span does not prove a depth: lint asks it for none (the modelled
+        // half of LINT-hole_coverage-thread_and_profile is retired).
+        let depths: Vec<_> = draftwright::lint::lint(&analysis, &drawing)
             .into_iter()
             .filter(|i| i.requirements.iter().any(|r| r.parameter == "thread.depth"))
             .map(|i| i.subjects.join(","))
             .collect();
-        depths.sort();
-        let expected_depths: &[&str] = if file.contains("cgb243") {
-            &[
-                "f:modelled_thread:1",
-                "f:modelled_thread:2",
-                "f:modelled_thread:3",
-            ]
-        } else {
-            &[]
-        };
-        assert_eq!(depths, expected_depths, "{file}");
+        assert!(depths.is_empty(), "{file}: {depths:?}");
         for code in ["annotation_overlap", "annotation_ink_overlap"] {
             let problems: Vec<_> = plan
                 .problems
