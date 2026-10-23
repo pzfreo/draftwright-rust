@@ -9,6 +9,19 @@ pub fn error_json(error: &Error) -> String {
 }
 
 pub struct Session(pub CoreSession);
+/// [`api::spec_ops`] over two Specs' JSON, answered as the ops' JSON.
+pub fn spec_ops_json(before: &str, after: &str) -> Result<String, Error> {
+    let read = |json: &str| {
+        serde_json::from_str::<serde_json::Value>(json)
+            .map_err(|e| Error::invalid(format!("invalid spec: {e}")))
+    };
+    // Invariant: Ops serialize as JSON objects; serialization performs no external I/O.
+    Ok(
+        serde_json::to_string(&api::spec_ops(&read(before)?, &read(after)?))
+            .expect("ops serialise"),
+    )
+}
+
 impl Session {
     pub fn open(name: &str, bytes: &[u8]) -> Result<Self, Error> {
         let (part, analysis) = model::analyse_native_bytes(name, bytes)?;
@@ -122,28 +135,12 @@ impl Session {
     pub fn set_spec(&mut self, json: &str) -> Result<(), Error> {
         let spec: model::Spec =
             serde_json::from_str(json).map_err(|e| Error::invalid(format!("invalid spec: {e}")))?;
-        let spec = model::migrate(&spec, self.0.analysis())?;
+        self.0.set_spec(&spec)
+    }
+    /// [`CoreSession::open_spec`], answered as JSON: `{spec, set_aside: [{path, entry, reason_code}]}`.
+    pub fn open_spec_json(&mut self, json: &str) -> Result<String, Error> {
         // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
-        let old = serde_json::to_value(self.0.spec()).unwrap();
-        // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
-        let new = serde_json::to_value(spec).unwrap();
-        let mut ops = Vec::new();
-        // Invariant: Spec derives serialization as an object.
-        for (key, value) in new.as_object().unwrap() {
-            if old.get(key) != Some(value) {
-                ops.push(Op::set(key, value.clone()));
-            }
-        }
-        // Invariant: Spec derives serialization as an object.
-        for key in old.as_object().unwrap().keys() {
-            if new.get(key).is_none() {
-                ops.push(Op::remove(key));
-            }
-        }
-        if !ops.is_empty() {
-            self.apply(&ops, true)?;
-        }
-        Ok(())
+        Ok(serde_json::to_string(&self.0.open_spec(json)?).expect("opened spec serialises"))
     }
     pub fn callout_offset_json(&self, address: &str) -> Result<String, Error> {
         // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
@@ -216,7 +213,7 @@ impl Session {
 
 #[cfg(target_arch = "wasm32")]
 pub mod wasm {
-    use super::{Session, error_json};
+    use super::{Session, error_json, spec_ops_json};
     use wasm_bindgen::prelude::*;
     fn js(e: super::Error) -> JsValue {
         JsValue::from_str(&error_json(&e))
@@ -244,6 +241,11 @@ export interface CalloutOffset {
     #[wasm_bindgen(start)]
     pub fn start() {
         console_error_panic_hook::set_once();
+    }
+    /// The `set` and `remove` ops that turn Spec *before* into *after* (JSON), as JSON.
+    #[wasm_bindgen(js_name = specOps)]
+    pub fn spec_ops(before: &str, after: &str) -> Result<String, JsValue> {
+        spec_ops_json(before, after).map_err(js)
     }
     #[wasm_bindgen]
     pub struct Engine(Session);
@@ -302,6 +304,12 @@ export interface CalloutOffset {
         #[wasm_bindgen(js_name = setSpec)]
         pub fn set_spec(&mut self, json: &str) -> Result<(), JsValue> {
             self.0.set_spec(json).map_err(js)
+        }
+        /// Open a saved Spec, setting aside entries the part no longer has:
+        /// `{spec, set_aside: [{path, entry, reason_code}]}`.
+        #[wasm_bindgen(js_name = openSpec)]
+        pub fn open_spec(&mut self, json: &str) -> Result<String, JsValue> {
+            self.0.open_spec_json(json).map_err(js)
         }
         #[wasm_bindgen(js_name = planCount)]
         pub fn plans(&self) -> usize {
@@ -501,6 +509,40 @@ mod tests {
         assert!(s.label_offset_json(id).is_err());
         assert!(s.callout_offset_json("unknown").is_err());
         assert!(s.label_offset_json("unknown").is_err());
+    }
+
+    #[test]
+    fn open_spec_and_spec_ops_answer_json() {
+        let mut s = Session::open(
+            "mounting_plate.step",
+            include_bytes!("../../../tests/fixtures/parts/mounting_plate.step"),
+        )
+        .unwrap();
+        let saved = json!({"sheet":{"preferred_printer":"A3"},
+            "dimensions":{"d:f:hole:1/bore.diameter":{"omit":true}}});
+        let refused: Value =
+            serde_json::from_str(&error_json(&s.set_spec(&saved.to_string()).unwrap_err()))
+                .unwrap();
+        assert_eq!(refused["code"], "invalid");
+        let opened: Value =
+            serde_json::from_str(&s.open_spec_json(&saved.to_string()).unwrap()).unwrap();
+        assert_eq!(
+            opened["set_aside"],
+            json!([{"path":"dimensions/d:f:hole:1~1bore.diameter","entry":{"omit":true},
+                "reason_code":"no_dimension"}])
+        );
+        assert_eq!(opened["spec"]["sheet"]["preferred_max_size"], "A3");
+        let current: Value = serde_json::from_str(&s.spec_json()).unwrap();
+        assert_eq!(opened["spec"], current);
+        let ops: Value = serde_json::from_str(
+            &spec_ops_json(r#"{"a":{"b/c":1}}"#, r#"{"a":{"b/c":2},"d":[1]}"#).unwrap(),
+        )
+        .unwrap();
+        assert_eq!(
+            ops,
+            json!([{"op":"set","path":"a/b~1c","value":2},{"op":"set","path":"d","value":[1]}])
+        );
+        assert!(spec_ops_json("{", "{}").is_err());
     }
 }
 

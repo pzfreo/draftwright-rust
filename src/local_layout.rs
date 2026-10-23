@@ -3,6 +3,7 @@ use crate::model::{self, Invalid, Plan, Spec};
 
 fn unavailable() -> Invalid {
     Invalid {
+ path: None,
         message: "This edit cannot keep the retained sheet layout. No local fix is available for this edit; remove sheet/keep_layout to allow the whole sheet to be laid out again, including hand-moved placements.".into(),
         choices: Vec::new(),
     }

@@ -222,6 +222,7 @@ pub(super) fn deviation(v: f64) -> String {
 pub(crate) fn check(spec: &Spec) -> Result<(), Invalid> {
     if let Some(t) = &spec.envelope_tolerance {
         tolerance(t).map_err(|why| Invalid {
+            path: None,
             message: format!("The envelope tolerance cannot be read: {why}."),
             choices: FORMS.map(String::from).to_vec(),
         })?;
@@ -229,6 +230,7 @@ pub(crate) fn check(spec: &Spec) -> Result<(), Invalid> {
     for (id, entry) in &spec.dimensions {
         if let Some(code) = &entry.fit {
             fit(code).map_err(|why| Invalid {
+                path: None,
                 message: why,
                 choices: vec![],
             })?;
@@ -241,6 +243,7 @@ pub(crate) fn check(spec: &Spec) -> Result<(), Invalid> {
             if (!crate::dims::is_envelope_extent(id) && !authored_size) || entry.tolerance.is_some()
             {
                 return Err(Invalid {
+                    path: None,
                     message: format!(
                         "The fit of {id} belongs to an overall extent or an authored linear size/diameter with no explicit tolerance."
                     ),
@@ -250,6 +253,7 @@ pub(crate) fn check(spec: &Spec) -> Result<(), Invalid> {
         }
         if let Some(t) = &entry.tolerance {
             tolerance(t).map_err(|why| Invalid {
+                path: None,
                 message: format!("The tolerance of {id:?} cannot be read: {why}."),
                 choices: FORMS.map(String::from).to_vec(),
             })?;
@@ -258,6 +262,7 @@ pub(crate) fn check(spec: &Spec) -> Result<(), Invalid> {
     for (id, entry) in &spec.features {
         if let Some(code) = &entry.fit {
             fit(code).map_err(|why| Invalid {
+                path: None,
                 message: format!("The fit of {id:?} cannot be read: {why}."),
                 choices: vec![],
             })?;
@@ -357,6 +362,7 @@ pub(super) fn apply(
         let Some(f) = analysis.features.iter().find(|f| f.id == *id) else {
             if let Some(p) = patterns.iter().find(|p| p.id == *id) {
                 return Err(Invalid {
+                    path: None,
                     message: format!(
                         "{id:?} is a hole pattern; a fit belongs to a hole, so set it on each of its holes (features/<hole>/fit)."
                     ),
@@ -367,12 +373,15 @@ pub(super) fn apply(
             near.sort_by_key(|c| (levenshtein(id, c), *c));
             near.truncate(5);
             return Err(Invalid {
+                path: None,
                 message: format!("There is no feature {id:?} on this part."),
                 choices: near.into_iter().map(String::from).collect(),
-            });
+            }
+            .at("features", id));
         };
         if !FITTED.iter().any(|(k, _)| *k == f.kind) {
             return Err(Invalid {
+                path: None,
                 message: format!(
                     "{id:?} is a {}; a fit is set on a hole or a cylindrical boss.",
                     f.kind
@@ -395,6 +404,7 @@ pub(super) fn apply(
                 ("boss", "a lower-case shaft class")
             };
             return Err(Invalid {
+                path: None,
                 message: format!(
                     "{code:?} reads as \"{other}{grade}\": {id:?} is a {what}, and takes {class}."
                 ),
@@ -406,6 +416,7 @@ pub(super) fn apply(
             Some(d) if d > 0.0 && d <= LARGEST => {}
             _ => {
                 return Err(Invalid {
+                    path: None,
                     message: format!(
                         "The fit {code:?} of {id:?} cannot be resolved: its nominal ⌀{} is outside draftwright's ISO 286 table (up to {LARGEST} mm); give its dimension a tolerance instead.",
                         d.map_or("?".into(), fmt)
@@ -460,6 +471,7 @@ pub(super) fn apply(
                 .map(|(m, _)| m.as_str())
                 .collect();
             return Err(Invalid {
+                path: None,
                 message: format!(
                     "{:?} has a tolerance and {} a fit; a size takes one or the other. Remove {} or the fit.",
                     w.id,
@@ -471,6 +483,7 @@ pub(super) fn apply(
         }
         let band = if let Some(code) = extent_fit {
             let limits = deviations(code, w.value).ok_or_else(|| Invalid {
+                path: None,
                 message: format!(
                     "The fit {code} of {} is outside the ISO 286 table at {} mm.",
                     w.id, w.value

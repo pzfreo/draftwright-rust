@@ -25,6 +25,7 @@ pub(super) fn apply(
         let reference = old.starts_with('(') && old.ends_with(')');
         if entry.style == Some(Style::Reference) && super::is_basic(&w.measurements) {
             return Err(Invalid {
+                path: None,
                 message: format!(
                     "{} is a basic PMI dimension; remove its reference style or correct the source PMI.",
                     w.id
@@ -75,6 +76,7 @@ pub(super) fn check_covered(
                 _ => Vec::new(),
             };
             return Err(Invalid {
+                path: None,
                 message: format!(
                     "Label override for {id} has no separate printed label: {}. Apply the text/style to its owning dimension instead, or remove the override.",
                     o.basis

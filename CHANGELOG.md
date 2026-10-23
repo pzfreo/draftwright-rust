@@ -6,6 +6,20 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### Added
+
+- **Opening a saved Spec across kernel upgrades** (#191). `Session::open_spec(json)` applies what
+  the part still has and sets aside each entry naming a feature, dimension, annotation, view or
+  measurement it no longer has, with the entry and a reason code (`no_feature`, `no_dimension`,
+  `no_measurement`, `no_annotation`, `no_view`). It reads `sheet/preferred_printer` as
+  `preferred_max_size`. Any other refusal still refuses the whole Spec.
+- `api::Error` and `model::Invalid` gain `path`: the escaped Spec entry
+  (`dimensions/d:f:hole:1~1bore.diameter`) of every "there is no …" refusal. Messages and choices
+  are unchanged.
+- `api::spec_ops(before, after)`: the `set`/`remove` ops that turn one Spec into another, as the
+  editor's `specOperations` and the MCP's `spec_diff` make them. `Session::set_spec` replaces the
+  Spec as the WASM `setSpec` did.
+
 ### Fixed
 
 - **Manufacturing table with no room.** When the thread and knurl requirements table has no place
@@ -14,6 +28,12 @@ All notable changes to draftwright-rust are recorded here, in the style of
   as draftwright does. The `table_not_placed` error goes away with the table, and the plan keeps
   the requested spec; an info finding `manufacturing_table_fallback` names the requirements printed
   in full. Drawings with room for the table are unchanged (ISSUE-1298-a).
+
+### WASM API
+
+- `Engine.openSpec(json)` returns `{spec, set_aside: [{path, entry, reason_code}]}` (#191).
+- `specOps(before, after)`, a module function, returns the ops JSON (#191).
+- Refusals carry an additive `path` for an entry the part does not have.
 
 ## 0.1.0-alpha.13 (2026-10-23)
 

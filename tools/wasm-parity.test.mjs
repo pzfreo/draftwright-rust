@@ -6,7 +6,7 @@ import { readFileSync } from 'node:fs';
 import { spawnSync } from 'node:child_process';
 import { gzipSync } from 'node:zlib';
 import { fileURLToPath } from 'node:url';
-import init, { Engine, start } from '../crates/draftwright-wasm/pkg/draftwright_wasm.js';
+import init, { Engine, specOps, start } from '../crates/draftwright-wasm/pkg/draftwright_wasm.js';
 
 await init({ module_or_path: readFileSync(new URL('../crates/draftwright-wasm/pkg/draftwright_wasm_bg.wasm', import.meta.url)) });
 start(); // Also called automatically by wasm-bindgen's start hook; idempotent.
@@ -348,5 +348,23 @@ test('group callout members match native and the dragged arrow follows the neare
     const rows = native.stdout.trim().split('\n').map(line => JSON.parse(line));
     assert.deepEqual(at, rows[1]);
     assert.deepEqual(moved, rows[3]);
+  } finally { engine.free(); }
+});
+
+test('openSpec sets aside what the part no longer has, and specOps turns one Spec into another', () => {
+  const engine = new Engine('mounting_plate.step', readFileSync(new URL('../tests/fixtures/parts/mounting_plate.step', import.meta.url)));
+  try {
+    const saved = JSON.stringify({ sheet: { preferred_printer: 'A3' }, dimensions: {
+      'd:f:hole:4/bore.diameter': { omit: true }, 'd:f:hole:1/bore.diameter': { omit: true } } });
+    invalid(() => engine.setSpec(saved));
+    const opened = JSON.parse(engine.openSpec(saved));
+    assert.deepEqual(opened.set_aside, [{ path: 'dimensions/d:f:hole:1~1bore.diameter', entry: { omit: true }, reason_code: 'no_dimension' }]);
+    assert.deepEqual(opened.spec, JSON.parse(engine.spec()));
+    assert.equal(opened.spec.sheet.preferred_max_size, 'A3');
+    const refusal = (() => { try { engine.setSpec(JSON.stringify({ views: { gone: { omit: true } } })); } catch (e) { return JSON.parse(e); } })();
+    assert.equal(refusal.path, 'views/gone');
+    assert.deepEqual(JSON.parse(specOps(JSON.stringify({ schema: 'a', x: { 'b/c': 1, d: 1 } }), JSON.stringify({ schema: 'b', x: { 'b/c': [2] } }))),
+      [{ op: 'set', path: 'x/b~1c', value: [2] }, { op: 'remove', path: 'x/d' }]);
+    invalid(() => specOps('{', '{}'));
   } finally { engine.free(); }
 });

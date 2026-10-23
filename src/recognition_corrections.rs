@@ -90,6 +90,7 @@ fn invalid(path: &str, reason: impl std::fmt::Display) -> Invalid {
         "remove the offending correction from features or feature_declarations".into()
     };
     Invalid {
+        path: None,
         message: format!(
             "{path}: {reason}; re-analyse and reattach to the current feature/face fingerprints, or {remedy}."
         ),
@@ -321,13 +322,17 @@ fn resolved_id(a: &Analysis, s: &Spec, id: &str) -> Result<String, Invalid> {
                 return Ok(same_kind[0].clone());
             }
         }
-        return Err(invalid(
+        let mut e = invalid(
             &path,
             format!(
                 "the defining faces resolve to {} features; select one current feature",
                 candidates.len()
             ),
-        ));
+        );
+        if candidates.is_empty() {
+            e.path = Some(format!("features/{}", crate::items::key(id)));
+        }
+        return Err(e);
     }
     if s.binding
         .as_ref()
@@ -340,6 +345,7 @@ fn resolved_id(a: &Analysis, s: &Spec, id: &str) -> Result<String, Invalid> {
     }
     if target_faces(a, id).is_none() {
         let mut e = invalid(&path, "unknown feature or pattern");
+        e.path = Some(format!("features/{}", crate::items::key(id)));
         e.choices = a
             .features
             .iter()
@@ -354,6 +360,41 @@ fn resolved_id(a: &Analysis, s: &Spec, id: &str) -> Result<String, Invalid> {
         return Err(e);
     }
     Ok(id.to_string())
+}
+/// *e*, a refusal that the part has no feature *id*, naming the Spec entry that names it: its
+/// own `features` entry, the pattern that groups it, or the dimension or precision set on it.
+fn refused_entry(s: &Spec, id: &str, mut e: Invalid) -> Invalid {
+    if e.path.is_none() || s.features.contains_key(id) {
+        return e;
+    }
+    let on = |k: &String| {
+        k.strip_prefix("d:")
+            .and_then(|k| k.rsplit_once('/'))
+            .is_some_and(|(f, _)| f == id)
+    };
+    e.path = s
+        .features
+        .iter()
+        .find(|(_, f)| {
+            f.pattern
+                .as_ref()
+                .is_some_and(|p| p.members.iter().any(|m| m == id))
+        })
+        .map(|(k, _)| format!("features/{}", crate::items::key(k)))
+        .or_else(|| {
+            s.dimensions
+                .keys()
+                .find(|k| on(k))
+                .map(|k| format!("dimensions/{}", crate::items::key(k)))
+        })
+        .or_else(|| {
+            s.precision
+                .keys()
+                .find(|k| on(k))
+                .map(|k| format!("precision/{}", crate::items::key(k)))
+        })
+        .or(e.path);
+    e
 }
 /// Save defining-face anchors beside corrections and every grouped member. Explicit anchors
 /// are never silently replaced. The authored IDs of declarations and groups remain unchanged.
@@ -391,7 +432,7 @@ pub fn bind(a: &Analysis, s: Spec) -> Result<Spec, Invalid> {
     );
     let mut renamed = BTreeMap::new();
     for id in ids {
-        let resolved = resolved_id(a, &s, &id)?;
+        let resolved = resolved_id(a, &s, &id).map_err(|e| refused_entry(&s, &id, e))?;
         if id != resolved {
             renamed.insert(id.clone(), resolved.clone());
         }
@@ -1399,7 +1440,12 @@ pub fn effective<'a>(a: &'a Analysis, s: &Spec) -> Result<Cow<'a, Analysis>, Inv
         if let Some(p) = &f.pattern {
             for m in &p.members {
                 if !m.starts_with("f:declared:") {
-                    let actual = resolved_id(a, s, m)?;
+                    let actual = resolved_id(a, s, m).map_err(|mut e| {
+                        if e.path.is_some() {
+                            e.path = Some(format!("features/{}", crate::items::key(id)));
+                        }
+                        e
+                    })?;
                     // Invariant: resolved_id refuses absent features and patterns before target_faces is called.
                     targets.insert(m.clone(), json!(target_faces(a, &actual).unwrap()));
                     resolved.insert(m.clone(), actual);

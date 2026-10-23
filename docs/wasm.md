@@ -60,7 +60,9 @@ try {
 All JSON arguments/results are **strings**, requiring `JSON.stringify`/`JSON.parse`.
 The other boundary values are names/source hashes (strings), bytes (`Uint8Array`), booleans
 and counts (numbers). Fallible methods throw a **string** containing serialized
-`draftwright::api::Error`: `{ "code": "invalid" | "failed", "message": "...", "choices"?: [...] }`.
+`draftwright::api::Error`: `{ "code": "invalid" | "failed", "message": "...", "choices"?: [...], "path"?: "..." }`.
+`path` is the escaped Spec entry (`dimensions/d:f:hole:1~1bore.diameter`) when the refusal is that
+the part has no such feature, dimension, annotation, view or measurement.
 Input checks return refusals before planning or rendering can panic. Edit paths are limited
 to 64 components and view gutters to 0–1189 paper mm (the largest supported sheet width).
 Rust panics still invoke `console_error_panic_hook` and trap; `catch_unwind` cannot recover
@@ -80,6 +82,8 @@ on this target. The browser parity job exercises hostile requests followed by va
 | `setPmi(source, bytes)` | Attach Specify's STEP PMI. `source` must match the original source SHA-256 in snapshot provenance. Returns void. |
 | `setPmiOps(source, bytes, opsJson)` | Attach PMI and commit Spec operations together; same source check. Returns void. |
 | `setSpec(json)` | Migrate the incoming Spec against the Analysis, diff its top-level fields and commit changed operations. Returns void. |
+| `openSpec(json)` | Open a saved Spec: read older forms as current (`sheet/preferred_printer` as `preferred_max_size`), set aside each entry the part no longer has, and commit the rest as `setSpec` does. JSON `{spec, set_aside: [{path, entry, reason_code}]}`; `spec` is the Spec applied, `reason_code` is `no_feature`, `no_dimension`, `no_measurement`, `no_annotation` or `no_view`. Other refusals throw, and the session is unchanged. |
+| `specOps(before, after)` | Module function: JSON `[{op: "set" \| "remove", path, value?}]` turning Spec `before` into `after` (`api::spec_ops`): sorted keys, root `schema` skipped, escaped paths, arrays and scalars replaced whole, missing or null keys removed. |
 | `spec()`, `pmi()`, `plan()` | Current Spec, PMI report or Plan JSON. |
 | `planCount()` | Cumulative planner count (useful for checking one replan per edit). |
 | `faceCount()`, `featureCount()` | Loaded face count and recognised feature count. |

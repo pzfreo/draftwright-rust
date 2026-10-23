@@ -964,6 +964,19 @@ pub struct Invalid {
     pub message: String,
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub choices: Vec<String>,
+    /// The Spec entry refused, as an escaped [`crate::items::Op`] path
+    /// (`dimensions/d:f:hole:1~1bore.diameter`), where the refusal is that the part has no such
+    /// feature, dimension, annotation, view or measurement.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
+}
+
+impl Invalid {
+    /// This refusal, naming the Spec entry *collection*/*key* (escaped) it refuses.
+    pub(crate) fn at(mut self, collection: &str, key: &str) -> Invalid {
+        self.path = Some(format!("{collection}/{}", crate::items::key(key)));
+        self
+    }
 }
 
 impl std::fmt::Display for Invalid {
@@ -980,6 +993,7 @@ const INFEASIBLE_ISO_SCALE: &str = "The authored iso scale is infeasible in its 
 
 fn invalid(message: impl Into<String>, choices: &[&str]) -> Invalid {
     Invalid {
+        path: None,
         message: message.into(),
         choices: choices.iter().map(|c| c.to_string()).collect(),
     }
@@ -4651,6 +4665,7 @@ fn plan_with_presentation(
         for id in effective.annotations.keys() {
             if !annotation_ids.contains(id) {
                 return Err(Invalid {
+ path: None,
                     message: format!(
                         "There is no annotation {id:?} on this part. Choose a current annotation ID, or remove annotations/{}.",
                         crate::items::key(id)
@@ -4660,7 +4675,8 @@ fn plan_with_presentation(
                     } else {
                         annotation_ids.clone()
                     },
-                });
+                }
+                .at("annotations", id));
             }
         }
     }
@@ -4683,7 +4699,8 @@ fn plan_with_presentation(
                     )
                 },
                 &names,
-            ));
+            )
+            .at("views", name));
         }
     }
     let mut demand = crate::demand::read(analysis);
@@ -7452,6 +7469,7 @@ pub fn migrate(spec: &Spec, analysis: &Analysis) -> Result<Spec, Invalid> {
         }
         if let Some(first) = from.get(&key) {
             return Err(Invalid {
+                path: None,
                 message: format!(
                     "The spec is {:?}, whose dimension keys {first:?} and {old:?} both read as {key:?} in {SPEC_SCHEMA} (a dimension's ID no longer names its view, and a PMI dimension is named by its record's identity): keep one of them.",
                     spec.schema

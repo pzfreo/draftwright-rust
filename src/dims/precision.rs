@@ -49,6 +49,7 @@ pub(super) fn apply(spec: &Spec, wants: &mut [Want]) -> Result<(), Invalid> {
         return Ok(());
     }
     let bad = |message| Invalid {
+        path: None,
         message,
         choices: Vec::new(),
     };
@@ -67,7 +68,9 @@ pub(super) fn apply(spec: &Spec, wants: &mut [Want]) -> Result<(), Invalid> {
         .collect();
     for id in spec.precision.keys() {
         if !known.contains(id) {
-            return Err(bad(format!("There is no measurement {id:?} on this part.")));
+            return Err(
+                bad(format!("There is no measurement {id:?} on this part.")).at("precision", id)
+            );
         }
     }
     labels(spec, wants)
@@ -81,6 +84,7 @@ pub(super) fn labels<'a>(
         return Ok(());
     }
     let bad = |message| Invalid {
+        path: None,
         message,
         choices: Vec::new(),
     };

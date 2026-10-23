@@ -7,6 +7,7 @@
 //!   [`analyse_from`], [`plan_from`], [`render_from`] and [`review_from`] take where the features
 //!   come from ([`Features`]), Rust quiddity's recognition among them (the command line's
 //!   default); the others, and [`call`], take Python quiddity's JSON or none;
+//! - [`spec_ops`]: the edit ops that turn one Spec into another;
 //! - [`call`]: the same operations by name with JSON arguments, as the service and the MCP server
 //!   receive them. Requests carry their documents and name the STEP file by path, so nothing is
 //!   kept between calls. [`Service`] additionally owns the live JSON-lines session.
@@ -48,6 +49,12 @@ pub struct Error {
     /// What would be accepted, where the request chose from a list.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub choices: Vec<String>,
+    /// The Spec entry refused, as an escaped [`crate::items::Op`] path
+    /// (`dimensions/d:f:hole:1~1bore.diameter`), where the refusal is that the part has no such
+    /// feature, dimension, annotation, view or measurement. [`crate::session::Session::open_spec`]
+    /// sets such entries aside.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub path: Option<String>,
 }
 
 impl Error {
@@ -56,6 +63,7 @@ impl Error {
             code: "invalid",
             message: message.into(),
             choices: Vec::new(),
+            path: None,
         }
     }
 
@@ -64,6 +72,7 @@ impl Error {
             code: "failed",
             message: message.into(),
             choices: Vec::new(),
+            path: None,
         }
     }
 }
@@ -94,7 +103,57 @@ impl From<model::Invalid> for Error {
             code: "invalid",
             message: e.message,
             choices: e.choices,
+            path: e.path,
         }
+    }
+}
+
+/// The `set` and `remove` ops on escaped paths ([`crate::items::key`]) that turn Spec *before*
+/// into *after*, as [`crate::items::Op`]s for [`crate::session::Session::apply`]: object keys in
+/// sorted order, `schema` at the root skipped, arrays and scalars replaced whole, and a key
+/// missing (or null) in *after* removed. The editor's `specOperations` and the MCP's `spec_diff`
+/// make the same ops.
+pub fn spec_ops(before: &serde_json::Value, after: &serde_json::Value) -> Vec<crate::items::Op> {
+    let mut ops = Vec::new();
+    spec_diff(before, after, "", &mut ops);
+    ops
+}
+
+fn spec_diff(
+    before: &serde_json::Value,
+    after: &serde_json::Value,
+    path: &str,
+    out: &mut Vec<crate::items::Op>,
+) {
+    use serde_json::Value;
+    if before == after {
+        return;
+    }
+    match (before, after) {
+        (_, Value::Null) => out.push(crate::items::Op::remove(path)),
+        (b, Value::Object(a)) => {
+            let empty = serde_json::Map::new();
+            let b = b.as_object().unwrap_or(&empty);
+            let mut keys: Vec<&String> = b.keys().chain(a.keys()).collect();
+            keys.sort();
+            keys.dedup();
+            for k in keys {
+                if k == "schema" && path.is_empty() {
+                    continue;
+                }
+                let child = match path {
+                    "" => crate::items::key(k),
+                    _ => format!("{path}/{}", crate::items::key(k)),
+                };
+                spec_diff(
+                    b.get(k).unwrap_or(&Value::Null),
+                    a.get(k).unwrap_or(&Value::Null),
+                    &child,
+                    out,
+                );
+            }
+        }
+        _ => out.push(crate::items::Op::set(path, after.clone())),
     }
 }
 

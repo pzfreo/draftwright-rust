@@ -132,7 +132,11 @@ pub fn authors(spec: &Spec) -> bool {
 }
 
 fn invalid(message: String, choices: Vec<String>) -> Invalid {
-    Invalid { message, choices }
+    Invalid {
+        message,
+        choices,
+        path: None,
+    }
 }
 
 /// A datum letter as ISO 5459 writes it: one to three capital letters.
@@ -274,7 +278,8 @@ pub(crate) fn feature_faces(analysis: &Analysis, id: &str) -> Result<Vec<usize>,
                         crate::items::key(id)
                     ),
                     near.into_iter().map(String::from).collect(),
-                ));
+                )
+                .at("features", id));
             }
         },
     };

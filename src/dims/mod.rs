@@ -130,6 +130,7 @@ pub(crate) fn check_views(spec: &Spec) -> Result<(), Invalid> {
             && !crate::detail::NAMES.contains(&v.as_str())
         {
             return Err(Invalid {
+                path: None,
                 message: format!(
                     "The view of {id:?} is {v:?}: a dimension is carried by a principal view."
                 ),
@@ -182,6 +183,7 @@ fn chosen_views(
         let able: Vec<&'static str> = w.views.iter().copied().filter(|c| carries(w, c)).collect();
         let Some(&v) = able.iter().find(|c| **c == v) else {
             return Err(Invalid {
+                path: None,
                 message: format!(
                     "{} cannot be carried by the {v} view (dimensions/{}/view): it is drawn only in a view that sees it across.",
                     w.id,
@@ -2413,6 +2415,7 @@ fn plan_inventory_ordered(
             )
         {
             return Err(Invalid {
+                path: None,
                 message: format!(
                     "conflicting precision for coincident dimensions {} and {}; shared measurements require matching display precision",
                     wants[i].id, wants[*j].id
@@ -2429,6 +2432,7 @@ fn plan_inventory_ordered(
     // ARCH0016-5: inconsistent recognition/authored ownership must refuse on WASM too.
     if ids.len() != wants.len() + retired.len() {
         return Err(Invalid {
+            path: None,
             message: "Dimension IDs are not unique; the input has conflicting measurement owners."
                 .into(),
             choices: vec![],
@@ -2456,10 +2460,16 @@ fn plan_inventory_ordered(
                 ),
                 None => format!("There is no dimension {id:?} on this part."),
             };
-            return Err(Invalid { message, choices });
+            return Err(Invalid {
+                message,
+                choices,
+                path: None,
+            }
+            .at("dimensions", id));
         }
         if entry.omit && spec.dimension_source == DimensionSource::Authored {
             return Err(Invalid {
+                path: None,
                 message: format!(
                     "{id:?} is omitted inside an authored set; in an authored set a dimension is left out by not listing it."
                 ),
@@ -2701,6 +2711,7 @@ fn plan_inventory_ordered(
             )
         {
             return Err(Invalid {
+                path: None,
                 message: format!(
                     "The placement offset of {} applies only to callouts and linear dimensions.",
                     w.id
@@ -2721,6 +2732,7 @@ fn plan_inventory_ordered(
             })
         {
             return Err(Invalid {
+                path: None,
                 message: format!(
                     "{} has no automatic linear placement in the requested view",
                     w.id
@@ -2739,6 +2751,7 @@ fn plan_inventory_ordered(
         {
             let horizontal = placement::across(&frames[v], *axis) == Some(true);
             return Err(Invalid {
+                path: None,
                 message: format!(
                     "The side of {} must be parallel to its dimension line in {v}.",
                     w.id

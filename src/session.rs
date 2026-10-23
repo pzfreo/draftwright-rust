@@ -179,6 +179,28 @@ pub struct Delta {
     pub problem_order: Option<Vec<String>>,
 }
 
+/// A saved Spec as [`Session::open_spec`] opened it.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct OpenedSpec {
+    /// The Spec applied: the session's Spec after opening.
+    pub spec: Value,
+    /// The entries left out, in the order they were refused.
+    pub set_aside: Vec<SetAside>,
+}
+
+/// A saved Spec's entry that [`Session::open_spec`] left out.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct SetAside {
+    /// The entry's escaped Spec path, as an [`Op`] names it (`dimensions/d:f:hole:1~1bore.diameter`).
+    pub path: String,
+    /// The entry, as the Spec read in its current form has it.
+    pub entry: Value,
+    /// Why: `no_feature` (the feature it names, its dimension's or measurement's feature, or the
+    /// feature a detail view is around, is not on the part), `no_dimension`, `no_measurement`,
+    /// `no_annotation` or `no_view`.
+    pub reason_code: String,
+}
+
 /// The client-replayable state. Its render reuses the supplied geometry and annotation ink.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct State {
@@ -660,6 +682,121 @@ impl Session {
             self.install(evaluated);
         }
         Ok(delta)
+    }
+    /// Replace the Spec with *spec* (read in its current form, [`model::migrate`]), as one
+    /// committed edit of the top-level fields that differ; refused as [`Session::apply`] refuses.
+    pub fn set_spec(&mut self, spec: &Spec) -> Result<(), Error> {
+        let spec = model::migrate(spec, self.analysis())?;
+        // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
+        let old = serde_json::to_value(self.spec()).expect("spec serialises");
+        // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
+        let new = serde_json::to_value(spec).expect("spec serialises");
+        let mut ops = Vec::new();
+        // Invariant: Spec derives serialization as an object.
+        for (key, value) in new.as_object().expect("spec is an object") {
+            if old.get(key) != Some(value) {
+                ops.push(Op::set(key, value.clone()));
+            }
+        }
+        // Invariant: Spec derives serialization as an object.
+        for key in old.as_object().expect("spec is an object").keys() {
+            if new.get(key).is_none() {
+                ops.push(Op::remove(key));
+            }
+        }
+        if !ops.is_empty() {
+            self.apply(&ops, true)?;
+        }
+        Ok(())
+    }
+    /// Open a saved Spec (JSON), which may have been made for an earlier draftwright or
+    /// recognition: it is read in its current form (`sheet/preferred_printer` as
+    /// `sheet/preferred_max_size`, a `draftwright.spec/1` as `/2`), and each entry naming a
+    /// feature, dimension, annotation, view or measurement the part no longer has is set aside,
+    /// with the entry and why, and the rest applied as [`Session::set_spec`] applies it. Any other
+    /// refusal refuses the whole Spec, and the session is unchanged.
+    pub fn open_spec(&mut self, json: &str) -> Result<OpenedSpec, Error> {
+        let invalid = |e: serde_json::Error| Error::invalid(format!("invalid spec: {e}"));
+        let mut value: Value = serde_json::from_str(json).map_err(invalid)?;
+        // draftwright alpha.11 refuses `preferred_printer`; its A4 or A3 is the same
+        // preferred_max_size.
+        if let Some(sheet) = value.get_mut("sheet").and_then(Value::as_object_mut)
+            && let Some(printer) = sheet.remove("preferred_printer")
+        {
+            sheet.entry("preferred_max_size").or_insert(printer);
+        }
+        let spec: Spec = serde_json::from_value(value).map_err(invalid)?;
+        // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
+        let mut value =
+            serde_json::to_value(model::migrate(&spec, self.analysis())?).expect("spec serialises");
+        let mut set_aside = Vec::new();
+        loop {
+            let spec: Spec = serde_json::from_value(value.clone()).map_err(invalid)?;
+            let refused = match self.set_spec(&spec) {
+                Ok(()) => {
+                    return Ok(OpenedSpec {
+                        // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
+                        spec: serde_json::to_value(self.spec()).expect("spec serialises"),
+                        set_aside,
+                    });
+                }
+                Err(e) => e,
+            };
+            // Only an entry of a keyed map is set aside; each pass removes one, so this ends.
+            let Some((collection, key)) = refused
+                .path
+                .as_deref()
+                .and_then(|p| p.split_once('/'))
+                .filter(|(_, key)| !key.is_empty())
+                .map(|(c, k)| (c.to_string(), k.replace("~1", "/").replace("~0", "~")))
+            else {
+                return Err(refused);
+            };
+            let Some(entry) = value
+                .get_mut(&collection)
+                .and_then(Value::as_object_mut)
+                .and_then(|entries| entries.remove(&key))
+            else {
+                return Err(refused);
+            };
+            let reason_code = match collection.as_str() {
+                "dimensions" | "precision" => {
+                    let feature = key
+                        .strip_prefix("d:")
+                        .and_then(|k| k.rsplit_once('/'))
+                        .map(|(f, _)| f)
+                        .filter(|f| f.starts_with("f:") && !f.starts_with("f:declared:"));
+                    match feature {
+                        Some(f) if !self.has_feature(f) && value["features"].get(f).is_none() => {
+                            "no_feature"
+                        }
+                        _ if collection == "precision" => "no_measurement",
+                        _ => "no_dimension",
+                    }
+                }
+                "features" => "no_feature",
+                "annotations" => "no_annotation",
+                // A detail view is refused for the feature it is around.
+                "views" if crate::detail::NAMES.contains(&key.as_str()) => "no_feature",
+                "views" => "no_view",
+                _ => "no_entry",
+            };
+            set_aside.push(SetAside {
+                path: refused.path.unwrap_or_default(),
+                entry,
+                reason_code: reason_code.into(),
+            });
+        }
+    }
+    /// Whether recognition found feature or pattern *id*.
+    fn has_feature(&self, id: &str) -> bool {
+        self.analysis.features.iter().any(|f| f.id == id)
+            || self
+                .analysis
+                .recognition
+                .iter()
+                .flat_map(|r| &r.patterns)
+                .any(|p| p.id == id)
     }
     /// Replace PMI against the original geometry, transactionally. Geometry caches survive.
     pub fn set_pmi(&mut self, bytes: &[u8]) -> Result<Delta, Error> {
