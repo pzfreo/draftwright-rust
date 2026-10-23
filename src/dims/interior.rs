@@ -495,6 +495,18 @@ impl Proof {
         )
     }
 
+    /// Whether thin annotation *lines* and *arrows* stay clear of the view's line work; an
+    /// arrow tip may touch the edge it ends on.
+    pub(super) fn lines_clear(
+        &self,
+        v: &PlannedView,
+        lines: &[[P2; 2]],
+        arrows: &[[P2; 2]],
+    ) -> bool {
+        lines.iter().all(|s| self.segment_clear(v, *s, false))
+            && arrows.iter().all(|a| self.arrow_clear(v, *a, true))
+    }
+
     pub(super) fn annotation_clear(&self, v: &PlannedView, p: &Placed, callout: bool) -> bool {
         self.blank(v, p.label_box)
             && (!callout || self.touches(v, p.lines[0][0]))

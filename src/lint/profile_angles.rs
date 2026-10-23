@@ -84,6 +84,9 @@ pub struct Corner {
     pub first: P3,
     pub second: P3,
     pub virtual_vertex: bool,
+    /// The far ends of its two edges (each the theoretical sharp vertex when that end is
+    /// rounded): with the vertex, the points whose stations fix the corner linearly.
+    pub ends: [P3; 2],
 }
 impl Corner {
     pub fn degrees(&self) -> f64 {
@@ -227,6 +230,135 @@ fn common_tangent(a: &Analysis, s: &Source, axis: usize, line: (P3, P3)) -> bool
         })
     })
 }
+/// The far end of line support *i*: its start (or its end, *forward*), or the theoretical
+/// sharp vertex with the next line when a single arc rounds that end.
+fn far_end(p: &Profile, i: usize, forward: bool) -> P3 {
+    let n = p.supports.len();
+    let Support::Line { start, end } = p.supports[i] else {
+        unreachable!("corner edges are lines")
+    };
+    let (at, step) = if forward { (end, 1) } else { (start, n - 1) };
+    let (arc, next) = ((i + step) % n, (i + 2 * step) % n);
+    if let (Support::Arc { .. }, Support::Line { start: c0, end: c1 }) =
+        (&p.supports[arc], &p.supports[next])
+    {
+        let (u, v) = (unit(sub(end, start)), unit(sub(*c1, *c0)));
+        let turn = dot(cross(u, v), p.normal);
+        if turn.abs() > 1e-8 {
+            let t = dot(cross(sub(*c0, start), v), p.normal) / turn;
+            return [0, 1, 2].map(|k| start[k] + t * u[k]);
+        }
+    }
+    at
+}
+
+/// The stations (axis, coordinate) a corner's linear definition needs that *located* does
+/// not give, deduplicated: empty when its two edges are fixed by linear dimensions alone.
+/// A principal edge needs its one offset; an oblique edge needs both coordinates of both of
+/// its ends (ISO 129-1: no angle is implied except 0°, 90° and 180°).
+pub fn undefined_stations(c: &Corner, located: &dyn Fn(usize, f64) -> bool) -> Vec<(usize, f64)> {
+    let plane: Vec<usize> = (0..3).filter(|&k| k != c.axis).collect();
+    let mut need = Vec::new();
+    for (p, q) in [(c.ends[0], c.vertex), (c.vertex, c.ends[1])] {
+        let d = unit(sub(flat(q, c.axis), flat(p, c.axis)));
+        if let Some(&k) = plane.iter().find(|&&k| d[k].abs() >= 1. - 1e-9) {
+            // Along axis k: its offset on the other plane axis fixes it.
+            let m = plane[usize::from(plane[0] == k)];
+            need.push((m, p[m]));
+        } else {
+            for r in [p, q] {
+                need.extend(plane.iter().map(|&k| (k, r[k])));
+            }
+        }
+    }
+    let mut out: Vec<(usize, f64)> = Vec::new();
+    for (k, v) in need {
+        if !located(k, v) && !out.iter().any(|&(j, w)| j == k && (w - v).abs() < 1e-4) {
+            out.push((k, v));
+        }
+    }
+    out
+}
+
+/// Every non-reference linear dimension drawn, re-measured from its two witnesses through its
+/// view's recorded transform ([`super::location::ink_span`]): the spans that locate stations.
+pub fn drawn_spans(a: &Analysis, drawing: &crate::output::Drawing) -> Vec<(usize, f64, f64)> {
+    let text = |name: &str| {
+        drawing
+            .annotations
+            .iter()
+            .find(|x| x.name == name)
+            .map(|x| crate::output::drawn_body(drawing, x).unwrap_or_default())
+    };
+    drawing
+        .sheet
+        .items
+        .iter()
+        .filter(|d| d.kind == crate::output::Kind::Dimension && d.elbow.is_none())
+        .filter(|d| text(&d.name).is_some_and(|t| !t.trim_start().starts_with('(')))
+        .filter_map(|d| {
+            let view = drawing
+                .annotations
+                .iter()
+                .find(|x| x.name == d.name)?
+                .view
+                .clone()?;
+            let frame = drawing.sheet.frames.get(view.trim_start_matches("v:"))?;
+            super::location::ink_span(a, frame, &d.lines)
+        })
+        .collect()
+}
+
+/// Whether station *at* on *axis* is reached from the part's roots (its box and datum planes)
+/// through a chain of *spans* (axis, a, b). Stations match to 1e-3 mm: recognition sites and
+/// re-measured witnesses are both rounded finer than any printed dimension.
+pub fn rooted(a: &Analysis, spans: &[(usize, f64, f64)], axis: usize, at: f64) -> bool {
+    rooted_at(&super::location::roots(a)[axis], spans, axis, at)
+}
+
+/// [`rooted`] from the given *roots* on *axis*.
+pub fn rooted_at(roots: &[f64], spans: &[(usize, f64, f64)], axis: usize, at: f64) -> bool {
+    const TOL: f64 = 1e-3;
+    let mut reached = vec![at];
+    let mut cursor = 0;
+    while cursor < reached.len() {
+        let p = reached[cursor];
+        cursor += 1;
+        if roots.iter().any(|r| (r - p).abs() < TOL) {
+            return true;
+        }
+        for &(k, a, b) in spans {
+            for (from, to) in [(a, b), (b, a)] {
+                if k == axis
+                    && (from - p).abs() < TOL
+                    && !reached.iter().any(|q| (q - to).abs() < TOL)
+                {
+                    reached.push(to);
+                }
+            }
+        }
+    }
+    false
+}
+
+/// The corners the drawing's linear dimensions already fix (see [`undefined_stations`]).
+pub fn defined_by_drawing(
+    a: &Analysis,
+    drawing: &crate::output::Drawing,
+) -> std::collections::BTreeSet<String> {
+    let corners = requirements(a);
+    if corners.is_empty() {
+        return Default::default();
+    }
+    let spans = drawn_spans(a, drawing);
+    let roots = super::location::roots(a);
+    corners
+        .into_iter()
+        .filter(|c| undefined_stations(c, &|k, v| rooted_at(&roots[k], &spans, k, v)).is_empty())
+        .map(|c| c.feature)
+        .collect()
+}
+
 pub fn requirements(a: &Analysis) -> Vec<Corner> {
     let candidates: Vec<_> = a
         .outer_profiles
@@ -317,6 +449,7 @@ pub fn requirements(a: &Analysis) -> Vec<Corner> {
                 first,
                 second,
                 virtual_vertex: rounded,
+                ends: [far_end(p, i, false), far_end(p, j, true)],
             });
         }
     }

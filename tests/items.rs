@@ -374,10 +374,15 @@ fn on_the_quality_part(file: &str) {
 }
 quality_cases!(on_the_quality_part);
 
+/// Items kept undrawn. An automatic profile-corner angle with no clear place is dropped by
+/// design (LINT-angular-profile_angle_requirement): it stays visible as
+/// `angular_dimension_dropped` and lint reports its corner, so it is not a lost item here.
 fn not_drawable(plan: &Plan) -> usize {
     plan.dimensions
         .iter()
-        .filter(|d| matches!(d.state, State::NotDrawable { .. }))
+        .filter(|d| {
+            matches!(&d.state, State::NotDrawable { reason_code } if reason_code != "angular_dimension_dropped")
+        })
         .count()
 }
 

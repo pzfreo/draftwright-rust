@@ -4163,6 +4163,15 @@ pub(super) fn dimension_lines_clear(a: &Placed, b: &Placed) -> bool {
     dimension_segments(a).all(|a| dimension_segments(b).all(|b| !super::leaders::lines_meet(a, b)))
 }
 
+/// Whether *a* and *b* share no stroke: their lines may cross transversely, but never run
+/// along or end on each other.
+pub(super) fn no_shared_strokes(a: &Placed, b: &Placed) -> bool {
+    dimension_segments(a).all(|a| {
+        dimension_segments(b)
+            .all(|b| super::leaders::segments_cross(a, b) || !super::leaders::lines_meet(a, b))
+    })
+}
+
 pub(super) fn annotations_clear(a: &Placed, b: &Placed) -> bool {
     !boxes_overlap(a.label_box, b.label_box)
         && !ink_through(a, b.label_box)
@@ -4868,6 +4877,11 @@ fn collisions_impl(
                             proof.blank(v, lb)
                                 || (d.measurements.iter().any(|m| m.parameter == "notch.angle")
                                     && proof.exterior_annotation_clear(v, p))
+                                || (d
+                                    .measurements
+                                    .iter()
+                                    .any(|m| m.parameter == super::profile_angles::PARAMETER)
+                                    && proof.exterior_clear(v, p.label_box, &[], &[]))
                         }) || (d.id.starts_with("pmi:datum.")
                             && datum_proofs
                                 .get(&v.id)

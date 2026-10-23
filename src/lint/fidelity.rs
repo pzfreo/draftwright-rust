@@ -510,7 +510,19 @@ fn angular(drawing: &Drawing, d: &Drawn, label: &str, view: Option<&str>) -> Vec
         Some((n, rest)) if rest.trim_start().starts_with('×') => n,
         _ => 1.0,
     };
-    let why = if quantity != 1.0 {
+    // A counted angle is proved by the closed loop of visible edges through the drawn corner:
+    // exactly that many corners, each at the stated angle (a regular polygon's `8× 135°`).
+    let forward = supported(u, 1.0) && supported(v, 1.0);
+    let counted = quantity == 1.0
+        || nominal.is_some_and(|(n, _)| {
+            let tolerance = 0.5 * 10f64.powi(-(places as i32)) + 1e-8;
+            let start = if forward { u } else { [-u[0], -u[1]] };
+            loop_corners(&edges, vertex, start).is_some_and(|corners| {
+                corners.len() as f64 == quantity
+                    && corners.iter().all(|c| (c - n).abs() <= tolerance)
+            })
+        });
+    let why = if !counted {
         Some(format!(
             "its quantity {quantity}× is not proved by the one corner drawn"
         ))
@@ -534,6 +546,51 @@ fn angular(drawing: &Drawing, d: &Drawn, label: &str, view: Option<&str>) -> Vec
         out.push(i);
     }
     out
+}
+
+/// The included angles (degrees) of the closed loop of straight *edges* through *start*, walked
+/// first along *direction*; none when the loop does not close or branches at a corner.
+fn loop_corners(edges: &[[P; 2]], start: P, direction: P) -> Option<Vec<f64>> {
+    const NEAR: f64 = 0.02;
+    let unit = |d: P| {
+        let n = len(d);
+        (n > 1e-9).then(|| [d[0] / n, d[1] / n])
+    };
+    let (mut p, mut d) = (start, unit(direction)?);
+    let mut corners = Vec::new();
+    for _ in 0..256 {
+        // Run on through collinear edges to the far end of this side.
+        while let Some(q) = edges
+            .iter()
+            .flat_map(|e| [(e[0], e[1]), (e[1], e[0])])
+            .filter(|(a, b)| {
+                len(sub(*a, p)) <= NEAR
+                    && cross(d, sub(*b, p)).abs() <= NEAR
+                    && dot(d, sub(*b, p)) > NEAR
+            })
+            .map(|(_, b)| b)
+            .max_by(|a, b| dot(d, sub(*a, p)).total_cmp(&dot(d, sub(*b, p))))
+        {
+            p = q;
+        }
+        let turns: Vec<P> = edges
+            .iter()
+            .flat_map(|e| [(e[0], e[1]), (e[1], e[0])])
+            .filter(|(a, b)| len(sub(*a, p)) <= NEAR && len(sub(*b, p)) > NEAR)
+            .filter_map(|(_, b)| unit(sub(b, p)))
+            .filter(|w| cross(d, *w).abs() > 1e-3 || dot(d, *w) > 0.0)
+            .filter(|w| dot(d, *w) < 1.0 - 1e-6)
+            .collect();
+        let [w] = turns.as_slice() else {
+            return None;
+        };
+        corners.push(dot([-d[0], -d[1]], *w).clamp(-1.0, 1.0).acos().to_degrees());
+        d = *w;
+        if len(sub(p, start)) <= NEAR {
+            return Some(corners);
+        }
+    }
+    None
 }
 
 /// Read the actual triangle and first shaft, including pinned and bent leaders.

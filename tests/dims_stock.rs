@@ -203,17 +203,25 @@ fn a_stock_record_that_cannot_be_read_is_reported_and_the_extents_stay() {
         assert_eq!(reported.len(), 1, "{why}: {reported:#?}");
         assert_eq!(reported[0].code, "feature_not_dimensioned");
         assert!(reported[0].message.contains(why), "{:?}", reported[0]);
+        // An unreadable record no longer states the hexagon's corners, so the outer-profile
+        // rule does (LINT-angular-profile_angle_requirement): one counted angle, `6× 120°`.
+        let (angles, sizes): (Vec<_>, Vec<_>) = items(&plan)
+            .into_iter()
+            .map(|(p, v, l, _)| (p, v, l))
+            .partition(|(p, ..)| p.starts_with("profile_angle."));
         assert_eq!(
-            items(&plan)
-                .into_iter()
-                .map(|(p, v, l, _)| (p, v, l))
-                .collect::<Vec<_>>(),
+            sizes,
             [
                 ("depth.length".into(), "side".into(), "34.641".into()),
                 ("height.length".into(), "front".into(), "30".into()),
                 ("width.length".into(), "front".into(), "40".into()),
             ],
             "{why}"
+        );
+        assert!(
+            angles.is_empty()
+                || matches!(angles.as_slice(), [(_, v, l)] if v == "plan" && l == "6× 120°"),
+            "{why}: {angles:?}"
         );
     }
 }

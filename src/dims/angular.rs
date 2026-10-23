@@ -234,6 +234,7 @@ const TRIES: usize = 400;
 const SAMPLING: f64 = 0.04;
 
 /// One angle's ink on the page, its radius free: [`AngularGeometry`] in page mm.
+#[derive(Clone)]
 struct Ink {
     vertex: P2,
     start: f64,
@@ -317,6 +318,22 @@ impl Ink {
             tangent_half,
             minimum,
         })
+    }
+
+    /// The same ink with its label at *fraction* of the sweep from its start (0.5 is the
+    /// bisector), turned to read from below or the right.
+    fn along(&self, fraction: f64) -> Ink {
+        let mut g = self.clone();
+        g.middle = g.start + g.sweep * fraction;
+        let tangent = (g.middle + std::f64::consts::FRAC_PI_2).rem_euclid(std::f64::consts::TAU);
+        g.text_angle = if std::f64::consts::FRAC_PI_2 < tangent
+            && tangent <= 3.0 * std::f64::consts::FRAC_PI_2
+        {
+            tangent - std::f64::consts::PI
+        } else {
+            tangent
+        };
+        g
     }
 
     fn point(&self, radius: f64, angle: f64) -> P2 {
@@ -504,6 +521,10 @@ pub(super) fn place(
         let (Shape::Angular { angle }, Some(view)) = (&items[i].shape, views_of[i]) else {
             continue;
         };
+        // Profile-corner angles come last, around everything else ([`place_profile`]).
+        if super::profile_angles::is_profile_angle(&items[i]) {
+            continue;
+        }
         let terms = &items[i].terms;
         let ink = label_ink(terms, font());
         let size = [ink.max[0] - ink.min[0], ink.max[1] - ink.min[1]];
@@ -613,6 +634,119 @@ pub(super) fn place(
             placed[j] = Some(p);
         }
         placed[i] = chosen.or(fallback).or(first);
+    }
+}
+
+/// Places each profile-corner angle of *items* (see [`super::profile_angles`]) after every
+/// other item, one at a time, in its true-shape view: inside the corner's material (an arc
+/// whose sides are the corner's own edges, its label on proven blank face) or in the equal
+/// sector between the extended edges, outside the material. Only a place clear of the sheet's
+/// furniture, the other views, every placed item and the view's line work is taken; with
+/// none the angle stays unplaced (dropped): it never takes a fallback, moves another item or
+/// asks for more paper. One already placed by its authored placement intent is kept.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn place_profile(
+    frames: &std::collections::BTreeMap<&str, Frame>,
+    items: &[Want],
+    views_of: &[Option<&'static str>],
+    obstacles: &[super::PlannedDimension],
+    placed: &mut [Option<Placed>],
+    page: &Page,
+    views: &[crate::model::PlannedView],
+    proofs: &std::collections::BTreeMap<String, std::rc::Rc<super::interior::Proof>>,
+) {
+    for i in 0..items.len() {
+        // An authored placement (`dimensions/<id>/place`) has already been honoured.
+        if !super::profile_angles::is_profile_angle(&items[i]) || placed[i].is_some() {
+            continue;
+        }
+        let (Shape::Angular { angle }, Some(view)) = (&items[i].shape, views_of[i]) else {
+            continue;
+        };
+        let own = format!("v:{view}");
+        let (Some(frame), Some(v)) = (frames.get(view), views.iter().find(|v| v.id == own)) else {
+            continue;
+        };
+        let Some(proof) = proofs.get(&own) else {
+            continue;
+        };
+        let terms = &items[i].terms;
+        let ink = label_ink(terms, font());
+        let size = [ink.max[0] - ink.min[0], ink.max[1] - ink.min[1]];
+        let Some(physical) = Ink::new(frame, angle, size) else {
+            continue;
+        };
+        let Some(mut extended) = Ink::new(
+            frame,
+            &Angle {
+                vertex: angle.vertex,
+                first: [0, 1, 2].map(|k| 2.0 * angle.vertex[k] - angle.first[k]),
+                second: [0, 1, 2].map(|k| 2.0 * angle.vertex[k] - angle.second[k]),
+            },
+            size,
+        ) else {
+            continue;
+        };
+        extended.lengths = [0.0; 2];
+        // Every other item, and whether a thin line of the angle may cross its lines: other
+        // dimensions, centre lines and cutting-plane lines may be crossed transversely (ISO
+        // 129-1); leaders, frames and symbols never. No item's label is ever touched.
+        let others: Vec<(&Placed, bool)> = placed
+            .iter()
+            .enumerate()
+            .filter(|(j, _)| *j != i)
+            .filter_map(|(j, q)| {
+                let crossable = matches!(
+                    items[j].shape,
+                    Shape::Linear { .. } | Shape::Aligned { .. } | Shape::Angular { .. }
+                );
+                q.as_ref().map(|q| (q, crossable))
+            })
+            .chain(obstacles.iter().filter_map(|d| {
+                let crossable = d.kind == "linear"
+                    || (d.id.starts_with("ink:")
+                        && !d.id.contains(":arrow:")
+                        && !d.id.contains(":letter:"));
+                d.placed.as_ref().map(|q| (q, crossable))
+            }))
+            .collect();
+        let clear = |c: &Placed, strict: bool| {
+            page.fits_interior(c, view)
+                && others.iter().all(|&(q, crossable)| {
+                    super::placement::annotations_clear(c, q)
+                        && if strict || !crossable {
+                            super::placement::dimension_lines_clear(c, q)
+                        } else {
+                            super::placement::no_shared_strokes(c, q)
+                        }
+                })
+        };
+        // Its label must stand on proven blank paper: a blank face inside the corner, or
+        // exterior paper clear of every projected edge. Thin arc and witness lines may cross the
+        // view's own line work, as ISO 129-1 lets dimension lines do where unavoidable.
+        let label_clear = |c: &Placed| {
+            proof.blank(v, c.label_box) || proof.exterior_clear(v, c.label_box, &[], &[])
+        };
+        // The label may slide off the bisector; its arc pieces must still carry their arrows.
+        let inks: Vec<(Ink, usize)> = [0.5, 0.35, 0.65, 0.25, 0.75]
+            .iter()
+            .flat_map(|&f| [(physical.along(f), 2), (extended.along(f), 0)])
+            .collect();
+        // First a place whose lines cross nothing (inside the corner its witness stubs lie on
+        // the corner's own edges), then one whose label alone is clear.
+        let search = |strict: bool| {
+            (0..TRIES).find_map(|n| {
+                inks.iter().find_map(|(g, stubs)| {
+                    g.placed(g.minimum + n as f64 * STEP, terms).filter(|c| {
+                        clear(c, strict)
+                            && label_clear(c)
+                            && (!strict || proof.lines_clear(v, &c.lines[*stubs..], &c.arrows))
+                    })
+                })
+            })
+        };
+        let chosen = search(true).or_else(|| search(false));
+        placed[i] = chosen;
     }
 }
 

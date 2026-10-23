@@ -960,6 +960,21 @@
             }
           ]
         },
+        "profile_corners": {
+          "anyOf": [
+            {
+              "enum": [
+                "auto",
+                "angle",
+                "linear"
+              ],
+              "description": "How the corners of this face\u2019s outer profile are defined: auto (default) completes a nearly fixed corner linearly and gives any other non-right corner its angle; angle states every corner\u2019s angle (a reference where linear dimensions already fix it); linear locates the missing corner stations instead. Per corner, dimensions/<id> {} shows and omit hides an angle."
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "controls": {
           "type": "array",
           "items": {

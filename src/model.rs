@@ -1792,6 +1792,9 @@ fn carried(plan: &Plan) -> BTreeSet<(String, String)> {
                 .filter(|n| n.placed.is_some())
                 .flat_map(|n| &n.measurements),
         )
+        // A profile-corner angle is placed only where it is clear and otherwise dropped to a
+        // lint warning: it never makes one sheet or scale less complete than another.
+        .filter(|m| m.parameter != crate::dims::PROFILE_ANGLE)
         .map(|m| (m.feature.clone(), m.parameter.clone()))
         .collect();
     // Coverage follows its controlling ink through presentation changes too: a

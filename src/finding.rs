@@ -41,6 +41,7 @@ macro_rules! catalogue {
 }
 catalogue! {
     "angled_step_requirement_unsupported" => Incomplete, Requirement, "No supported drawing grammar states this feature requirement.";
+    "angular_dimension_dropped" => Advisory, Code, "An automatic profile-corner angle found no clear place and is not drawn; lint still reports the corner.";
     "angular_geometry_mismatch" => Incomplete, Code, "The drawn evidence does not correctly state the required source information.";
     "angular_label_vs_geometry" => Incomplete, Code, "The printed angle does not state the measured angular sector.";
     "angular_requirement_missing" => Incomplete, Requirement, "The drawing does not state this required feature parameter.";

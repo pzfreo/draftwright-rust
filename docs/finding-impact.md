@@ -37,6 +37,7 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | Code | Impact | Reason |
 | --- | --- | --- |
 | `angled_step_requirement_unsupported` | incomplete | No supported drawing grammar states this feature requirement. |
+| `angular_dimension_dropped` | advisory | An automatic profile-corner angle found no clear place and is not drawn; lint still reports the corner. |
 | `angular_geometry_mismatch` | incomplete | The drawn evidence does not correctly state the required source information. |
 | `angular_label_vs_geometry` | incomplete | The printed angle does not state the measured angular sector. |
 | `angular_requirement_missing` | incomplete | The drawing does not state this required feature parameter. |
