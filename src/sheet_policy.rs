@@ -17,9 +17,17 @@ pub struct Candidate {
     pub preferred_max_sheets: usize,
     pub max: usize,
     pub outcome: String,
+    /// [`RULED_OUT`] when cheap reserved-footprint estimates proved the request cannot fit
+    /// at any readable scale, so it was not planned; absent for planned candidates.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub kind: Option<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub scales: Vec<String>,
 }
+
+/// The [`Candidate::kind`] of a request ruled out before planning; its outcome starts
+/// "ruled out: ".
+pub const RULED_OUT: &str = "ruled_out";
 
 // Layout/readability failures only: overlaps and crossings, ink outside its frame/bands,
 // unreadable text/scale, and content left undrawn for space. Recognition and engineering
@@ -225,9 +233,20 @@ impl Estimate {
     }
 
     fn fits(&self, size: &str, max: usize, scale: f64) -> bool {
+        self.shortfall(size, max, scale).is_none()
+    }
+
+    /// The first necessary condition `max` sheets of `size` paper fail at `scale`, stated
+    /// with the reserved paper mm it needs against what the paper offers; `None` if all hold.
+    fn shortfall(&self, size: &str, max: usize, scale: f64) -> Option<String> {
         // Invariant: Candidates select paper names from the fixed PAGES table.
         let (_, w, h) = layout::PAGES.iter().find(|p| p.0 == size).unwrap();
         let available = [w - 2.0 * layout::MARGIN, h - 2.0 * layout::MARGIN];
+        let at = model::scale_name(scale);
+        let frame = format!(
+            "{size} drawable area is {:.0} × {:.0} mm",
+            available[0], available[1]
+        );
         let mut principal = std::collections::BTreeMap::new();
         let mut area = 0.0;
         let mut principal_area = 0.0;
@@ -235,7 +254,10 @@ impl Estimate {
             let footprint =
                 std::array::from_fn::<_, 2, _>(|k| outline[k] * scale / self.scale + band[k]);
             if (0..2).any(|k| footprint[k] > available[k]) {
-                return false;
+                return Some(format!(
+                    "view {id} with its annotation bands needs at least {:.0} × {:.0} mm at {at}; {frame}",
+                    footprint[0], footprint[1]
+                ));
             }
             area += footprint[0] * footprint[1];
             if ["v:front", "v:plan", "v:side"].contains(&id.as_str()) {
@@ -247,18 +269,31 @@ impl Estimate {
         const GUTTER: f64 = 6.0;
         if self.aligned
             && let Some(front) = principal.get("v:front")
-            && (principal.get("v:side").is_some_and(|side| {
-                front[0] + side[0] + GUTTER - shared_band(&self.views, "v:front", "v:side", 0)
-                    > available[0]
-            }) || principal
-                .get("v:plan")
-                .is_some_and(|plan| front[1] + plan[1] + GUTTER > available[1]))
         {
-            return false;
+            if let Some(side) = principal.get("v:side") {
+                let across =
+                    front[0] + side[0] + GUTTER - shared_band(&self.views, "v:front", "v:side", 0);
+                if across > available[0] {
+                    return Some(format!(
+                        "aligned front and side views need at least {across:.0} mm across at {at}; {frame}"
+                    ));
+                }
+            }
+            if let Some(plan) = principal.get("v:plan") {
+                let high = front[1] + plan[1] + GUTTER;
+                if high > available[1] {
+                    return Some(format!(
+                        "aligned front and plan views need at least {high:.0} mm high at {at}; {frame}"
+                    ));
+                }
+            }
         }
         for (i, block) in self.blocks.iter().enumerate() {
             if (0..2).any(|k| block[k] > available[k]) {
-                return false;
+                return Some(format!(
+                    "a table needs {:.0} × {:.0} mm; {frame}",
+                    block[0], block[1]
+                ));
             }
             // A tall block that cannot stack vertically with either aligned
             // principal must fit beside both, allowing their shared corridor.
@@ -269,16 +304,52 @@ impl Estimate {
                     (principal.get("v:front"), principal.get("v:side"))
                 && block[1] + front[1] > available[1]
                 && block[1] + side[1] > available[1]
-                && block[0] + front[0] + side[0] - shared_band(&self.views, "v:front", "v:side", 0)
-                    > available[0]
             {
-                return false;
+                let across = block[0] + front[0] + side[0]
+                    - shared_band(&self.views, "v:front", "v:side", 0);
+                if across > available[0] {
+                    return Some(format!(
+                        "a {:.0} mm tall table beside the aligned front and side views needs at least {across:.0} mm across at {at}; {frame}",
+                        block[1]
+                    ));
+                }
             }
             area += block[0] * block[1];
         }
         let drawing_area = available[0] * available[1]
             - layout::title_block_width(*w) * crate::title_block::top([0.0; 4]);
-        principal_area + self.first_area <= drawing_area && area <= drawing_area * max as f64
+        if principal_area + self.first_area > drawing_area {
+            return Some(format!(
+                "the principal views and sheet-1 tables need at least {:.0} mm² at {at}; one {size} sheet offers {drawing_area:.0} mm² beside the title block",
+                principal_area + self.first_area
+            ));
+        }
+        if area > drawing_area * max as f64 {
+            return Some(format!(
+                "views and tables need at least {area:.0} mm² at {at}; {max} {size} sheet(s) offer {:.0} mm² beside the title block",
+                drawing_area * max as f64
+            ));
+        }
+        None
+    }
+
+    /// Why no readable standard scale fits: the shortfall at the smallest readable scale,
+    /// where every reserved outline is smallest, so every larger scale fails too.
+    fn ruled_out(&self, size: &str, max: usize, floor: f64) -> String {
+        let smallest = layout::SCALES
+            .into_iter()
+            .rev()
+            .find(|s| *s + 1e-9 >= floor);
+        match smallest.and_then(|s| Some((s, self.shortfall(size, max, s)?))) {
+            Some((s, shortfall)) => format!(
+                "ruled out: {shortfall}; {} is the smallest readable scale",
+                model::scale_name(s)
+            ),
+            None => format!(
+                "ruled out: no standard scale reaches the readable floor {}",
+                model::scale_name(floor)
+            ),
+        }
     }
 
     fn scale(&self, size: &str, max: usize, floor: f64) -> Option<f64> {
@@ -577,7 +648,14 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
     let mut unblocked = std::collections::BTreeMap::<(String, u64, bool), Plan>::new();
     for (size, max) in requests(spec) {
         let mut scales = Vec::new();
-        let mut outcome = "reserved footprints cannot fit at a readable scale".to_string();
+        // No readable standard scale passes the necessary reserved-footprint test: the
+        // request is not planned, and its outcome states the shortfall. Otherwise the first
+        // trial below always replaces this outcome.
+        let first = estimate.scale(size, max, floor);
+        let ruled_out = first
+            .is_none()
+            .then(|| estimate.ruled_out(size, max, floor));
+        let mut outcome = ruled_out.clone().unwrap_or_default();
         // Judge each trial as soon as it exists and stop at the first usable one.
         let mut judge = |plan: Plan, scales: &mut Vec<String>, outcome: &mut String| {
             if !scales.contains(&plan.sheet.scale) {
@@ -630,8 +708,7 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
         }
         // At most one smaller readable standard scale: a crowded estimate may
         // read cleanly one step down on the same paper.
-        let mut steps: Vec<f64> = estimate
-            .scale(size, max, floor)
+        let mut steps: Vec<f64> = first
             .into_iter()
             .flat_map(|scale| {
                 std::iter::once(scale).chain(
@@ -761,16 +838,19 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
                 preferred_max_sheets: 0,
                 max,
                 outcome: reason.clone(),
+                kind: None,
                 scales,
             });
             return Ok(finish_choice(plan, &intent, candidates, &reason));
         }
+        let kind = (ruled_out.as_ref() == Some(&outcome)).then(|| RULED_OUT.to_string());
         candidates.push(Candidate {
             size: size.into(),
             preferred_max_size: String::new(),
             preferred_max_sheets: 0,
             max,
             outcome,
+            kind,
             scales,
         });
     }
@@ -1452,7 +1532,7 @@ mod tests {
                     .iter()
                     .any(|c| c.outcome.contains("leader_on_extension")
                         || c.outcome.contains("hard rejected")
-                        || c.outcome.contains("reserved footprints cannot fit")
+                        || c.kind.as_deref() == Some(RULED_OUT)
                         || c.outcome.contains("annotation_overlap")
                         || c.outcome.contains("page_fit_uncertain")),
                 "{file}"
@@ -1578,7 +1658,7 @@ mod tests {
             if !selected
                 .sheet_candidates
                 .iter()
-                .any(|r| r.outcome.starts_with("reserved footprints cannot fit"))
+                .any(|r| r.kind.as_deref() == Some(RULED_OUT))
             {
                 continue;
             }
@@ -1597,10 +1677,7 @@ mod tests {
                 let mut inherited = failures(&analysis, &baseline, floor);
                 inherited.extend(baseline.problems.iter().map(problem_key));
                 for request in &selected.sheet_candidates {
-                    if !request
-                        .outcome
-                        .starts_with("reserved footprints cannot fit")
-                    {
+                    if request.kind.as_deref() != Some(RULED_OUT) {
                         continue;
                     }
                     assert!(
@@ -1711,6 +1788,78 @@ mod tests {
     }
 
     #[test]
+    fn a_ruled_out_request_states_its_shortfall_and_paper() {
+        let estimate = Estimate {
+            views: vec![("v:front".into(), [100.0, 80.0], [280.0, 15.0])],
+            blocks: Vec::new(),
+            first_area: 0.0,
+            first_blocks: 0,
+            scale: 1.0,
+            aligned: true,
+        };
+        // Even at the smallest readable scale the fixed band exceeds A4's 277 mm.
+        assert_eq!(estimate.scale("A4", 1, 0.5), None);
+        assert_eq!(
+            estimate.ruled_out("A4", 1, 0.5),
+            "ruled out: view v:front with its annotation bands needs at least 330 × 55 mm at 1:2; \
+             A4 drawable area is 277 × 190 mm; 1:2 is the smallest readable scale"
+        );
+        // A floor above every standard scale has no smallest readable scale to cite.
+        assert!(
+            estimate
+                .ruled_out("A3", 1, 20.0)
+                .starts_with("ruled out: no standard scale reaches the readable floor")
+        );
+    }
+
+    #[test]
+    fn an_estimate_at_the_limit_is_not_ruled_out() {
+        // The necessary test refuses only a strict excess: a footprint exactly filling the
+        // drawable width is planned in full.
+        let at_limit = |width: f64| Estimate {
+            views: vec![("v:front".into(), [width - 20.0, 100.0], [20.0, 10.0])],
+            blocks: Vec::new(),
+            first_area: 0.0,
+            first_blocks: 0,
+            scale: 1.0,
+            aligned: true,
+        };
+        assert_eq!(at_limit(277.0).scale("A4", 1, 1.0), Some(1.0));
+        assert_eq!(at_limit(277.01).scale("A4", 1, 1.0), None);
+        // mfcadpp 10163's aligned front and side estimate is within 5% of A4's drawable
+        // width at 1:2, and that full trial is the winner.
+        let Some(a) = corpus("mfcadpp/10163.step") else {
+            return;
+        };
+        let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+        assert_eq!(
+            (
+                p.sheet.size.as_str(),
+                p.sheet.scale.as_str(),
+                p.sheets.len()
+            ),
+            ("A4", "1:2", 0)
+        );
+        let winner = p.sheet_candidates.last().unwrap();
+        assert_eq!((winner.size.as_str(), winner.kind.as_deref()), ("A4", None));
+        assert_eq!(winner.scales, ["1:2"]);
+        crate::planning::with(&a, || {
+            let baseline = model::plan_automatic(&a, &Spec::default()).unwrap();
+            let estimate = Estimate::new(&a, &baseline);
+            assert!(estimate.fits("A4", 1, 0.5));
+            let wider = Estimate {
+                views: estimate
+                    .views
+                    .iter()
+                    .map(|(id, o, b)| (id.clone(), [o[0] * 1.05, o[1]], [b[0] * 1.05, b[1]]))
+                    .collect(),
+                ..estimate
+            };
+            assert!(!wider.fits("A4", 1, 0.5));
+        });
+    }
+
+    #[test]
     fn primary_step_readability_bounds_both_a4_requests() {
         let Some(a) = corpus("cadgenbench/threaded_connector_109.step") else {
             return;
@@ -1724,11 +1873,8 @@ mod tests {
         for candidate in &p.sheet_candidates[..1] {
             assert_eq!(candidate.size, "A4");
             assert!(candidate.scales.is_empty());
-            assert!(
-                candidate
-                    .outcome
-                    .starts_with("reserved footprints cannot fit")
-            );
+            assert_eq!(candidate.kind.as_deref(), Some(RULED_OUT));
+            assert!(candidate.outcome.starts_with("ruled out: "));
         }
     }
 

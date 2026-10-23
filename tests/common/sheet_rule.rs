@@ -115,6 +115,19 @@ pub fn assert_follows(name: &str, plan: &Plan, seed: (&str, &str)) -> (String, S
                 candidate.scales.len() <= 2,
                 "{name}: unbounded scale search"
             );
+            // A request ruled out before planning has no trial scale and states why.
+            if candidate.kind.as_deref() == Some(draftwright::sheet_policy::RULED_OUT) {
+                assert!(candidate.scales.is_empty(), "{name}: ruled out yet planned");
+                assert!(
+                    candidate.outcome.starts_with("ruled out: ")
+                        && candidate
+                            .outcome
+                            .contains(&format!("{} drawable area is", candidate.size))
+                        || candidate.outcome.contains("readable floor"),
+                    "{name}: {}",
+                    candidate.outcome
+                );
+            }
         }
         let winners: Vec<_> = plan
             .sheet_candidates
