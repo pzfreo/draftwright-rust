@@ -46,10 +46,25 @@ pub fn recognition(name: &str) -> Option<String> {
 }
 
 /// The part *file* (relative to the corpus *dir*) analysed, with sampled part *name*'s features.
+/// Shared across processes on disk when DRAFTWRIGHT_TEST_PLAN_CACHE is set, keyed by the
+/// file, the recognition and the engine ([`draftwright::plan_cache::analysed_in`]).
 pub fn analyse(dir: &Path, file: &str, name: &str) -> (Part, Analysis) {
-    let (part, mut analysis) = model::analyse(&dir.join(file)).unwrap();
-    if let Some(json) = recognition(name) {
-        model::recognise(&part, &mut analysis, &json).unwrap_or_else(|e| panic!("{name}: {e}"));
-    }
-    (part, analysis)
+    let json = recognition(name);
+    let disk = std::env::var_os("DRAFTWRIGHT_TEST_PLAN_CACHE")
+        .filter(|v| !v.is_empty())
+        .map(PathBuf::from);
+    let recipe: [&[u8]; 2] = [
+        b"corpus::analyse",
+        json.as_deref()
+            .map_or(b"no recognition".as_slice(), str::as_bytes),
+    ];
+    let path = dir.join(file);
+    draftwright::plan_cache::analysed_in(disk.as_deref(), &path, &recipe, || {
+        let (part, mut analysis) = model::analyse(&path).unwrap();
+        if let Some(json) = &json {
+            model::recognise(&part, &mut analysis, json).unwrap_or_else(|e| panic!("{name}: {e}"));
+        }
+        Ok::<_, std::convert::Infallible>((part, analysis))
+    })
+    .unwrap()
 }

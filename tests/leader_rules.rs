@@ -19,6 +19,8 @@
 //! hole and blend callout the planner places passes, so ISSUE-1378-a and ISSUE-1479-a are met
 //! by the planner, not only checked.
 
+#[path = "common/cache.rs"]
+mod cache;
 #[path = "common/local_fix.rs"]
 mod local_fix;
 
@@ -716,13 +718,8 @@ fn native_drawing(file: &str, recovered: bool) -> Option<(Analysis, model::Plan,
         assert!(std::env::var("DRAFTWRIGHT_CORPUS_REQUIRED").is_err());
         return None;
     }
-    let (part, a) = model::analyse_native(&path).unwrap();
-    let plan = if recovered {
-        model::plan_recovered(&a, &Spec::default())
-    } else {
-        model::plan(&a, &Spec::default())
-    }
-    .unwrap();
+    let (part, a) = cache::native(&path);
+    let plan = cache::default_plan(&a, recovered);
     let drawing = model::render(&part, &a, &plan, &font()).unwrap();
     Some((a, plan, drawing))
 }
