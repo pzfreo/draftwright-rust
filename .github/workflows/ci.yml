@@ -58,8 +58,11 @@ jobs:
           sparse-checkout: tests/corpus
       # The toolchain comes from rust-toolchain.toml.
       - run: rustup toolchain install
-      # Caches ~/.cargo (registry and the git checkout of haecceity) and target/.
+      # Caches ~/.cargo (registry and the git checkout of haecceity) and target/: clippy's
+      # and the release executable's (the key names a cache that holds both).
       - uses: Swatinem/rust-cache@6323deb102c322ba6fcbdcafc7e3dddab59af2b6 # v2.9.2
+        with:
+          key: warm
       - run: python3 tools/check_test_binaries.py
       - run: python3 -m unittest discover -s tools -p 'test_check_test_binaries.py'
       - run: cargo fmt --all --check
