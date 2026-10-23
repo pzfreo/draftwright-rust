@@ -57,35 +57,49 @@ pub fn plan_in(dir: Option<&Path>, analysis: &Analysis, spec: &Spec) -> Result<P
 /// given. On a hit the part is read from the file again, which is a small share of analysing
 /// it: the same part, its lazily computed surface grids not yet computed.
 pub fn analyse_native_in(dir: Option<&Path>, path: &Path) -> Result<(Part, Analysis), Unanalysed> {
-    let Some(dir) = dir else {
-        return model::analyse_native(path);
-    };
-    let Ok(bytes) = fs::read(path) else {
-        return model::analyse_native(path);
+    analysed_in(dir, path, &[b"analyse_native"], || {
+        model::analyse_native(path)
+    })
+}
+
+/// *compute*'s part and Analysis of the whole STEP file at *path* (no part of an assembly
+/// chosen), the Analysis read from or written to the cache in *dir* when given, keyed by the
+/// file's name and bytes and *recipe*: which reading *compute* makes, with every other input it
+/// reads (recognition JSON, for one). On a hit the part is read from the file again.
+pub fn analysed_in<E>(
+    dir: Option<&Path>,
+    path: &Path,
+    recipe: &[&[u8]],
+    compute: impl FnOnce() -> Result<(Part, Analysis), E>,
+) -> Result<(Part, Analysis), E> {
+    let (Some(dir), Ok(bytes)) = (dir, fs::read(path)) else {
+        return compute();
     };
     let name = path.file_name().unwrap_or_default().to_string_lossy();
-    let key = key(&[b"analyse_native", name.as_bytes(), &bytes]);
-    let mut part = None;
+    let mut inputs: Vec<&[u8]> = vec![b"analysis", name.as_bytes(), &bytes];
+    inputs.extend(recipe);
+    let mut computed = None;
+    let mut compute = Some(compute);
     let analysis = memo(
         dir,
-        &key,
+        &key(&inputs),
         "analysis",
         |a: &Analysis| serde_json::to_vec(a).ok(),
         |text| serde_json::from_slice(text).ok(),
         || {
-            let (p, a) = model::analyse_native(path)?;
-            part = Some(p);
+            let (p, a) = (compute.take().unwrap())()?;
+            computed = Some(p);
             Ok(a)
         },
     )?;
-    match part {
+    match computed {
         Some(part) => Ok((part, analysis)),
         None => match model::step_bytes(&bytes)
             .ok()
             .and_then(|b| crate::haecceity::read_step(&b).ok())
         {
             Some(part) => Ok((part, analysis)),
-            None => model::analyse_native(path),
+            None => (compute.take().unwrap())(),
         },
     }
 }
