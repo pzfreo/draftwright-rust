@@ -217,6 +217,20 @@ pub(super) fn consolidate(
         })
         .collect();
     let mut edges = Vec::new();
+    // ADR1-8: a counted or compound label states its members' intervals; they carry chains as
+    // controlling statements but never yield (a count or callout is not one interval).
+    let compound: Vec<usize> = (0..kept.len())
+        .filter(|i| !gone.contains(i) && interval(a, &kept[*i].0).is_none())
+        .collect();
+    for &i in &compound {
+        edges.extend(members(a, &kept[i].0).into_iter().map(|s| (s, i)));
+    }
+    // Only a label that printed a member counts: a rung, diameter or point location has no
+    // interval either, and must not satisfy `rungs_on_compound_labels`' label guard.
+    let compound: Vec<usize> = compound
+        .into_iter()
+        .filter(|i| edges.iter().any(|e| e.1 == *i))
+        .collect();
     for i in order {
         // Invariant: kept contains only dimensions for which interval returned Some.
         let s = interval(a, &kept[i].0).unwrap();
@@ -348,18 +362,7 @@ pub(super) fn consolidate(
                 "the feature interval states the same support planes as this ladder datum",
             );
             gone.insert(i);
-            // A reference the rung helped determine is determined by its new owner instead.
-            let (from, to) = (kept[i].0.id.clone(), kept[j].0.id.clone());
-            for (id, by) in references.iter_mut() {
-                if by.contains(&from) {
-                    by.iter_mut()
-                        .filter(|x| **x == from)
-                        .for_each(|x| x.clone_from(&to));
-                    if let Some(w) = kept.iter_mut().find(|k| &k.0.id == id) {
-                        w.0.basis = w.0.basis.replace(&from, &to);
-                    }
-                }
-            }
+            retarget(kept, &mut references, i, j);
         } else if a.features.iter().filter(|f| f.kind == "slot").any(|f| {
             crate::lint::redundancy::span(a, &f.id, "location_slot.length")
                 .is_some_and(|p| p.same(s))
@@ -376,6 +379,16 @@ pub(super) fn consolidate(
         }
     }
     shoulders_on_slot_walls(a, kept, given, &gone, &mut references);
+    rungs_on_compound_labels(
+        a,
+        kept,
+        given,
+        omitted,
+        &compound,
+        &edges,
+        &mut gone,
+        &mut references,
+    );
     if spec.sheet.references != Some(true) && !references.is_empty() {
         let mut suppressed = std::collections::BTreeMap::new();
         for (i, (w, ..)) in kept.iter().enumerate() {
@@ -451,6 +464,130 @@ pub(super) fn consolidate(
     });
     references
 }
+/// A reference the yielding *i* helped determine is determined by its new owner *j* instead.
+fn retarget(kept: &mut [Kept], references: &mut References, i: usize, j: usize) {
+    let (from, to) = (kept[i].0.id.clone(), kept[j].0.id.clone());
+    for (id, by) in references.iter_mut() {
+        if by.contains(&from) {
+            by.iter_mut()
+                .filter(|x| **x == from)
+                .for_each(|x| x.clone_from(&to));
+            if let Some(w) = kept.iter_mut().find(|k| &k.0.id == id) {
+                w.0.basis = w.0.basis.replace(&from, &to);
+            }
+        }
+    }
+}
+
+/// ADR1-8, ADR4-U1: the member intervals a counted (`4× 255`) or compound
+/// (`2 × 3.7 × 4.761 DEEP`) label prints, read as lint reads its text.
+fn members(analysis: &Analysis, w: &Want) -> Vec<Span> {
+    if w.id.starts_with("d:pmi:")
+        || !w.terms.iter().any(|t| t.contains('×'))
+        || w.terms.first().is_some_and(|t| t.starts_with('('))
+    {
+        return Vec::new();
+    }
+    let claims = || {
+        w.measurements
+            .iter()
+            .map(|m| (m.feature.as_str(), m.parameter.as_str()))
+    };
+    let mut own = crate::lint::redundancy::stated(analysis, &w.terms.join(" "), claims());
+    let halves: Vec<Span> = claims()
+        .filter(|(_, p)| *p != "slot_width.length")
+        .flat_map(|(f, p)| crate::lint::redundancy::halves(analysis, f, p, &own))
+        .collect();
+    own.extend(halves);
+    own
+}
+
+/// ADR1-8: a face-level rung (`step_height` or `step_position`, from the box) whose two planes a
+/// counted or compound label's member closes with the other rungs and stated intervals yields:
+/// stating exactly the member's planes it is conveyed by that label (mfcadpp 10063's 24.518 rung
+/// and its pocket's 24.518 DEEP), otherwise it is a reference the chain determines (10020's
+/// 10.898 and 12.898 rungs on the walls of a 2 wide pocket located to its centre). The rung
+/// farther from the box is tried first, so where yielding one rung opens the chain, the nearer
+/// stays. A toleranced
+/// rung, one stating PMI and a ladder rebased onto a datum stay controlling, as does every rung
+/// a chain closes without such a label (their own passes decide those).
+#[allow(clippy::too_many_arguments)]
+fn rungs_on_compound_labels(
+    a: &Analysis,
+    kept: &mut [Kept],
+    given: &[Vec<String>],
+    omitted: &mut Vec<Omitted>,
+    compound: &[usize],
+    edges: &[(Span, usize)],
+    gone: &mut std::collections::BTreeSet<usize>,
+    references: &mut References,
+) {
+    if !edges.iter().any(|e| compound.contains(&e.1)) {
+        return;
+    }
+    let mut ladder: Vec<(usize, Span)> = (0..kept.len())
+        .filter(|&i| {
+            let w = &kept[i].0;
+            !gone.contains(&i)
+                && w.id.starts_with("d:step_level/")
+                && given[i].is_empty()
+                && !w.terms.iter().any(|t| t.starts_with('('))
+                && !w.measurements.iter().any(|m| m.feature.starts_with("pmi:"))
+                && w.measurements.iter().any(|m| {
+                    m.feature == "step_level"
+                        && (m.parameter.starts_with("step_height.length.h")
+                            || m.parameter.starts_with("step_position.length."))
+                })
+        })
+        .filter_map(|i| match ladder_span(a, &kept[i].0) {
+            Some((s, false)) => Some((i, s)),
+            _ => None,
+        })
+        .collect();
+    ladder.sort_by(|x, y| {
+        (y.1.hi - y.1.lo)
+            .total_cmp(&(x.1.hi - x.1.lo))
+            .then(kept[x.0].0.id.cmp(&kept[y.0].0.id))
+    });
+    let mut live: Vec<(Span, usize)> = ladder.iter().map(|&(i, s)| (s, i)).collect();
+    for (i, s) in ladder {
+        let with: Vec<_> = edges
+            .iter()
+            .chain(live.iter().filter(|e| e.1 != i))
+            .copied()
+            .collect();
+        let Some(route) = path(&with, s) else {
+            continue;
+        };
+        if !route.iter().any(|j| compound.contains(j)) {
+            continue;
+        }
+        live.retain(|e| e.1 != i);
+        if let [j] = route[..] {
+            let claims = kept[i].0.measurements.clone();
+            kept[j].0.measurements.extend(claims);
+            cover(
+                i,
+                j,
+                kept,
+                omitted,
+                "the counted or compound label states the same support planes as this ladder rung",
+            );
+            gone.insert(i);
+            retarget(kept, references, i, j);
+            continue;
+        }
+        let by: Vec<String> = route.iter().map(|j| kept[*j].0.id.clone()).collect();
+        let carriers = by.join(", ");
+        references.insert(kept[i].0.id.clone(), by);
+        let w = &mut kept[i].0;
+        w.terms = vec![format!("({})", w.terms.join(" "))];
+        w.basis += &format!(
+            "; reference: a counted or compound label and the other stated intervals determine this rung ({carriers})"
+        );
+    }
+}
+
 /// The member of a closed chain to show as reference, and the stated members that determine it:
 /// the longest of the walk's controlling members other than its total (the longest interval of
 /// the cycle), when that is longer than *i*, the interval that closed the walk; otherwise *i*.

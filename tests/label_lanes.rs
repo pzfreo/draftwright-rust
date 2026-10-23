@@ -98,7 +98,7 @@ fn a_moved_label_keeps_clear_of_strokes_it_never_touched() {
 fn short_native_dimensions_keep_their_text_on_their_span() {
     for (name, labels) in [
         ("mfcadpp/1000.step", vec!["6.925", "8.854", "10.854"]),
-        ("mfcadpp/10020.step", vec!["4.458", "1.233"]),
+        ("mfcadpp/10020.step", vec!["2.08", "2.845", "3.886"]),
         ("mfcadpp/10007.step", vec!["14.031"]),
         ("gramel/string_post.step", vec!["3.75", "6.5", "7.6"]),
     ] {
@@ -176,7 +176,6 @@ fn precise_labels_keep_their_span_after_the_final_inventory_settles() {
             "mfcadpp/10047.step",
             vec![
                 ("d:f:slot:1/slot_width.length", "4.53"),
-                ("d:step_level/step_height.length.h2_526", "2.526"),
                 ("d:f:section_recess:6/location_pocket.z", "3.526"),
             ],
         ),

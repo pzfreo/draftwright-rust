@@ -33,14 +33,19 @@ The detail-view integration also ports ISSUE-443-a, ISSUE-1216-b and
 LINT-code-detail_caption_clearance with executable tests.
 The radius-leader fix (#145) adds a Rust drafting rule for radial approach from either side; unavailable sections reuse the existing target-unverifiable code as info.
 The holes-threads stream (2026-10-23) ports ISSUE-1298-a: the tap drill's refusals are tested and a manufacturing requirements table with no place on the sheet falls back to full callouts, as draftwright does. LINT-hole_coverage-thread_and_profile has its Python half (an authored thread depth) tested and stays pending on a maintainer decision about the modelled-thread half.
+The leaders-tips stream ports ARCH0017-6, ISSUE-1374-a, ISSUE-1374-d and ISSUE-1276-a: lint
+checks flat, recess and slot leader tips against the faces their records publish (never an
+open mouth), a turned length's witness stations against its band's shoulders, and a chamfer,
+turned diameter or turned length whose leader or witness misses its feature loses its coverage
+credit; a knurl note is its band's diameter callout, so its leader lands on the knurled surface.
 Counts are computed from the merged YAML entries:
 
 | File | Pending | Ported | Translated | Retired |
 | --- | --- | --- | --- | --- |
-| `adr.yaml` | 4 | 69 | 61 | 26 |
+| `adr.yaml` | 3 | 70 | 61 | 26 |
 | `lint.yaml` | 2 | 130 | 14 | 20 |
-| `issues.yaml` | 4 | 110 | 50 | 26 |
-| **All** | **10** | **309** | **125** | **72** |
+| `issues.yaml` | 1 | 113 | 50 | 26 |
+| **All** | **6** | **313** | **125** | **72** |
 
 The evaluation of 2026-10-22 re-read the 30 rules then pending against main (alpha.12) and
 closed 17. Two were met in full (LINT-code-pmi_source_text_mismatch, ISSUE-1143-e) and 14 are
@@ -55,6 +60,13 @@ single solid (quiddity-rust #73, closed), now replaced. What still depends on qu
 ARCH0020-1 on #69 to #72,
 and ISSUE-1143-e's NIST CTC-04 case (pocket-rim chamfer corners misread as countersink seats)
 on #76.
+
+The second one-owner stream (2026-10-23) ports compound counts and lone blind pockets into
+the support-plane walk: counted labels and compound callouts state their members' intervals,
+and a face-level rung they determine yields. ADR1-8 and ADR4-U1 gain tests of the new
+behaviour and ISSUE-1505-b a test pinning existing behaviour; all three stay pending, so the counts are unchanged. ADR1-8 still lacks step legs, the other recess and
+hole depths and rebased ladder datums. ADR4-U1's angular sets and ISSUE-1505-b's off-page Z
+recovery and cut caps are proposed for retirement and await the maintainer's approval.
 
 The triage covered all 190 rules then pending: 80 PORT, 98 TRANSLATE and 12 RETIRE.
 The original PORT triage recorded value, size and stream in `port_note`. Of the TRANSLATE

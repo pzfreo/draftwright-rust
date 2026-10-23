@@ -607,7 +607,7 @@ fn the_ports_own_callouts_touch_their_targets() {
         let issues = lint::lint(&a, &drawing);
         let target: Vec<&LintIssue> = issues
             .iter()
-            .filter(|i| i.code.contains("_leader_target_"))
+            .filter(|i| i.code.contains("_leader_target_") || i.code.contains("_witness_target_"))
             .collect();
         assert!(target.is_empty(), "{name}: {target:#?}");
         holes += claims(&drawing, "bore.diameter");
@@ -1493,5 +1493,577 @@ fn flat_cut_bands_chamfers_and_fillets_lead_to_their_own_faces() {
             .map(|i| (i.code, i.annotation))
             .collect();
         assert!(bad.is_empty(), "{file}: {bad:?}");
+    }
+}
+
+// ---- ARCH0017-6: flats, recesses and slots; ISSUE-1374-a/d: credit goes with the leader ----
+
+/// A section recess record (quiddity's `SectionRecess`) of *kind* and *shape*, its *boundary*
+/// (`[x, y, bulge]` in a frame whose run is +z, u +x and v +y) swept over z 6 to 10, its low end
+/// capped or not and its high end open.
+fn recess(
+    id: &str,
+    kind: &str,
+    shape: &str,
+    boundary: &[[f64; 3]],
+    closed: bool,
+    capped: bool,
+) -> Value {
+    let end = |capped: bool| {
+        json!({ "condition": if capped { "capped" } else { "open" },
+                "surface": { "type": "plane", "gradient": [0.0, 0.0] } })
+    };
+    let points: Vec<Value> = boundary
+        .iter()
+        .map(|[x, y, b]| json!({ "point": [x, y], "bulge": b }))
+        .collect();
+    let mut profile =
+        json!({ "boundary": points, "closure": if closed { "closed" } else { "open" } });
+    if !closed {
+        let (first, last) = (boundary[0], boundary[boundary.len() - 1]);
+        profile["opening"] = json!([[last[0], last[1]], [first[0], first[1]]]);
+    }
+    feature(
+        id,
+        "section_recess",
+        json!({
+            "classification": { "feature_kind": kind, "section_shape": shape },
+            "evidence": { "defining_faces": [1], "constituent_faces": [1] },
+            "geometry": {
+                "type": "section_recess",
+                "frame": { "origin": [0.0, 0.0, 0.0], "run": [0.0, 0.0, 1.0],
+                           "u": [1.0, 0.0, 0.0], "v": [0.0, 1.0, 0.0] },
+                "profile": profile,
+                "run_interval": [6.0, 10.0],
+                "ends": { "low": end(capped), "high": end(false) },
+            },
+        }),
+    )
+}
+
+/// ARCH0017-6 for flats, recesses and slots: a callout's tip lies on the faces the record
+/// publishes for the feature it names, never in an open mouth, an opening or empty space. A flat's
+/// face is the chord its plane leaves on the band it cuts (on stock no band records, its plane
+/// within the part's box); a recess's faces are its section's walls swept along its run, its floor
+/// and capped ends; a through slot's, its outline swept through it (a slot pattern's, its member
+/// slots'); an oriented slot's, its passage section swept along its run.
+#[test]
+fn flat_recess_and_slot_tips_lie_on_their_own_faces() {
+    let check = |features: Vec<Value>,
+                 claims: &[(&str, &str)],
+                 direction: [f64; 3],
+                 tip: P,
+                 prefix: &str| {
+        let a = analysis(features, json!({}), &[]);
+        found(
+            &a,
+            &drawing(direction, vec![callout("d:x", claims, tip, [130.0, 110.0])]),
+            prefix,
+        )
+    };
+    let front = [0.0, -1.0, 0.0];
+    // A flat on its band: the chord along the axis, edge-on from the front.
+    let flat = |direction, tip| {
+        check(
+            flatted_band(3.4, Some(2.4)),
+            &[("f:flat:1", "flat.length")],
+            direction,
+            tip,
+            "flat_leader",
+        )
+    };
+    let flat_miss = one("flat_leader_target_mismatch", "d:x");
+    assert!(flat(ALONG_Z, page(-1.2, 0.5)).is_empty());
+    assert_eq!(
+        flat(ALONG_Z, page(-1.2, 1.5)),
+        flat_miss,
+        "past the chord, in air"
+    );
+    assert!(flat(front, page(-1.2, 3.0)).is_empty());
+    assert_eq!(
+        flat(front, page(-1.7, 0.0)),
+        flat_miss,
+        "the cut-away circle"
+    );
+    assert_eq!(flat(front, page(-1.2, 7.0)), flat_miss, "beyond its span");
+    // A flat on stock no band records: its plane within the part's box.
+    let plane = feature(
+        "f:flat:1",
+        "flat",
+        json!({ "across": 10.0, "at": [5.0, 0.0, 0.0], "axis": "z", "axis_direction": [0.0, 0.0, 1.0],
+                "axis_distance": 5.0, "axis_line": [0.0, 0.0], "opposed": false, "stock_span": [-5.0, 5.0],
+                "flat_plane": { "at": [5.0, 0.0, -5.0], "normal": [1.0, 0.0, 0.0] } }),
+    );
+    let prismatic = |tip| {
+        check(
+            vec![plane.clone()],
+            &[("f:flat:1", "flat.length")],
+            ALONG_Z,
+            tip,
+            "flat_leader",
+        )
+    };
+    assert!(prismatic(page(5.0, 3.0)).is_empty());
+    assert_eq!(prismatic(page(6.0, 3.0)), flat_miss);
+
+    // Recesses, seen down their run unless said.
+    let rect = [
+        [-3.0, -2.0, 0.0],
+        [3.0, -2.0, 0.0],
+        [3.0, 2.0, 0.0],
+        [-3.0, 2.0, 0.0],
+    ];
+    let pocket =
+        |closed_profile: &[[f64; 3]], kind: &str, closed: bool, capped: bool, direction, tip| {
+            check(
+                vec![recess(
+                    "f:section_recess:1",
+                    kind,
+                    "rectangular",
+                    closed_profile,
+                    closed,
+                    capped,
+                )],
+                &[("f:section_recess:1", "pocket_width.length")],
+                direction,
+                tip,
+                "recess_leader",
+            )
+        };
+    let recess_miss = one("recess_leader_target_mismatch", "d:x");
+    // A blind pocket: its walls and its floor; outside it is not the pocket.
+    assert!(pocket(&rect, "pocket", true, true, ALONG_Z, page(3.0, 0.0)).is_empty());
+    assert!(pocket(&rect, "pocket", true, true, ALONG_Z, page(0.0, 0.0)).is_empty());
+    assert_eq!(
+        pocket(&rect, "pocket", true, true, ALONG_Z, page(4.0, 0.0)),
+        recess_miss
+    );
+    // From the front: its near wall face between floor and mouth, not below its floor.
+    assert!(pocket(&rect, "pocket", true, true, front, page(0.0, 8.0)).is_empty());
+    assert_eq!(
+        pocket(&rect, "pocket", true, true, front, page(0.0, 4.0)),
+        recess_miss
+    );
+    // Through: the middle is its open mouth.
+    assert!(pocket(&rect, "pocket", true, false, ALONG_Z, page(3.0, 1.0)).is_empty());
+    assert_eq!(
+        pocket(&rect, "pocket", true, false, ALONG_Z, page(0.0, 0.0)),
+        recess_miss
+    );
+    // Open at a corner: two walls, and the floor of their extents up to the part's edges.
+    let corner = [[-3.0, 2.0, 0.0], [-3.0, -2.0, 0.0], [3.0, -2.0, 0.0]];
+    assert!(
+        pocket(
+            &corner,
+            "edge_open_recess",
+            false,
+            true,
+            ALONG_Z,
+            page(2.5, 1.5)
+        )
+        .is_empty()
+    );
+    assert_eq!(
+        pocket(
+            &corner,
+            "edge_open_recess",
+            false,
+            true,
+            ALONG_Z,
+            page(4.0, 0.0)
+        ),
+        recess_miss
+    );
+    // A circular seat: its arc, never the chord across its mouth.
+    let seat = |tip| {
+        check(
+            vec![recess(
+                "f:section_recess:1",
+                "channel",
+                "circular",
+                &[[-2.0, 0.0, 1.0], [2.0, 0.0, 0.0]],
+                false,
+                false,
+            )],
+            &[("f:section_recess:1", "seat_diameter.diameter")],
+            ALONG_Z,
+            tip,
+            "recess_leader",
+        )
+    };
+    assert!(seat(page(0.0, -2.0)).is_empty());
+    assert!(seat(page(2f64.sqrt(), -(2f64.sqrt()))).is_empty());
+    assert_eq!(seat(page(0.0, 0.0)), recess_miss);
+    // An unreadable record says so.
+    assert_eq!(
+        check(
+            vec![feature("f:section_recess:1", "section_recess", json!({}))],
+            &[("f:section_recess:1", "pocket_width.length")],
+            ALONG_Z,
+            page(0.0, 0.0),
+            "recess_leader",
+        ),
+        one("recess_leader_target_unverifiable", "d:x")
+    );
+
+    // A through slot (obround, its ends semicircles), and a slot pattern of it.
+    let slot = feature(
+        "f:slot:1",
+        "slot",
+        json!({ "long_axis": "x", "width_axis": "y", "width": 4.0, "length": 10.0, "lo": -5.0,
+                "hi": 5.0, "w_center": 0.0, "d_lo": 5.0, "d_hi": 10.0, "end_radius": 2.0 }),
+    );
+    let slots = |claims: &[(&str, &str)], tip| {
+        check(
+            vec![
+                slot.clone(),
+                feature("f:slot_pattern:1", "slot_pattern", json!({})),
+            ],
+            claims,
+            ALONG_Z,
+            tip,
+            "slot_leader",
+        )
+    };
+    let lone = [("f:slot:1", "slot_width.length")];
+    let slot_miss = one("slot_leader_target_mismatch", "d:x");
+    assert!(slots(&lone, page(0.0, 2.0)).is_empty());
+    assert!(slots(&lone, page(5.0, 0.0)).is_empty());
+    assert_eq!(slots(&lone, page(0.0, 0.0)), slot_miss, "its opening");
+    assert_eq!(
+        slots(&lone, page(4.9, 1.9)),
+        slot_miss,
+        "the box corner past its arc"
+    );
+    let grouped = [("f:slot_pattern:1", "slot_width.length")];
+    assert!(slots(&grouped, page(0.0, -2.0)).is_empty());
+    assert_eq!(slots(&grouped, page(0.0, 0.0)), slot_miss);
+    // An oriented slot: its passage section along its run.
+    let oriented = feature(
+        "f:oriented_slot:1",
+        "oriented_slot",
+        json!({ "width": 2.0, "length": 6.0, "source": {
+            "frame": { "origin": [0.0, 0.0, 0.0], "run": [0.0, 0.0, 1.0], "u": [1.0, 0.0, 0.0], "v": [0.0, 1.0, 0.0] },
+            "run_interval": [5.0, 10.0],
+            "section": { "closure": "closed", "boundary": [
+                { "point": [-3.0, -1.0] }, { "point": [3.0, -1.0] }, { "point": [3.0, 1.0] }, { "point": [-3.0, 1.0] } ] } } }),
+    );
+    let tilted = |tip| {
+        check(
+            vec![oriented.clone()],
+            &[("f:oriented_slot:1", "oriented_slot.width")],
+            ALONG_Z,
+            tip,
+            "slot_leader",
+        )
+    };
+    assert!(tilted(page(0.0, 1.0)).is_empty());
+    assert_eq!(tilted(page(0.0, 0.0)), slot_miss);
+}
+
+/// *d* with its one callout's label drawn as *text*.
+fn labelled(mut d: Drawing, text: &str) -> Drawing {
+    d.text.push(draftwright::output::TextRun {
+        text: text.into(),
+        at: [131.0, 111.0],
+        size: 3.0,
+        rotation: 0.0,
+        font: "IBMPlexMono-Regular.ttf".into(),
+        h_align: draftwright::output::HAlign::Left,
+        v_align: draftwright::output::VAlign::Baseline,
+    });
+    let run = d.text.len() - 1;
+    for a in &mut d.annotations {
+        a.runs = vec![run];
+    }
+    d
+}
+
+/// The requirement findings of *code_prefix* on *drawing* naming *feature*.
+fn requirement(a: &Analysis, drawing: &Drawing, prefix: &str, feature: &str) -> Vec<String> {
+    lint::lint(a, drawing)
+        .into_iter()
+        .filter(|i| {
+            i.code.starts_with(prefix) && i.requirements.iter().any(|r| r.feature == feature)
+        })
+        .map(|i| i.code)
+        .collect()
+}
+
+/// ISSUE-1374-a: the chamfer ledger credits a callout only while its leader is on the bevel. The
+/// same `C1` callout states its chamfer with its tip on the bevel; moved to the shaft's axis it
+/// is a mismatch and its chamfer is missing; a prismatic bevel called out in a view that does not
+/// see its edge end-on loses credit too. Two equal compound bevels share one callout and both
+/// keep their identities: a tip on either credits both, a tip on neither credits neither.
+#[test]
+fn a_chamfer_leader_off_its_bevel_loses_the_chamfers_credit() {
+    let bevel = |id: &str, z: f64| {
+        feature(
+            id,
+            "chamfer",
+            json!({ "angle": 45.0, "at": [0.0, -4.5, z], "axis": "z", "corner": null,
+                    "leg1": 1.0, "leg2": 1.0, "turned": true }),
+        )
+    };
+    let front = [0.0, -1.0, 0.0];
+    let run = |features: Vec<Value>, claims: &[(&str, &str)], direction, tip| {
+        let mut all = flatted_band(10.0, None);
+        all.extend(features);
+        let a = analysis(all, json!({}), &[]);
+        let d = labelled(
+            drawing(direction, vec![callout("d:c", claims, tip, [130.0, 110.0])]),
+            "C1",
+        );
+        (a, d)
+    };
+    let one_bevel = [("f:chamfer:1", "chamfer.length")];
+    let (a, d) = run(
+        vec![bevel("f:chamfer:1", 4.5)],
+        &one_bevel,
+        front,
+        page(4.5, 4.5),
+    );
+    assert!(requirement(&a, &d, "chamfer_", "f:chamfer:1").is_empty());
+    let (a, d) = run(
+        vec![bevel("f:chamfer:1", 4.5)],
+        &one_bevel,
+        front,
+        page(0.0, 4.5),
+    );
+    assert_eq!(
+        found(&a, &d, "chamfer_leader"),
+        one("chamfer_leader_target_mismatch", "d:c")
+    );
+    assert_eq!(
+        requirement(&a, &d, "chamfer_", "f:chamfer:1"),
+        ["chamfer_requirement_missing"]
+    );
+    // Wrong view: an edge along x is not seen end-on looking along z.
+    let prismatic = feature(
+        "f:chamfer:1",
+        "chamfer",
+        json!({ "angle": 45.0, "at": [0.0, 9.5, 9.5], "axis": "x", "corner": null,
+                "leg1": 1.0, "leg2": 1.0, "turned": false }),
+    );
+    let (a, d) = run(vec![prismatic.clone()], &one_bevel, ALONG_Z, page(0.0, 9.5));
+    assert_eq!(
+        requirement(&a, &d, "chamfer_", "f:chamfer:1"),
+        ["chamfer_requirement_missing"]
+    );
+    let side = [1.0, 0.0, 0.0];
+    let (a, d) = run(vec![prismatic], &one_bevel, side, page(-9.5, 9.5));
+    assert!(
+        found(&a, &d, "chamfer_leader").is_empty(),
+        "seen end-on, on its section"
+    );
+    assert!(requirement(&a, &d, "chamfer_", "f:chamfer:1").is_empty());
+    // Equal compound bevels at either end of the band share the callout.
+    let both = [
+        ("f:chamfer:1", "chamfer.length"),
+        ("f:chamfer:2", "chamfer.length"),
+    ];
+    let pair = || vec![bevel("f:chamfer:1", 4.5), bevel("f:chamfer:2", -4.5)];
+    let (a, d) = run(pair(), &both, front, page(4.5, -4.5));
+    for id in ["f:chamfer:1", "f:chamfer:2"] {
+        assert!(requirement(&a, &d, "chamfer_", id).is_empty(), "{id}");
+    }
+    let (a, d) = run(pair(), &both, front, page(0.0, 0.0));
+    for id in ["f:chamfer:1", "f:chamfer:2"] {
+        assert_eq!(
+            requirement(&a, &d, "chamfer_", id),
+            ["chamfer_requirement_missing"],
+            "{id}"
+        );
+    }
+}
+
+/// A linear dimension *name* in the plan view along page axis *k* between page stations *span*,
+/// its dimension line *offset* across, claiming *claims*.
+fn linear(
+    name: &str,
+    claims: &[(&str, &str)],
+    k: usize,
+    span: [f64; 2],
+    offset: f64,
+) -> (Annotation, Drawn) {
+    let at = |along: f64, across: f64| {
+        if k == 0 {
+            [along, across]
+        } else {
+            [across, along]
+        }
+    };
+    let lines = vec![
+        [at(span[0], offset - 8.0), at(span[0], offset + 1.0)],
+        [at(span[1], offset - 8.0), at(span[1], offset + 1.0)],
+        [at(span[0], offset), at(span[1], offset)],
+    ];
+    let (mut a, mut d) = callout(name, claims, [0.0, 0.0], [1.0, 1.0]);
+    d.lines = lines;
+    d.elbow = None;
+    a.name = name.into();
+    (a, d)
+}
+
+/// ISSUE-1374-d: a turned step's diameter and length earn credit only from ink on the band. The
+/// `ø3.4` callout tipped on the band's outline states the diameter; tipped at its axis it is a
+/// mismatch and the diameter is missing. The `10` length dimension whose extension lines stand at
+/// the band's shoulders (z −5 and 5) states its length; moved 1 mm along the axis it is
+/// `step_length_witness_target_mismatch` and the length is missing; seen along the axis it cannot
+/// be judged (info) and keeps its credit.
+#[test]
+fn turned_step_credit_needs_its_witnesses_and_leader_on_the_band() {
+    let a = analysis(flatted_band(3.4, None), json!({}), &[]);
+    let front = [0.0, -1.0, 0.0];
+    let diameter = |tip| {
+        labelled(
+            drawing(
+                front,
+                vec![callout(
+                    "d:d",
+                    &[("f:turned_step:1", "step.diameter")],
+                    tip,
+                    [130.0, 110.0],
+                )],
+            ),
+            "ø3.4",
+        )
+    };
+    let d = diameter(page(1.7, 0.0));
+    assert!(found(&a, &d, "step_diameter_leader").is_empty());
+    assert!(
+        !requirement(&a, &d, "turned_step_", "f:turned_step:1")
+            .iter()
+            .any(|c| c.contains("missing"))
+    );
+    let d = diameter(page(0.0, 0.0));
+    assert_eq!(
+        found(&a, &d, "step_diameter_leader"),
+        one("step_diameter_leader_target_mismatch", "d:d")
+    );
+    assert_eq!(
+        requirement(&a, &d, "turned_step_requirement_missing", "f:turned_step:1"),
+        ["turned_step_requirement_missing"]
+    );
+
+    let length = |direction, shift: f64| {
+        let [lo, hi] = [page(0.0, -5.0)[1], page(0.0, 5.0)[1]];
+        labelled(
+            drawing(
+                direction,
+                vec![linear(
+                    "d:l",
+                    &[("f:turned_step:1", "step.length")],
+                    1,
+                    [lo + shift, hi + shift],
+                    120.0,
+                )],
+            ),
+            "10",
+        )
+    };
+    let d = length(front, 0.0);
+    assert!(found(&a, &d, "step_length_witness").is_empty());
+    assert!(requirement(&a, &d, "axial_length_missing", "f:turned_step:1").is_empty());
+    let d = length(front, 1.0);
+    assert_eq!(
+        found(&a, &d, "step_length_witness"),
+        one("step_length_witness_target_mismatch", "d:l")
+    );
+    assert_eq!(
+        requirement(&a, &d, "axial_length_missing", "f:turned_step:1"),
+        ["axial_length_missing"]
+    );
+    let d = length(ALONG_Z, 1.0);
+    assert_eq!(
+        found(&a, &d, "step_length_witness"),
+        one("step_length_witness_target_unverifiable", "d:l")
+    );
+    assert!(requirement(&a, &d, "axial_length_missing", "f:turned_step:1").is_empty());
+}
+
+/// ISSUE-1276-a's knurl case: a knurl is printed on its turned step's diameter callout (AP242's on
+/// thumbwheel_thread_knurl's ø6 shank, `crate::pmi_lowering::manufacturing`; a Spec's the same
+/// way, `crate::spec_notes`), so its leader is the band's: in a profile view, tipped on the
+/// knurled band's own outline at its own station, not on the coaxial thread or the axis. Moved to
+/// the axis, it is a mismatch and the knurled diameter loses its credit.
+#[test]
+fn a_knurl_note_leads_to_its_knurled_surface() {
+    let (part, a) = cache::native(&fixture("pmi/step/thumbwheel_thread_knurl.step.gz"));
+    for (spec, knurl) in [
+        (Spec::default(), "DIAMOND KNURL P1"),
+        (
+            serde_json::from_value(json!({
+                "features": { "f:turned_step:4": { "knurl": { "pattern": "straight", "pitch": 0.8 } } }
+            }))
+            .unwrap(),
+            "STRAIGHT KNURL P0.8",
+        ),
+    ] {
+        let plan = model::plan(&a, &spec).unwrap();
+        let mut drawing = model::render(&part, &a, &plan, &font()).unwrap();
+        let name = "d:f:turned_step:4/step.diameter";
+        let ann = drawing
+            .annotations
+            .iter()
+            .find(|x| x.name == name)
+            .expect("the knurled band's callout");
+        let text: Vec<&str> = ann
+            .runs
+            .iter()
+            .map(|&i| drawing.text[i].text.as_str())
+            .collect();
+        let text = text.join(" ");
+        assert!(text.contains(knurl), "{text}");
+        let view = ann.view.clone().unwrap();
+        let f = drawing.sheet.frames[view.trim_start_matches("v:")].clone();
+        let step = a
+            .features
+            .iter()
+            .find(|x| x.id == "f:turned_step:4")
+            .unwrap();
+        let band = lint::turned::band(&draftwright::bridge::holes::frame(&a), step).unwrap();
+        assert!(
+            f.direction[band.axis].abs() < 1e-9,
+            "{view} shows the band in profile"
+        );
+        let issues = lint::lint(&a, &drawing);
+        let bad: Vec<_> = issues
+            .iter()
+            .filter(|i| {
+                i.annotation.as_deref() == Some(name) && i.code.starts_with("step_diameter_leader")
+            })
+            .collect();
+        assert!(bad.is_empty(), "{bad:#?}");
+        assert!(!issues.iter().any(|i| {
+            i.code == "turned_step_requirement_missing"
+                && i.requirements
+                    .iter()
+                    .any(|r| r.feature == step.id && r.parameter == "step.diameter")
+        }));
+        // To the axis: off the knurled surface.
+        let view_box = draftwright::haecceity::hlr::View::new(f.direction, f.up).unwrap();
+        let [lo, hi] = a.envelope;
+        let centre = view_box.map([0, 1, 2].map(|k| 0.5 * (lo[k] + hi[k])));
+        let mut on = band.on;
+        on[band.axis] = 0.5 * (band.lo + band.hi);
+        let q = view_box.map(on);
+        let axis_tip = [0, 1].map(|k| f.at[k] + f.scale * (q[k] - centre[k]));
+        let item = drawing
+            .sheet
+            .items
+            .iter_mut()
+            .find(|i| i.name == name && i.elbow.is_some())
+            .unwrap();
+        item.lines[0][0] = axis_tip;
+        let issues = lint::lint(&a, &drawing);
+        assert!(issues.iter().any(|i| i.annotation.as_deref() == Some(name)
+            && i.code == "step_diameter_leader_target_mismatch"));
+        assert!(issues.iter().any(|i| {
+            i.code == "turned_step_requirement_missing"
+                && i.requirements
+                    .iter()
+                    .any(|r| r.feature == step.id && r.parameter == "step.diameter")
+        }));
     }
 }

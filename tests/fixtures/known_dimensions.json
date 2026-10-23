@@ -2570,16 +2570,6 @@
     "reason": "Faithful nominal display intentionally replaces Python one-decimal rounding; exact model hundredths/thousandths are retained up to three places. Existing ownership and view differences remain independently listed (docs/drawn-values-2026-10-18.md)."
   },
   {
-    "part": "m10046",
-    "side": "rust",
-    "family": "step_height",
-    "view": "detail_a",
-    "label": "1.842",
-    "count": 1,
-    "verdict": "rust-correct",
-    "reason": "Faithful nominal display intentionally replaces Python one-decimal rounding; exact model hundredths/thousandths are retained up to three places. Existing ownership and view differences remain independently listed (docs/drawn-values-2026-10-18.md)."
-  },
-  {
     "part": "m10127",
     "side": "python",
     "family": "boss",
@@ -2965,16 +2955,6 @@
     "family": "envelope",
     "view": "front",
     "label": "27.340",
-    "count": 1,
-    "verdict": "rust-correct",
-    "reason": "When no faithful decimal fits within three places, the specified fallback prints all three places and reports nominal_rounded. Exact revised nominal text; measurements and ownership remain unchanged (docs/drawn-values-2026-10-18.md)."
-  },
-  {
-    "part": "m10046",
-    "side": "rust",
-    "family": "step_height",
-    "view": "front",
-    "label": "13.540",
     "count": 1,
     "verdict": "rust-correct",
     "reason": "When no faithful decimal fits within three places, the specified fallback prints all three places and reports nominal_rounded. Exact revised nominal text; measurements and ownership remain unchanged (docs/drawn-values-2026-10-18.md)."
