@@ -131,6 +131,7 @@ pub(crate) fn check_views(spec: &Spec) -> Result<(), Invalid> {
         {
             return Err(Invalid {
                 path: None,
+                also: Vec::new(),
                 message: format!(
                     "The view of {id:?} is {v:?}: a dimension is carried by a principal view."
                 ),
@@ -184,6 +185,7 @@ fn chosen_views(
         let Some(&v) = able.iter().find(|c| **c == v) else {
             return Err(Invalid {
                 path: None,
+                also: Vec::new(),
                 message: format!(
                     "{} cannot be carried by the {v} view (dimensions/{}/view): it is drawn only in a view that sees it across.",
                     w.id,
@@ -1998,6 +2000,61 @@ pub(crate) fn extension_contacts(dims: &[PlannedDimension]) -> usize {
         .sum()
 }
 
+/// Refuse every `dimensions` entry of *spec* naming a dimension not among *ids*, with the
+/// nearest IDs: the first as the refusal, the rest as its `also`, so a saved Spec's stale entries
+/// are found by one plan.
+fn unknown_dimensions(spec: &Spec, ids: &BTreeSet<&str>) -> Result<(), Invalid> {
+    let missing = spec
+        .dimensions
+        .keys()
+        .filter(|id| !ids.contains(id.as_str()))
+        .map(|id| {
+            let mut near: Vec<&str> = ids.iter().copied().collect();
+            near.sort_by_key(|c| (levenshtein(id, c), *c));
+            near.truncate(5);
+            // A `draftwright.spec/1` ID named its view (`d:<feature>/<parameter>@<view>`); a spec
+            // of version 2 is read with the IDs it has, so such a key reads as its stem.
+            let stem = id.rsplit_once('@').map(|(s, _)| s);
+            let reads = stem.filter(|s| ids.contains(s));
+            let mut choices: Vec<String> = reads.iter().map(|s| s.to_string()).collect();
+            for c in near {
+                if !choices.iter().any(|x| x == c) {
+                    choices.push(c.into());
+                }
+            }
+            choices.truncate(5);
+            let message = match reads {
+                Some(s) => format!(
+                    "There is no dimension {id:?} on this part: a dimension's ID no longer names its view (draftwright.spec/2), so it reads as {s:?}."
+                ),
+                None => format!("There is no dimension {id:?} on this part."),
+            };
+            Invalid {
+                message,
+                choices,
+                path: None,
+                also: Vec::new(),
+            }
+            .at("dimensions", id)
+        });
+    Invalid::first_of(missing).map_or(Ok(()), Err)
+}
+
+/// [`unknown_dimensions`] before any view is laid out: the dimensions the part has are the
+/// inventory's wants (recognised, PMI, callout, scheme and authored), which do not depend on the
+/// views or the sheet, so a `dimensions` entry naming one it does not have is refused here as the
+/// inventory would refuse it, without first planning the drawing around it.
+pub(crate) fn check_known(analysis: &Analysis, spec: &Spec) -> Result<(), Invalid> {
+    if spec.dimensions.is_empty() {
+        return Ok(());
+    }
+    let (mut wants, _, _) = pmi_policy::wants(analysis, spec);
+    callouts::apply(analysis, spec, &mut wants);
+    schemes::apply(analysis, spec, &mut wants)?;
+    authored::append(analysis, spec, &mut wants)?;
+    unknown_dimensions(spec, &wants.iter().map(|w| w.id.as_str()).collect())
+}
+
 /// The planned dimensions under *spec*, placed around *views* on *sheet*, with what the spec
 /// left out and the problems found. A spec naming a dimension the part does not have is refused
 /// with the nearest IDs.
@@ -2416,6 +2473,7 @@ fn plan_inventory_ordered(
         {
             return Err(Invalid {
                 path: None,
+                also: Vec::new(),
                 message: format!(
                     "conflicting precision for coincident dimensions {} and {}; shared measurements require matching display precision",
                     wants[i].id, wants[*j].id
@@ -2433,43 +2491,18 @@ fn plan_inventory_ordered(
     if ids.len() != wants.len() + retired.len() {
         return Err(Invalid {
             path: None,
+            also: Vec::new(),
             message: "Dimension IDs are not unique; the input has conflicting measurement owners."
                 .into(),
             choices: vec![],
         });
     }
+    unknown_dimensions(spec, &ids)?;
     for (id, entry) in &spec.dimensions {
-        if !ids.contains(id.as_str()) {
-            let mut near: Vec<&str> = ids.iter().copied().collect();
-            near.sort_by_key(|c| (levenshtein(id, c), *c));
-            near.truncate(5);
-            // A `draftwright.spec/1` ID named its view (`d:<feature>/<parameter>@<view>`); a spec
-            // of version 2 is read with the IDs it has, so such a key reads as its stem.
-            let stem = id.rsplit_once('@').map(|(s, _)| s);
-            let reads = stem.filter(|s| ids.contains(s));
-            let mut choices: Vec<String> = reads.iter().map(|s| s.to_string()).collect();
-            for c in near {
-                if !choices.iter().any(|x| x == c) {
-                    choices.push(c.into());
-                }
-            }
-            choices.truncate(5);
-            let message = match reads {
-                Some(s) => format!(
-                    "There is no dimension {id:?} on this part: a dimension's ID no longer names its view (draftwright.spec/2), so it reads as {s:?}."
-                ),
-                None => format!("There is no dimension {id:?} on this part."),
-            };
-            return Err(Invalid {
-                message,
-                choices,
-                path: None,
-            }
-            .at("dimensions", id));
-        }
         if entry.omit && spec.dimension_source == DimensionSource::Authored {
             return Err(Invalid {
                 path: None,
+                also: Vec::new(),
                 message: format!(
                     "{id:?} is omitted inside an authored set; in an authored set a dimension is left out by not listing it."
                 ),
@@ -2712,6 +2745,7 @@ fn plan_inventory_ordered(
         {
             return Err(Invalid {
                 path: None,
+                also: Vec::new(),
                 message: format!(
                     "The placement offset of {} applies only to callouts and linear dimensions.",
                     w.id
@@ -2733,6 +2767,7 @@ fn plan_inventory_ordered(
         {
             return Err(Invalid {
                 path: None,
+                also: Vec::new(),
                 message: format!(
                     "{} has no automatic linear placement in the requested view",
                     w.id
@@ -2752,6 +2787,7 @@ fn plan_inventory_ordered(
             let horizontal = placement::across(&frames[v], *axis) == Some(true);
             return Err(Invalid {
                 path: None,
+                also: Vec::new(),
                 message: format!(
                     "The side of {} must be parallel to its dimension line in {v}.",
                     w.id

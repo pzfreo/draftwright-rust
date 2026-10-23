@@ -186,6 +186,7 @@ pub fn check(title: &BTreeMap<String, String>) -> Result<(), Invalid> {
         None => Ok(()),
         Some(k) => Err(Invalid {
             path: None,
+            also: Vec::new(),
             message: format!(
                 "The title block has no cell for sheet/title/{k}, so it would not be drawn."
             ),

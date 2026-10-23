@@ -966,9 +966,14 @@ pub struct Invalid {
     pub choices: Vec<String>,
     /// The Spec entry refused, as an escaped [`crate::items::Op`] path
     /// (`dimensions/d:f:hole:1~1bore.diameter`), where the refusal is that the part has no such
-    /// feature, dimension, annotation, view or measurement.
+    /// feature, face, dimension, annotation, view or measurement.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub path: Option<String>,
+    /// The other entries, as paths, that the same check found the part does not have: a check
+    /// refuses at its first, and names the rest here so that
+    /// [`crate::session::Session::open_spec`] sets them all aside after one plan.
+    #[serde(skip)]
+    pub(crate) also: Vec<String>,
 }
 
 impl Invalid {
@@ -976,6 +981,19 @@ impl Invalid {
     pub(crate) fn at(mut self, collection: &str, key: &str) -> Invalid {
         self.path = Some(format!("{collection}/{}", crate::items::key(key)));
         self
+    }
+    /// The first of *refusals*, also naming the entries the others refuse when it names one
+    /// ([`Invalid::also`]); `None` when there are none.
+    pub(crate) fn first_of(refusals: impl IntoIterator<Item = Invalid>) -> Option<Invalid> {
+        let mut refusals = refusals.into_iter();
+        let mut first = refusals.next()?;
+        if first.path.is_some() {
+            for e in refusals {
+                first.also.extend(e.path);
+                first.also.extend(e.also);
+            }
+        }
+        Some(first)
     }
 }
 
@@ -994,6 +1012,7 @@ const INFEASIBLE_ISO_SCALE: &str = "The authored iso scale is infeasible in its 
 fn invalid(message: impl Into<String>, choices: &[&str]) -> Invalid {
     Invalid {
         path: None,
+        also: Vec::new(),
         message: message.into(),
         choices: choices.iter().map(|c| c.to_string()).collect(),
     }
@@ -4662,10 +4681,14 @@ fn plan_with_presentation(
                 .map(|r| r.id),
         );
         annotation_ids.extend(crate::dims::blends::note_ids(analysis));
-        for id in effective.annotations.keys() {
-            if !annotation_ids.contains(id) {
-                return Err(Invalid {
- path: None,
+        let missing = effective
+            .annotations
+            .keys()
+            .filter(|id| !annotation_ids.contains(id))
+            .map(|id| {
+                Invalid {
+                    path: None,
+                    also: Vec::new(),
                     message: format!(
                         "There is no annotation {id:?} on this part. Choose a current annotation ID, or remove annotations/{}.",
                         crate::items::key(id)
@@ -4676,20 +4699,26 @@ fn plan_with_presentation(
                         annotation_ids.clone()
                     },
                 }
-                .at("annotations", id));
-            }
+                .at("annotations", id)
+            });
+        if let Some(e) = Invalid::first_of(missing) {
+            return Err(e);
         }
     }
     let given = spec;
     let spec = &effective;
-    for name in spec.views.keys() {
-        if name != SECTION
-            && !crate::detail::NAMES.contains(&name.as_str())
-            && !VIEWS.iter().any(|(v, ..)| v == name)
-        {
+    let unknown = spec
+        .views
+        .keys()
+        .filter(|name| {
+            *name != SECTION
+                && !crate::detail::NAMES.contains(&name.as_str())
+                && !VIEWS.iter().any(|(v, ..)| v == *name)
+        })
+        .map(|name| {
             let mut names = VIEWS.map(|v| v.0).to_vec();
             names.push(SECTION);
-            return Err(invalid(
+            invalid(
                 if name.starts_with("v:") {
                     // The MCP's bounded correction recognises this established diagnostic.
                     format!("There is no view called {name:?}.")
@@ -4700,9 +4729,12 @@ fn plan_with_presentation(
                 },
                 &names,
             )
-            .at("views", name));
-        }
+            .at("views", name)
+        });
+    if let Some(e) = Invalid::first_of(unknown) {
+        return Err(e);
     }
+    crate::dims::check_known(analysis, spec)?;
     let mut demand = crate::demand::read(analysis);
     if spec.annotations.values().any(|a| a.text.is_some()) {
         demand.gdt = [
@@ -7470,6 +7502,7 @@ pub fn migrate(spec: &Spec, analysis: &Analysis) -> Result<Spec, Invalid> {
         if let Some(first) = from.get(&key) {
             return Err(Invalid {
                 path: None,
+                also: Vec::new(),
                 message: format!(
                     "The spec is {:?}, whose dimension keys {first:?} and {old:?} both read as {key:?} in {SPEC_SCHEMA} (a dimension's ID no longer names its view, and a PMI dimension is named by its record's identity): keep one of them.",
                     spec.schema

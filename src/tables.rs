@@ -358,6 +358,7 @@ pub fn check(tables: &[TableSpec]) -> Result<(), Invalid> {
     let free = || vec![next_id(tables.iter().map(|t| t.id.as_str()))];
     let refuse = |message: String| Invalid {
         path: None,
+        also: Vec::new(),
         message,
         choices: vec![],
     };
@@ -365,6 +366,7 @@ pub fn check(tables: &[TableSpec]) -> Result<(), Invalid> {
         if !well_formed(&t.id) {
             return Err(Invalid {
                 path: None,
+                also: Vec::new(),
                 message: format!(
                     "tables/{i} has the ID {:?}; a table's ID is t:<k>, k a whole number from 1 (t:1, t:2, …).",
                     t.id
@@ -375,6 +377,7 @@ pub fn check(tables: &[TableSpec]) -> Result<(), Invalid> {
         if tables[..i].iter().any(|u| u.id == t.id) {
             return Err(Invalid {
                 path: None,
+                also: Vec::new(),
                 message: format!(
                     "Two tables have the ID {:?} (tables/{i} and an earlier one); give each table its own.",
                     t.id
@@ -421,6 +424,7 @@ pub fn check(tables: &[TableSpec]) -> Result<(), Invalid> {
         {
             return Err(Invalid {
                 path: None,
+                also: Vec::new(),
                 message: format!(
                     "Table {id} (tables/{i}) prefers the corner {p:?}; a table goes towards tr, tl, br or bl."
                 ),

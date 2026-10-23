@@ -124,6 +124,7 @@ pub(crate) fn validate(a: &Analysis, s: &Spec) -> Result<(), Invalid> {
         let Some(k) = AXES.iter().position(|x| x == axis) else {
             return Err(Invalid {
                 path: None,
+                also: Vec::new(),
                 message: format!("origin/{axis}: axis must be x, y or z."),
                 choices: AXES.iter().map(|s| s.to_string()).collect(),
             });
@@ -131,6 +132,7 @@ pub(crate) fn validate(a: &Analysis, s: &Spec) -> Result<(), Invalid> {
         if origin(a, r, k).is_none() {
             return Err(Invalid {
                 path: None,
+                also: Vec::new(),
                 message: format!(
                     "origin/{axis}: {r} must identify min, max or one plane normal to {axis}."
                 ),

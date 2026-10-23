@@ -2488,6 +2488,7 @@ pub(crate) fn validate_placements(
         let Some((_, sides)) = choices.iter().find(|(name, _)| *name == view) else {
             return Err(crate::model::Invalid {
                 path: None,
+                also: Vec::new(),
                 message: format!(
                     "{} cannot attach in the {view} view; choose a compatible view.",
                     record.label
@@ -2502,6 +2503,7 @@ pub(crate) fn validate_placements(
         {
             return Err(crate::model::Invalid {
                 path: None,
+                also: Vec::new(),
                 message: format!(
                     "{} has no proven site {} the {view} view; choose a side it attaches on.",
                     record.label,

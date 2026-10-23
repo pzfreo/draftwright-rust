@@ -184,25 +184,35 @@ fn open_spec_still_refuses_other_refusals() {
     assert_eq!(s.open_spec("{").unwrap_err().code, "invalid");
 }
 
-/// The ops are the editor's `specOperations` and the MCP's `spec_diff`: sorted keys, `schema`
-/// skipped at the root, `~` and `/` escaped, arrays and scalars replaced whole, a key missing or
-/// null in *after* removed.
+/// The ops: sorted keys, `schema` skipped at the root, `~` and `/` escaped, arrays and scalars
+/// replaced whole, a new empty object set, a key missing or null in *after* removed.
 #[test]
 fn spec_ops_turn_one_spec_into_another() {
     let before = json!({"schema": "a", "x": {"b": 1, "c": [1, 2], "k": {"schema": 1}}, "d": 1,
                         "n": null});
     let after = json!({"schema": "b", "x": {"c": [1], "e/f~": {"g": 2}, "k": {"schema": 2}},
-                       "h": null, "z": {}, "n": {"m": true}});
+                       "h": null, "z": {}, "n": {"m": true}, "d2": 3});
     assert_eq!(
         api::spec_ops(&before, &after),
         [
             Op::remove("d"),
+            Op::set("d2", json!(3)),
             Op::set("n/m", json!(true)),
             Op::remove("x/b"),
             Op::set("x/c", json!([1])),
             Op::set("x/e~1f~0/g", json!(2)),
             Op::set("x/k/schema", json!(2)),
+            // A new empty object is set whole: it has no keys to set one by one.
+            Op::set("z", json!({})),
         ]
+    );
+    // An object replacing a scalar is set whole; an emptied object loses its keys.
+    assert_eq!(
+        api::spec_ops(
+            &json!({"a": 1, "b": {"c": 1}}),
+            &json!({"a": {"x": 1}, "b": {}})
+        ),
+        [Op::set("a", json!({"x": 1})), Op::remove("b/c")]
     );
     assert!(api::spec_ops(&after, &after).is_empty());
     assert_eq!(api::spec_ops(&json!(1), &json!(2)), [Op::set("", json!(2))]);
@@ -227,4 +237,298 @@ fn spec_ops_turn_one_spec_into_another() {
     let back = api::spec_ops(&after, &before);
     let restored = model::edit(&edited, &serde_json::to_value(&back).unwrap()).unwrap();
     assert_eq!(serde_json::to_value(&restored).unwrap(), before);
+}
+
+fn renumbered(old: &str, new: &str) -> Session {
+    let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/parts/mounting_plate.step");
+    let (part, mut analysis) = model::analyse_native(&path).unwrap();
+    for f in &mut analysis.features {
+        if f.id == old {
+            f.id = new.into();
+        }
+    }
+    for p in analysis
+        .recognition
+        .iter_mut()
+        .flat_map(|r| &mut r.patterns)
+    {
+        for m in &mut p.members {
+            if m == old {
+                *m = new.into();
+            }
+        }
+    }
+    Session::new(part, analysis, model::Spec::default()).unwrap()
+}
+
+fn sorted(mut v: Vec<SetAside>) -> Vec<SetAside> {
+    v.sort_by(|a, b| a.path.cmp(&b.path));
+    v
+}
+
+/// A saved anchor whose faces the part no longer has is a stale entry, set aside with the rest
+/// applied; a malformed anchor is the Spec's error and still refuses the whole Spec.
+#[test]
+fn a_stale_anchor_is_set_aside_and_a_malformed_one_refused() {
+    let mut s = plate();
+    let gone = format!("face:sha256:{}", "0".repeat(64));
+    let saved = json!({
+        "features": {"f:hole:4": {"suppress": true, "anchor": {"faces": [gone]}}},
+        "views": {"iso": {"omit": true}},
+    });
+    let e = s.set_spec(&spec(saved.clone())).unwrap_err();
+    assert_eq!(e.path.as_deref(), Some("features/f:hole:4"));
+    let opened = s.open_spec(&saved.to_string()).unwrap();
+    assert_eq!(
+        opened.set_aside,
+        [set_aside(
+            "features/f:hole:4",
+            saved["features"]["f:hole:4"].clone(),
+            "no_feature"
+        )]
+    );
+    assert_eq!(opened.spec["views"], json!({"iso": {"omit": true}}));
+    // The hole is not suppressed: its bore is still drawn.
+    assert!(
+        s.plan()
+            .dimensions
+            .iter()
+            .any(|d| d.id == "d:f:hole:4/bore.diameter")
+    );
+
+    let mut t = plate();
+    let malformed =
+        json!({"features": {"f:hole:4": {"suppress": true, "anchor": {"faces": ["face:1"]}}}});
+    let e = t.open_spec(&malformed.to_string()).unwrap_err();
+    assert_eq!(e.path, None);
+}
+
+/// A face entry naming a face the part does not have is set aside as `no_face`; a face key that
+/// is no face name at all is the Spec's error.
+#[test]
+fn a_stale_face_entry_is_set_aside() {
+    let mut s = plate();
+    let saved = json!({
+        "faces": {"face:99999": {"datum": "B"}, "bottom": {"datum": "A"}},
+        "features": {"f:hole:4": {"controls": [
+            {"characteristic": "position", "tolerance": 0.1, "datums": ["A"]}]}},
+    });
+    let e = s.set_spec(&spec(saved.clone())).unwrap_err();
+    assert_eq!(e.path.as_deref(), Some("faces/face:99999"));
+    let opened = s.open_spec(&saved.to_string()).unwrap();
+    assert_eq!(
+        opened.set_aside,
+        [set_aside(
+            "faces/face:99999",
+            json!({"datum": "B"}),
+            "no_face"
+        )]
+    );
+    assert_eq!(opened.spec["faces"], json!({"bottom": {"datum": "A"}}));
+    assert!(
+        s.plan()
+            .gdt
+            .iter()
+            .any(|g| g.source == "spec:faces/bottom/datum")
+    );
+
+    let mut t = plate();
+    let e = t
+        .open_spec(&json!({"faces": {"topp": {"datum": "A"}}}).to_string())
+        .unwrap_err();
+    assert_eq!(e.path, None);
+}
+
+/// A datum set aside with its feature leaves a control citing it applied, with the
+/// `datum_undeclared` warning a control citing an undeclared datum always has: the control is
+/// not refused, so it is kept rather than lost.
+#[test]
+fn a_control_citing_a_set_aside_datum_is_kept_with_its_warning() {
+    let mut s = plate();
+    let control = json!({"controls": [
+        {"characteristic": "position", "tolerance": 0.1, "datums": ["A"]}]});
+    let saved = json!({
+        "features": {"f:hole:99": {"datum": "A"}, "f:hole:4": control},
+        "views": {"iso": {"omit": true}},
+    });
+    let opened = s.open_spec(&saved.to_string()).unwrap();
+    assert_eq!(
+        opened.set_aside,
+        [set_aside(
+            "features/f:hole:99",
+            json!({"datum": "A"}),
+            "no_feature"
+        )]
+    );
+    assert_eq!(opened.spec["features"]["f:hole:4"], control);
+    assert_eq!(opened.spec["views"], json!({"iso": {"omit": true}}));
+    assert!(
+        s.plan()
+            .gdt
+            .iter()
+            .any(|g| g.source == "spec:features/f:hole:4/controls/0")
+    );
+    assert!(
+        s.plan()
+            .problems
+            .iter()
+            .any(|p| p.code == "datum_undeclared")
+    );
+}
+
+/// A member of an authored group that the part no longer has is taken out of the group alone
+/// while the rest is still a group; when the rest is no longer one, the whole group is set
+/// aside, as it was saved.
+#[test]
+fn a_gone_group_member_is_set_aside_alone_while_the_group_holds() {
+    // f:hole:3 (x = 30, y = -15) is renumbered f:hole:103.
+    let mut s = renumbered("f:hole:3", "f:hole:103");
+    let row = json!({"pattern": {"arrangement": "linear",
+                                 "members": ["f:hole:1", "f:hole:3", "f:hole:2"]}});
+    let saved = json!({"features": {"f:hole_pattern:row": row}});
+    let e = s.set_spec(&spec(saved.clone())).unwrap_err();
+    assert_eq!(
+        e.path.as_deref(),
+        Some("features/f:hole_pattern:row/pattern/members/1")
+    );
+    let opened = s.open_spec(&saved.to_string()).unwrap();
+    assert_eq!(
+        opened.set_aside,
+        [set_aside(
+            "features/f:hole_pattern:row/pattern/members/1",
+            json!("f:hole:3"),
+            "no_feature"
+        )]
+    );
+    assert_eq!(
+        opened.spec["features"]["f:hole_pattern:row"]["pattern"]["members"],
+        json!(["f:hole:1", "f:hole:2"])
+    );
+    assert!(
+        s.plan()
+            .dimensions
+            .iter()
+            .any(|d| d.id.starts_with("d:f:hole_pattern:row/"))
+    );
+
+    // Four members on a 2 × 2 grid: three are no grid, so the whole group is set aside.
+    let mut t = renumbered("f:hole:6", "f:hole:106");
+    let grid = json!({"pattern": {"arrangement": "grid",
+        "members": ["f:hole:1", "f:hole:2", "f:hole:5", "f:hole:6"]}});
+    let saved = json!({"features": {"f:hole_pattern:corner": grid.clone()},
+                       "views": {"iso": {"omit": true}}});
+    let opened = t.open_spec(&saved.to_string()).unwrap();
+    assert_eq!(
+        opened.set_aside,
+        [set_aside(
+            "features/f:hole_pattern:corner",
+            grid,
+            "no_feature"
+        )]
+    );
+    assert_eq!(opened.spec["views"], json!({"iso": {"omit": true}}));
+    assert!(
+        opened.spec["features"]
+            .get("f:hole_pattern:corner")
+            .is_none()
+    );
+}
+
+/// The reason is decided by what the part has, whichever entry is refused first: a dimension on
+/// a gone feature is `no_feature` whether or not the feature's own entry is saved too; a detail
+/// view around a gone face is `no_face`, and one from a source view the part does not have is
+/// `no_view`, with the detail's path.
+#[test]
+fn reason_codes_do_not_depend_on_the_order_of_refusals() {
+    let dimension = json!({"d:f:hole:99/bore.diameter": {"omit": true}});
+    for saved in [
+        json!({"dimensions": dimension}),
+        json!({"dimensions": dimension, "features": {"f:hole:99": {"fit": "H7"}}}),
+        json!({"dimensions": dimension, "features": {"f:hole:99": {"suppress": true}}}),
+    ] {
+        let mut s = plate();
+        let opened = s.open_spec(&saved.to_string()).unwrap();
+        let reasons: Vec<_> = sorted(opened.set_aside)
+            .into_iter()
+            .map(|a| (a.path, a.reason_code))
+            .collect();
+        assert_eq!(
+            reasons[0],
+            (
+                "dimensions/d:f:hole:99~1bore.diameter".to_string(),
+                "no_feature".to_string()
+            ),
+            "{saved}"
+        );
+        assert!(
+            reasons[1..]
+                .iter()
+                .all(|(p, r)| p == "features/f:hole:99" && r == "no_feature")
+        );
+    }
+
+    let mut s = plate();
+    let face = json!({"detail": {"around": "face:99999", "scale_factor": 3.0}});
+    let e = s
+        .set_spec(&spec(json!({"views": {"detail_a": face}})))
+        .unwrap_err();
+    assert_eq!(e.path.as_deref(), Some("views/detail_a"));
+    let opened = s
+        .open_spec(&json!({"views": {"detail_a": face}}).to_string())
+        .unwrap();
+    assert_eq!(
+        opened.set_aside,
+        [set_aside("views/detail_a", face, "no_face")]
+    );
+
+    // The plate has no section, so no detail can be taken from one.
+    let mut s = plate();
+    assert!(s.plan().views.iter().all(|v| v.id != "v:section_aa"));
+    let from = json!({"detail": {"around": "f:hole:4", "from": "section_aa", "scale_factor": 3.0}});
+    let e = s
+        .set_spec(&spec(json!({"views": {"detail_b": from}})))
+        .unwrap_err();
+    assert_eq!(e.path.as_deref(), Some("views/detail_b"), "{}", e.message);
+    let opened = s
+        .open_spec(&json!({"views": {"detail_b": from}}).to_string())
+        .unwrap();
+    assert_eq!(
+        opened.set_aside,
+        [set_aside("views/detail_b", from, "no_view")]
+    );
+}
+
+/// Every stale entry one check finds is named by its refusal (the first as `path`), so they are
+/// set aside together.
+#[test]
+fn many_stale_entries_are_set_aside_together() {
+    let mut s = plate();
+    let mut dimensions = serde_json::Map::new();
+    for i in 0..12 {
+        dimensions.insert(
+            format!("d:f:hole:{}/bore.diameter", 900 + i),
+            json!({"omit": true}),
+        );
+        dimensions.insert(format!("d:envelope/bogus{i}.length"), json!({"omit": true}));
+    }
+    dimensions.insert("d:f:hole:4/bore.diameter".into(), json!({"omit": true}));
+    let saved = json!({"dimensions": dimensions});
+    let plans = s.stats().plans;
+    let opened = s.open_spec(&saved.to_string()).unwrap();
+    assert_eq!(opened.set_aside.len(), 24);
+    assert_eq!(
+        opened
+            .set_aside
+            .iter()
+            .filter(|a| a.reason_code == "no_feature")
+            .count(),
+        12
+    );
+    assert_eq!(
+        opened.spec["dimensions"],
+        json!({"d:f:hole:4/bore.diameter": {"omit": true}})
+    );
+    // One committed edit opened it.
+    assert_eq!(s.stats().plans, plans + 1);
 }

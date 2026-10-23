@@ -91,6 +91,7 @@ fn invalid(path: &str, reason: impl std::fmt::Display) -> Invalid {
     };
     Invalid {
         path: None,
+        also: Vec::new(),
         message: format!(
             "{path}: {reason}; re-analyse and reattach to the current feature/face fingerprints, or {remedy}."
         ),
@@ -289,7 +290,10 @@ fn target_faces(a: &Analysis, id: &str) -> Option<Vec<usize>> {
 fn resolved_id(a: &Analysis, s: &Spec, id: &str) -> Result<String, Invalid> {
     let path = format!("features/{id}");
     if let Some(anchor) = s.features.get(id).and_then(|f| f.anchor.as_ref()) {
-        let faces = resolve_faces(a, &anchor.faces, &path)?;
+        // A malformed anchor is the Spec's error; faces the part no longer has (or no longer
+        // tells apart) are a stale entry, named by its path.
+        face_list(&path, &anchor.faces)?;
+        let faces = resolve_faces(a, &anchor.faces, &path).map_err(|e| e.at("features", id))?;
         let mut candidates: Vec<_> = a
             .features
             .iter()
@@ -322,17 +326,14 @@ fn resolved_id(a: &Analysis, s: &Spec, id: &str) -> Result<String, Invalid> {
                 return Ok(same_kind[0].clone());
             }
         }
-        let mut e = invalid(
+        return Err(invalid(
             &path,
             format!(
                 "the defining faces resolve to {} features; select one current feature",
                 candidates.len()
             ),
-        );
-        if candidates.is_empty() {
-            e.path = Some(format!("features/{}", crate::items::key(id)));
-        }
-        return Err(e);
+        )
+        .at("features", id));
     }
     if s.binding
         .as_ref()
@@ -344,8 +345,7 @@ fn resolved_id(a: &Analysis, s: &Spec, id: &str) -> Result<String, Invalid> {
         ));
     }
     if target_faces(a, id).is_none() {
-        let mut e = invalid(&path, "unknown feature or pattern");
-        e.path = Some(format!("features/{}", crate::items::key(id)));
+        let mut e = invalid(&path, "unknown feature or pattern").at("features", id);
         e.choices = a
             .features
             .iter()
@@ -361,40 +361,77 @@ fn resolved_id(a: &Analysis, s: &Spec, id: &str) -> Result<String, Invalid> {
     }
     Ok(id.to_string())
 }
-/// *e*, a refusal that the part has no feature *id*, naming the Spec entry that names it: its
-/// own `features` entry, the pattern that groups it, or the dimension or precision set on it.
+/// The feature a dimension or measurement key `d:<feature>/<parameter>` is on, when that is a
+/// recognised feature's ID (`f:…`, not a declaration's `f:declared:…`): the features a saved
+/// Spec's entries name, and corrections rebind.
+pub(crate) fn measured_feature(key: &str) -> Option<&str> {
+    let (feature, _) = key.strip_prefix("d:")?.rsplit_once('/')?;
+    (feature.starts_with("f:") && !feature.starts_with("f:declared:")).then_some(feature)
+}
+/// The path of member *id* of an authored group in *s*: `features/<group>/pattern/members/<i>`.
+fn member_path(s: &Spec, id: &str) -> Option<String> {
+    s.features.iter().find_map(|(g, f)| {
+        let i = f.pattern.as_ref()?.members.iter().position(|m| m == id)?;
+        Some(format!(
+            "features/{}/pattern/members/{i}",
+            crate::items::key(g)
+        ))
+    })
+}
+/// *e*, a refusal that the part has no feature *id*, naming the Spec entries that name it: the
+/// authored group it is a member of (that member alone), else its own `features` entry, else
+/// each dimension and precision entry set on it (the first as the path, the rest as `also`).
 fn refused_entry(s: &Spec, id: &str, mut e: Invalid) -> Invalid {
-    if e.path.is_none() || s.features.contains_key(id) {
+    if e.path.is_none() {
         return e;
     }
-    let on = |k: &String| {
-        k.strip_prefix("d:")
-            .and_then(|k| k.rsplit_once('/'))
-            .is_some_and(|(f, _)| f == id)
-    };
-    e.path = s
-        .features
-        .iter()
-        .find(|(_, f)| {
-            f.pattern
-                .as_ref()
-                .is_some_and(|p| p.members.iter().any(|m| m == id))
-        })
-        .map(|(k, _)| format!("features/{}", crate::items::key(k)))
-        .or_else(|| {
-            s.dimensions
-                .keys()
-                .find(|k| on(k))
-                .map(|k| format!("dimensions/{}", crate::items::key(k)))
-        })
-        .or_else(|| {
+    if let Some(member) = member_path(s, id) {
+        e.path = Some(member);
+        return e;
+    }
+    if s.features.contains_key(id) {
+        return e;
+    }
+    let mut on: Vec<String> = s
+        .dimensions
+        .keys()
+        .filter(|k| measured_feature(k) == Some(id))
+        .map(|k| format!("dimensions/{}", crate::items::key(k)))
+        .chain(
             s.precision
                 .keys()
-                .find(|k| on(k))
-                .map(|k| format!("precision/{}", crate::items::key(k)))
-        })
-        .or(e.path);
+                .filter(|k| measured_feature(k) == Some(id))
+                .map(|k| format!("precision/{}", crate::items::key(k))),
+        )
+        .collect();
+    if !on.is_empty() {
+        e.path = Some(on.remove(0));
+        e.also = on;
+    }
     e
+}
+/// Whether authored group *id* in *s* is still a group the part allows: at least two members
+/// and, when each resolves to a recognised hole, the arrangement it names. A member that does
+/// not resolve leaves this undecided (`true`): that member is refused on its own.
+pub(crate) fn group_holds(a: &Analysis, s: &Spec, id: &str) -> bool {
+    let Some(p) = s.features.get(id).and_then(|f| f.pattern.as_ref()) else {
+        return false;
+    };
+    if p.members.len() < 2 || !unique(&p.members) {
+        return false;
+    }
+    if p.members.iter().any(|m| m.starts_with("f:declared:")) {
+        return true;
+    }
+    let Ok(members) = p
+        .members
+        .iter()
+        .map(|m| resolved_id(a, s, m))
+        .collect::<Result<Vec<_>, _>>()
+    else {
+        return true;
+    };
+    pattern(a, id, p, members).is_ok()
 }
 /// Save defining-face anchors beside corrections and every grouped member. Explicit anchors
 /// are never silently replaced. The authored IDs of declarations and groups remain unchanged.
@@ -422,17 +459,25 @@ pub fn bind(a: &Analysis, s: Spec) -> Result<Spec, Invalid> {
         s.dimensions
             .keys()
             .chain(s.precision.keys())
-            .filter_map(|id| {
-                let (feature, _) = id.strip_prefix("d:")?.rsplit_once('/')?;
-                (feature.starts_with("f:")
-                    && !feature.starts_with("f:declared:")
-                    && s.features.get(feature).is_none_or(|f| f.pattern.is_none()))
-                .then(|| feature.to_string())
-            }),
+            .filter_map(|id| measured_feature(id))
+            .filter(|feature| s.features.get(*feature).is_none_or(|f| f.pattern.is_none()))
+            .map(String::from),
     );
-    let mut renamed = BTreeMap::new();
+    // Every feature the part does not have is refused at once (the first, and the rest as
+    // `also`), so a saved Spec's stale entries are found by one plan.
+    let mut refused = Vec::new();
+    let mut resolved_ids = Vec::new();
     for id in ids {
-        let resolved = resolved_id(a, &s, &id).map_err(|e| refused_entry(&s, &id, e))?;
+        match resolved_id(a, &s, &id) {
+            Ok(resolved) => resolved_ids.push((id, resolved)),
+            Err(e) => refused.push(refused_entry(&s, &id, e)),
+        }
+    }
+    if let Some(e) = Invalid::first_of(refused) {
+        return Err(e);
+    }
+    let mut renamed = BTreeMap::new();
+    for (id, resolved) in resolved_ids {
         if id != resolved {
             renamed.insert(id.clone(), resolved.clone());
         }
@@ -1440,12 +1485,7 @@ pub fn effective<'a>(a: &'a Analysis, s: &Spec) -> Result<Cow<'a, Analysis>, Inv
         if let Some(p) = &f.pattern {
             for m in &p.members {
                 if !m.starts_with("f:declared:") {
-                    let actual = resolved_id(a, s, m).map_err(|mut e| {
-                        if e.path.is_some() {
-                            e.path = Some(format!("features/{}", crate::items::key(id)));
-                        }
-                        e
-                    })?;
+                    let actual = resolved_id(a, s, m).map_err(|e| refused_entry(s, m, e))?;
                     // Invariant: resolved_id refuses absent features and patterns before target_faces is called.
                     targets.insert(m.clone(), json!(target_faces(a, &actual).unwrap()));
                     resolved.insert(m.clone(), actual);

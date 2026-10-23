@@ -136,6 +136,7 @@ fn invalid(message: String, choices: Vec<String>) -> Invalid {
         message,
         choices,
         path: None,
+        also: Vec::new(),
     }
 }
 
@@ -315,7 +316,8 @@ pub(crate) fn named_faces(analysis: &Analysis, key: &str) -> Result<Vec<usize>, 
                     count.saturating_sub(1)
                 ),
                 forms(),
-            )),
+            )
+            .at("faces", key)),
         };
     }
     let Some(&(side, k, high)) = SIDES.iter().find(|(s, ..)| *s == key) else {
@@ -350,7 +352,8 @@ pub(crate) fn named_faces(analysis: &Analysis, key: &str) -> Result<Vec<usize>, 
                 ["x", "y", "z"][k]
             ),
             forms(),
-        ));
+        )
+        .at("faces", key));
     }
     Ok(faces)
 }
@@ -505,25 +508,37 @@ fn pmi_effective<'a>(analysis: &'a Analysis, spec: &Spec) -> Result<Cow<'a, Anal
     let mut frames: BTreeMap<(String, Vec<usize>), String> = BTreeMap::new();
     let entries: Vec<Entry<'_>> = {
         let mut v = Vec::new();
+        // Every feature or face the part does not have is refused at once (the first, and the
+        // rest as `also`).
+        let mut refused = Vec::new();
         for (id, f) in &spec.features {
             if f.datum.is_some() || !f.controls.is_empty() {
-                v.push((
-                    format!("features/{}", crate::items::key(id)),
-                    feature_faces(analysis, id)?,
-                    &f.datum,
-                    &f.controls,
-                ));
+                match feature_faces(analysis, id) {
+                    Ok(faces) => v.push((
+                        format!("features/{}", crate::items::key(id)),
+                        faces,
+                        &f.datum,
+                        &f.controls,
+                    )),
+                    Err(e) => refused.push(e),
+                }
             }
         }
         for (key, f) in &spec.faces {
             if f.datum.is_some() || !f.controls.is_empty() {
-                v.push((
-                    format!("faces/{}", crate::items::key(key)),
-                    named_faces(analysis, key)?,
-                    &f.datum,
-                    &f.controls,
-                ));
+                match named_faces(analysis, key) {
+                    Ok(faces) => v.push((
+                        format!("faces/{}", crate::items::key(key)),
+                        faces,
+                        &f.datum,
+                        &f.controls,
+                    )),
+                    Err(e) => refused.push(e),
+                }
             }
+        }
+        if let Some(e) = Invalid::first_of(refused) {
+            return Err(e);
         }
         v
     };

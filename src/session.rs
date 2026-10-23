@@ -195,10 +195,172 @@ pub struct SetAside {
     pub path: String,
     /// The entry, as the Spec read in its current form has it.
     pub entry: Value,
-    /// Why: `no_feature` (the feature it names, its dimension's or measurement's feature, or the
-    /// feature a detail view is around, is not on the part), `no_dimension`, `no_measurement`,
-    /// `no_annotation` or `no_view`.
+    /// Why, decided by what the part and the opened Spec have (never by the order the entries
+    /// were refused in):
+    /// - `no_feature`: the feature it names is not on the part: a `features` entry, a member of
+    ///   an authored group (`features/<group>/pattern/members/<i>`, the member's ID as the
+    ///   entry), a dimension or measurement on a feature that is neither recognised, authored
+    ///   nor declared, nor anchored by a saved entry, or a detail view around such a feature;
+    /// - `no_face`: a `faces` entry, or a detail view around a face, the part does not have;
+    /// - `no_dimension`, `no_measurement`, `no_annotation`;
+    /// - `no_view`: a view the part does not have, or a detail view whose source view it does
+    ///   not have.
     pub reason_code: String,
+}
+
+/// An entry a refusal names, as [`Session::open_spec`] sets it aside: a keyed entry, or a member
+/// of an authored group (`features/<group>/pattern/members/<i>`), read as its ID before any is
+/// removed.
+enum Target {
+    Entry(String, String),
+    Member(String, Value),
+}
+
+impl Target {
+    fn read(value: &Value, path: &str) -> Option<Target> {
+        let segments: Vec<String> = path
+            .split('/')
+            .map(|k| k.replace("~1", "/").replace("~0", "~"))
+            .collect();
+        match segments.as_slice() {
+            [collection, key] if !key.is_empty() => {
+                Some(Target::Entry(collection.clone(), key.clone()))
+            }
+            [features, group, pattern, members, i]
+                if features == "features" && pattern == "pattern" && members == "members" =>
+            {
+                let member = value["features"][group]["pattern"]["members"]
+                    .get(i.parse::<usize>().ok()?)?
+                    .clone();
+                Some(Target::Member(group.clone(), member))
+            }
+            _ => None,
+        }
+    }
+
+    /// Take this entry out of *value*, recording it in *set_aside* (its reason is decided once
+    /// the Spec is open); whether it was there to take.
+    fn set_aside(
+        self,
+        analysis: &Analysis,
+        saved: &Value,
+        value: &mut Value,
+        set_aside: &mut Vec<SetAside>,
+    ) -> bool {
+        let aside = |path: String, entry: Value| SetAside {
+            path,
+            entry,
+            reason_code: String::new(),
+        };
+        match self {
+            Target::Entry(collection, key) => {
+                let Some(entry) = value
+                    .get_mut(&collection)
+                    .and_then(Value::as_object_mut)
+                    .and_then(|entries| entries.remove(&key))
+                else {
+                    return false;
+                };
+                set_aside.push(aside(format!("{collection}/{}", items::key(&key)), entry));
+                true
+            }
+            Target::Member(group, member) => {
+                let Some(members) = value["features"][&group]["pattern"]["members"].as_array_mut()
+                else {
+                    return false;
+                };
+                let Some(i) = members.iter().position(|m| m == &member) else {
+                    return false;
+                };
+                members.remove(i);
+                // Named by its place in the saved group.
+                let saved_group = &saved["features"][&group];
+                let at = saved_group["pattern"]["members"]
+                    .as_array()
+                    .and_then(|m| m.iter().position(|m| m == &member))
+                    .unwrap_or(i);
+                let group_path = format!("features/{}", items::key(&group));
+                set_aside.push(aside(format!("{group_path}/pattern/members/{at}"), member));
+                let holds = serde_json::from_value::<Spec>(value.clone()).is_ok_and(|s| {
+                    crate::recognition_corrections::group_holds(analysis, &s, &group)
+                });
+                if !holds {
+                    // No longer a group: the whole group is set aside, as it was saved.
+                    let prefix = format!("{group_path}/pattern/members/");
+                    set_aside.retain(|s| !s.path.starts_with(&prefix));
+                    let Some(entry) = value["features"]
+                        .as_object_mut()
+                        .and_then(|f| f.remove(&group))
+                    else {
+                        return true;
+                    };
+                    let entry = if saved_group.is_null() {
+                        entry
+                    } else {
+                        saved_group.clone()
+                    };
+                    set_aside.push(aside(group_path, entry));
+                }
+                true
+            }
+        }
+    }
+}
+
+/// Whether *analysis* has feature or pattern *id*.
+fn has_feature(analysis: &Analysis, id: &str) -> bool {
+    analysis.features.iter().any(|f| f.id == id)
+        || analysis
+            .recognition
+            .iter()
+            .flat_map(|r| &r.patterns)
+            .any(|p| p.id == id)
+}
+
+/// Why [`Session::open_spec`] set aside the entry at *path*, from what the part (*analysis*,
+/// corrected) and the opened Spec have: *exists* answers whether a feature is there.
+fn reason_code(
+    analysis: &Analysis,
+    path: &str,
+    entry: &Value,
+    exists: &dyn Fn(&str) -> bool,
+) -> &'static str {
+    let (collection, key) = path.split_once('/').unwrap_or((path, ""));
+    let key = key.replace("~1", "/").replace("~0", "~");
+    match collection {
+        "dimensions" | "precision" => {
+            match crate::recognition_corrections::measured_feature(&key) {
+                Some(f) if !exists(f) => "no_feature",
+                _ if collection == "precision" => "no_measurement",
+                _ => "no_dimension",
+            }
+        }
+        // Its own entry, or a member of an authored group.
+        "features" => "no_feature",
+        "faces" => "no_face",
+        "annotations" => "no_annotation",
+        "views" if crate::detail::NAMES.contains(&key.as_str()) => {
+            // A detail view: around a feature or a face the part no longer has, else from a
+            // source view it no longer has.
+            let around: Vec<&str> = match &entry["detail"]["around"] {
+                Value::String(id) => vec![id.as_str()],
+                Value::Array(ids) => ids.iter().filter_map(Value::as_str).collect(),
+                _ => Vec::new(),
+            };
+            if around.iter().any(|m| m.starts_with("f:") && !exists(m)) {
+                "no_feature"
+            } else if around
+                .iter()
+                .any(|m| !m.starts_with("f:") && crate::spec_gdt::named_faces(analysis, m).is_err())
+            {
+                "no_face"
+            } else {
+                "no_view"
+            }
+        }
+        "views" => "no_view",
+        _ => "no_entry",
+    }
 }
 
 /// The client-replayable state. Its render reuses the supplied geometry and annotation ink.
@@ -712,9 +874,14 @@ impl Session {
     /// Open a saved Spec (JSON), which may have been made for an earlier draftwright or
     /// recognition: it is read in its current form (`sheet/preferred_printer` as
     /// `sheet/preferred_max_size`, a `draftwright.spec/1` as `/2`), and each entry naming a
-    /// feature, dimension, annotation, view or measurement the part no longer has is set aside,
-    /// with the entry and why, and the rest applied as [`Session::set_spec`] applies it. Any other
-    /// refusal refuses the whole Spec, and the session is unchanged.
+    /// feature, face, dimension, annotation, view or measurement the part no longer has is set
+    /// aside, with the entry and why, and the rest applied as [`Session::set_spec`] applies it. A
+    /// member an authored group names that the part no longer has is taken out of the group
+    /// alone, unless the group is then no longer one, when the whole group is set aside. Any
+    /// other refusal refuses the whole Spec, and the session is unchanged.
+    ///
+    /// Each refusal names every entry its check found stale (`model::Invalid::also`), so a Spec
+    /// with many stale entries costs about one plan per kind of check refusing, not one per entry.
     pub fn open_spec(&mut self, json: &str) -> Result<OpenedSpec, Error> {
         let invalid = |e: serde_json::Error| Error::invalid(format!("invalid spec: {e}"));
         let mut value: Value = serde_json::from_str(json).map_err(invalid)?;
@@ -729,74 +896,49 @@ impl Session {
         // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
         let mut value =
             serde_json::to_value(model::migrate(&spec, self.analysis())?).expect("spec serialises");
+        let saved = value.clone();
         let mut set_aside = Vec::new();
         loop {
             let spec: Spec = serde_json::from_value(value.clone()).map_err(invalid)?;
             let refused = match self.set_spec(&spec) {
-                Ok(()) => {
-                    return Ok(OpenedSpec {
-                        // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
-                        spec: serde_json::to_value(self.spec()).expect("spec serialises"),
-                        set_aside,
-                    });
-                }
+                Ok(()) => break,
                 Err(e) => e,
             };
-            // Only an entry of a keyed map is set aside; each pass removes one, so this ends.
-            let Some((collection, key)) = refused
+            // Each pass removes at least one entry, so this ends.
+            let targets: Vec<Target> = refused
                 .path
-                .as_deref()
-                .and_then(|p| p.split_once('/'))
-                .filter(|(_, key)| !key.is_empty())
-                .map(|(c, k)| (c.to_string(), k.replace("~1", "/").replace("~0", "~")))
-            else {
-                return Err(refused);
-            };
-            let Some(entry) = value
-                .get_mut(&collection)
-                .and_then(Value::as_object_mut)
-                .and_then(|entries| entries.remove(&key))
-            else {
-                return Err(refused);
-            };
-            let reason_code = match collection.as_str() {
-                "dimensions" | "precision" => {
-                    let feature = key
-                        .strip_prefix("d:")
-                        .and_then(|k| k.rsplit_once('/'))
-                        .map(|(f, _)| f)
-                        .filter(|f| f.starts_with("f:") && !f.starts_with("f:declared:"));
-                    match feature {
-                        Some(f) if !self.has_feature(f) && value["features"].get(f).is_none() => {
-                            "no_feature"
-                        }
-                        _ if collection == "precision" => "no_measurement",
-                        _ => "no_dimension",
-                    }
-                }
-                "features" => "no_feature",
-                "annotations" => "no_annotation",
-                // A detail view is refused for the feature it is around.
-                "views" if crate::detail::NAMES.contains(&key.as_str()) => "no_feature",
-                "views" => "no_view",
-                _ => "no_entry",
-            };
-            set_aside.push(SetAside {
-                path: refused.path.unwrap_or_default(),
-                entry,
-                reason_code: reason_code.into(),
-            });
-        }
-    }
-    /// Whether recognition found feature or pattern *id*.
-    fn has_feature(&self, id: &str) -> bool {
-        self.analysis.features.iter().any(|f| f.id == id)
-            || self
-                .analysis
-                .recognition
                 .iter()
-                .flat_map(|r| &r.patterns)
-                .any(|p| p.id == id)
+                .chain(&refused.also)
+                .filter_map(|path| Target::read(&value, path))
+                .collect();
+            let mut removed = false;
+            for target in targets {
+                removed |= target.set_aside(&self.analysis, &saved, &mut value, &mut set_aside);
+            }
+            if !removed {
+                return Err(refused);
+            }
+        }
+        // Why, decided by what the part and the opened Spec have, not by the order of refusals.
+        let corrected = crate::recognition_corrections::effective(&self.analysis, self.spec()).ok();
+        let analysis = corrected.as_deref().unwrap_or(&self.analysis);
+        let spec = self.spec();
+        let exists = |id: &str| {
+            has_feature(analysis, id)
+                || spec
+                    .features
+                    .get(id)
+                    .is_some_and(|f| f.anchor.is_some() || f.pattern.is_some())
+                || spec.feature_declarations.iter().any(|d| d.id == id)
+        };
+        for s in &mut set_aside {
+            s.reason_code = reason_code(analysis, &s.path, &s.entry, &exists).into();
+        }
+        Ok(OpenedSpec {
+            // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
+            spec: serde_json::to_value(self.spec()).expect("spec serialises"),
+            set_aside,
+        })
     }
     /// Replace PMI against the original geometry, transactionally. Geometry caches survive.
     pub fn set_pmi(&mut self, bytes: &[u8]) -> Result<Delta, Error> {

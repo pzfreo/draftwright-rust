@@ -139,6 +139,7 @@ fn invalid(message: String, choices: Vec<String>) -> Invalid {
         message,
         choices,
         path: None,
+        also: Vec::new(),
     }
 }
 

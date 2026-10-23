@@ -51,10 +51,13 @@ pub struct Error {
     pub choices: Vec<String>,
     /// The Spec entry refused, as an escaped [`crate::items::Op`] path
     /// (`dimensions/d:f:hole:1~1bore.diameter`), where the refusal is that the part has no such
-    /// feature, dimension, annotation, view or measurement. [`crate::session::Session::open_spec`]
-    /// sets such entries aside.
+    /// feature, face, dimension, annotation, view or measurement.
+    /// [`crate::session::Session::open_spec`] sets such entries aside.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub path: Option<String>,
+    /// The other entries the same check found the part does not have (`model::Invalid::also`).
+    #[serde(skip)]
+    pub(crate) also: Vec<String>,
 }
 
 impl Error {
@@ -64,6 +67,7 @@ impl Error {
             message: message.into(),
             choices: Vec::new(),
             path: None,
+            also: Vec::new(),
         }
     }
 
@@ -73,6 +77,7 @@ impl Error {
             message: message.into(),
             choices: Vec::new(),
             path: None,
+            also: Vec::new(),
         }
     }
 }
@@ -104,15 +109,18 @@ impl From<model::Invalid> for Error {
             message: e.message,
             choices: e.choices,
             path: e.path,
+            also: e.also,
         }
     }
 }
 
 /// The `set` and `remove` ops on escaped paths ([`crate::items::key`]) that turn Spec *before*
 /// into *after*, as [`crate::items::Op`]s for [`crate::session::Session::apply`]: object keys in
-/// sorted order, `schema` at the root skipped, arrays and scalars replaced whole, and a key
-/// missing (or null) in *after* removed. The editor's `specOperations` and the MCP's `spec_diff`
-/// make the same ops.
+/// sorted order, `schema` at the root skipped, arrays and scalars replaced whole, an object new
+/// in *after* set key by key (an empty one set whole, `{}`), and a key missing in *after*
+/// removed. An explicit `null` in *after* also removes the key, as the MCP's `spec_diff` does;
+/// the editor's `specOperations` sets `null` there instead. A serialised Spec never holds
+/// `null`, so for Specs the three agree.
 pub fn spec_ops(before: &serde_json::Value, after: &serde_json::Value) -> Vec<crate::items::Op> {
     let mut ops = Vec::new();
     spec_diff(before, after, "", &mut ops);
@@ -131,6 +139,10 @@ fn spec_diff(
     }
     match (before, after) {
         (_, Value::Null) => out.push(crate::items::Op::remove(path)),
+        (b, Value::Object(a)) if !b.is_object() && (a.is_empty() || !b.is_null()) => {
+            // An empty object has no keys to set, and a scalar or array no keys to set them in.
+            out.push(crate::items::Op::set(path, after.clone()))
+        }
         (b, Value::Object(a)) => {
             let empty = serde_json::Map::new();
             let b = b.as_object().unwrap_or(&empty);

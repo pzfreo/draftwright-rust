@@ -145,6 +145,7 @@ pub(crate) fn check(s: &Spec) -> Result<(), Invalid> {
         message,
         choices,
         path: None,
+        also: Vec::new(),
     };
     for (id, p) in s
         .dimensions

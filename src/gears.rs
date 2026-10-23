@@ -74,6 +74,7 @@ impl<'de> Deserialize<'de> for GearSpec {
 fn invalid(message: impl Into<String>) -> Invalid {
     Invalid {
         path: None,
+        also: Vec::new(),
         message: message.into(),
         choices: Vec::new(),
     }
@@ -294,7 +295,11 @@ pub(crate) fn effective<'a>(
             }
             faces
         } else {
-            crate::spec_gdt::named_faces(&analysis, &g.on)?
+            // The refusal names gears/<i>, not a faces entry.
+            crate::spec_gdt::named_faces(&analysis, &g.on).map_err(|mut e| {
+                e.path = None;
+                e
+            })?
         };
         if faces.is_empty() {
             return Err(invalid(format!("gears/{i}/on has no faces")));

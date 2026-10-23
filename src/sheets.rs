@@ -176,6 +176,7 @@ pub(crate) fn validate(spec: &Spec) -> Result<(), Invalid> {
         message,
         choices,
         path: None,
+        also: Vec::new(),
     };
     if !(1..=9).contains(&max) {
         return Err(refuse(
