@@ -248,6 +248,8 @@ struct Hidden {
     callout_widths: BTreeMap<String, f64>,
     callout_tips: BTreeMap<String, (String, [f64; 2])>,
     dimension_labels: BTreeMap<String, (String, [f64; 2])>,
+    /// Each view's gutter translation, which a pin replay of this plan spends.
+    gutter_deltas: BTreeMap<String, [f64; 2]>,
     /// Each view's line work's overruns, in order.
     overruns: Vec<Vec<f64>>,
     /// Each problem's fixes as held: a problem's JSON states its offered fixes instead.
@@ -285,6 +287,7 @@ impl Entry {
                 callout_widths: plan.callout_widths.clone(),
                 callout_tips: plan.callout_tips.clone(),
                 dimension_labels: plan.dimension_labels.clone(),
+                gutter_deltas: plan.gutter_deltas.clone(),
                 overruns: plan
                     .views
                     .iter()
@@ -322,6 +325,7 @@ impl Entry {
         plan.callout_widths = hidden.callout_widths;
         plan.callout_tips = hidden.callout_tips;
         plan.dimension_labels = hidden.dimension_labels;
+        plan.gutter_deltas = hidden.gutter_deltas;
         for (view, overruns) in plan.views.iter_mut().zip(hidden.overruns) {
             for (work, overrun) in view.line_work.iter_mut().zip(overruns) {
                 work.overrun = overrun;

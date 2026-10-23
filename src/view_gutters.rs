@@ -500,6 +500,7 @@ fn translations(
 }
 
 pub(crate) fn apply(analysis: &Analysis, plan: &mut Plan) {
+    let replay = plan.replay_gutters.take();
     let preferred = plan.spec.sheet.view_gutter.unwrap_or(PREFERRED);
     if plan.spec.sheet.keep_layout == Some(true) || preferred == 0.0 || plan.views.len() < 2 {
         return;
@@ -544,6 +545,22 @@ pub(crate) fn apply(analysis: &Analysis, plan: &mut Plan) {
             *d = (*d * 1e8).round() / 1e8;
         }
     }
+    // A pin replay holds its first sheet's frames, so the solve above cannot spend
+    // spare paper there. Its later sheets are packed afresh, exactly as in the canonical
+    // drawing: give them that drawing's gutters rather than a solve coupled to the
+    // pinned first sheet.
+    if let Some(replay) = &replay {
+        for (v, d) in plan.views.iter().zip(deltas.iter_mut()) {
+            if v.sheet > 1 {
+                *d = replay.get(&v.id).copied().unwrap_or([0.0; 2]);
+            }
+        }
+    }
+    transport(analysis, plan, bounds, deltas);
+}
+
+/// Translate each view and its annotations by its gutter delta, and record the delta.
+fn transport(analysis: &Analysis, plan: &mut Plan, bounds: Vec<Rect>, deltas: Vec<[f64; 2]>) {
     // Rebase editor tip metadata from the transported paper point. Keeping the old
     // relative offset can lose an ulp when added to a translated view origin, so a
     // no-op offset pin would otherwise change its reported tip.
@@ -642,6 +659,11 @@ pub(crate) fn apply(analysis: &Analysis, plan: &mut Plan) {
         let v = &plan.views[i];
         plan.callout_tips
             .insert(id, (v.id.clone(), [tip[0] - v.at[0], tip[1] - v.at[1]]));
+    }
+    for (v, d) in plan.views.iter().zip(&deltas) {
+        let total = plan.gutter_deltas.entry(v.id.clone()).or_insert([0.0; 2]);
+        total[0] += d[0];
+        total[1] += d[1];
     }
     plan.sheet.fill = crate::sheet_fit::fill(analysis, plan);
 }
