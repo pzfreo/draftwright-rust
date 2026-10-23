@@ -1990,12 +1990,15 @@ fn turned_step_credit_needs_its_witnesses_and_leader_on_the_band() {
 #[test]
 fn a_knurl_note_leads_to_its_knurled_surface() {
     let (part, a) = cache::native(&fixture("pmi/step/thumbwheel_thread_knurl.step.gz"));
-    for spec in [
-        Spec::default(),
-        serde_json::from_value(json!({
-            "features": { "f:turned_step:4": { "knurl": { "pattern": "straight", "pitch": 0.8 } } }
-        }))
-        .unwrap(),
+    for (spec, knurl) in [
+        (Spec::default(), "DIAMOND KNURL P1"),
+        (
+            serde_json::from_value(json!({
+                "features": { "f:turned_step:4": { "knurl": { "pattern": "straight", "pitch": 0.8 } } }
+            }))
+            .unwrap(),
+            "STRAIGHT KNURL P0.8",
+        ),
     ] {
         let plan = model::plan(&a, &spec).unwrap();
         let mut drawing = model::render(&part, &a, &plan, &font()).unwrap();
@@ -2011,7 +2014,7 @@ fn a_knurl_note_leads_to_its_knurled_surface() {
             .map(|&i| drawing.text[i].text.as_str())
             .collect();
         let text = text.join(" ");
-        assert!(text.contains("KNURL") || text.contains("SEE MFG"), "{text}");
+        assert!(text.contains(knurl), "{text}");
         let view = ann.view.clone().unwrap();
         let f = drawing.sheet.frames[view.trim_start_matches("v:")].clone();
         let step = a

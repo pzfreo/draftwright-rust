@@ -573,7 +573,9 @@ impl Prism {
                     .count()
                     == 1
         });
-        let ring: Vec<[f64; 2]> = if !self.closed && square {
+        // Only a corner or a U (two or three supports) is read so: a longer chain, such as a
+        // stepped edge, would floor area outside the pocket, so it closes across its opening.
+        let ring: Vec<[f64; 2]> = if !self.closed && square && (3..=4).contains(&n) {
             let (mut lo, mut hi) = ([f64::INFINITY; 2], [f64::NEG_INFINITY; 2]);
             for (q, _) in &self.boundary {
                 for i in 0..2 {
@@ -1134,14 +1136,15 @@ pub(super) fn check(analysis: &Analysis, drawing: &Drawing) -> (Vec<LintIssue>, 
             let first = parameters.iter().find(|p| !claimed(p).is_empty()).copied();
             families.push((noun, ids, first, gap));
         }
-        let (ids, first) = by_kind(&["flat"], &[]);
-        let first = first.filter(|p| *p == "flat.length");
-        families.push((
-            "flat",
-            if first.is_some() { ids } else { Vec::new() },
-            first,
-            flat_gap,
-        ));
+        // A flat's length callout, whatever else of the flat the leader also claims.
+        let mut ids: Vec<&str> = Vec::new();
+        for f in claimed("flat.length") {
+            if kind(f) == "flat" && !ids.contains(&f) {
+                ids.push(f);
+            }
+        }
+        let first = (!ids.is_empty()).then_some("flat.length");
+        families.push(("flat", ids, first, flat_gap));
         let (ids, first) = by_kind(&["section_recess"], &[]);
         families.push(("recess", ids, first, recess_gap));
         // An end radius is judged against its arcs above.
