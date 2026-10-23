@@ -2640,20 +2640,37 @@ fn install_at(analysis: &Analysis, plan: &mut Plan, selection: &Selection) -> bo
             gdt.iter()
                 .filter_map(|g| g.placed.as_ref().map(|p| p.label_box)),
         );
-        for cut in plan
+        let local: Vec<_> = plan
             .views
             .iter()
             .filter_map(|v| v.cut.as_ref())
             .filter(|c| c.marked_in == view.id)
-        {
-            let [lo, hi] = analysis.envelope;
-            let a = frame.page([lo[0], cut.origin[1], lo[2]]);
-            let b = frame.page([hi[0], cut.origin[1], hi[2]]);
-            let (ink, letters) = crate::section::cutting_plane(
-                a[0].min(b[0]) - crate::section::OVERRUN,
-                a[0].max(b[0]) + crate::section::OVERRUN,
-                frame.page(cut.origin)[1],
-            );
+            .map(|cut| {
+                let [lo, hi] = analysis.envelope;
+                let a = frame.page([lo[0], cut.origin[1], lo[2]]);
+                let b = frame.page([hi[0], cut.origin[1], hi[2]]);
+                (
+                    a[0].min(b[0]) - crate::section::OVERRUN,
+                    a[0].max(b[0]) + crate::section::OVERRUN,
+                    frame.page(cut.origin)[1],
+                )
+            })
+            .collect();
+        let has_local = !local.is_empty();
+        // A section moved to another sheet is absent from this plan, but its cutting
+        // line is still drawn on this view: take it from the view's planned line work.
+        let remote = view
+            .line_work
+            .iter()
+            .filter(|w| w.kind == "cutting_plane" && !has_local)
+            .filter_map(|w| match w.curves.first() {
+                Some(crate::output::Curve::Line(a, b)) => {
+                    Some((a[0].min(b[0]), a[0].max(b[0]), a[1]))
+                }
+                _ => None,
+            });
+        for (x0, x1, y) in local.into_iter().chain(remote) {
+            let (ink, letters) = crate::section::cutting_plane(x0, x1, y);
             labels.extend(
                 ink.iter()
                     .filter_map(|i| crate::output::items_bbox(std::slice::from_ref(i))),

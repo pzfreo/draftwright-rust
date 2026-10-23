@@ -1833,6 +1833,32 @@ mod tests {
             .find(|c| c.size == "A2" && c.max == 2)
             .unwrap();
         assert_eq!(two.kind, None);
+        // Section A-A moves to sheet 2, but its cutting line stays drawn on the plan:
+        // no hole-schedule tag there may sit on it.
+        assert!(p.views.iter().any(|v| v.cut.is_some() && v.sheet == 2));
+        let plan = p.views.iter().find(|v| v.id == "v:plan").unwrap();
+        let cut = plan
+            .line_work
+            .iter()
+            .find(|w| w.kind == "cutting_plane")
+            .unwrap();
+        let crate::output::Curve::Line(a, b) = cut.curves[0] else {
+            panic!("cutting-plane line work is a line");
+        };
+        let tags: Vec<_> = p
+            .balloons
+            .iter()
+            .filter(|t| t.view == "v:plan")
+            .filter_map(|t| t.label_box.map(|r| (&t.id, r)))
+            .collect();
+        assert!(!tags.is_empty());
+        for (id, r) in tags {
+            let across = r[0] < a[0].max(b[0]) && r[2] > a[0].min(b[0]);
+            assert!(
+                !(across && r[1] < a[1] && r[3] > a[1]),
+                "{id} sits on the cutting line"
+            );
+        }
     }
 
     #[test]
