@@ -131,6 +131,9 @@ pub(crate) fn span(a: &Analysis, feature: &str, parameter: &str) -> Option<Span>
             .contains(&k)
             .then(|| Span::new(k, a.envelope[0][k], n.mouth[k]));
     }
+    if parameter.starts_with("pocket_") || parameter.starts_with("location_pocket.") {
+        return pocket_span(a, feature, parameter);
+    }
     let f = a.features.iter().find(|f| f.id == feature)?;
     if f.kind == "turned_step" && parameter == "step.length" && coaxial(a) {
         let b = super::turned::band(&frame(a), f).ok()?;
@@ -193,6 +196,49 @@ pub(crate) fn span(a: &Analysis, feature: &str, parameter: &str) -> Option<Span>
         return Some(Span::new(k, station("base")?, station("top")?));
     }
     None
+}
+
+/// ADR1-8: a lone blind pocket's width, length and depth run between its walls and from its floor
+/// to the face it opens into, along the part's axes, and its locations from the box's faces to
+/// its reference point (a pattern member's are its pattern's; a pocket whose mouth is a cylinder
+/// has a greatest depth, no second plane).
+fn pocket_span(a: &Analysis, feature: &str, parameter: &str) -> Option<Span> {
+    if super::pocket_patterns::member(a, feature) {
+        return None;
+    }
+    let (_, p) = super::pockets::placed(a)
+        .into_iter()
+        .find(|(f, _)| f.id == feature)?;
+    let p = p.ok()?;
+    let at = |k: usize, size: f64| Span::new(k, p.centre[k] - size / 2., p.centre[k] + size / 2.);
+    // Its location: the box's face to its reference point, the station pocket coverage reads.
+    if let Some(k) = parameter
+        .strip_prefix("location_pocket.")
+        .map(|w| w.trim_start_matches("location."))
+        .and_then(|w| ["x", "y", "z"].iter().position(|x| *x == w))
+    {
+        let datum = a.envelope[0];
+        let station = if k == p.long_axis && (p.lo - datum[k]).abs() <= 1e-6 {
+            p.lo
+        } else if k == p.long_axis {
+            (p.lo + p.hi) / 2.
+        } else if k == p.width_axis {
+            p.w_center
+        } else {
+            return None;
+        };
+        return Some(Span::new(k, datum[k], station));
+    }
+    match parameter {
+        "pocket_width.length" => Some(Span::new(
+            p.width_axis,
+            p.w_center - p.width / 2.,
+            p.w_center + p.width / 2.,
+        )),
+        "pocket_length.length" => Some(Span::new(p.long_axis, p.lo, p.hi)),
+        "pocket_depth.length" if !p.mouth => Some(at(p.depth_axis, p.depth)),
+        _ => None,
+    }
 }
 
 /// Stream K6 (#33, #26): a dimension drawn in brackets is reference, for information only; one
@@ -287,10 +333,8 @@ pub fn coverage(a: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
         let halves: Vec<Span> = m
             .claims
             .iter()
-            .filter(|c| c.parameter == "slot_width.length" && !m.text.contains('×'))
-            .filter_map(|c| slot_walls(a, &c.feature))
-            .filter(|(s, _)| own_spans.iter().any(|p| p.same(*s)))
-            .flat_map(|(s, c)| [Span::new(s.axis, s.lo, c), Span::new(s.axis, c, s.hi)])
+            .filter(|c| c.parameter != "slot_width.length" || !m.text.contains('×'))
+            .flat_map(|c| halves(a, &c.feature, &c.parameter, &own_spans))
             .collect();
         for s in own_spans {
             if let Some(route) = path(&edges, s) {
@@ -342,27 +386,66 @@ pub fn coverage(a: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
 }
 
 /// The support-plane intervals mark *m* states: each claim's plane interval, or an outside
-/// diameter's or A/F's support planes across it, whose length its text prints. A counted mark
-/// (`3× 10`) states no single interval.
+/// diameter's or A/F's support planes across it, whose length its text prints. ADR1-8: a counted
+/// mark (`4× 255`) states each member's interval its size prints, never through its count; a
+/// compound callout (`2 × 2.81 × 3.445 DEEP`) states each of its claims' intervals its terms print.
 fn stated_spans(a: &Analysis, m: &Mark) -> Vec<Span> {
+    stated(
+        a,
+        &m.text,
+        m.claims
+            .iter()
+            .map(|c| (c.feature.as_str(), c.parameter.as_str())),
+    )
+}
+
+/// The support-plane intervals a label printing *text* states for its *claims* (feature,
+/// parameter), as [`stated_spans`] reads a mark; the planner reads its own labels the same way.
+pub(crate) fn stated<'c>(
+    a: &Analysis,
+    text: &str,
+    claims: impl IntoIterator<Item = (&'c str, &'c str)>,
+) -> Vec<Span> {
     let mut own: Vec<Span> = Vec::new();
-    if m.text.contains('×') {
-        return own;
-    }
-    for c in &m.claims {
-        let found: Vec<Span> = match span(a, &c.feature, &c.parameter) {
+    let text = repeated(text).unwrap_or(text);
+    for (feature, parameter) in claims {
+        let found: Vec<Span> = match span(a, feature, parameter) {
             Some(s) => vec![s],
             None => (0..3)
-                .filter_map(|k| external_span(a, &c.feature, &c.parameter, k))
+                .filter_map(|k| external_span(a, feature, parameter, k))
                 .collect(),
         };
         for s in found {
-            if holes::states(&m.text, s.hi - s.lo) && !own.iter().any(|p| p.same(s)) {
+            if holes::states(text, s.hi - s.lo) && !own.iter().any(|p| p.same(s)) {
                 own.push(s);
             }
         }
     }
     own
+}
+
+/// The two halves of a stated slot width, or of a pocket's stated width or length, each from a
+/// wall to the centre line between them: a stated size fixes that centre line too. *own* is what
+/// the label states; a size it does not state has no halves.
+pub(crate) fn halves(a: &Analysis, feature: &str, parameter: &str, own: &[Span]) -> Vec<Span> {
+    let walls = match parameter {
+        "slot_width.length" => slot_walls(a, feature),
+        "pocket_width.length" | "pocket_length.length" => {
+            pocket_span(a, feature, parameter).map(|s| (s, (s.lo + s.hi) / 2.))
+        }
+        _ => None,
+    };
+    walls
+        .filter(|(s, _)| own.iter().any(|p| p.same(*s)))
+        .map(|(s, c)| vec![Span::new(s.axis, s.lo, c), Span::new(s.axis, c, s.hi)])
+        .unwrap_or_default()
+}
+
+/// The size a counted label repeats: `4× 255` repeats ` 255`. A compound callout's `×` (spaced,
+/// `2 × 3.7`) is no count.
+fn repeated(text: &str) -> Option<&str> {
+    let (count, size) = text.split_once('×')?;
+    (count.trim().parse::<usize>().is_ok() && !count.ends_with(' ')).then_some(size)
 }
 
 /// ISSUE-1505-b: the planner leaves one member of a closed chain to its stated total and the

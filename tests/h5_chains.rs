@@ -556,10 +556,12 @@ fn demo_bracket_references_are_optional_and_accounted_for() {
             .map(|(_, label)| label)
             .collect::<Vec<_>>()
     };
-    assert_eq!(ladder(&default), ["8", "12", "20", "32", "48"]);
+    // ADR1-8: the boss stands on the base plate, whose counted `2× 8` thickness and the 20 rung
+    // determine its 12 height (the boss-height chain of `a_boss_height_on_a_stated_level_is_a_reference`).
+    assert_eq!(ladder(&default), ["8", "20", "32", "48"]);
     assert_eq!(
         ladder(&opt_in),
-        ["8", "12", "20", "(28)", "32", "(36)", "48"]
+        ["8", "(12)", "20", "(28)", "32", "(36)", "48"]
     );
     assert!(default.dimensions.iter().all(|d| !d.reference));
     for reference in opt_in.dimensions.iter().filter(|d| d.reference) {
@@ -840,4 +842,162 @@ fn cgb217_keeps_its_short_shoulder_and_leaves_the_longest_band_to_the_total() {
             .iter()
             .any(|i| i.id == "l:axial_length_missing:f:turned_step:5/step.length")
     );
+}
+
+/// A plain mark of *text* claiming one *feature*'s *parameter*, drawn in the front view.
+fn mark(name: &str, text: &str, claims: &[(&str, &str)]) -> Mark {
+    Mark {
+        name: name.into(),
+        view: Some("v:front".into()),
+        text: text.into(),
+        claims: claims
+            .iter()
+            .map(|(feature, parameter)| Claim {
+                feature: (*feature).into(),
+                parameter: (*parameter).into(),
+            })
+            .collect(),
+    }
+}
+
+fn redundancy_codes(a: &Analysis, marks: &[Mark]) -> Vec<String> {
+    lint::check(a, marks)
+        .into_iter()
+        .filter(|i| {
+            matches!(
+                i.code.as_str(),
+                "duplicate_measurement" | "closed_dimension_chain"
+            )
+        })
+        .map(|i| i.id)
+        .collect()
+}
+
+/// ADR1-8 (compound callouts, unsupported spans): mfcadpp 10063's 3.304 × 6.278 pocket opens on
+/// the base and is 24.518 deep, so its floor is the 24.518 face level. The pocket callout states
+/// that interval; the rung yields to it, carrying its claim, and lint (reading the callout's
+/// depth as the same support planes) finds nothing stated twice. Drawn again, the rung is.
+#[test]
+fn m10063_a_rung_on_its_pockets_floor_is_conveyed_by_the_pocket_callout() {
+    let a = trimmed("m10063");
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    let rung = "d:step_level/step_height.length.h24_518";
+    let callout = "d:f:section_recess:3/pocket_width.length";
+    assert!(!p.dimensions.iter().any(|d| d.id == rung));
+    assert_eq!(covered_by(&p, rung), callout);
+    assert_eq!(
+        owners(&p, "step_level", "step_height.length.h24_518"),
+        vec![(
+            callout.to_string(),
+            "3.304 × 6.278 × 24.518 DEEP".to_string()
+        )]
+    );
+    let own = marks(&p);
+    assert!(redundancy_codes(&a, &own).is_empty());
+    let mut twice = own.clone();
+    twice.push(mark(
+        rung,
+        "24.518",
+        &[("step_level", "step_height.length.h24_518")],
+    ));
+    // Reported by its repeated claim and by its repeated support planes.
+    let mut found = redundancy_codes(&a, &twice);
+    found.dedup();
+    assert_eq!(
+        found,
+        ["l:duplicate_measurement:step_level/step_height.length.h24_518"]
+    );
+}
+
+/// ADR1-8 (point ordinates): mfcadpp 10020's 2 × 5.68 pocket is located to its centre (11.898)
+/// with its width stated, which fixes both walls; the 10.898 and 12.898 rungs on those walls are
+/// determined. They are left to the location and the callout (shown as reference with
+/// `references`), and a toleranced rung stays controlling. ADR4-U1 (compound counts): a counted
+/// `2× 2` stating both pockets' widths closes the far wall's chain just as the callout does.
+#[test]
+fn m10020_rungs_on_a_located_pockets_walls_yield_to_its_location_and_size() {
+    let a = trimmed("m10020");
+    let location = "d:f:section_recess:5/location_pocket.z";
+    let callout = "d:f:section_recess:5/pocket_width.length";
+    let walls = [
+        "d:step_level/step_height.length.h10_898",
+        "d:step_level/step_height.length.h12_898",
+    ];
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    for id in walls {
+        assert!(!p.dimensions.iter().any(|d| d.id == id), "{id}");
+        assert_eq!(covered_by(&p, id), location);
+    }
+    assert!(redundancy_codes(&a, &marks(&p)).is_empty());
+    let shown = model::plan(&a, &references()).unwrap();
+    for (id, label) in walls.iter().zip(["(10.898)", "(12.898)"]) {
+        let d = shown.dimensions.iter().find(|d| &d.id == id).unwrap();
+        assert_eq!((d.label.as_str(), d.reference), (label, true));
+        assert_eq!(d.determined_by, [location, callout]);
+    }
+    let toleranced: Spec =
+        serde_json::from_value(json!({"dimensions": {walls[1]: {"tolerance": "±0.1"}}})).unwrap();
+    let kept = model::plan(&a, &toleranced).unwrap();
+    let far = kept.dimensions.iter().find(|d| d.id == walls[1]).unwrap();
+    assert_eq!((far.label.as_str(), far.reference), ("12.898 ±0.1", false));
+    // Lint, independently: the far wall's rung drawn beside the location and a counted size.
+    let counted = vec![
+        mark(
+            location,
+            "11.898",
+            &[("f:section_recess:5", "location_pocket.z")],
+        ),
+        mark(
+            "authored:widths",
+            "2× 2",
+            &[
+                ("f:section_recess:1", "pocket_width.length"),
+                ("f:section_recess:5", "pocket_width.length"),
+            ],
+        ),
+        mark(
+            walls[1],
+            "12.898",
+            &[("step_level", "step_height.length.h12_898")],
+        ),
+    ];
+    assert_eq!(
+        redundancy_codes(&a, &counted),
+        ["l:closed_dimension_chain:step_level/step_height.length.h12_898"]
+    );
+}
+
+/// ADR1-8: only a counted or compound label lets a rung yield in that pass. On mfcadpp 10020
+/// (pocket callouts on the sheet) with a plate from the 17.961 level to the 26.685 level, the
+/// 26.685 rung closes with the 17.961 rung and the plate's thickness, and no label is on that
+/// chain: both rungs stay controlling, with or without `references`.
+#[test]
+fn a_rung_closed_by_a_rung_and_a_plate_without_a_label_stays_controlling() {
+    let mut a = trimmed("m10020");
+    let mut plate = a.features[0].clone();
+    plate.id = "f:plate:1".into();
+    plate.kind = "plate".into();
+    plate.parameters = json!({
+        "axis": "z", "lo": 17.960969758681, "hi": 26.68510842796, "u": 4.0, "v": 2.5
+    })
+    .as_object()
+    .unwrap()
+    .clone();
+    a.features.push(plate);
+    for spec in [Spec::default(), references()] {
+        let p = model::plan(&a, &spec).unwrap();
+        assert!(
+            p.dimensions
+                .iter()
+                .any(|d| d.id == "d:f:section_recess:5/pocket_width.length")
+        );
+        for (id, label) in [
+            ("d:step_level/step_height.length.h17_961", "17.961"),
+            ("d:step_level/step_height.length.h26_685", "26.685"),
+            ("d:f:plate:1/thickness.length", "8.724"),
+        ] {
+            let d = p.dimensions.iter().find(|d| d.id == id).unwrap();
+            assert_eq!((d.label.as_str(), d.reference), (label, false), "{id}");
+        }
+    }
 }

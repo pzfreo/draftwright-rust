@@ -125,7 +125,7 @@ if args.current:
     # Its retained 1 mm terminal-band length (turned_step:3/step.length) is now
     # the short local span: its outside-arrow label must stay beside its own tips,
     # rather than migrating along the neighbouring baseline's longer stations.
-    for part, labels in [('1000', ['6.925', '8.854', '10.854']), ('10020', ['4.458', '1.233']),
+    for part, labels in [('1000', ['6.925', '8.854', '10.854']), ('10020', ['2.08', '2.845', '3.886']),
                          ('10007', ['14.031']), ('string_post', ['1'])]:
         plan = json.loads((after / f'{part}.plan.json').read_text())
         for label in labels:

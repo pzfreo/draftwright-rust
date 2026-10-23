@@ -56,6 +56,13 @@ ARCH0020-1 on #69 to #72,
 and ISSUE-1143-e's NIST CTC-04 case (pocket-rim chamfer corners misread as countersink seats)
 on #76.
 
+The second one-owner stream (2026-10-23) ports compound counts and lone blind pockets into
+the support-plane walk: counted labels and compound callouts state their members' intervals,
+and a face-level rung they determine yields. ADR1-8 and ADR4-U1 gain tests of the new
+behaviour and ISSUE-1505-b a test pinning existing behaviour; all three stay pending, so the counts are unchanged. ADR1-8 still lacks step legs, the other recess and
+hole depths and rebased ladder datums. ADR4-U1's angular sets and ISSUE-1505-b's off-page Z
+recovery and cut caps are proposed for retirement and await the maintainer's approval.
+
 The triage covered all 190 rules then pending: 80 PORT, 98 TRANSLATE and 12 RETIRE.
 The original PORT triage recorded value, size and stream in `port_note`. Of the TRANSLATE
 group, seven rules already met in Rust are marked ported with verified test citations:
