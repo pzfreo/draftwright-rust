@@ -8,8 +8,8 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## 0.1.0-alpha.13 (2026-10-23)
 
-Now on quiddity-rust **v0.1.1** (previously `0.1.0-alpha.8`). This release fixes quiddity-rust
-#69, #70, #71, #75 and #76, and improves #72. Some drawings get worse, and those regressions are
+Now on quiddity-rust **v0.1.1** (previously `0.1.0-alpha.8`). This release picks up quiddity-rust's fixes
+for #69, #70, #71, #75 and #76, and its improvement to #72. Some drawings get worse, and those regressions are
 accepted for this alpha (listed under **Known regressions** below). Fixes are planned for alpha.14,
 on quiddity 0.1.2 and in draftwright.
 
@@ -43,9 +43,10 @@ on quiddity 0.1.2 and in draftwright.
   - CTC-01 merge: 21 → 30 warnings.
 - **Other changes in quiddity's output.**
   - CTC-02 rc: the 49.5 hole array is not found (#82).
-  - Countersunk holes lose their seat (#83).
+  - A countersunk hole loses its seat on the countersink-two-face fixture (#83).
   - 1000.step: the plate's top is off the grid (#84).
   - whistle_frame_reference: the plate is 7.3 thick, not 7.0 (#85).
+  - cgb217: its ø60 band is read as a boss, not a turned step.
 - **Draftwright's handling of framed records.**
   - cgb202: 16 fillets are read as blends (51 → 86 warnings, 1 error).
   - cgb207: "ALL UNSPECIFIED RADII" is not planned, and R5 is undimensioned.
@@ -83,7 +84,7 @@ on quiddity 0.1.2 and in draftwright.
 - The Python-rules catalogue (`docs/rules`) applies the 2026-10-22 evaluation of the 30 pending
   rules: 2 met in full and 14 ported for what Rust implements, each naming the clauses retired
   and why; `leader_shaft_unverified` retired; ARCH0020-1 left pending on
-  quiddity (quiddity-rust #69–#72); stale notes corrected. 12 rules remain pending. Two new
+  quiddity (quiddity-rust #69–#72); stale notes corrected. 11 rules remain pending (ISSUE-1298-b was since ported with document PMI on the part's solid, and ISSUE-958-a with the two-channels fixture). Two new
   tests check that a fillet radius leader moved off its arc is reported, and that omitting a
   threaded hole's callout reports its thread rather than losing it.
 - **Profile-angle lint credits determined corners.** Two kinds of outer-profile corner no
@@ -94,7 +95,6 @@ on quiddity 0.1.2 and in draftwright.
     hole or boss axes (GRM-04's two 96° taper corners between R3 and R4).
   Real gaps still report: the corners on cgb202, cgb207, CTC-03, CTC-04 and FTC-08 have no
   stated size or angle on the drawing. Drawings are unchanged.
-
 - **ISSUE-958-a ported.** The forward-order two-channels fixture held only one occurrence of
   the channelled block, so it reported one channel (reported upstream as quiddity-rust #73, which
   was the fixture, not recognition). It is replaced with quiddity-rust's
@@ -105,6 +105,7 @@ on quiddity 0.1.2 and in draftwright.
   the drawable area (for example FTC-09: `A4 up to 1: ruled out: view v:front with its annotation
   bands needs at least 305 × 217 mm at 1:2; A4 drawable area is 277 × 190 mm; …`). The same
   requests are skipped as before.
+
 ### Fixed
 
 - **Holes and bosses on inclined axes get a callout** instead of none (defect E2). The callout
@@ -148,8 +149,7 @@ on quiddity 0.1.2 and in draftwright.
     axis of a part turned whole. ctc05's 4× C6.35 no longer tips at the shaft's axis.
   - A fillet callout whose tip would miss every arc its view sees end-on now leads to one of
     its members' arcs, never a straight edge (ftc10's 41× R1). Its shaft may still approach
-    more than 15° off radial, so `radius_leader_not_radial` remains on ftc10 and cgb202 (E4
-    stays open).
+    more than 15° off radial, so `radius_leader_not_radial` remains on ftc10 (E4 stays open).
   - Lint checks turned-diameter and chamfer leader tips against those faces
     (`step_diameter_leader_target_mismatch`, `chamfer_leader_target_mismatch`). Each has an
     `…_unverifiable` info when the view cannot show the target, or when the tip misses the
@@ -158,7 +158,7 @@ on quiddity 0.1.2 and in draftwright.
   oblique axis has no arc in any principal view, so it gets no leader of its own. When a fillet
   leader already states the same radius, its count now includes the blend, so the radius is
   stated and `ALL UNSPECIFIED RADII` is placed instead of a `notes_not_placed` error (NIST
-  CTC-03, FTC-07, cgb207). With no equal leader the note is still withdrawn, as an error.
+  CTC-03, FTC-07; cgb207 loses this on quiddity v0.1.1, see Known regressions). With no equal leader the note is still withdrawn, as an error.
 - **Hexagonal stock states its overall extents.** The envelope lint now credits a stock's
   length with the extent along the bar, and its `HEX … A/F` callout with the extents across
   it that the regular section reaches, whatever its roll. The three false
