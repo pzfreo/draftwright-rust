@@ -12,7 +12,8 @@ All notable changes to draftwright-rust are recorded here, in the style of
   on the sheet (only reachable with an explicit `sheet/size` and `sheet/scale`), the callouts now
   state each requirement in full instead of pointing with `SEE MFG n` to a table that is not drawn,
   as draftwright does. The `table_not_placed` error goes away with the table, and the plan keeps
-  the requested spec. Drawings with room for the table are unchanged (ISSUE-1298-a).
+  the requested spec; an info finding `manufacturing_table_fallback` names the requirements printed
+  in full. Drawings with room for the table are unchanged (ISSUE-1298-a).
 
 ## 0.1.0-alpha.13 (2026-10-23)
 

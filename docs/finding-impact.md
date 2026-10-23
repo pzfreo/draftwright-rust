@@ -146,6 +146,7 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `location_on_datum` | advisory | The datum already states this zero location. |
 | `location_ref_dropped` | incomplete | A required drawing item was dropped before it could be stated. |
 | `manufacturing_reference_unresolved` | incomplete | A manufacturing requirement reference has no resolved drawn requirement. |
+| `manufacturing_table_fallback` | advisory | The callouts state the manufacturing requirements in full because their table has no place. |
 | `missing_principal_dimension` | incomplete | A principal overall size is absent from the drawing. |
 | `modelled_thread_not_depicted` | incomplete | The thread depiction or requirement could not be drawn. |
 | `nominal_rounded` | advisory | The printed nominal uses the documented display precision. |

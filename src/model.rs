@@ -3489,8 +3489,14 @@ pub fn plan_recovered(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid>
 /// replaced by the complete suffix (`⌀1.6 ↧ 3.8 M2 x 0.4-6H RH; 2.5 MIN FULL THREAD`), and
 /// the `table_not_placed` error gone with the table. Only a drawing the paper policy could not
 /// give room to (an explicit sheet/size and sheet/scale) reaches this; the requested spec is
-/// kept as the plan's, so a re-plan reaches the same drawing. A full replan that still leaves
-/// the table unplaced (it cannot, having no table) keeps the first drawing and its error.
+/// kept as the plan's, so a re-plan reaches the same drawing, and an info finding
+/// `manufacturing_table_fallback` names the requirements printed in full. A full replan that is
+/// refused, or that still leaves the table unplaced (it cannot, having no table), keeps the first
+/// drawing and its error: the fallback never makes a plannable spec unplannable.
+///
+/// [`plan`] applies it too, so the canonical and reference replays used for pins and radius
+/// references see the fallback drawing whenever the requested spec reaches it; the paper policy's
+/// sheet trials plan with [`plan_automatic`] and never do.
 fn manufacturing_fallback(
     analysis: &Analysis,
     spec: &Spec,
@@ -3521,7 +3527,9 @@ fn manufacturing_fallback(
                 style: crate::callouts::Style::Full,
             });
     }
-    let mut fallen = replan(&full)?;
+    let Ok(mut fallen) = replan(&full) else {
+        return Ok(plan);
+    };
     if fallen.problems.iter().any(|p| p.id == unplaced) {
         return Ok(plan);
     }
@@ -3531,11 +3539,26 @@ fn manufacturing_fallback(
             d.basis = d.basis.replace(
                 &format!("callouts/style Full: {source} full wording requested"),
                 &format!(
-                    "callouts/style Full: {source} the manufacturing requirements table has no place on the sheet, so the callout states the requirement in full (draftwright's fallback; a larger sheet/size or smaller sheet/scale restores the table)"
+                    "manufacturing table fallback: {source} the manufacturing requirements table has no place on the sheet, so the callout states the requirement in full (draftwright's fallback; a larger sheet/size or smaller sheet/scale restores the table)"
                 ),
             );
         }
     }
+    let sources: Vec<String> = owners.iter().map(|(_, s)| s.clone()).collect();
+    let mut subjects: Vec<String> = owners.iter().map(|(o, _)| o.clone()).collect();
+    subjects.dedup();
+    fallen.problems.push(Problem {
+        id: format!("p:manufacturing_table_fallback:{}", crate::pmi_lowering::SCHEDULE_ID),
+        code: "manufacturing_table_fallback".into(),
+        severity: "info".into(),
+        message: format!(
+            "The manufacturing requirements table has no place on the sheet, so the callouts state {} in full in place of SEE MFG references (draftwright's fallback). A larger sheet (sheet/size) or a smaller scale (sheet/scale) restores the table.",
+            sources.join(", ")
+        ),
+        subjects,
+        refs: sources,
+        ..Default::default()
+    });
     Ok(fallen)
 }
 
