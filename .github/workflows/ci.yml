@@ -199,6 +199,15 @@ jobs:
             echo "::error::shard ${{ matrix.shard }} was assigned $expected tests but ran $ran"
             exit 1
           fi
+      # An entry that does not read back identically is never stored, so it is made afresh
+      # each time it is asked for (src/plan_cache.rs): say so.
+      - if: always()
+        shell: bash
+        run: |
+          for note in "$DRAFTWRIGHT_TEST_PLAN_CACHE"/*.refused; do
+            [ -e "$note" ] && echo "::warning::plan cache refused $(basename "$note"): $(head -c 400 "$note")"
+          done
+          true
       # Durations for refreshing tools/test-durations.json (tools/test_shards.py --record).
       - if: always() && matrix.shard != 'harness'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
@@ -256,6 +265,13 @@ jobs:
       - run: python3 -I tools/ci_acceptance.py --job quality-pins --shard ${{ matrix.shard }}/4 --out target/acceptance
         env:
           DRAFTWRIGHT_PLAN_CACHE: ${{ github.workspace }}/plan-cache
+      - if: always()
+        shell: bash
+        run: |
+          for note in plan-cache/*.refused; do
+            [ -e "$note" ] && echo "::warning::plan cache refused $(basename "$note"): $(head -c 400 "$note")"
+          done
+          true
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
