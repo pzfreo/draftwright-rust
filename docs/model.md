@@ -1282,21 +1282,27 @@ basis, placed, reference?, determined_by?}`:
   oblique edge (a rounded end uses its theoretical sharp vertex). By default (`auto`):
   - a corner already defined gets no angle (never a toleranced angle on a linearly fixed
     corner);
-  - a corner exactly one station short is completed with that one linear location from the
-    minimum datum, `d:envelope/profile_location_<axis>.length.f<face>_<n>`;
-  - any other corner gets its angle in the principal view that shows it true,
-    `d:envelope/profile_angle.angle.f<face>_e<i>_e<j>`;
+  - any other corner, even one a single station short, gets its angle in the principal view
+    that shows it true, `d:envelope/profile_angle.angle.f<face>_e<i>_e<j>`. Completing a
+    corner with linear stations is the explicit `linear` choice below, not automatic: the
+    stations have no lane reserved when the sheet is laid out, and on mfcadpp/1013 one
+    automatic station moved the drawing from A4 to A3;
   - a closed all-line profile whose corners are all issued and equal (FTC-08's octagon) gets one
     counted angle, `8× 135°` as `d:envelope/profile_angle.angle.f<face>`, never one per corner.
     Lint proves the count from the closed loop of visible edges through the drawn corner.
 
-  Angles are placed one at a time, inside the corner (its label on proven blank face) or in the
+  Angles are placed one at a time, wholly within their view's reserved area (never claiming paper
+  the layout did not give the view), inside the corner (its label on proven blank face) or in the
   equal sector between the extended edges (its label on proven exterior paper), with the label
   on or beside the bisector. A place whose lines cross nothing is preferred; otherwise the thin
   arc may cross the view's own line work, other dimensions' lines, centre lines and cutting-plane
-  lines transversely, but never a leader, frame or symbol, and nothing may touch any label. The
-  angles are placed before the callouts route; when that makes any drawing finding worse than
-  placing them last of all, they are placed last. An angle with no clear place is not drawn
+  lines transversely, but never a leader, frame or symbol, and nothing may touch any label; no
+  callout's leader or padded label may meet an angle's witness lines (the 2026-10-12 extension
+  contact rule), and leader refinement keeps clear of them as of linear extension lines. The
+  angles are placed last of all, around the finished ink. Only when that leaves corners
+  unstated is placing them before the callouts route tried, and it is kept only when it states
+  more corners and makes no drawing finding (including extension contacts) worse; an early angle
+  a later callout meets is withdrawn and tried again last. An angle with no clear place is not drawn
   (`angular_dimension_dropped`, info) and lint still reports its corner
   `angular_requirement_missing`. Placement never moves another item, takes a fallback place, or
   changes the sheet: profile angles are not required measurements when sheets and scales are
@@ -1309,7 +1315,8 @@ basis, placed, reference?, determined_by?}`:
   fix the corner), and `omit` hides it. `faces/face:<n>/profile_corners` chooses, for the outer
   profile of face *n*: `auto` (the default above), `angle` (every corner's angle; a reference
   where the corner is already linearly fixed) or `linear` (locate every missing station with
-  linear dimensions instead of angles). A box side (`top`, `front`, …) names its faces as for
+  linear dimensions from the minimum datum, `d:envelope/profile_location_<axis>.length.f<face>_<n>`,
+  instead of angles; these are ordinary dimensions and may need more paper). A box side (`top`, `front`, …) names its faces as for
   datums.
   An existing source PMI angle on the exact same flank faces also owns the bounded
   angle across normal-section heights: AP242 CTC-01 keeps its `60 ±0.5` and omits the

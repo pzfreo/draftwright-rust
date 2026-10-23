@@ -232,10 +232,10 @@ fn ctc03_valid_complete_sheet_beats_invalid_seed_despite_material_crossings() {
         p.code.as_str(),
         "annotation_ink_overlap" | "layout_recovery_exhausted" | "annotation_off_sheet"
     )));
+    // A profile-corner angle with no clear place is dropped by design and still reported.
     assert!(
-        p.dimensions
-            .iter()
-            .all(|d| !matches!(d.state, draftwright::items::State::NotDrawable { .. }))
+        p.dimensions.iter().all(|d| !matches!(&d.state,
+            draftwright::items::State::NotDrawable { reason_code } if reason_code != "angular_dimension_dropped"))
     );
 }
 

@@ -2224,46 +2224,59 @@ fn plan_inventory_uncached(
     cache: &footprints::Cache,
     excluded: &BTreeSet<String>,
 ) -> Result<(Planned, Vec<PlannedDimension>), Invalid> {
-    // Profile-corner angles first let the callouts route around them; when that makes any
-    // drawing finding worse than placing them last, around everything else, they go last.
-    let mut profile_first = true;
+    // Profile-corner angles placed early let the callouts route around them. That is kept only
+    // when it states more corners than placing them last, around everything else, and makes no
+    // drawing finding worse; otherwise they go last and the callouts keep their routes.
+    let angles = |plan: &Planned| {
+        plan.0
+            .iter()
+            .filter(|d| {
+                d.placed.is_some()
+                    && d.measurements
+                        .iter()
+                        .any(|m| m.parameter == profile_angles::PARAMETER)
+            })
+            .count()
+    };
+    let findings = |plan: &Planned| {
+        plan.2
+            .iter()
+            .filter(|p| {
+                matches!(
+                    p.code.as_str(),
+                    "annotation_off_sheet"
+                        | "annotation_over_title_block"
+                        | "annotation_overlap"
+                        | "annotation_ink_overlap"
+                        | "annotation_over_view"
+                        | "annotation_line_over_view"
+                        | "annotation_leader_crossing"
+                        | "annotation_outside_area"
+                        | "dimension_line_shared"
+                        | "dimension_text_stray"
+                        | "leader_through_feature"
+                        | "extension_through_feature"
+                )
+            })
+            .count()
+            + leader_on_extension(&plan.0).len()
+    };
+    let mut profile_first = false;
     let mut first = plan_inventory_ordered(
-        analysis, spec, sheet, views, obstacles, held, cache, excluded, 0, true,
+        analysis, spec, sheet, views, obstacles, held, cache, excluded, 0, false,
     )?;
     if first.0.0.iter().any(|d| {
-        d.placed.is_some()
+        d.placed.is_none()
             && d.measurements
                 .iter()
                 .any(|m| m.parameter == profile_angles::PARAMETER)
     }) {
-        let late = plan_inventory_ordered(
-            analysis, spec, sheet, views, obstacles, held, cache, excluded, 0, false,
+        let early = plan_inventory_ordered(
+            analysis, spec, sheet, views, obstacles, held, cache, excluded, 0, true,
         )?;
-        let findings = |plan: &Planned| {
-            plan.2
-                .iter()
-                .filter(|p| {
-                    matches!(
-                        p.code.as_str(),
-                        "annotation_off_sheet"
-                            | "annotation_over_title_block"
-                            | "annotation_overlap"
-                            | "annotation_ink_overlap"
-                            | "annotation_over_view"
-                            | "annotation_line_over_view"
-                            | "annotation_leader_crossing"
-                            | "annotation_outside_area"
-                            | "dimension_line_shared"
-                            | "dimension_text_stray"
-                            | "leader_through_feature"
-                            | "extension_through_feature"
-                    )
-                })
-                .count()
-        };
-        if findings(&late.0) < findings(&first.0) {
-            first = late;
-            profile_first = false;
+        if angles(&early.0) > angles(&first.0) && findings(&early.0) <= findings(&first.0) {
+            first = early;
+            profile_first = true;
         }
     }
     let new = |d: &PlannedDimension| {
@@ -3570,18 +3583,22 @@ fn plan_inventory_ordered(
             ));
         }
     }
-    if !profile_first {
-        angular::place_profile(
-            &frames,
-            &all,
-            &chosen,
-            obstacles,
-            &mut placed,
-            &page,
-            views,
-            &interior_proofs,
-        );
+    // A callout routed after an early angle may still meet its witness lines: that angle is
+    // withdrawn and, like every profile angle still unplaced, tried once more around the
+    // finished ink.
+    if profile_first {
+        angular::withdraw_profile_contacts(&all, &mut placed);
     }
+    angular::place_profile(
+        &frames,
+        &all,
+        &chosen,
+        obstacles,
+        &mut placed,
+        &page,
+        views,
+        &interior_proofs,
+    );
     let inventory = all
         .iter()
         .enumerate()

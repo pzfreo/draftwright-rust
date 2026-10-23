@@ -901,7 +901,7 @@ fn settled_nominal_reference(
     let extensions: Vec<_> = items
         .iter()
         .enumerate()
-        .filter(|(_, d)| d.kind == "linear")
+        .filter(|(_, d)| witnessed(d))
         .flat_map(|(i, d)| {
             d.placed
                 .iter()
@@ -1545,7 +1545,7 @@ pub(crate) fn settle_after_furniture(
     let all_extensions: Vec<_> = items
         .iter()
         .enumerate()
-        .filter(|(_, d)| d.kind == "linear")
+        .filter(|(_, d)| witnessed(d))
         .flat_map(|(i, d)| {
             d.placed
                 .iter()
@@ -1920,7 +1920,7 @@ pub(crate) fn settle_after_furniture(
         let extensions: Vec<_> = others
             .iter()
             .enumerate()
-            .filter(|(_, d)| d.kind == "linear")
+            .filter(|(_, d)| witnessed(d))
             .flat_map(|(i, d)| {
                 d.placed
                     .as_ref()
@@ -2004,7 +2004,7 @@ pub(crate) fn settle_after_furniture(
                 r.dimensions
                     .iter()
                     .enumerate()
-                    .filter(|(_, d)| d.kind == "linear")
+                    .filter(|(_, d)| witnessed(d))
                     .filter_map(|(i, d)| {
                         let old = r.views.iter().find(|v| v.id == d.view)?;
                         let now = views.iter().find(|v| {
@@ -4756,6 +4756,15 @@ pub(super) fn meets_extensions(extensions: &[[P2; 2]], lines: &[[P2; 2]], label:
                 .iter()
                 .any(|s| touches_box(*s, grow(segment_bounds(*e), LABEL_PAD)))
     })
+}
+
+/// A dimension whose witness lines a leader must keep clear of: every linear dimension, and a
+/// profile-corner angle (its witnesses are extension lines too).
+fn witnessed(d: &PlannedDimension) -> bool {
+    d.kind == "linear"
+        || d.measurements
+            .iter()
+            .any(|m| m.parameter == super::profile_angles::PARAMETER)
 }
 
 /// A callout's contacts with the extension lines of linear dimensions (decision (iii)):

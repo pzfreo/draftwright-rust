@@ -4,8 +4,11 @@
 //! - A corner whose two edges the linear dimensions already locate (both coordinates of each
 //!   oblique edge's ends, the offset of a principal edge) is defined: no angle is added. Only
 //!   0°, 90° and 180° are implied.
-//! - A corner one station short of that is completed with that one linear location.
-//! - Any other corner gets its angle, drawn in the view that shows it true.
+//! - A corner the linear dimensions do not fix gets its angle, even one station short:
+//!   completing it with a linear station is the `linear` profile choice, never automatic, since
+//!   added stations have no lane reserved when the sheet is laid out (mfcadpp/1013 went from A4
+//!   to A3 when one station was added automatically).
+//!   The angle is drawn in the view that shows it true.
 //! - A closed all-line profile whose corners are all issued and equal (FTC-08's octagon) gets
 //!   one counted angle (`8× 135°`), never one per corner.
 //! - IDs follow the notches': `d:envelope/profile_angle.angle.f<face>_e<i>_e<j>` per corner,
@@ -16,7 +19,8 @@
 //!   reference where linearly defined) or `linear` (locate the missing stations instead).
 //!
 //! The angles are placed one at a time ([`super::angular::place_profile`]) and only where they
-//! are clear: before the callouts route, or last of all when that is cleaner. One with no clear
+//! are clear: last of all, or before the callouts route when that states more corners and is
+//! no worse. One with no clear
 //! place stays undrawn (`angular_dimension_dropped`) and lint still reports its corner missing;
 //! it never moves another item, takes a fallback or asks for more paper.
 use super::{Measurement, Shape, Want, end_on, fmt, want_id};
@@ -29,7 +33,7 @@ pub const PARAMETER: &str = "profile_angle.angle";
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
 #[serde(rename_all = "lowercase")]
 pub enum CornerMode {
-    /// Linear where the dimensions already (nearly) fix a corner, else its angle.
+    /// No angle where the linear dimensions already fix a corner, else its angle.
     #[default]
     Auto,
     /// Every corner's angle; a reference where linear dimensions already fix it.
@@ -99,7 +103,8 @@ fn located(analysis: &Analysis, wants: &[Want]) -> impl Fn(usize, f64) -> bool +
 
 fn angle_want(id: String, corners: &[&Corner], reference: bool, basis: &str) -> Want {
     let c = corners[0];
-    let value = c.degrees();
+    // atan2 differs in its last bits between native and WASM libm; the plan's value must not.
+    let value = (c.degrees() * 1e9).round() / 1e9;
     let mut text = format!("{}°", fmt(value));
     if corners.len() > 1 {
         text = format!("{}× {text}", corners.len());
@@ -196,8 +201,9 @@ pub(super) fn apply(
         let mut stations: Vec<(usize, f64, [f64; 3], usize)> = Vec::new();
         for (c, miss) in mine.iter().zip(&missing) {
             let id = id(&support(c), PARAMETER);
-            let linear =
-                mode == CornerMode::Linear || (mode == CornerMode::Auto && miss.len() == 1);
+            // Automatic completion is not offered: station lanes are not reserved when the sheet
+            // is laid out, so an added station could crowd a view onto larger paper.
+            let linear = mode == CornerMode::Linear;
             if linear && !miss.is_empty() && !shown(&id) {
                 for &(k, v) in miss {
                     if !stations.iter().any(|s| s.0 == k && (s.1 - v).abs() < 1e-4) {
@@ -228,12 +234,11 @@ pub(super) fn apply(
             if value < 1e-6 {
                 continue;
             }
-            let parameter = format!("location.length.{}", super::AXES[k]);
+            // Not `location.length.*`: that names hole locations, whose legibility the sheet
+            // choice counts.
+            let parameter = format!("profile_location_{}.length", super::AXES[k]);
             added.push(Want {
-                id: id(
-                    &format!("f{face}_{n}"),
-                    &format!("profile_location_{}.length", super::AXES[k]),
-                ),
+                id: id(&format!("f{face}_{n}"), &parameter),
                 views: vec![end_on(axis)],
                 value,
                 terms: vec![fmt(value)],
@@ -242,7 +247,7 @@ pub(super) fn apply(
                     parameter,
                     value,
                 }],
-                basis: "an outer-profile corner station located from the part's minimum datum, completing the corner linearly".into(),
+                basis: "an outer-profile corner station located from the part's minimum datum, completing the corner linearly (the profile's `linear` choice)".into(),
                 shape: Shape::Linear {
                     a,
                     b: at,

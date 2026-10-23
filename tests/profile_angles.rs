@@ -122,16 +122,15 @@ fn a_linearly_fixed_corner_needs_no_angle() {
     );
 }
 
+/// One station short is still not fixed: by default the corner gets its angle. Completing it
+/// linearly is the profile's `linear` choice (see the CTC-03 test), never automatic.
 #[test]
-fn a_nearly_fixed_corner_is_completed_linearly_without_an_angle() {
+fn a_nearly_fixed_corner_gets_its_angle_by_default() {
     let a = part(&TRAPEZOID);
     assert_eq!(profile_angles::requirements(&a).len(), 2);
     let p = plan(&a, json!({}));
-    assert!(angles(&p).is_empty(), "{:?}", angles(&p));
-    let s = stations(&p);
-    assert_eq!(s.len(), 1, "{s:?}");
-    assert!((s[0].value - 30.).abs() < 1e-6);
-    assert_eq!(s[0].view, "v:plan");
+    assert_eq!(angles(&p).len(), 2, "{:?}", angles(&p));
+    assert!(stations(&p).is_empty(), "{:?}", stations(&p));
 }
 
 #[test]
@@ -178,7 +177,7 @@ fn a_shown_corner_keeps_its_angle_and_a_hidden_one_is_omitted() {
         .map(|c| angle_id(&c.feature))
         .next()
         .unwrap();
-    // Show: the corner gets its angle instead of the station.
+    // Show an angle the defaults would draw anyway: it stays, now listed in the spec.
     let p = plan(&a, json!({"dimensions": {&id: {}}}));
     assert!(angles(&p).iter().any(|d| d.id == id), "{:?}", angles(&p));
     // Hide an angle the planner would draw.
@@ -217,15 +216,32 @@ fn missing(r: &api::Review) -> Vec<String> {
         .collect()
 }
 
-/// CTC-03's two 135° corners: drawn by default; `faces/face:37/profile_corners: linear`
-/// locates their stations instead, and lint reads those drawn dimensions as defining them.
+/// CTC-03's two 135° corners: by default each is drawn where clear, or dropped and still
+/// reported; `faces/face:37/profile_corners: linear` locates their stations instead, and lint
+/// reads those drawn dimensions as defining both.
 #[test]
 fn ctc03_corners_are_stated_by_angle_or_linearly_by_profile_choice() {
     if corpus::dir().is_none() {
         return;
     }
     let r = review(ctc03(), json!({}));
-    assert!(missing(&r).is_empty(), "{:?}", missing(&r));
+    let dropped: Vec<_> = r
+        .problems
+        .iter()
+        .filter(|p| p.code == "angular_dimension_dropped")
+        .flat_map(|p| p.subjects.clone())
+        .collect();
+    assert!(
+        dropped.len() < 2,
+        "at least one corner is drawn: {dropped:?}"
+    );
+    let missing_now = missing(&r);
+    assert_eq!(missing_now.len(), dropped.len(), "{missing_now:?}");
+    assert!(
+        dropped
+            .iter()
+            .all(|id| missing_now.iter().any(|m| &angle_id(m) == id))
+    );
     let linear = review(
         ctc03(),
         json!({"faces": {"face:37": {"profile_corners": "linear"}}}),

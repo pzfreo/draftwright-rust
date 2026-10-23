@@ -637,6 +637,28 @@ pub(super) fn place(
     }
 }
 
+/// Withdraws each placed profile-corner angle whose witness lines a callout routed after it
+/// now meets (see [`place_profile`]); the caller places them again, last.
+pub(super) fn withdraw_profile_contacts(items: &[Want], placed: &mut [Option<Placed>]) {
+    let callouts: Vec<Placed> = placed
+        .iter()
+        .zip(items)
+        .filter(|(_, w)| matches!(w.shape, Shape::Callout { .. }))
+        .filter_map(|(q, _)| q.clone())
+        .collect();
+    for (q, w) in placed.iter_mut().zip(items) {
+        if super::profile_angles::is_profile_angle(w)
+            && q.as_ref().is_some_and(|c| {
+                callouts
+                    .iter()
+                    .any(|l| super::leaders::meets_extensions(&c.lines[..2], &l.lines, l.label_box))
+            })
+        {
+            *q = None;
+        }
+    }
+}
+
 /// Places each profile-corner angle of *items* (see [`super::profile_angles`]) after every
 /// other item, one at a time, in its true-shape view: inside the corner's material (an arc
 /// whose sides are the corner's own edges, its label on proven blank face) or in the equal
@@ -710,8 +732,38 @@ pub(super) fn place_profile(
                 d.placed.as_ref().map(|q| (q, crossable))
             }))
             .collect();
+        // A placed callout whose leader or padded label meets the angle's witness lines reads
+        // as touching an extension line (the maintainer's 2026-10-12 contact rule).
+        let callouts: Vec<&Placed> = placed
+            .iter()
+            .zip(items)
+            .enumerate()
+            .filter(|(j, (_, w))| *j != i && matches!(w.shape, Shape::Callout { .. }))
+            .filter_map(|(_, (q, _))| q.as_ref())
+            .chain(
+                obstacles
+                    .iter()
+                    .filter(|d| d.kind == "callout")
+                    .filter_map(|d| d.placed.as_ref()),
+            )
+            .collect();
+        let off_leaders = |c: &Placed| {
+            callouts
+                .iter()
+                .all(|q| !super::leaders::meets_extensions(&c.lines[..2], &q.lines, q.label_box))
+        };
+        // Within the view's reserved area: an angle never claims paper the layout did not give
+        // its view.
+        let area = page.area(view);
+        let in_area = |c: &Placed| {
+            area.is_none_or(|b| {
+                ink_points(c).all(|q| q[0] >= b[0] && q[0] <= b[2] && q[1] >= b[1] && q[1] <= b[3])
+            })
+        };
         let clear = |c: &Placed, strict: bool| {
-            page.fits_interior(c, view)
+            off_leaders(c)
+                && in_area(c)
+                && page.fits_interior(c, view)
                 && others.iter().all(|&(q, crossable)| {
                     super::placement::annotations_clear(c, q)
                         && if strict || !crossable {

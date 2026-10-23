@@ -275,7 +275,18 @@ fn footprints_with_notes(
         };
         out.push(b);
     }
-    for p in plan.dimensions.iter().filter_map(|d| d.placed.as_ref()) {
+    // A profile-corner angle is placed only where it is already clear and is dropped otherwise:
+    // it never takes part in choosing the paper or scale.
+    for p in plan
+        .dimensions
+        .iter()
+        .filter(|d| {
+            !d.measurements
+                .iter()
+                .any(|m| m.parameter == crate::dims::PROFILE_ANGLE)
+        })
+        .filter_map(|d| d.placed.as_ref())
+    {
         let mut b = p.label_box;
         for q in p.lines.iter().flatten() {
             include(&mut b, *q);
