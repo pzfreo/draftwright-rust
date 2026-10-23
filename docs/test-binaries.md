@@ -94,6 +94,21 @@ executables whole. Grouped priorities and reservations use qualified module name
 former binary-wide rules select the corresponding module within its group. Native
 benchmark filters keep their original target and test names.
 
+## Shared analyses and plans (CI)
+
+nextest runs every test in its own process, so the `OnceLock` caches above do not
+outlive one test. In CI, `DRAFTWRIGHT_TEST_PLAN_CACHE` names a directory through
+which `common/cache.rs` shares `native` analyses and `default_plan` plans between
+a job's test processes (`src/plan_cache.rs`). An entry is keyed by the engine's
+source fingerprint (`DRAFTWRIGHT_ENGINE_VERSION`) and every input (the file's name
+and bytes; the whole Analysis and Spec), is written only when it reads back
+identical (`Debug`) to the value made, and a miss computes as before. The `binary`
+job fills it for the 66 survey parts with the command line
+(`tools/warm_plan_cache.py`, `DRAFTWRIGHT_PLAN_CACHE`), and quality-pins reads the
+same entries. Unset locally, nothing changes; set it to any empty directory to
+share work across a local nextest run. `cache::analysed` and every direct
+`model::plan` call still compute in each process.
+
 ## Before/after measurements
 
 Measured sequentially on 2026-10-18, macOS aarch64, 18 logical CPUs, Rust 1.99.0,
