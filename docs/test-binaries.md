@@ -102,12 +102,13 @@ which `common/cache.rs` shares `native` analyses and `default_plan` plans betwee
 a job's test processes (`src/plan_cache.rs`). An entry is keyed by the engine's
 source fingerprint (`DRAFTWRIGHT_ENGINE_VERSION`) and every input (the file's name
 and bytes; the whole Analysis and Spec), is written only when it reads back
-identical (`Debug`) to the value made, and a miss computes as before. The `binary`
+identical (`Debug`) to the value made, and a miss computes as before. The lint
 job fills it for the 66 survey parts with the command line
-(`tools/warm_plan_cache.py`, `DRAFTWRIGHT_PLAN_CACHE`), and quality-pins reads the
-same entries. Unset locally, nothing changes; set it to any empty directory to
-share work across a local nextest run. `cache::analysed` and every direct
-`model::plan` call still compute in each process.
+(`tools/warm_plan_cache.py`, `DRAFTWRIGHT_PLAN_CACHE`), and each quality-pins shard
+shares its own analyses and plans the same way. Unset locally, nothing changes; set
+it to any empty directory to share work across a local nextest run.
+`corpus::analyse` is shared too; `cache::analysed` and every direct `model::plan`
+call still compute in each process.
 
 ## Before/after measurements
 

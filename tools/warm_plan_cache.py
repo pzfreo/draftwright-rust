@@ -2,7 +2,7 @@
 """Fill a plan cache with the native analysis and default plan of each of the 66 survey inputs.
 
 CI's test shards and quality-pins measurements analyse and plan these parts under the default
-Spec again and again; the `binary` job does each once with this commit's executable, and the
+Spec again and again; the lint job does each once with this commit's executable, and the
 later jobs read the entries (src/plan_cache.rs keys them by engine fingerprint and every input,
 so they only ever match the same engine and inputs). A part that fails here is only not cached: the jobs that
 read the cache plan it themselves, and fail there if it is broken.

@@ -44,6 +44,7 @@ jobs:
         run: python3 -I tools/release_only.py ${{ github.event.pull_request.base.sha }} ${{ github.event.pull_request.head.sha }}
 
   lint:
+    needs: changes
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -62,6 +63,20 @@ jobs:
       - run: python3 tools/check_test_binaries.py
       - run: python3 -m unittest discover -s tools -p 'test_check_test_binaries.py'
       - run: cargo fmt --all --check
+      # The native analysis and default plan of each of the 66 survey parts, made once by this
+      # commit's executable, for the test shards to read instead of making them again
+      # (src/plan_cache.rs). Here rather than in `binary`, so the acceptance jobs do not wait.
+      - if: needs.changes.outputs.release_only != 'true'
+        run: |
+          cargo build --release --locked --bin draftwright
+          python3 -I tools/warm_plan_cache.py --binary target/release/draftwright --corpus "$DRAFTWRIGHT_CORPUS" --cache plan-cache --inputs target/warm-inputs
+      - if: needs.changes.outputs.release_only != 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: plan-cache
+          path: plan-cache/*.json
+          if-no-files-found: error
+          retention-days: 1
       - run: cargo clippy --workspace --all-targets --release -- -D warnings
 
   build:
@@ -117,19 +132,11 @@ jobs:
           name: acceptance-inputs
           path: acceptance-inputs.tar.gz
           retention-days: 1
-      # The native analysis and default plan of each of the 66 survey parts, made once by this
-      # executable, for the test shards and quality-pins to read instead of making them again
-      # (src/plan_cache.rs).
-      - run: python3 -I tools/warm_plan_cache.py --binary target/release/draftwright --corpus "$DRAFTWRIGHT_CORPUS" --cache plan-cache --inputs target/warm-inputs
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
-        with:
-          name: plan-cache
-          path: plan-cache/*.json
-          if-no-files-found: error
-          retention-days: 1
 
   test:
-    needs: [build, binary]
+    needs: [build, lint]
+    # The plan cache only saves work: a lint failure leaves it out, never the tests.
+    if: ${{ !cancelled() && needs.build.result == 'success' }}
     runs-on: ubuntu-latest
     env:
       # The session benchmarks' native p90 <= 150 ms bound is a go/no-go gate measured on the
@@ -137,16 +144,16 @@ jobs:
       # about five times slower, so here the benchmarks print SESSION_LATENCY without asserting
       # it. Every other session assertion still runs.
       DRAFTWRIGHT_LATENCY_GATE: "0"
-      # tests/common/cache.rs reads and writes native analyses and default plans here: the
-      # binary job's for the survey parts, and each one a test of the shard makes for the others.
+      # tests/common/cache.rs reads and writes native analyses and default plans here: lint's
+      # for the survey parts, and each one a test of the shard makes for the others.
       DRAFTWRIGHT_TEST_PLAN_CACHE: ${{ github.workspace }}/../plan-cache
     strategy:
       fail-fast: false
       matrix:
-        # Seven duration-balanced shards of the `ci` profile's tests (tools/test_shards.py),
+        # Ten duration-balanced shards of the `ci` profile's tests (tools/test_shards.py),
         # and the binaries it leaves out run whole under their own harness
         # (.config/nextest.toml says why).
-        shard: [1/7, 2/7, 3/7, 4/7, 5/7, 6/7, 7/7, harness]
+        shard: [1/10, 2/10, 3/10, 4/10, 5/10, 6/10, 7/10, 8/10, 9/10, 10/10, harness]
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
@@ -167,6 +174,7 @@ jobs:
       # the workspace, and target/tmp, which cargo makes when it builds, is made here.
       - run: tar --zstd -xf nextest-archive.tar.zst && mkdir -p target/tmp
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        continue-on-error: true
         with:
           name: plan-cache
           path: ${{ env.DRAFTWRIGHT_TEST_PLAN_CACHE }}
@@ -225,33 +233,29 @@ jobs:
   # quality-gate compares them with one same-binary baseline, enforces every cell, and
   # requires no repeated span on any survey part.
   quality-pins:
-    name: acceptance (quality-pins-${{ matrix.shard }}-7)
+    name: acceptance (quality-pins-${{ matrix.shard }}-4)
     needs: binary
     runs-on: ubuntu-latest
     timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
-        shard: [1, 2, 3, 4, 5, 6, 7]
+        shard: [1, 2, 3, 4]
     steps:
       - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6
       - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
         with:
           name: acceptance-inputs
       - run: tar -xzf acceptance-inputs.tar.gz
-      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
-        with:
-          name: plan-cache
-          path: plan-cache
-      # render, plan, review and analyse of one part analyse it once and plan each Spec once
-      # (src/plan_cache.rs); the unpinned plans are the binary job's.
-      - run: python3 -I tools/ci_acceptance.py --job quality-pins --shard ${{ matrix.shard }}/7 --out target/acceptance
+      # render, plan, review and analyse of one part analyse it once and plan each Spec once,
+      # and the shard's tasks share each part's unpinned plan (src/plan_cache.rs).
+      - run: python3 -I tools/ci_acceptance.py --job quality-pins --shard ${{ matrix.shard }}/4 --out target/acceptance
         env:
           DRAFTWRIGHT_PLAN_CACHE: ${{ github.workspace }}/plan-cache
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
-          name: acceptance-quality-pins-${{ matrix.shard }}-7
+          name: acceptance-quality-pins-${{ matrix.shard }}-4
           path: target/acceptance/
           if-no-files-found: error
           retention-days: 14
@@ -259,7 +263,7 @@ jobs:
       - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         if: always()
         with:
-          name: quality-gate-input-${{ matrix.shard }}-7
+          name: quality-gate-input-${{ matrix.shard }}-4
           path: |
             target/acceptance/quality-pins/shard.json
             target/acceptance/quality-pins/quality/
