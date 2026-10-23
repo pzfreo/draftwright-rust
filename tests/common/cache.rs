@@ -1,5 +1,5 @@
-//! Process-local pure documents, and default plans shared across processes on disk when
-//! DRAFTWRIGHT_TEST_PLAN_CACHE is set. Callers receive their own Analysis/Plan clones.
+//! Process-local pure documents; native analyses and default plans are also shared across
+//! processes on disk when DRAFTWRIGHT_TEST_PLAN_CACHE is set. Callers receive their own Analysis/Plan clones.
 //! Do not use these helpers in determinism tests: both runs must execute independently.
 #![allow(dead_code)]
 
@@ -8,7 +8,7 @@ use std::path::Path;
 use std::sync::{Arc, Mutex, OnceLock};
 
 use draftwright::haecceity::Part;
-use draftwright::model::{self, Analysis, Plan, Spec};
+use draftwright::model::{Analysis, Plan, Spec};
 use draftwright::plan_cache;
 use sha2::{Digest, Sha256};
 
@@ -31,11 +31,21 @@ fn get<T>(cache: &Cells<T>, key: Key, compute: impl FnOnce() -> T) -> Arc<OnceLo
 
 /// Cache a native file's Part and Analysis, including its path and contents in the key.
 /// Part is exposed read-only; mutable analyses are always independent clones.
+/// Shared across processes on disk as default_plan is.
 pub fn native(path: &Path) -> Analysed {
     let bytes = std::fs::read(path).unwrap();
     analysed(&path.to_string_lossy(), &bytes, true, || {
-        model::analyse_native(path).unwrap()
+        plan_cache::analyse_native_in(disk().as_deref(), path).unwrap()
     })
+}
+
+/// The on-disk cache CI shares across a job's test processes: DRAFTWRIGHT_TEST_PLAN_CACHE.
+/// Entries are keyed by the engine's source fingerprint and every input ([`plan_cache`]), so
+/// only what this very engine made from these inputs is read.
+fn disk() -> Option<std::path::PathBuf> {
+    std::env::var_os("DRAFTWRIGHT_TEST_PLAN_CACHE")
+        .filter(|v| !v.is_empty())
+        .map(std::path::PathBuf::from)
 }
 
 /// Cache scratch-file readers by their logical filename, bytes and recognition mode.
@@ -69,12 +79,7 @@ pub fn default_plan(analysis: &Analysis, recovered: bool) -> Plan {
     hash.update([u8::from(recovered)]);
     hash.update(serde_json::to_vec(analysis).unwrap());
     let cell = get(&CACHE, hash.finalize().into(), || {
-        // Shared across processes on disk when DRAFTWRIGHT_TEST_PLAN_CACHE names a directory
-        // (CI): keyed by the engine's source fingerprint and the whole Analysis and Spec, so
-        // only a plan this very engine made from these inputs is read ([`plan_cache`]).
-        let dir = std::env::var_os("DRAFTWRIGHT_TEST_PLAN_CACHE")
-            .filter(|v| !v.is_empty())
-            .map(std::path::PathBuf::from);
+        let dir = disk();
         if recovered {
             plan_cache::plan_recovered_in(dir.as_deref(), analysis, &Spec::default()).unwrap()
         } else {

@@ -1,18 +1,22 @@
-//! An opt-in on-disk memo of finished plans, so that processes planning the same part under the
-//! same Spec (CI's test shards and acceptance measurements) plan it once and read it after.
+//! An opt-in on-disk memo of finished plans and of the analyses they are made from, so that
+//! processes planning the same part under the same Spec (CI's test shards and acceptance
+//! measurements) analyse and plan it once and read it after.
 //!
-//! An entry is keyed by the engine's source fingerprint ([`crate::stateless::ENGINE_VERSION`]:
-//! every source file, asset, the manifest and the lockfile), the planning function, and the
-//! complete Analysis and Spec as JSON, so a plan is only ever read by the engine that made it,
-//! for exactly the inputs it was made from. A miss plans as usual; refusals are not stored.
+//! A plan is keyed by the engine's source fingerprint (`DRAFTWRIGHT_ENGINE_VERSION`: every
+//! source file, asset, the manifest and the lockfile), the planning function, and the complete
+//! Analysis and Spec as JSON; an analysis by the fingerprint, the file's name and its bytes. So
+//! an entry is only ever read by the engine that made it, for exactly the inputs it was made
+//! from. A miss computes as usual; refusals are not stored.
 //!
-//! The entry holds the plan's JSON and the planning state the plan's JSON leaves out (table
-//! escalation, callout geometry, axis overruns), and is only written when reading it back gives
-//! a plan identical to the one made, field for field (`Debug`), so a cached plan is the plan.
+//! A plan's entry holds its JSON and the planning state the JSON leaves out (table escalation,
+//! callout geometry, axis overruns, each problem's fixes as held). Every entry is only written
+//! when reading it back gives a value identical to the one made, field for field (`Debug`), so
+//! a cached plan is the plan; a refused entry leaves a `.refused` note saying where it differs.
 //!
-//! Nothing here is used unless asked for: [`plan_recovered_in`] and [`plan_in`] take the
-//! directory, and the command line's planning reads `DRAFTWRIGHT_PLAN_CACHE` ([`dir`]).
+//! Nothing here is used unless asked for: the functions take the directory, and the command
+//! line reads `DRAFTWRIGHT_PLAN_CACHE` ([`dir`]).
 use std::collections::BTreeMap;
+use std::fmt::Debug;
 use std::fs::{self, File};
 use std::io::Write as _;
 use std::path::{Path, PathBuf};
@@ -20,8 +24,9 @@ use std::path::{Path, PathBuf};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+use crate::haecceity::Part;
 use crate::hole_table::TableOutcome;
-use crate::model::{self, Analysis, Invalid, Plan, Spec};
+use crate::model::{self, Analysis, Invalid, Plan, Spec, Unanalysed};
 
 /// The variable naming the command line's plan cache directory.
 pub const VARIABLE: &str = "DRAFTWRIGHT_PLAN_CACHE";
@@ -40,24 +45,87 @@ pub fn plan_recovered_in(
     analysis: &Analysis,
     spec: &Spec,
 ) -> Result<Plan, Invalid> {
-    match dir {
-        Some(dir) => cached(dir, "recovered", analysis, spec, model::plan_recovered),
-        None => model::plan_recovered(analysis, spec),
-    }
+    planned(dir, "recovered", analysis, spec, model::plan_recovered)
 }
 
 /// [`model::plan`], read from or written to the cache in *dir* when given.
 pub fn plan_in(dir: Option<&Path>, analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
-    match dir {
-        Some(dir) => cached(dir, "plan", analysis, spec, model::plan),
-        None => model::plan(analysis, spec),
+    planned(dir, "plan", analysis, spec, model::plan)
+}
+
+/// [`model::analyse_native`], its Analysis read from or written to the cache in *dir* when
+/// given. On a hit the part is read from the file again, which is a small share of analysing
+/// it: the same part, its lazily computed surface grids not yet computed.
+pub fn analyse_native_in(dir: Option<&Path>, path: &Path) -> Result<(Part, Analysis), Unanalysed> {
+    let Some(dir) = dir else {
+        return model::analyse_native(path);
+    };
+    let Ok(bytes) = fs::read(path) else {
+        return model::analyse_native(path);
+    };
+    let name = path.file_name().unwrap_or_default().to_string_lossy();
+    let key = key(&[b"analyse_native", name.as_bytes(), &bytes]);
+    let mut part = None;
+    let analysis = memo(
+        dir,
+        &key,
+        "analysis",
+        |a: &Analysis| serde_json::to_vec(a).ok(),
+        |text| serde_json::from_slice(text).ok(),
+        || {
+            let (p, a) = model::analyse_native(path)?;
+            part = Some(p);
+            Ok(a)
+        },
+    )?;
+    match part {
+        Some(part) => Ok((part, analysis)),
+        None => match model::step_bytes(&bytes)
+            .ok()
+            .and_then(|b| crate::haecceity::read_step(&b).ok())
+        {
+            Some(part) => Ok((part, analysis)),
+            None => model::analyse_native(path),
+        },
     }
 }
 
-/// The entry's file name: the digest of everything the plan is a function of.
-fn key(kind: &str, analysis: &Analysis, spec: &Spec) -> String {
+fn planned(
+    dir: Option<&Path>,
+    kind: &str,
+    analysis: &Analysis,
+    spec: &Spec,
+    compute: fn(&Analysis, &Spec) -> Result<Plan, Invalid>,
+) -> Result<Plan, Invalid> {
+    let Some(dir) = dir else {
+        return compute(analysis, spec);
+    };
+    memo(
+        dir,
+        &plan_key(kind, analysis, spec),
+        "plan",
+        |plan: &Plan| serde_json::to_vec(&Entry::of(plan)).ok(),
+        |text| {
+            serde_json::from_slice::<Entry>(text)
+                .ok()
+                .map(Entry::into_plan)
+        },
+        || compute(analysis, spec),
+    )
+}
+
+fn plan_key(kind: &str, analysis: &Analysis, spec: &Spec) -> String {
+    key(&[
+        kind.as_bytes(),
+        &serde_json::to_vec(analysis).expect("an Analysis serialises"),
+        &serde_json::to_vec(spec).expect("a Spec serialises"),
+    ])
+}
+
+/// The entry's file name: the digest of the engine and of everything the value is a function of.
+fn key(inputs: &[&[u8]]) -> String {
     let mut hash = Sha256::new();
-    for part in [
+    let engine: [&[u8]; 5] = [
         FORMAT.as_bytes(),
         env!("DRAFTWRIGHT_ENGINE_VERSION").as_bytes(),
         std::env::consts::ARCH.as_bytes(),
@@ -67,63 +135,59 @@ fn key(kind: &str, analysis: &Analysis, spec: &Spec) -> String {
         } else {
             b"release"
         },
-        kind.as_bytes(),
-        &serde_json::to_vec(analysis).expect("an Analysis serialises"),
-        &serde_json::to_vec(spec).expect("a Spec serialises"),
-    ] {
+    ];
+    for part in engine.iter().chain(inputs) {
         hash.update((part.len() as u64).to_le_bytes());
         hash.update(part);
     }
     hash.finalize().iter().map(|b| format!("{b:02x}")).collect()
 }
 
-fn cached(
+/// The value stored under *key* in *dir*, or *compute*'s, stored when it reads back identically.
+fn memo<T: Debug, E>(
     dir: &Path,
+    key: &str,
     kind: &str,
-    analysis: &Analysis,
-    spec: &Spec,
-    compute: fn(&Analysis, &Spec) -> Result<Plan, Invalid>,
-) -> Result<Plan, Invalid> {
-    let key = key(kind, analysis, spec);
-    let path = dir.join(format!("{key}.json"));
-    if let Some(plan) = read(&path) {
-        return Ok(plan);
+    encode: impl Fn(&T) -> Option<Vec<u8>>,
+    decode: impl Fn(&[u8]) -> Option<T>,
+    compute: impl FnOnce() -> Result<T, E>,
+) -> Result<T, E> {
+    let path = dir.join(format!("{kind}-{key}.json"));
+    let read = || fs::read(&path).ok().and_then(|text| decode(&text));
+    if let Some(value) = read() {
+        return Ok(value);
     }
-    // One process plans a key while the others wanting it wait, then read its entry. The lock
-    // is advisory and only orders work: without it (or on any I/O error) each plans for itself.
+    // One process computes a key while the others wanting it wait, then read its entry. The
+    // lock is advisory and only orders work: without it (or on any I/O error) each computes.
     let lock = fs::create_dir_all(dir)
-        .and_then(|()| File::create(dir.join(format!("{key}.lock"))))
+        .and_then(|()| File::create(dir.join(format!("{kind}-{key}.lock"))))
         .ok()
         .filter(|f| f.lock().is_ok());
     if lock.is_some()
-        && let Some(plan) = read(&path)
+        && let Some(value) = read()
     {
-        return Ok(plan);
+        return Ok(value);
     }
-    let plan = compute(analysis, spec)?;
-    write(dir, &path, &plan);
+    let value = compute()?;
+    if let Some(text) = encode(&value) {
+        write(
+            dir,
+            &path,
+            &text,
+            decode(&text).map(|v| format!("{v:?}")),
+            &value,
+        );
+    }
     drop(lock);
-    Ok(plan)
+    Ok(value)
 }
 
-fn read(path: &Path) -> Option<Plan> {
-    let text = fs::read(path).ok()?;
-    let entry: Entry = serde_json::from_slice(&text).ok()?;
-    Some(entry.into_plan())
-}
-
-/// Stores *plan* when its entry reads back as the same plan; otherwise stores nothing.
-fn write(dir: &Path, path: &Path, plan: &Plan) {
-    let Ok(text) = serde_json::to_vec(&Entry::of(plan)) else {
-        return;
-    };
-    let Ok(entry) = serde_json::from_slice::<Entry>(&text) else {
-        return;
-    };
-    let (read, made) = (format!("{:?}", entry.into_plan()), format!("{plan:?}"));
+/// Stores *text* when what it decodes to (*read*) is identical to *made*; otherwise notes where
+/// they differ beside the entry, and stores nothing.
+fn write<T: Debug>(dir: &Path, path: &Path, text: &[u8], read: Option<String>, made: &T) {
+    let made = format!("{made:?}");
+    let read = read.unwrap_or_default();
     if read != made {
-        // Planning state this entry does not carry: say where, beside the entry, and plan
-        // afresh every time instead.
         let at = read
             .bytes()
             .zip(made.bytes())
@@ -146,7 +210,7 @@ fn write(dir: &Path, path: &Path, plan: &Plan) {
         std::process::id()
     ));
     let done = File::create(&staged)
-        .and_then(|mut f| f.write_all(&text))
+        .and_then(|mut f| f.write_all(text))
         .and_then(|()| fs::rename(&staged, path));
     if done.is_err() {
         let _ = fs::remove_file(&staged);
@@ -280,7 +344,10 @@ mod tests {
             let spec = Spec::default();
             let fresh = model::plan_recovered(&analysis, &spec).unwrap();
             let first = plan_recovered_in(Some(&dir), &analysis, &spec).unwrap();
-            let entry = dir.join(format!("{}.json", key("recovered", &analysis, &spec)));
+            let entry = dir.join(format!(
+                "plan-{}.json",
+                plan_key("recovered", &analysis, &spec)
+            ));
             assert!(entry.is_file(), "{file}: the plan is stored");
             let second = plan_recovered_in(Some(&dir), &analysis, &spec).unwrap();
             assert_eq!(format!("{first:?}"), format!("{fresh:?}"), "{file}");
@@ -295,14 +362,14 @@ mod tests {
                 "{file}: the part exercises planning state the plan's JSON leaves out"
             );
             assert_ne!(
-                key("plan", &analysis, &spec),
-                key("recovered", &analysis, &spec)
+                plan_key("plan", &analysis, &spec),
+                plan_key("recovered", &analysis, &spec)
             );
             let mut other = spec.clone();
             other.sheet.view_gutter = Some(3.0);
             assert_ne!(
-                key("recovered", &analysis, &other),
-                key("recovered", &analysis, &spec)
+                plan_key("recovered", &analysis, &other),
+                plan_key("recovered", &analysis, &spec)
             );
             let direct = plan_in(Some(&dir), &analysis, &spec).unwrap();
             let direct_fresh = model::plan(&analysis, &spec).unwrap();
@@ -311,6 +378,54 @@ mod tests {
                 format!("{direct_fresh:?}"),
                 "{file}: plan"
             );
+        }
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    /// A cached analysis is the analysis, and the part read again beside it draws the same
+    /// drawing as the part analysed afresh.
+    #[test]
+    fn a_cached_analysis_is_the_analysis_and_its_part_draws_the_same() {
+        let dir =
+            std::env::temp_dir().join(format!("draftwright-analysis-cache-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        let font = crate::text::Font::new(crate::api::MONO.to_vec()).unwrap();
+        let root = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts");
+        for file in [
+            "mounting_plate.step",
+            "turned.step",
+            "manufacturing_pmi.step.gz",
+        ] {
+            let path = root.join(file);
+            let (part, fresh) = model::analyse_native(&path).unwrap();
+            let (_, first) = analyse_native_in(Some(&dir), &path).unwrap();
+            let (read, second) = analyse_native_in(Some(&dir), &path).unwrap();
+            assert_eq!(
+                dir.read_dir()
+                    .unwrap()
+                    .filter(|e| e
+                        .as_ref()
+                        .unwrap()
+                        .path()
+                        .extension()
+                        .is_some_and(|x| x == "refused"))
+                    .count(),
+                0
+            );
+            assert_eq!(format!("{first:?}"), format!("{fresh:?}"), "{file}");
+            assert_eq!(
+                format!("{second:?}"),
+                format!("{fresh:?}"),
+                "{file}: read back"
+            );
+            let plan = model::plan_recovered(&fresh, &Spec::default()).unwrap();
+            let drawn = |p: &Part| {
+                format!(
+                    "{:?}",
+                    model::render_sheets(p, &fresh, &plan, &font).unwrap()
+                )
+            };
+            assert_eq!(drawn(&read), drawn(&part), "{file}: the part read again");
         }
         let _ = fs::remove_dir_all(&dir);
     }

@@ -39,6 +39,9 @@ pub(crate) fn analysed(
     Ok(match features {
         Features::None => model::analyse_with_part(step, None, part)?,
         Features::Python(json) => model::analyse_with_part(step, Some(json), part)?,
+        Features::Native if part.is_none() => {
+            crate::plan_cache::analyse_native_in(crate::plan_cache::dir().as_deref(), step)?
+        }
         Features::Native => model::analyse_native_part(step, part)?,
     })
 }

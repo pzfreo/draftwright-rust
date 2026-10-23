@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
-"""Fill a plan cache with the default plan of each of the 66 survey inputs.
+"""Fill a plan cache with the native analysis and default plan of each of the 66 survey inputs.
 
-CI's test shards and quality-pins measurements plan these parts under the default Spec again and
-again; the `binary` job plans each once with this commit's executable, and the later jobs read
-the entries (src/plan_cache.rs keys them by engine fingerprint, Analysis and Spec, so they only
-ever match the same engine and inputs). A part that fails here is only not cached: the jobs that
+CI's test shards and quality-pins measurements analyse and plan these parts under the default
+Spec again and again; the `binary` job does each once with this commit's executable, and the
+later jobs read the entries (src/plan_cache.rs keys them by engine fingerprint and every input,
+so they only ever match the same engine and inputs). A part that fails here is only not cached: the jobs that
 read the cache plan it themselves, and fail there if it is broken.
 
   python3 -I tools/warm_plan_cache.py --binary target/release/draftwright \
@@ -54,9 +54,9 @@ def main():
         results = list(pool.map(plan, files))
     for stem, code, seconds, error in sorted(results, key=lambda r: -r[2]):
         print(f'{seconds:7.1f}s {stem}' + (f'  not cached (exit {code}): {error}' if code else ''))
-    entries = len(list(args.cache.glob('*.json')))
+    entries = len(list(args.cache.glob('plan-*.json')))
     refused = sorted(p.name for p in args.cache.glob('*.refused'))
-    print(f'{len(files)} parts, {entries} entries, {time.monotonic() - start:.1f}s wall')
+    print(f'{len(files)} parts, {entries} plans, {time.monotonic() - start:.1f}s wall')
     for name in refused:
         print(f'::warning::plan cache refused an entry that did not read back identically: {name}')
 
