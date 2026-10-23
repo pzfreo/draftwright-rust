@@ -72,7 +72,10 @@ pub fn analysed_in<E>(
     recipe: &[&[u8]],
     compute: impl FnOnce() -> Result<(Part, Analysis), E>,
 ) -> Result<(Part, Analysis), E> {
-    let (Some(dir), Ok(bytes)) = (dir, fs::read(path)) else {
+    let Some(dir) = dir else {
+        return compute();
+    };
+    let Ok(bytes) = fs::read(path) else {
         return compute();
     };
     let name = path.file_name().unwrap_or_default().to_string_lossy();
