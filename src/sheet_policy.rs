@@ -266,6 +266,8 @@ impl Estimate {
             }
         }
         // R5 keeps the aligned principal projections together on sheet 1.
+        // With more sheets allowed it may move the plan to another sheet,
+        // so only a single sheet must hold front and plan stacked.
         const GUTTER: f64 = 6.0;
         if self.aligned
             && let Some(front) = principal.get("v:front")
@@ -279,7 +281,9 @@ impl Estimate {
                     ));
                 }
             }
-            if let Some(plan) = principal.get("v:plan") {
+            if max == 1
+                && let Some(plan) = principal.get("v:plan")
+            {
                 let high = front[1] + plan[1] + GUTTER;
                 if high > available[1] {
                     return Some(format!(
@@ -1786,6 +1790,49 @@ mod tests {
         };
         assert!(!movable.fits("A3", 1, 1.0));
         assert!(movable.fits("A3", 2, 1.0));
+    }
+
+    #[test]
+    fn stacked_front_and_plan_rule_out_only_a_single_sheet() {
+        // Each view fits A2 alone, but stacked they exceed its 400 mm drawable height.
+        // With a second sheet R5 may give the plan its own page, so the estimate
+        // must not rule that request out.
+        let estimate = Estimate {
+            views: vec![
+                ("v:front".into(), [400.0, 100.0], [0.0; 2]),
+                ("v:plan".into(), [400.0, 320.0], [0.0; 2]),
+            ],
+            blocks: Vec::new(),
+            first_area: 0.0,
+            first_blocks: 0,
+            scale: 1.0,
+            aligned: true,
+        };
+        assert!(
+            estimate
+                .shortfall("A2", 1, 1.0)
+                .is_some_and(|s| s.starts_with("aligned front and plan views need at least"))
+        );
+        assert_eq!(estimate.shortfall("A2", 2, 1.0), None);
+        // NIST CTC-04 is the corpus case: a full plan on two A2 sheets precedes one A1.
+        let Some(a) = corpus("nist/nist_ctc_04_asme1_rd.stp") else {
+            return;
+        };
+        let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+        assert_eq!(
+            (
+                p.sheet.size.as_str(),
+                p.sheet.scale.as_str(),
+                1 + p.sheets.len()
+            ),
+            ("A2", "1:5", 2)
+        );
+        let two = p
+            .sheet_candidates
+            .iter()
+            .find(|c| c.size == "A2" && c.max == 2)
+            .unwrap();
+        assert_eq!(two.kind, None);
     }
 
     #[test]
