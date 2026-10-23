@@ -1231,7 +1231,7 @@ fn restore_local(
     let number = |p: &Map<String, Value>, k: &str| p.get(k).and_then(Value::as_f64);
     let parameters = &mut r.parameters;
     let interval = match r.family.as_str() {
-        "plates" => Some(("lo", "hi")),
+        "plates" | "turned_steps" => Some(("lo", "hi")),
         "polygonal_stock" | "polygonal_bosses" => Some(("base", "top")),
         _ => None,
     };
@@ -1243,6 +1243,13 @@ fn restore_local(
     {
         let (lo, hi) = (origin[w] + s * lo, origin[w] + s * hi);
         let (lo, hi) = if s > 0.0 { (lo, hi) } else { (hi, lo) };
+        // A turned step's ends are published on the 0.001 mm grid; quiddity rounded them in the
+        // frame, so they go back on it in the file's axes.
+        let (lo, hi) = if r.family == "turned_steps" {
+            (on_grid(lo), on_grid(hi))
+        } else {
+            (lo, hi)
+        };
         parameters.insert(lo_key.into(), serde_json::json!(lo));
         parameters.insert(hi_key.into(), serde_json::json!(hi));
         r.local.retain(|p| p != lo_key && p != hi_key);
@@ -1261,6 +1268,51 @@ fn restore_local(
             parameters.insert("v".into(), serde_json::json!(v));
             r.local.retain(|p| p != "u" && p != "v");
         }
+    }
+    // A turned profile (turned steps, grooves): its axis letter, and its axis origin (a point of
+    // the turning axis with its own coordinate zeroed, on eight decimals) where that axis is a
+    // file axis: the frame's motion takes the point to the file's, as quiddity does.
+    if let Some(Value::Object(profile)) = parameters.get_mut("profile") {
+        if r.local.iter().any(|p| p == "profile.axis_origin")
+            && let Some(k) = letter(profile.get("axis"))
+            && let Some((w, _)) = file_axes[k]
+            && let Some(q) = profile.get("axis_origin").and_then(point3)
+        {
+            let file: [f64; 3] = std::array::from_fn(|v| {
+                let at = origin[v] + (0..3).map(|i| q[i] * axes[i][v]).sum::<f64>();
+                if v == w {
+                    0.0
+                } else {
+                    haecceity::py::without_negative_zero(haecceity::py::round_to(at, 8))
+                }
+            });
+            profile.insert("axis_origin".into(), serde_json::json!(file));
+            r.local.retain(|p| p != "profile.axis_origin");
+        }
+        if r.local.iter().any(|p| p == "profile.axis")
+            && let Some(k) = letter(profile.get("axis"))
+            && let Some((w, _)) = file_axes[k]
+        {
+            profile.insert("axis".into(), Value::String(LETTERS[w].into()));
+            r.local.retain(|p| p != "profile.axis");
+        }
+    }
+    // A flat's `axis_line`: the stock's centre on the two axes across its axis, in the frame. Where
+    // that axis is a file axis, the other frame axes span the plane across it, so the line maps
+    // to the file's other two axes (ascending), on the record's grid.
+    if r.local.iter().any(|p| p == "axis_line")
+        && let Some(i) = letter(parameters.get("axis"))
+        && let Some((w, _)) = file_axes[i]
+        && let Some([a, b]) = parameters
+            .get("axis_line")
+            .and_then(Value::as_array)
+            .and_then(|l| Some([l.first()?.as_f64()?, l.get(1)?.as_f64()?]))
+    {
+        let others: Vec<usize> = (0..3).filter(|&j| j != i).collect();
+        let at = |v: usize| origin[v] + a * axes[others[0]][v] + b * axes[others[1]][v];
+        let line: Vec<f64> = (0..3).filter(|&v| v != w).map(|v| on_grid(at(v))).collect();
+        parameters.insert("axis_line".into(), serde_json::json!(line));
+        r.local.retain(|p| p != "axis_line");
     }
     let directions: Vec<&str> = FIELDS
         .iter()
@@ -1285,6 +1337,17 @@ fn restore_local(
         parameters.insert(path.clone(), restored);
         false
     });
+}
+
+/// *x* on the 0.001 mm grid, without a negative zero.
+fn on_grid(x: f64) -> f64 {
+    haecceity::py::without_negative_zero(haecceity::py::round_to3(x))
+}
+
+/// Three numbers, as a point.
+fn point3(v: &Value) -> Option<[f64; 3]> {
+    let a = v.as_array().filter(|a| a.len() == 3)?;
+    Some([a[0].as_f64()?, a[1].as_f64()?, a[2].as_f64()?])
 }
 
 /// Families whose records patterns name, or that name others: one cannot be left out alone.
@@ -1317,15 +1380,27 @@ fn local_read_fields(r: &quiddity::recognition::Record) -> Vec<&str> {
         return Vec::new();
     }
     let read = FIELDS.iter().find(|(t, _)| *t == r.record_type);
+    // `path` lies inside field `name`.
+    let under = |path: &str, name: &str| {
+        path.strip_prefix(name)
+            .is_some_and(|rest| rest.starts_with('.') || rest.starts_with('['))
+    };
     r.local
         .iter()
         .map(String::as_str)
+        // A turned profile's body key and bounds only tell one body's profile from another's
+        // (`profile` is compared whole, and `body_key` by value, in [`crate::demand`]): every
+        // record of a document shares its frame, so they compare alike in it.
+        .filter(|path| !matches!(*path, "profile.body_key" | "profile.body_bounds"))
         .filter(|path| {
-            let top = path.split(['.', '[']).next().unwrap_or(path);
             read.is_none_or(|(_, fields)| {
-                fields
-                    .iter()
-                    .any(|(name, _)| name.split('.').next() == Some(top))
+                fields.iter().any(|(name, _)| {
+                    // The field itself, a value inside a field whose parts are not listed
+                    // separately, or an object holding a read field.
+                    *path == *name
+                        || (under(path, name) && !fields.iter().any(|(n, _)| under(n, name)))
+                        || under(name, path)
+                })
             })
         })
         .collect()

@@ -513,7 +513,10 @@ fn a_real_two_face_bore_reports_only_its_unattributed_seat() {
                     .any(|r| r.parameter.starts_with("countersink."))
         })
         .collect();
-    assert_eq!(missing.len(), 2, "{findings:?}");
+    // quiddity-rust 0.1.1 (accepted for alpha.13): the hole record carries no seat (its
+    // `csink` is null where alpha.8 gave the 90° seat), so neither countersink's diameter nor
+    // angle is attributable: 2 -> 4 findings, each still on one countersink.
+    assert_eq!(missing.len(), 4, "{findings:?}");
     assert!(
         missing
             .iter()

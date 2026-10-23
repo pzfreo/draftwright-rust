@@ -10,10 +10,10 @@ description = "Automated technical drawings from STEP B-rep: a Rust port of draf
 chrono = { version = "0.4", default-features = false }
 dxf = { version = "0.6.2", features = ["serialize"] }
 flate2 = "1.1.10"
-haecceity = { git = "https://github.com/pzfreo/quiddity-rust", rev = "9af17e58d8cba4e0ac85c507dcd150ff603fc73f" }
+haecceity = { git = "https://github.com/pzfreo/quiddity-rust", tag = "v0.1.1" }
 pdf-writer = "0.15"
 png = "0.18.1"
-quiddity = { git = "https://github.com/pzfreo/quiddity-rust", rev = "9af17e58d8cba4e0ac85c507dcd150ff603fc73f" }
+quiddity = { git = "https://github.com/pzfreo/quiddity-rust", tag = "v0.1.1" }
 serde = { version = "1.0.229", features = ["derive"] }
 serde_json = { version = "1.0.151", features = ["float_roundtrip"] }
 sha2 = "0.11.0"

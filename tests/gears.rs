@@ -437,8 +437,10 @@ fn real_wheel_full_wire_evidence_reconciles_authored_gear() {
     doc.records[index]
         .parameters
         .insert("repeat_count".into(), count);
-    // A profile whose axis quiddity left in the part's own frame is left out, not misread.
-    doc.records[index].local.push("axis".into());
+    // A profile with a read field quiddity left in the part's own frame is left out, not
+    // misread. (An axis letter whose frame axis is a file axis is restored by
+    // `restore_file_axes` and read, so the check uses the centre, which nothing restores.)
+    doc.records[index].local.push("centre".into());
     assert!(
         !draftwright::bridge::native::read(&part, &doc)
             .unwrap()
