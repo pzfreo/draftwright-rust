@@ -15,6 +15,16 @@ All notable changes to draftwright-rust are recorded here, in the style of
   length whose leader or witness misses its feature no longer earns coverage credit.
 - **Obround pockets.** Their leaders no longer aim at the box corners beyond the end arcs; 20
   MFCAD pocket callouts move onto the straight walls.
+- **Thread depth lint.** A thread recognised from modelled geometry no longer has to state a
+  depth: its trimmed span includes partial end turns and runouts, so it does not prove one, and
+  its extent is shown by the ISO 6410 depiction. A depth from a Spec thread length or an AP242
+  minimum full thread is still required. cgb243's three `thread.depth` warnings go away.
+- **Rules catalogue.** Four Python clauses are retired rather than ported, with the maintainer's
+  approval: ADR4-U1's angular sets (Rust draws no angular pattern locations, so no two automatic
+  angles share a vertex), ISSUE-1505-b's off-page Z shoulder recovery (Rust places those
+  shoulders on the main view) and solid Boolean cut caps (the detail clips exact projected
+  intervals), and the modelled-thread half of LINT-hole_coverage-thread_and_profile. The three
+  rules are marked ported, which leaves three pending.
 
 ### Fixed
 
