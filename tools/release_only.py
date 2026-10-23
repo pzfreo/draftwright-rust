@@ -1,8 +1,9 @@
 """Print release_only=true when a PR changes nothing but release metadata.
 
 A release PR bumps the workspace version and edits notes. Such a PR runs lint (fmt and clippy,
-which compiles every target) and skips the build, test, acceptance and WASM jobs; main's push
-run after the merge still runs everything before the release is tagged.
+which compiles every target) and skips the build, test, acceptance and WASM jobs. main's push
+run after the merge does the same when CI passed on the commit it was merged onto (ci.yml checks
+that); otherwise it runs everything.
 
 Allowed: Markdown files and docs/, and in Cargo.toml / crates/*/Cargo.toml / Cargo.lock only
 lines that change a version string from the old workspace version to the new one.
