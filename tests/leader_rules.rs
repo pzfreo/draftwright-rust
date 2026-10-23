@@ -1260,3 +1260,235 @@ fn toroidal_meridian_evidence_stays_on_the_trimmed_minor_circles() {
     }
     assert!(checked > 0, "exercise readable toroidal minor circles");
 }
+
+/// A turned step along z, ø*diameter* from z −5 to 5, and the two flats *across* apart that
+/// cut it over its whole span (none when *across* is None).
+fn flatted_band(diameter: f64, across: Option<f64>) -> Vec<Value> {
+    let mut out = vec![feature(
+        "f:turned_step:1",
+        "turned_step",
+        json!({ "axis": "z", "diameter": diameter, "lo": -5.0, "hi": 5.0,
+                "profile": { "axis": "z", "axis_origin": [0.0, 0.0, 0.0] } }),
+    )];
+    if let Some(across) = across {
+        for (i, x) in [-0.5 * across, 0.5 * across].into_iter().enumerate() {
+            out.push(feature(
+                &format!("f:flat:{}", i + 1),
+                "flat",
+                json!({ "across": across, "at": [x, 0.0, 0.0], "axis": "z",
+                        "axis_direction": [0.0, 0.0, 1.0], "axis_distance": 0.5 * across,
+                        "axis_line": [0.0, 0.0], "opposed": true, "stock_span": [-5.0, 5.0],
+                        "flat_plane": { "at": [x, 0.0, -5.0], "normal": [1.0, 0.0, 0.0] } }),
+            ));
+        }
+    }
+    out
+}
+
+/// ISSUE-1374-d, ARCH0017-6: a turned step's diameter tip lies on the band's own drawn cylinder.
+/// Where flats cut the band (string_post's ø3.4, ctc05's flange), the outline across them is the
+/// trimmed cylinder's edge on the flat, not the full circle's extreme in air; across the uncut
+/// direction, and seen along the axis on the arcs left between the flats, the cylinder itself.
+#[test]
+fn a_step_diameter_tip_lies_on_the_bands_trimmed_outline() {
+    let check = |across: Option<f64>, direction: [f64; 3], tip: P| {
+        let a = analysis(flatted_band(3.4, across), json!({}), &[]);
+        found(
+            &a,
+            &drawing(
+                direction,
+                vec![callout(
+                    "d:d",
+                    &[("f:turned_step:1", "step.diameter")],
+                    tip,
+                    [130.0, 110.0],
+                )],
+            ),
+            "step_diameter_leader",
+        )
+    };
+    let mismatch = one("step_diameter_leader_target_mismatch", "d:d");
+    let front = [0.0, -1.0, 0.0];
+    let side = [1.0, 0.0, 0.0];
+    for s in [-1.0, 1.0] {
+        // Uncut: the full circle's extreme.
+        assert!(check(None, front, page(s * 1.7, 0.0)).is_empty());
+        // Cut across x: the edge on the flat, anywhere along the band; not the circle in air.
+        assert!(check(Some(2.4), front, page(s * 1.2, 0.0)).is_empty());
+        assert!(check(Some(2.4), front, page(s * 1.2, 3.0)).is_empty());
+        assert_eq!(check(Some(2.4), front, page(s * 1.7, 0.0)), mismatch);
+        // The side view (y up the page here) shows y, where the cylinder is whole.
+        assert!(check(Some(2.4), side, page(0.0, s * 1.7)).is_empty());
+        assert_eq!(check(Some(2.4), side, page(0.0, s * 1.2)), mismatch);
+        // Along the axis: the arcs between the flats, not where the flats cut the circle away.
+        assert!(check(Some(2.4), ALONG_Z, page(0.0, s * 1.7)).is_empty());
+        assert_eq!(check(Some(2.4), ALONG_Z, page(s * 1.7, 0.0)), mismatch);
+    }
+    // Beyond the band's span.
+    assert_eq!(check(Some(2.4), front, page(1.2, 7.0)), mismatch);
+}
+
+/// ISSUE-1374-a, ISSUE-1276-a: a turned chamfer's tip lies on its bevel's profile, turned about
+/// its coaxial band onto the outline (ctc05's 4× C6.35 tipped at the shaft axis before); a
+/// prismatic bevel in a view that does not see its edge end-on cannot be checked.
+#[test]
+fn a_chamfer_tip_lies_on_its_bevel() {
+    let check = |chamfer: Value, direction: [f64; 3], tip: P| {
+        let mut features = flatted_band(10.0, None);
+        features.push(chamfer);
+        let a = analysis(features, json!({}), &[]);
+        found(
+            &a,
+            &drawing(
+                direction,
+                vec![callout(
+                    "d:c",
+                    &[("f:chamfer:1", "chamfer.length")],
+                    tip,
+                    [130.0, 110.0],
+                )],
+            ),
+            "chamfer_leader",
+        )
+    };
+    let turned = feature(
+        "f:chamfer:1",
+        "chamfer",
+        json!({ "angle": 45.0, "at": [0.0, -4.5, 4.5], "axis": "z", "corner": null,
+                "leg1": 1.0, "leg2": 1.0, "turned": true }),
+    );
+    let front = [0.0, -1.0, 0.0];
+    for s in [-1.0, 1.0] {
+        assert!(check(turned.clone(), front, page(s * 4.5, 4.5)).is_empty());
+        assert!(check(turned.clone(), front, page(s * 4.75, 4.25)).is_empty());
+    }
+    // At the axis, inside the band: the record's own point, seen through the shaft.
+    assert_eq!(
+        check(turned.clone(), front, page(0.0, 4.5)),
+        one("chamfer_leader_target_mismatch", "d:c")
+    );
+    let prismatic = feature(
+        "f:chamfer:1",
+        "chamfer",
+        json!({ "angle": 45.0, "at": [0.0, 9.5, 9.5], "axis": "x", "corner": null,
+                "leg1": 1.0, "leg2": 1.0, "turned": false }),
+    );
+    assert_eq!(
+        check(prismatic, ALONG_Z, page(0.0, 9.5)),
+        one("chamfer_leader_target_unverifiable", "d:c")
+    );
+}
+
+/// A callout counting members lint can measure and members it cannot (cgb243's 36× C0.5: turned
+/// bevels with no band, prismatic ones seen end-on) is a mismatch only when every member was
+/// measured; a tip on an unmeasurable member's bevel is unverifiable, not a miss.
+#[test]
+fn a_chamfer_tip_missing_only_the_measurable_members_is_unverifiable() {
+    let turned = feature(
+        "f:chamfer:1",
+        "chamfer",
+        json!({ "angle": 45.0, "at": [4.5, 2.0, 0.0], "axis": "y", "corner": null,
+                "leg1": 1.0, "leg2": 1.0, "turned": true }),
+    );
+    let prismatic = feature(
+        "f:chamfer:2",
+        "chamfer",
+        json!({ "angle": 45.0, "at": [0.0, 9.5, 0.0], "axis": "z", "corner": null,
+                "leg1": 1.0, "leg2": 1.0, "turned": false }),
+    );
+    let check = |claims: &[(&str, &str)]| {
+        let mut features = flatted_band(10.0, None);
+        features.extend([turned.clone(), prismatic.clone()]);
+        let a = analysis(features, json!({}), &[]);
+        found(
+            &a,
+            &drawing(
+                ALONG_Z,
+                vec![callout("d:c", claims, page(4.5, 2.0), [130.0, 110.0])],
+            ),
+            "chamfer_leader",
+        )
+    };
+    assert_eq!(
+        check(&[
+            ("f:chamfer:1", "chamfer.length"),
+            ("f:chamfer:2", "chamfer.length")
+        ]),
+        one("chamfer_leader_target_unverifiable", "d:c")
+    );
+    // With every member measured, the same tip is a miss.
+    assert_eq!(
+        check(&[("f:chamfer:2", "chamfer.length")]),
+        one("chamfer_leader_target_mismatch", "d:c")
+    );
+}
+
+/// The real defects (ARCH0017-6, ISSUE-1374-a/d, ISSUE-1276-a, E4): string_post's ø3.4 and
+/// ctc05's ø558.8 lead to their flat-cut bands' drawn outlines (ctc05's in the side view, where
+/// the flange is the cylinder), ctc05's 4× C6.35 to its bevel, ftc10's 41× R1 and cgb202's two
+/// R callouts to fillet arcs; lint finds no turned-diameter, chamfer or off-arc radius tip on
+/// them. E4 stays open: the fillet shafts may still approach more than 15 degrees off radial
+/// (`radius_leader_not_radial`, radial wording), since automatic routing keeps the drawn route
+/// when no compliant radial candidate fits (#146); only the tip-off-arc form is refused here.
+#[test]
+fn flat_cut_bands_chamfers_and_fillets_lead_to_their_own_faces() {
+    for (file, checks) in [
+        (
+            "gramel/string_post.step",
+            &["d:f:turned_step:4/step.diameter"][..],
+        ),
+        (
+            "nist/nist_ctc_05_asme1_rd.stp",
+            &[
+                "d:f:turned_step:1/step.diameter",
+                "d:f:chamfer:1/chamfer.length",
+            ][..],
+        ),
+        (
+            "nist/nist_ftc_10_asme1_rb.stp",
+            &["d:f:fillet:15/fillet.radius"][..],
+        ),
+        (
+            "cadgenbench_inputs/cgb202.step.gz",
+            &[
+                "d:f:fillet:217/fillet.radius",
+                "d:f:fillet:286/fillet.radius",
+            ][..],
+        ),
+    ] {
+        let Some((a, plan, drawing)) = native_drawing(file, false) else {
+            continue;
+        };
+        for id in checks {
+            assert!(
+                plan.dimensions
+                    .iter()
+                    .any(|d| d.id == *id && d.placed.is_some()),
+                "{file}: {id} is placed"
+            );
+        }
+        if file.contains("ctc_05") {
+            let d = plan
+                .dimensions
+                .iter()
+                .find(|d| d.id == "d:f:turned_step:1/step.diameter")
+                .unwrap();
+            assert_eq!(
+                d.view, "v:side",
+                "ctc05's flange reads where it is the cylinder"
+            );
+        }
+        let bad: Vec<_> = lint::lint(&a, &drawing)
+            .into_iter()
+            .filter(|i| {
+                i.code.starts_with("step_diameter_leader")
+                    || i.code.starts_with("chamfer_leader")
+                    // The tip off its arc; a shaft off radial is E4's open half.
+                    || (i.code.starts_with("radius_leader")
+                        && i.message.contains("tip does not touch"))
+            })
+            .map(|i| (i.code, i.annotation))
+            .collect();
+        assert!(bad.is_empty(), "{file}: {bad:?}");
+    }
+}

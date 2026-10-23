@@ -67,6 +67,8 @@ catalogue! {
     "boss_height_requirement_missing" => Incomplete, Requirement, "The drawing does not state this required feature parameter.";
     "boss_height_requirement_unverifiable" => Incomplete, Requirement, "The drawing does not prove this required feature parameter.";
     "callout_dropped" => Incomplete, Code, "A required drawing item was dropped before it could be stated.";
+    "chamfer_leader_target_mismatch" => Readability, Code, "The chamfer leader points at the wrong geometry.";
+    "chamfer_leader_target_unverifiable" => Readability, Code, "The chamfer leader target cannot be verified.";
     "chamfer_requirement_missing" => Incomplete, Requirement, "The drawing does not state this required feature parameter.";
     "chamfer_requirement_unverifiable" => Incomplete, Requirement, "The drawing does not prove this required feature parameter.";
     "channel_requirement_missing" => Incomplete, Requirement, "The drawing does not state this required feature parameter.";
@@ -232,6 +234,8 @@ catalogue! {
     "spec_from_other_revision" => Decision, Code, "The user must decide whether to rebind settings from another revision.";
     "spec_overrides_pmi" => Decision, Code, "The user-authored control replaces a different PMI control.";
     "spec_refines_pmi" => Advisory, Code, "The authored designation refines a Specify-written thread.";
+    "step_diameter_leader_target_mismatch" => Readability, Code, "The turned diameter leader points at the wrong geometry.";
+    "step_diameter_leader_target_unverifiable" => Readability, Code, "The turned diameter leader target cannot be verified.";
     "step_general_tolerance_disagreement" => Decision, Code, "The authored and PMI general tolerances disagree.";
     "step_level_support_missing" => Incomplete, Code, "Missing shoulder support prevents the step level being stated.";
     "step_material_ambiguous" => Decision, Code, "The STEP records do not identify one material to use.";

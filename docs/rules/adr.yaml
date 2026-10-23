@@ -1830,8 +1830,8 @@
     issues: []
     tests: []
   status: pending
-  rust_test: "rendering::leader_rules::the_ports_own_callouts_touch_their_targets"
-  rust_note: "Partial (stream K4): every callout leader is tipped at a site the Analysis proves (dims::leaders rim_tip on a feature's projected rim or a proven surface point; never a page coordinate), and lint now verifies the hole (rim, double-D profile) and blend (trimmed arc) targets on the drawn sheet. Not verified: the other callouts' targets (fillets, chamfers, flats, slots, turned diameters, recesses), which lint does not yet check against their faces."
+  rust_test: "rendering::leader_rules::the_ports_own_callouts_touch_their_targets; rendering::leader_rules::flat_cut_bands_chamfers_and_fillets_lead_to_their_own_faces"
+  rust_note: "Partial (stream K4, leader-tips): every callout leader is tipped at a site the Analysis proves (dims::leaders rim_tip on a feature's projected rim or a proven surface point; never a page coordinate), and lint verifies on the drawn sheet the hole (rim, double-D profile), blend and fillet (trimmed arc), turned-diameter (the band's own cylinder outline, trimmed by flats: src/dims/turned.rs::route_profile, crate::lint::turned::cuts) and chamfer (turned meridian about its coaxial band, prismatic section, oriented face) targets (src/lint/leaders.rs; tests/leader_rules.rs). Not verified: flats, slots and recesses, which lint does not yet check against their faces."
   port_note: "triage 2026-10-16: PORT, value medium, size M, stream leaders-and-tips"
 
 - id: ARCH0018-1

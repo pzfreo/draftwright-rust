@@ -894,6 +894,12 @@ including fillet callouts. Clear space, crossings, length and contacts choose th
 independently of convexity, concavity or radius size. Interior callouts may stand over blank
 face with a leader reaching the arc from the material side. Unreadable circular sections use the existing
 `radius_leader_target_unverifiable` as info, not a wrong-shaft warning.
+A turned step's diameter callout must tip on the band's own drawn cylinder, its outline trimmed
+by any flats that cut it, or its arcs between the flats seen along its axis
+(`step_diameter_leader_target_mismatch`, warning); a chamfer callout on its bevel: a turned
+bevel's meridian on the outline about its coaxial band, a prismatic bevel's section seen along
+its edge, an oriented bevel's face (`chamfer_leader_target_mismatch`, warning). Each has an
+`…_unverifiable` info when the view cannot show the target or its record cannot be read.
 Exact `Analysis.radius_arcs` records the cylinder, trim, proven middle-face points and
 material side; older straight blends use their rolling axis and proven samples. Toroidal
 minor-radius sections are checked only at proven quarter/half/three-quarter major-path

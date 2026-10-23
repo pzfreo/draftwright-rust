@@ -6,6 +6,14 @@ use crate::model::Analysis;
 pub(crate) struct Bevel {
     pub view_axis: usize,
     pub corner: [f64; 3],
+    /// The bevel face: from `corner + leg1·u` to `corner + leg2·v`, `length` long along `run`,
+    /// centred on `at`'s station.
+    pub run: [f64; 3],
+    pub u: [f64; 3],
+    pub v: [f64; 3],
+    pub legs: [f64; 2],
+    pub length: f64,
+    pub at: [f64; 3],
 }
 
 pub(crate) fn read(a: &Analysis, f: &Feature) -> Result<Bevel, String> {
@@ -31,7 +39,7 @@ pub(crate) fn read(a: &Analysis, f: &Feature) -> Result<Bevel, String> {
             .ok_or_else(|| format!("its record gives no positive {name}"))
     };
     let (l1, l2, angle) = (size("leg1")?, size("leg2")?, size("angle")?);
-    size("length")?;
+    let length = size("length")?;
     // Legs are published to 0.001 mm; the angle is published to 0.01 degrees.
     let low = (l2 - 0.0005).max(0.).atan2(l1 + 0.0005).to_degrees() - 0.01;
     let high = (l2 + 0.0005).atan2((l1 - 0.0005).max(0.)).to_degrees() + 0.01;
@@ -55,7 +63,16 @@ pub(crate) fn read(a: &Analysis, f: &Feature) -> Result<Bevel, String> {
     if !dot(sub(at, corner), run).is_finite() {
         return Err("its bevel site is not finite".into());
     }
-    Ok(Bevel { view_axis, corner })
+    Ok(Bevel {
+        view_axis,
+        corner,
+        run,
+        u,
+        v,
+        legs: [l1, l2],
+        length,
+        at,
+    })
 }
 
 fn sub(a: [f64; 3], b: [f64; 3]) -> [f64; 3] {

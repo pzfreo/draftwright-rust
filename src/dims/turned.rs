@@ -22,6 +22,10 @@
 //!   ([`crate::pmi_lowering::manufacturing`]) prints it after its diameter (`ø5 SEE MFG 3`), on a
 //!   callout of its own, or on the overall diameter when that states the band alone (beyond
 //!   draftwright, whose overall diameter prints none and whose lint then finds it not drawn).
+//!   A band that flats cut reads first in the profile view where its outline is the cylinder,
+//!   and its leader goes to the proven point of its trimmed cylinder on the chosen view's
+//!   outline (the edge on the flat, where the flats face the view), or to the arcs between the
+//!   flats seen along it ([`route_profile`], ISSUE-1374-d).
 //! - **A step's length** is `step.length`, the band's span along its axis, in its first profile
 //!   view (front for x and z, side for y), its witnesses at the band's shoulders: a chain, one
 //!   item per band, for each turned profile (the bands of one axis line and one recorded
@@ -219,12 +223,96 @@ fn sites(b: &Band) -> Vec<(P3, f64)> {
         .collect()
 }
 
-/// The views a band's diameter reads in, preferred first.
-fn diameter_views(k: usize) -> Vec<&'static str> {
-    if k == 1 {
-        vec![super::end_on(1)]
+/// The views a band's diameter reads in, preferred first. A band that flats cut reads first
+/// where its outline is the cylinder itself, when one profile view shows it uncut.
+fn diameter_views(analysis: &Analysis, b: &Band) -> Vec<&'static str> {
+    if b.axis == 1 {
+        return vec![super::end_on(1)];
+    }
+    let mut views = profile_views(b.axis);
+    let cuts = crate::lint::turned::cuts(analysis, b);
+    if !cuts.is_empty() {
+        let mid = 0.5 * (b.lo + b.hi);
+        let r = 0.5 * b.diameter;
+        let whole = |v: &str| {
+            across(b.axis, v).is_some_and(|d| {
+                [d, d.map(|x| -x)].iter().all(|&d| {
+                    crate::lint::turned::extreme(b, &cuts, mid, d).is_some_and(|p| {
+                        (0..3).map(|i| (p[i] - b.on[i]) * d[i]).sum::<f64>() > r - 1e-6
+                    })
+                })
+            })
+        };
+        if !whole(views[0]) && whole(views[1]) {
+            views.swap(0, 1);
+        }
+    }
+    views
+}
+
+/// The unit direction square to axis *k* that view *v* shows across it (`toward × axis`), when
+/// *v* is a principal view that does not look along *k*.
+fn across(k: usize, v: &str) -> Option<P3> {
+    let (_, t) = super::TOWARD.iter().find(|(n, _)| *n == v)?;
+    if t[k] != 0.0 {
+        return None;
+    }
+    let mut a = [0.0; 3];
+    a[k] = 1.0;
+    Some([
+        t[1] * a[2] - t[2] * a[1],
+        t[2] * a[0] - t[0] * a[2],
+        t[0] * a[1] - t[1] * a[0],
+    ])
+}
+
+/// The leader sites of a turned step's diameter in view *view* once it is chosen, for a band that
+/// flats cut: the proven points of its trimmed cylinder on the view's outline (each side of its
+/// axis), or its trimmed circle's arcs in a view looking along it. A band no flat cuts keeps
+/// [`sites`], which are those points already.
+pub(super) fn route_profile(analysis: &Analysis, w: &mut Want, view: &str) {
+    let Shape::Callout { sites, arcs } = &mut w.shape else {
+        return;
+    };
+    if w.turning.is_none() || !super::TOWARD.iter().any(|(n, _)| *n == view) {
+        return;
+    }
+    let frame = holes::frame(analysis);
+    let (mut points, mut circles, mut cut) = (Vec::new(), Vec::new(), false);
+    for m in w
+        .measurements
+        .iter()
+        .filter(|m| m.parameter == "step.diameter")
+    {
+        let Some(Ok(b)) = analysis
+            .features
+            .iter()
+            .find(|f| f.id == m.feature)
+            .map(|f| band(&frame, f))
+        else {
+            return;
+        };
+        let cuts = crate::lint::turned::cuts(analysis, &b);
+        cut |= !cuts.is_empty();
+        let mid = 0.5 * (b.lo + b.hi);
+        match across(b.axis, view) {
+            Some(d) => points.extend(
+                [d, d.map(|x| -x)]
+                    .into_iter()
+                    .filter_map(|d| crate::lint::turned::extreme(&b, &cuts, mid, d))
+                    .map(|p| (p, 0.0)),
+            ),
+            None => circles.extend(crate::lint::turned::arcs(&b, &cuts, mid)),
+        }
+    }
+    if !cut {
+        return;
+    }
+    if circles.is_empty() {
+        *sites = points;
+        arcs.clear();
     } else {
-        profile_views(k)
+        *arcs = circles;
     }
 }
 
@@ -285,7 +373,7 @@ fn diameters(
         .filter(|(i, _)| !gone.contains(i))
         .map(|(_, (members, terms))| {
             let (f, b) = members[0];
-            let views = diameter_views(b.axis);
+            let views = diameter_views(cx.analysis, b);
             let n = members.len();
             Want {
                 id: want_id(&f.id, "step.diameter"),
