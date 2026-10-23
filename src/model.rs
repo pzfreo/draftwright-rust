@@ -3542,10 +3542,37 @@ pub(crate) fn plan_automatic(analysis: &Analysis, spec: &Spec) -> Result<Plan, I
     // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
     .expect("planning inputs serialize");
     crate::dims::spaced(spec, || {
+        // A finished plan reused from a retained session scope skips the policies its
+        // planning activated in this scope (the established route policy and its witness
+        // and interior statement sets), which the session clears on every invocation.
+        // Activate them again, exactly as the planning that produced it did, so later
+        // planning in this invocation does not depend on whether this plan was reused.
+        if spec.sheet.scale.is_none()
+            && crate::planning::lookup::<Result<Plan, Invalid>>(analysis, "finished-plan", &key)
+                .is_some()
+        {
+            activate_established(analysis, spec)?;
+        }
         crate::planning::memo(analysis, "finished-plan", key, || {
             plan_automatic_uncached(analysis, spec)
         })
     })
+}
+
+/// The scope policies [`plan_automatic_uncached`] activates through [`established_drawing`],
+/// with the same migrated spec and effective Analysis. A merged Analysis plans in its own
+/// scope, so its policies never reach this one.
+fn activate_established(analysis: &Analysis, spec: &Spec) -> Result<(), Invalid> {
+    let spec = &migrate(spec, analysis)?;
+    let bound = crate::recognition_corrections::canonical(analysis, spec)?;
+    let spec = bound.as_ref();
+    let merged = crate::spec_gdt::effective(analysis, spec)?;
+    if matches!(merged, std::borrow::Cow::Borrowed(_))
+        && crate::dims::has_new_native_recess_dimensions(analysis)
+    {
+        established_drawing(analysis, spec)?;
+    }
+    Ok(())
 }
 
 fn plan_automatic_uncached(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
