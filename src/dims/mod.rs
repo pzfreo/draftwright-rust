@@ -2990,7 +2990,9 @@ fn plan_inventory_ordered(
     // Reserve unchanged callouts together with the finished radius corridors,
     // so an earlier radius cannot evict another clear leader from its joint
     // assignment. These are incumbent preferences, not authored pins: the
-    // ordinary final collision/radius repair still handles new contacts.
+    // ordinary final collision/radius repair still handles new contacts. A pin
+    // replay keeps them too: re-routing an unchanged callout there can take the
+    // place another presentation needs (CTC-03's schedule origin mark).
     let radius_incumbents = held.iter().any(|d| {
         d.placed.is_some()
             && d.measurements
@@ -3010,7 +3012,6 @@ fn plan_inventory_ordered(
     for (i, w) in all.iter().enumerate() {
         if radius_incumbents
             && !crate::nominal::comparison()
-            && !crate::placement_intent::has_pins(spec)
             && intended[i].is_none()
             && matches!(w.shape, Shape::Callout { .. })
             && spec.dimensions.get(&w.id).is_none_or(|d| {

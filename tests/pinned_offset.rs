@@ -459,7 +459,9 @@ fn pinning_a_callout_at_its_reported_offset_on_a_multi_sheet_plan_moves_nothing(
 
 /// #170: a view pinned where a step-allocated multi-sheet plan has it (CTC-04 on two A2
 /// sheets, section and isometric moved to sheet 2) replays that allocation: the same
-/// sheet-1 frames, the same pages and the same hole schedule.
+/// frames on every sheet, the same pages and the same hole schedule. Sheet 2 spends the
+/// canonical drawing's gutters: a gutter solve tied to the pinned sheet 1 left the
+/// isometric 25 mm short of its canonical place.
 #[test]
 fn pinning_a_view_on_a_step_allocated_multi_sheet_plan_keeps_its_frames() {
     let Some(dir) = corpus::dir() else { return };
@@ -481,7 +483,6 @@ fn pinning_a_view_on_a_step_allocated_multi_sheet_plan_keeps_its_frames() {
     let frames = |p: &draftwright::model::Plan| {
         p.views
             .iter()
-            .filter(|v| v.sheet == 1)
             .map(|v| (v.id.clone(), v.at))
             .collect::<Vec<_>>()
     };
@@ -541,4 +542,44 @@ fn a_retained_session_scope_plans_an_offset_pin_and_its_bare_pin_alike() {
             .unwrap()
     });
     assert_eq!(pinned, bare);
+}
+
+/// A view pinned at its own place on a single sheet replays the canonical drawing. CTC-03's
+/// side view, pinned right of the front at its gap (the pins-1-1 quality cell), re-routed
+/// two slot radius callouts; one then took the hole schedule's origin-mark position, so
+/// the schedule was withdrawn for its 35-dimension ladder. Unchanged callouts keep their
+/// canonical routes as incumbents in a pin replay too.
+#[test]
+fn pinning_a_view_at_its_own_place_keeps_the_ctc03_schedule() {
+    let Some(dir) = corpus::dir() else { return };
+    let part = dir.join("nist/nist_ctc_03_asme1_rc.stp");
+    let base = Session::open(&part, api::Features::Native, Spec::default()).unwrap();
+    let canonical = base.plan();
+    let front = canonical.views.iter().find(|v| v.id == "v:front").unwrap();
+    let side = canonical.views.iter().find(|v| v.id == "v:side").unwrap();
+    let spec: Spec = serde_json::from_value(json!({"views": {"side": {"place": {
+        "relative_to": "front", "side": "right", "align": "projection", "pinned": true,
+        "gap": side.area[0] - front.area[2],
+    }}}}))
+    .unwrap();
+    let s = Session::open(&part, api::Features::Native, spec).unwrap();
+    assert!(
+        !canonical.balloons.is_empty(),
+        "the canonical drawing has a schedule"
+    );
+    let at = |p: &draftwright::model::Plan| {
+        p.views
+            .iter()
+            .map(|v| (v.id.clone(), v.at))
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(at(s.plan()), at(canonical));
+    assert_eq!(s.plan().balloons.len(), canonical.balloons.len());
+    let ids = |p: &draftwright::model::Plan| {
+        p.dimensions
+            .iter()
+            .map(|d| d.id.clone())
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(ids(s.plan()), ids(canonical));
 }

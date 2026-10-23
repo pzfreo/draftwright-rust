@@ -677,6 +677,12 @@ pub struct Plan {
     /// document.
     #[serde(skip)]
     pub(crate) callout_tips: BTreeMap<String, (String, [f64; 2])>,
+    /// The gutter translation `view_gutters::apply` gave each view; not part of the document.
+    #[serde(skip)]
+    pub(crate) gutter_deltas: BTreeMap<String, [f64; 2]>,
+    /// A pin replay's canonical gutter translations, spent instead of a new gutter solve.
+    #[serde(skip)]
+    pub(crate) replay_gutters: Option<BTreeMap<String, [f64; 2]>>,
     /// Canonical linear label positions relative to their carrier origins; editor metadata.
     #[serde(skip)]
     pub(crate) dimension_labels: BTreeMap<String, (String, [f64; 2])>,
@@ -6363,6 +6369,13 @@ fn plan_with_presentation(
             widths
         },
         callout_tips,
+        gutter_deltas: BTreeMap::new(),
+        // A pin replay's later sheets are packed afresh, as the canonical drawing's were;
+        // they spend that drawing's gutters (view_gutters::apply).
+        replay_gutters: canonical
+            .as_ref()
+            .filter(|_| crate::placement_intent::has_pins(&spec))
+            .map(|c| c.gutter_deltas.clone()),
         dimension_labels: canonical
             .as_ref()
             .map(|p| p.dimension_labels.clone())
