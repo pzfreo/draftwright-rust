@@ -306,6 +306,50 @@ impl<'a> Geometry<'a> {
     }
 }
 
+/// A recess's faces as its record publishes them, in quiddity's frame: its section boundary
+/// (each vertex's point and the bulge of the edge it starts) swept along its run between the
+/// ends of its run interval. An open boundary has no wall across the gap from its last vertex
+/// back to its first: that is its opening. Each end is capped by a plane square to the run
+/// (`Some(true)`), open (`Some(false)`), or capped by another surface (`None`).
+#[derive(Clone, Debug, PartialEq)]
+pub struct Swept {
+    pub origin: P3,
+    pub run: P3,
+    pub u: P3,
+    pub v: P3,
+    pub interval: [f64; 2],
+    pub boundary: Vec<(P2, f64)>,
+    pub closed: bool,
+    pub caps: [Option<bool>; 2],
+}
+
+/// *f*'s recess as a swept section ([`Swept`]), or why its record cannot be read.
+pub fn swept(f: &Feature) -> Result<Swept, Refusal> {
+    let g = Geometry::read(&f.parameters)?;
+    if g.vertices.len() < 2 {
+        return invalid("section profile needs at least two vertices");
+    }
+    Ok(Swept {
+        origin: g.origin,
+        run: g.run,
+        u: g.u,
+        v: g.v,
+        interval: [g.low, g.high],
+        boundary: g.vertices.iter().map(|v| (v.point, v.bulge)).collect(),
+        closed: g.closed,
+        caps: [0, 1].map(|i| {
+            let e = &g.ends[i];
+            if e.open {
+                Some(false)
+            } else if e.perpendicular() {
+                Some(true)
+            } else {
+                None
+            }
+        }),
+    })
+}
+
 /// *f*'s recess as draftwright's drafting vocabulary reads it (`section_recess_fields`), or why
 /// none does.
 pub fn grammar(f: &Feature) -> Result<Grammar, Refusal> {
