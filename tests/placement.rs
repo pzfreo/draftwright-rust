@@ -678,9 +678,13 @@ fn omitting_one_dimension_moves_no_other() {
                             if survivor.region == Some(dims::CandidateRegion::Interior) {
                                 continue;
                             }
-                            // Nor does a callout that conveyed it (ADR1-8: a boss height a hole
-                            // callout's depth states): it is placed in its own view, outside.
-                            if survivor.kind != "linear" {
+                            // Nor does a callout in another view that conveyed it (ADR1-8: a
+                            // boss height a hole callout's depth states): the promoted item is
+                            // placed in its own view, outside.
+                            if survivor.kind != "linear"
+                                && survivor.view != d.view
+                                && conveyed_by(by).contains(&d.id.as_str())
+                            {
                                 continue;
                             }
                             let survivor = survivor.placed.as_ref().unwrap();
