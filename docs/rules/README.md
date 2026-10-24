@@ -76,10 +76,10 @@ clauses and why. ADR1-8, ARCH0020-1 and LINT-angular-profile_angle_requirement r
 
 The profile-angle stream (2026-10-23) ports LINT-angular-profile_angle_requirement on the
 design the maintainer agreed (ISO 129-1, ASME Y14.5): a corner is satisfied when its angle is
-stated or its geometry is fixed by drawn linear dimensions; a corner one station short is
-completed linearly; a closed polygon's equal corners take one counted angle (`8× 135°`);
-angles are placed only where clear, else dropped and still reported; `faces/<face>/profile_corners`
-and per-corner `dimensions/<id>` overrides steer it. ADR1-8 and ARCH0020-1 remain pending.
+stated or its geometry is fixed by drawn linear dimensions; a closed polygon's equal corners
+take one counted angle (`8× 135°`) and two mirror-equal corners one `2× θ°`; angles are placed
+only local to their corner and clear, else dropped and still reported; `faces/<face>/profile_corners`
+(including `linear`) and per-corner `dimensions/<id>` overrides steer it. ADR1-8 and ARCH0020-1 remain pending.
 
 The triage covered all 190 rules then pending: 80 PORT, 98 TRANSLATE and 12 RETIRE.
 The original PORT triage recorded value, size and stream in `port_note`. Of the TRANSLATE

@@ -11,6 +11,8 @@
 //!   The angle is drawn in the view that shows it true.
 //! - A closed all-line profile whose corners are all issued and equal (FTC-08's octagon) gets
 //!   one counted angle (`8× 135°`), never one per corner.
+//! - Two mirror-equal corners of one profile (CTC-04's waist) get one counted angle, `2× θ°`,
+//!   drawn at whichever of them has a clear place.
 //! - IDs follow the notches': `d:envelope/profile_angle.angle.f<face>_e<i>_e<j>` per corner,
 //!   `d:envelope/profile_angle.angle.f<face>` for a polygon's counted angle and
 //!   `d:envelope/profile_location_<axis>.length.f<face>_<n>` for a completing station.
@@ -18,9 +20,9 @@
 //!   (`omit`) a corner's angle; `faces/face:<n>/profile_corners` chooses `angle` (every corner,
 //!   reference where linearly defined) or `linear` (locate the missing stations instead).
 //!
-//! The angles are placed one at a time ([`super::angular::place_profile`]) and only where they
-//! are clear: last of all, or before the callouts route when that states more corners and is
-//! no worse. One with no clear
+//! The angles are placed one at a time ([`super::angular::place_profile`]), local to their corner
+//! (radius bounded by its shorter edge and eight label heights) and only where they are clear:
+//! last of all, or before the callouts route when that states more corners and is no worse. One with no clear
 //! place stays undrawn (`angular_dimension_dropped`) and lint still reports its corner missing;
 //! it never moves another item, takes a fallback or asks for more paper.
 use super::{Measurement, Shape, Want, end_on, fmt, want_id};
@@ -101,6 +103,44 @@ fn located(analysis: &Analysis, wants: &[Want]) -> impl Fn(usize, f64) -> bool +
     move |k, v| crate::lint::profile_angles::rooted_at(&roots[k], &spans, k, v)
 }
 
+fn corner_angle(c: &Corner) -> super::angular::Angle {
+    super::angular::Angle {
+        vertex: c.vertex,
+        first: c.ends[0],
+        second: c.ends[1],
+    }
+}
+
+/// Whether corners *a* and *b* of one profile are mirror images across a line parallel to one
+/// of the view's axes: equal angles, mirrored vertices and mirrored edge directions.
+fn mirrored(a: &Corner, b: &Corner) -> bool {
+    if a.axis != b.axis || (a.degrees() - b.degrees()).abs() > 1e-6 {
+        return false;
+    }
+    let plane: Vec<usize> = (0..3).filter(|&k| k != a.axis).collect();
+    let directions = |c: &Corner| {
+        c.ends.map(|e| {
+            let d = [0, 1, 2].map(|k| e[k] - c.vertex[k]);
+            let n = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt();
+            d.map(|x| x / n)
+        })
+    };
+    let (da, db) = (directions(a), directions(b));
+    plane.iter().any(|&k| {
+        let other = plane[usize::from(plane[0] == k)];
+        let flip = |d: [f64; 3]| {
+            let mut d = d;
+            d[k] = -d[k];
+            d
+        };
+        let same = |p: [f64; 3], q: [f64; 3]| (0..3).all(|j| (p[j] - q[j]).abs() < 1e-6);
+        (a.vertex[other] - b.vertex[other]).abs() < 1e-4
+            && (a.vertex[k] - b.vertex[k]).abs() > 1e-3
+            && ((same(flip(da[0]), db[0]) && same(flip(da[1]), db[1]))
+                || (same(flip(da[0]), db[1]) && same(flip(da[1]), db[0])))
+    })
+}
+
 fn angle_want(id: String, corners: &[&Corner], reference: bool, basis: &str) -> Want {
     let c = corners[0];
     // atan2 differs in its last bits between native and WASM libm; the plan's value must not.
@@ -125,12 +165,11 @@ fn angle_want(id: String, corners: &[&Corner], reference: bool, basis: &str) -> 
                 value,
             })
             .collect(),
+        // Witnesses at the far ends of the corner's straight edges: their lengths bound how far
+        // the arc may reach (a rounded corner's tangent points would bound it too tightly).
         shape: Shape::Angular {
-            angle: super::angular::Angle {
-                vertex: c.vertex,
-                first: c.first,
-                second: c.second,
-            },
+            angle: corner_angle(c),
+            alternates: corners[1..].iter().map(|c| corner_angle(c)).collect(),
         },
         turning: None,
         basis: basis.into(),
@@ -198,8 +237,53 @@ pub(super) fn apply(
             }
             continue;
         }
+        // Two mirror-equal corners (CTC-04's waist) take one counted angle, `2× θ°`, drawn at
+        // whichever of them has a clear place. Only an unambiguous pair: no third corner of
+        // that angle on the profile.
+        let mut paired = vec![false; mine.len()];
+        if mode == CornerMode::Auto {
+            for x in 0..mine.len() {
+                for y in x + 1..mine.len() {
+                    let alone = mine.iter().enumerate().all(|(z, c)| {
+                        z == x || z == y || (c.degrees() - mine[x].degrees()).abs() > 1e-6
+                    });
+                    if paired[x]
+                        || paired[y]
+                        || !alone
+                        || !mirrored(mine[x], mine[y])
+                        || missing[x].is_empty()
+                        || missing[y].is_empty()
+                    {
+                        continue;
+                    }
+                    let singles = [mine[x], mine[y]].map(|c| id(&support(c), PARAMETER));
+                    if singles.iter().any(|i| spec.dimensions.contains_key(i)) {
+                        continue;
+                    }
+                    paired[x] = true;
+                    paired[y] = true;
+                    let support_b = support(mine[y]);
+                    let pair = format!(
+                        "{}_{}",
+                        support(mine[x]),
+                        support_b
+                            .split_once('_')
+                            .map_or(support_b.as_str(), |(_, e)| e)
+                    );
+                    added.push(angle_want(
+                        id(&pair, PARAMETER),
+                        &[mine[x], mine[y]],
+                        false,
+                        "two mirror-equal outer-profile corners its linear dimensions do not fix, one counted angle in the view that shows them true",
+                    ));
+                }
+            }
+        }
         let mut stations: Vec<(usize, f64, [f64; 3], usize)> = Vec::new();
-        for (c, miss) in mine.iter().zip(&missing) {
+        for (n, (c, miss)) in mine.iter().zip(&missing).enumerate() {
+            if paired[n] {
+                continue;
+            }
             let id = id(&support(c), PARAMETER);
             // Automatic completion is not offered: station lanes are not reserved when the sheet
             // is laid out, so an added station could crowd a view onto larger paper.

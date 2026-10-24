@@ -416,6 +416,37 @@ fn a_counted_angle_is_proved_by_its_closed_polygon() {
     assert_eq!(check("6× 120°", branched), 1);
 }
 
+/// `2× θ` for two mirror-equal corners: the drawn corner and its mirror image across a vertical
+/// or horizontal line must both stand on visible edges (a rounded corner's straight edges may
+/// stop short of the theoretical vertex).
+#[test]
+fn a_two_times_angle_is_proved_by_its_mirror_corner() {
+    let code = "angular_support_mismatch";
+    let mirror = |p: P| [2.0 * (VERTEX[0] + 50.0) - p[0], p[1]];
+    let mut edges = corner();
+    // The mirror corner, its edges stopping 3 mm short of its vertex.
+    edges.push(Curve::Line(
+        mirror(polar(3.0, 0.0)),
+        mirror(polar(60.0, 0.0)),
+    ));
+    edges.push(Curve::Line(
+        mirror(polar(3.0, 60.0)),
+        mirror(polar(60.0, 60.0)),
+    ));
+    let check = |edges: Vec<Curve>| {
+        let issues =
+            structural::check(&sheet(1.0, edges, vec![(angle(0.0, 60.0, 20.0), "2× 60°")]));
+        found(&issues, code).len()
+    };
+    assert_eq!(check(edges.clone()), 0);
+    assert_eq!(check(corner()), 1, "one corner proves no 2×");
+    // A corner of another angle is no mirror.
+    let mut other = corner();
+    other.push(Curve::Line(mirror(VERTEX), mirror(polar(60.0, 0.0))));
+    other.push(Curve::Line(mirror(VERTEX), mirror(polar(60.0, 75.0))));
+    assert_eq!(check(other), 1);
+}
+
 #[test]
 fn both_angular_supports_can_extend_through_their_common_corner() {
     for degrees in [60.0, 120.0] {

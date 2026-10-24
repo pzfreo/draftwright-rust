@@ -3669,7 +3669,7 @@ pub(super) fn intent(
                 label_box: label_box(&ink, at, 0.0),
             }
         }
-        Shape::Angular { angle } => super::angular::intent(frame, angle, &w.terms, p)?,
+        Shape::Angular { angle, .. } => super::angular::intent(frame, angle, &w.terms, p)?,
     };
     if matches!(w.shape, Shape::Linear { .. })
         && let Some(along) = p.along
@@ -4163,12 +4163,19 @@ pub(super) fn dimension_lines_clear(a: &Placed, b: &Placed) -> bool {
     dimension_segments(a).all(|a| dimension_segments(b).all(|b| !super::leaders::lines_meet(a, b)))
 }
 
-/// Whether *a* and *b* share no stroke: their lines may cross transversely, but never run
-/// along or end on each other.
-pub(super) fn no_shared_strokes(a: &Placed, b: &Placed) -> bool {
-    dimension_segments(a).all(|a| {
-        dimension_segments(b)
-            .all(|b| super::leaders::segments_cross(a, b) || !super::leaders::lines_meet(a, b))
+/// [`dimension_lines_clear`], except that *a* may cross the first *crossable* lines of *b*
+/// (its extension lines, or every line of a chain line) transversely; it may still never run
+/// along or end on them.
+pub(super) fn lines_clear_but(a: &Placed, b: &Placed, crossable: usize) -> bool {
+    dimension_segments(a).all(|s| {
+        b.lines.iter().enumerate().all(|(k, t)| {
+            !super::leaders::lines_meet(s, *t)
+                || (k < crossable && super::leaders::segments_cross(s, *t))
+        }) && b
+            .arrows
+            .iter()
+            .flat_map(|h| super::leaders::head(*h))
+            .all(|t| !super::leaders::lines_meet(s, t))
     })
 }
 

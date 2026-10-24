@@ -496,15 +496,63 @@ impl Proof {
     }
 
     /// Whether thin annotation *lines* and *arrows* stay clear of the view's line work; an
-    /// arrow tip may touch the edge it ends on.
+    /// arrow tip may touch the edge it ends on, and the first *witnesses* lines start at the
+    /// corner they witness (their first 0.6 mm is that corner's attachment).
+    /// With *straight_ok*, the lines may cross straight projected edges (dimension and extension
+    /// lines crossing an outline where unavoidable, ISO 129-1) but still no curved face: no
+    /// hole, boss or blend.
     pub(super) fn lines_clear(
         &self,
         v: &PlannedView,
         lines: &[[P2; 2]],
         arrows: &[[P2; 2]],
+        witnesses: usize,
+        straight_ok: bool,
     ) -> bool {
-        lines.iter().all(|s| self.segment_clear(v, *s, false))
-            && arrows.iter().all(|a| self.arrow_clear(v, *a, true))
+        let c = 0.2 / v.scale + SLACK;
+        let curved_clear = |s: [P2; 2]| {
+            let m = [self.model_point(v, s[0]), self.model_point(v, s[1])];
+            self.boxes
+                .iter()
+                .chain(&self.curved_cover)
+                .all(|x| !near_box(m, *x, c))
+        };
+        // The arc ends on the corner's edges, which a blended edge's cover surrounds: the last
+        // 1.5 mm before each arrow tip is the arc's attachment.
+        let attached = |s: [P2; 2]| {
+            arrows.iter().any(|a| {
+                s.iter()
+                    .all(|p| (p[0] - a[0][0]).hypot(p[1] - a[0][1]) <= 1.5)
+            })
+        };
+        lines.iter().enumerate().all(|(i, s)| {
+            if i < witnesses && !straight_ok {
+                self.witness_clear(v, *s)
+            } else if straight_ok {
+                attached(*s) || curved_clear(*s)
+            } else {
+                self.segment_clear(v, *s, false)
+            }
+        }) && (straight_ok || arrows.iter().all(|a| self.arrow_clear(v, *a, true)))
+    }
+
+    /// A witness line extends its corner's edge: it may run along a projected edge on that same
+    /// line (the edge continuing past the corner), but may not cross or approach any other.
+    /// Its first 0.6 mm is the corner's attachment.
+    fn witness_clear(&self, v: &PlannedView, [a, b]: [P2; 2]) -> bool {
+        let length = (b[0] - a[0]).hypot(b[1] - a[1]);
+        let t = (0.6 / length.max(1e-12)).min(1.0);
+        let start = [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])];
+        let s = [self.model_point(v, start), self.model_point(v, b)];
+        let c = 0.2 / v.scale + SLACK;
+        let d = [s[1][0] - s[0][0], s[1][1] - s[0][1]];
+        let n = d[0].hypot(d[1]).max(1e-12);
+        let on_line = |p: P2| ((p[0] - s[0][0]) * d[1] - (p[1] - s[0][1]) * d[0]).abs() / n <= c;
+        let g = padded(bounds_of(s), c);
+        self.grid.near(g).all(|i| {
+            let e = self.segments[i];
+            (on_line(e[0]) && on_line(e[1])) || segment_distance(s, e) > c
+        }) && self.boxes.iter().all(|x| !near_box(s, *x, c))
     }
 
     pub(super) fn annotation_clear(&self, v: &PlannedView, p: &Placed, callout: bool) -> bool {

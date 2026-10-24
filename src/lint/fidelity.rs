@@ -521,7 +521,10 @@ fn angular(drawing: &Drawing, d: &Drawn, label: &str, view: Option<&str>) -> Vec
                 corners.len() as f64 == quantity
                     && corners.iter().all(|c| (c - n).abs() <= tolerance)
             })
-        });
+        })
+        // `2×`: the corner and its mirror image across a vertical or horizontal line, both
+        // supported by visible edges (a rounded corner meets at its theoretical vertex).
+        || (quantity == 2.0 && mirror_corner(&edges, vertex, [u, v], if forward { 1.0 } else { -1.0 }));
     let why = if !counted {
         Some(format!(
             "its quantity {quantity}× is not proved by the one corner drawn"
@@ -546,6 +549,48 @@ fn angular(drawing: &Drawing, d: &Drawn, label: &str, view: Option<&str>) -> Vec
         out.push(i);
     }
     out
+}
+
+/// Whether visible straight *edges* support a second corner mirroring the one at *vertex*
+/// with rays *rays* (in their *sense*) across a vertical or horizontal line.
+fn mirror_corner(edges: &[[P; 2]], vertex: P, rays: [P; 2], sense: f64) -> bool {
+    const NEAR: f64 = 0.05;
+    let along = |e: &[P; 2], d: P| {
+        let w = sub(e[1], e[0]);
+        let n = len(w);
+        n > NEAR && cross(w, d).abs() / n <= 1e-4
+    };
+    let supported_at = |at: P, ray: P| {
+        edges.iter().any(|[a, b]| {
+            let across = |p: P| cross(ray, sub(p, at)).abs();
+            let ahead = |p: P| sense * dot(sub(p, at), ray);
+            across(*a) <= NEAR && across(*b) <= NEAR && ahead(*a).max(ahead(*b)) > NEAR
+        })
+    };
+    (0..2).any(|k| {
+        let flip = |d: P| {
+            let mut d = d;
+            d[k] = -d[k];
+            d
+        };
+        let [u, v] = rays.map(flip);
+        edges.iter().filter(|e| along(e, u)).any(|e| {
+            edges.iter().filter(|f| along(f, v)).any(|f| {
+                let (p, r) = (e[0], sub(e[1], e[0]));
+                let (q, t) = (f[0], sub(f[1], f[0]));
+                let det = cross(r, t);
+                if det.abs() < 1e-12 {
+                    return false;
+                }
+                let s = cross(sub(q, p), t) / det;
+                let at = [p[0] + s * r[0], p[1] + s * r[1]];
+                (at[1 - k] - vertex[1 - k]).abs() <= NEAR
+                    && (at[k] - vertex[k]).abs() > 1.0
+                    && supported_at(at, u)
+                    && supported_at(at, v)
+            })
+        })
+    })
 }
 
 /// The included angles (degrees) of the closed loop of straight *edges* through *start*, walked

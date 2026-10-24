@@ -1291,14 +1291,20 @@ basis, placed, reference?, determined_by?}`:
     counted angle, `8× 135°` as `d:envelope/profile_angle.angle.f<face>`, never one per corner.
     Lint proves the count from the closed loop of visible edges through the drawn corner.
 
-  Angles are placed one at a time, wholly within their view's reserved area (never claiming paper
-  the layout did not give the view), inside the corner (its label on proven blank face) or in the
-  equal sector between the extended edges (its label on proven exterior paper), with the label
-  on or beside the bisector. A place whose lines cross nothing is preferred; otherwise the thin
-  arc may cross the view's own line work, other dimensions' lines, centre lines and cutting-plane
-  lines transversely, but never a leader, frame or symbol, and nothing may touch any label; no
-  callout's leader or padded label may meet an angle's witness lines (the 2026-10-12 extension
-  contact rule), and leader refinement keeps clear of them as of linear extension lines. The
+  An angle stays local to its corner, so a reader sees which corner it states: its arc's radius
+  is at most the corner's shorter straight edge on the paper and at most eight label heights,
+  its label sits on its arc (on or beside the bisector), and all its ink lies within the view's
+  reserved area. It stands inside the corner (label on proven blank face) or in the equal sector
+  between the extended edges (label on proven exterior paper). A place whose lines cross
+  nothing is preferred; otherwise its arc and witness lines may cross straight edges of the part
+  (as dimension and extension lines may where unavoidable), but never a curved face (hole, boss,
+  blend), never another item's dimension line, leader, arrow, frame or label; only other
+  dimensions' extension lines, centre lines and cutting-plane chain lines may be crossed
+  transversely. No callout's leader or padded label may meet its witness lines (the 2026-10-12
+  extension contact rule), and leader refinement keeps clear of them as of linear extension
+  lines. Two mirror-equal corners in one view (CTC-04's waist) take one counted angle, `2× θ°`,
+  drawn at whichever corner has a clear place; lint proves the count from the mirrored corner's
+  visible edges. The
   angles are placed last of all, around the finished ink. Only when that leaves corners
   unstated is placing them before the callouts route tried, and it is kept only when it states
   more corners and makes no drawing finding (including extension contacts) worse; an early angle

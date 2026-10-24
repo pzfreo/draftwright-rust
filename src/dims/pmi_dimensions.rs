@@ -858,6 +858,7 @@ fn outcome(ids: &Identities, r: &Record, wants: &[Want], turned: Option<&Turned>
                 vec![view],
                 Shape::Angular {
                     angle: angle.clone(),
+                    alternates: Vec::new(),
                 },
                 basis,
             ))

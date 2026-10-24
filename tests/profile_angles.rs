@@ -216,8 +216,8 @@ fn missing(r: &api::Review) -> Vec<String> {
         .collect()
 }
 
-/// CTC-03's two 135° corners: by default each is drawn where clear, or dropped and still
-/// reported; `faces/face:37/profile_corners: linear` locates their stations instead, and lint
+/// CTC-03's two mirror-equal 135° corners: by default one counted `2× 135°`, drawn where clear
+/// or dropped with both corners still reported; `faces/face:37/profile_corners: linear` locates their stations instead, and lint
 /// reads those drawn dimensions as defining both.
 #[test]
 fn ctc03_corners_are_stated_by_angle_or_linearly_by_profile_choice() {
@@ -225,22 +225,21 @@ fn ctc03_corners_are_stated_by_angle_or_linearly_by_profile_choice() {
         return;
     }
     let r = review(ctc03(), json!({}));
-    let dropped: Vec<_> = r
-        .problems
-        .iter()
-        .filter(|p| p.code == "angular_dimension_dropped")
-        .flat_map(|p| p.subjects.clone())
-        .collect();
-    assert!(
-        dropped.len() < 2,
-        "at least one corner is drawn: {dropped:?}"
-    );
+    // Mirror-equal corners share one counted angle; a dropped one leaves both corners missing.
     let missing_now = missing(&r);
-    assert_eq!(missing_now.len(), dropped.len(), "{missing_now:?}");
+    let a = model::analyse_native(ctc03()).unwrap().1;
+    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let unplaced: Vec<&str> = angles(&p)
+        .iter()
+        .filter(|d| d.placed.is_none())
+        .flat_map(|d| d.measurements.iter().map(|m| m.feature.as_str()))
+        .collect();
+    assert_eq!(missing_now.len(), unplaced.len(), "{missing_now:?}");
+    assert!(missing_now.iter().all(|m| unplaced.contains(&m.as_str())));
     assert!(
-        dropped
-            .iter()
-            .all(|id| missing_now.iter().any(|m| &angle_id(m) == id))
+        angles(&p).iter().all(|d| d.label.starts_with("2× ")),
+        "{:?}",
+        angles(&p)
     );
     let linear = review(
         ctc03(),
@@ -289,4 +288,122 @@ fn a_failed_placement_leaves_the_corner_a_lint_warning() {
             "{id}: {missing:?}"
         );
     }
+}
+
+/// A mirror pair takes one counted angle.
+#[test]
+fn mirror_equal_corners_get_one_counted_angle() {
+    // A symmetric trapezoid: its two lower corners mirror each other across x = 20, and so do
+    // its two upper ones: two counted angles, each claiming its pair.
+    let a = part(&[[0., 0.], [40., 0.], [30., 20.], [10., 20.]]);
+    let p = plan(&a, json!({}));
+    let found = angles(&p);
+    assert_eq!(found.len(), 2, "{found:?}");
+    for d in &found {
+        assert!(d.label.starts_with("2× "), "{}", d.label);
+        assert_eq!(d.measurements.len(), 2);
+    }
+}
+
+/// Every placed profile angle stays local to its corner: its arc's radius is no longer than the
+/// corner's shorter straight edge on the paper, nor than eight label heights, and its label sits
+/// on its arc. Checked on the synthetic shapes, the profile fixture parts and the affected
+/// corpus parts.
+#[test]
+fn a_placed_profile_angle_stays_local_to_its_corner() {
+    let shapes: [&[[f64; 2]]; 3] = [
+        &PENTAGON,
+        &TRAPEZOID,
+        &[[0., 0.], [40., 0.], [30., 20.], [10., 20.]],
+    ];
+    let mut plans: Vec<(Analysis, Plan)> = shapes
+        .iter()
+        .map(|c| {
+            let a = part(c);
+            let p = plan(&a, json!({}));
+            (a, p)
+        })
+        .collect();
+    for f in [
+        "profile-pentagon.step",
+        "profile-trapezoid.step",
+        "profile-triangle.step",
+    ] {
+        let a = model::analyse_native(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/coverage-holes")
+                .join(f),
+        )
+        .unwrap()
+        .1;
+        let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+        plans.push((a, p));
+    }
+    if let Some(dir) = corpus::dir() {
+        for f in [
+            "nist/nist_ftc_08_asme1_rc.stp",
+            "nist/nist_ctc_04_asme1_rd.stp",
+            "nist/nist_ctc_03_asme1_rc.stp",
+            "cadgenbench_inputs/cgb207.step",
+            "mfcadpp/10046.step",
+            "mfcadpp/10049.step",
+        ] {
+            let a = model::analyse_native(&dir.join(f)).unwrap().1;
+            let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+            plans.push((a, p));
+        }
+    }
+    let mut checked = 0;
+    for (a, p) in &plans {
+        let all = profile_angles::requirements(a);
+        for d in angles(p) {
+            let Some(placed) = &d.placed else { continue };
+            let scale = p.views.iter().find(|v| v.id == d.view).unwrap().scale;
+            // The shorter straight edge of the corner it is drawn at (any of a counted angle's).
+            let longest_shorter = d
+                .measurements
+                .iter()
+                .filter_map(|m| all.iter().find(|c| c.feature == m.feature))
+                .map(|c| {
+                    c.ends
+                        .map(|e| {
+                            (0..3)
+                                .map(|k| (e[k] - c.vertex[k]).powi(2))
+                                .sum::<f64>()
+                                .sqrt()
+                        })
+                        .into_iter()
+                        .fold(f64::INFINITY, f64::min)
+                })
+                .fold(0.0, f64::max);
+            // The two witness lines meet at the vertex; the arc's chords lie at one radius.
+            let [e0, e1] = [placed.lines[0], placed.lines[1]];
+            let r = [e0[1][0] - e0[0][0], e0[1][1] - e0[0][1]];
+            let t = [e1[1][0] - e1[0][0], e1[1][1] - e1[0][1]];
+            let det = r[0] * t[1] - r[1] * t[0];
+            let k = ((e1[0][0] - e0[0][0]) * t[1] - (e1[0][1] - e0[0][1]) * t[0]) / det;
+            let vertex = [e0[0][0] + k * r[0], e0[0][1] + k * r[1]];
+            let q = placed.lines[2][0];
+            let radius = (q[0] - vertex[0]).hypot(q[1] - vertex[1]);
+            let b = placed.label_box;
+            let height = (b[3] - b[1]).min(b[2] - b[0]);
+            assert!(
+                radius <= longest_shorter * scale + 1e-6,
+                "{}: radius {radius} beyond the corner's edge {}",
+                d.id,
+                longest_shorter * scale
+            );
+            assert!(radius <= 8.0 * 3.0, "{}: radius {radius}", d.id);
+            let centre = [(b[0] + b[2]) / 2.0, (b[1] + b[3]) / 2.0];
+            let from = (centre[0] - vertex[0]).hypot(centre[1] - vertex[1]);
+            assert!(
+                (from - radius).abs() <= height.max(3.0),
+                "{}: label off its arc",
+                d.id
+            );
+            checked += 1;
+        }
+    }
+    // The clean fixture parts place most of their corners.
+    assert!(checked >= 4, "{checked} placed profile angles checked");
 }

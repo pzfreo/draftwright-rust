@@ -522,8 +522,13 @@ enum Shape {
         sites: Vec<(P3, f64)>,
         arcs: Vec<crate::arc::ProfileArc>,
     },
-    /// An angle between two sides, drawn about its vertex ([`angular`]).
-    Angular { angle: angular::Angle },
+    /// An angle between two sides, drawn about its vertex ([`angular`]). A counted angle may be
+    /// drawn at any one of its equal corners: *alternates* are the others, tried in order.
+    Angular {
+        angle: angular::Angle,
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        alternates: Vec<angular::Angle>,
+    },
 }
 
 #[derive(Clone, Debug, Serialize)]

@@ -43,7 +43,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             terms:vec![format!("{}°",fmt(value))],
             measurements:vec![Measurement {feature:n.id.clone(),parameter:"notch.angle".into(),value}],
             basis:"a V-notch's included angle, in the normal view that shows it true; rounded roots extend to the theoretical sharp apex".into(),
-            shape:Shape::Angular {angle:(&n.angle).into()}, turning:None,
+            shape:Shape::Angular {angle:(&n.angle).into(), alternates: Vec::new()}, turning:None,
         });
         let k = n.depth_axis;
         let value = n.depth();

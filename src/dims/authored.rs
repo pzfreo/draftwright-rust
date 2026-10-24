@@ -128,7 +128,13 @@ pub(super) fn append(a: &Analysis, s: &Spec, wants: &mut Vec<Want>) -> Result<()
                     .principal()
                     .map(|k| vec![super::end_on(k)])
                     .unwrap_or_default();
-                (Shape::Angular { angle }, views)
+                (
+                    Shape::Angular {
+                        angle,
+                        alternates: Vec::new(),
+                    },
+                    views,
+                )
             }
             _ => {
                 if m.sites.is_empty() {
@@ -296,7 +302,8 @@ fn duplicate(a: &Analysis, w: &Want, o: &Want, refs: &[String], kind: &str) -> b
                     .is_some_and(|f| f.faces.iter().any(|i| faces.contains(i)))
         });
     }
-    if let (Shape::Angular { angle: p }, Shape::Angular { angle: q }) = (&w.shape, &o.shape) {
+    if let (Shape::Angular { angle: p, .. }, Shape::Angular { angle: q, .. }) = (&w.shape, &o.shape)
+    {
         return close(w.value, o.value)
             && p.principal() == q.principal()
             && (0..3).all(|k| Some(k) == p.principal() || close(p.vertex[k], q.vertex[k]))

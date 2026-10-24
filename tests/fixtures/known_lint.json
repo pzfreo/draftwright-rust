@@ -361,9 +361,9 @@
     {
       "part": "m10046",
       "code": "angular_requirement_missing",
-      "count": 10,
+      "count": 12,
       "verdict": "rust-correct",
-      "reason": "LINT-angular-profile_angle_requirement: of m10046's twelve provider-issued non-right convex corners, two now carry an automatic angle placed clear of all other ink within their view's reserved area. The other ten are on tiny, dense synthetic profiles where no clear place exists; they are dropped (angular_dimension_dropped), never forced, and stay missing here. Their linear stations are not drawn either, so none is defined linearly."
+      "reason": "LINT-angular-profile_angle_requirement: m10046's twelve provider-issued non-right convex corners each get an automatic angle, but none has a clear local place: on these tiny, dense synthetic profiles every arc within the corner's shorter edge either crosses a curved face or another item, or its label has no blank paper. They are dropped (angular_dimension_dropped), never forced, and stay missing here; none is fixed by drawn linear dimensions."
     },
     {
       "part": "m10046",
