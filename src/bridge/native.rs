@@ -531,11 +531,14 @@ pub const FIELDS: &[(&str, &[(&str, Field)])] = &[
             ("center", Field::Point),
             ("width_direction", Field::Point),
             ("long_direction", Field::Point),
-            ("source", Field::Object),
-            ("source.frame", Field::Object),
-            ("source.run_interval", Field::Pair),
-            ("source.section", Field::Object),
-            ("source.ends", Field::Object),
+            ("origin", Field::Point),
+            ("depth_axis", Field::Axis),
+            ("lo", Field::Number),
+            ("hi", Field::Number),
+            ("w_center", Field::Number),
+            ("d_lo", Field::Number),
+            ("d_hi", Field::Number),
+            ("end_radius", Field::NumberOrNull),
         ],
     ),
     (
@@ -1191,12 +1194,173 @@ pub(crate) fn in_file_axes(doc: &RecognitionDocument) -> RecognitionDocument {
     let framed = matches!(doc.frame, quiddity::frames::RecordFrame::Inferred(_));
     let mut out = doc.clone();
     for r in &mut out.records {
+        unmerge(r);
         resolve_origin(r);
         if framed {
             r.parameters.values_mut().for_each(snap);
         }
     }
     out
+}
+
+/// *r* back in the family draftwright reads it as, where quiddity 0.2.0 merged that family into
+/// another (#92: one published family per feature kind, whatever the frame).
+///
+/// Null optional details on plain chamfers and slots are dropped, as 0.1.1 gave none.
+///
+/// - A chamfer with any of an oriented chamfer's details (its legs' directions, support spans or
+///   length: quiddity's oriented chamfer, a true normal-section bevel) is an `oriented_chamfers`
+///   record, its axis its `run`, and must then carry them all.
+/// - A slot whose width or long axis is a direction, not a file axis, is an `oriented_slots`
+///   record ([`oriented_slot`]), and a slot pattern of such slots an `oriented_slot_patterns`
+///   one. A slot along file axes measured from an origin is made absolute ([`resolve_slot`]).
+fn unmerge(r: &mut quiddity::recognition::Record) {
+    // A plain record gives the merged family's optional details as null: it has none.
+    let unproved: &[&str] = match r.family.as_str() {
+        "chamfers" => &[
+            "leg1_direction",
+            "leg2_direction",
+            "length",
+            "support_spans",
+            "body_key",
+        ],
+        "slots" => &["source"],
+        _ => &[],
+    };
+    for k in unproved {
+        if r.parameters.get(*k).is_some_and(Value::is_null) {
+            r.parameters.remove(*k);
+        }
+    }
+    if r.family == "slot_patterns"
+        && let Some(Value::Array(members)) = r.parameters.get_mut("slots")
+    {
+        for m in members.iter_mut().filter_map(Value::as_object_mut) {
+            if m.get("source").is_some_and(Value::is_null) {
+                m.remove("source");
+            }
+        }
+    }
+    match r.family.as_str() {
+        "chamfers"
+            if [
+                "leg1_direction",
+                "leg2_direction",
+                "support_spans",
+                "length",
+            ]
+            .iter()
+            .any(|k| r.parameters.contains_key(*k)) =>
+        {
+            if let Some(run) = r.parameters.get("axis").and_then(direction) {
+                r.parameters.insert("run".into(), serde_json::json!(run));
+                r.family = "oriented_chamfers".into();
+                r.record_type = "OrientedChamfer".into();
+            }
+        }
+        "slots" => {
+            if oriented_slot(&mut r.parameters) {
+                r.family = "oriented_slots".into();
+                r.record_type = "OrientedSlot".into();
+            } else {
+                resolve_slot(&mut r.parameters);
+            }
+        }
+        "slot_patterns" => {
+            let Some(Value::Array(members)) = r.parameters.get_mut("slots") else {
+                return;
+            };
+            let mut oriented = 0;
+            for m in members.iter_mut() {
+                if let Value::Object(m) = m {
+                    if oriented_slot(m) {
+                        oriented += 1;
+                    } else {
+                        resolve_slot(m);
+                    }
+                }
+            }
+            if oriented > 0 && oriented == members.len() {
+                r.family = "oriented_slot_patterns".into();
+                r.record_type = format!("Oriented{}", r.record_type);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Whether slot *p* has a width or long axis that is a direction, and if so *p* with what
+/// draftwright reads of an oriented slot: its `center` (from its `origin`, midway along its long
+/// axis, on its width centre, midway through its depth) and its `width_direction` and
+/// `long_direction`.
+fn oriented_slot(p: &mut Map<String, Value>) -> bool {
+    if !["width_axis", "long_axis"]
+        .iter()
+        .any(|k| p.get(*k).is_some_and(|v| point3(v).is_some()))
+    {
+        return false;
+    }
+    let number = |k: &str| p.get(k).and_then(Value::as_f64);
+    let axis = |k: &str| p.get(k).and_then(direction);
+    if let (
+        Some(o),
+        Some(w),
+        Some(l),
+        Some(d),
+        Some(lo),
+        Some(hi),
+        Some(c),
+        Some(d_lo),
+        Some(d_hi),
+    ) = (
+        p.get("origin").and_then(point3),
+        axis("width_axis"),
+        axis("long_axis"),
+        axis("depth_axis"),
+        number("lo"),
+        number("hi"),
+        number("w_center"),
+        number("d_lo"),
+        number("d_hi"),
+    ) {
+        let (m, e) = (0.5 * (lo + hi), 0.5 * (d_lo + d_hi));
+        let center: [f64; 3] = std::array::from_fn(|k| o[k] + m * l[k] + c * w[k] + e * d[k]);
+        p.insert("center".into(), serde_json::json!(center));
+        p.insert("width_direction".into(), serde_json::json!(w));
+        p.insert("long_direction".into(), serde_json::json!(l));
+    }
+    true
+}
+
+/// Slot *p*, along file axes but measured from an `origin`, in absolute file coordinates: its
+/// long extent, width centre and depth extent each from the origin along its axis.
+fn resolve_slot(p: &mut Map<String, Value>) {
+    let Some(o) = p.get("origin").and_then(point3) else {
+        return;
+    };
+    let [Some(l), Some(w), Some(d)] =
+        ["long_axis", "width_axis", "depth_axis"].map(|k| letter(p.get(k)))
+    else {
+        return;
+    };
+    let mut updates = Vec::new();
+    for (k, a) in [
+        ("lo", l),
+        ("hi", l),
+        ("w_center", w),
+        ("d_lo", d),
+        ("d_hi", d),
+    ] {
+        let Some(x) = p.get(k).and_then(Value::as_f64) else {
+            return;
+        };
+        updates.push((k, o[a] + x));
+    }
+    for (k, x) in updates {
+        p.insert(k.into(), serde_json::json!(x));
+    }
+    p.remove("origin");
+    p.remove("depth_axis");
 }
 
 /// The axis letter *v* names, as an index.
@@ -1365,7 +1529,8 @@ fn unresolved(r: &quiddity::recognition::Record) -> Vec<&'static str> {
         return Vec::new();
     }
     let mut out = Vec::new();
-    if r.parameters.contains_key("origin") {
+    // An oriented slot is drawn from its origin and measuring axes ([`unmerge`]).
+    if r.parameters.contains_key("origin") && family != "oriented_slots" {
         out.push("origin");
     }
     if let Some((_, fields)) = FIELDS.iter().find(|(t, _)| *t == r.record_type) {

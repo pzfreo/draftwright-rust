@@ -1722,7 +1722,7 @@ fn oriented_slots_are_read_and_their_pattern_checked() {
     let pattern = doc
         .records
         .iter()
-        .position(|r| r.family == "oriented_slot_patterns")
+        .position(|r| r.family == "slot_patterns")
         .unwrap();
     let refused = |edit: &dyn Fn(&mut quiddity::recognition::RecognitionDocument)| {
         let mut d = doc.clone();
@@ -1756,7 +1756,7 @@ fn oriented_slots_are_read_and_their_pattern_checked() {
     assert!(e.contains("matches 0 oriented slots, not one"), "{e}");
     let e = refused(&|d| {
         let mut m = members(d);
-        m[0].as_object_mut().unwrap().remove("center");
+        m[0].as_object_mut().unwrap().remove("w_center");
         d.records[pattern]
             .parameters
             .insert("slots".into(), m.into());
@@ -1768,15 +1768,16 @@ fn oriented_slots_are_read_and_their_pattern_checked() {
     let slot = doc
         .records
         .iter()
-        .position(|r| r.family == "oriented_slots")
+        .position(|r| r.family == "slots")
         .unwrap();
+    // quiddity 0.2.0 gives the slots as `slots` measured from an origin along their own axes
+    // (#92), with no proved passage; one without its depth extent cannot be placed.
+    assert!(doc.records[slot].parameters["source"].is_null());
     let e = refused(&|d| {
-        d.records[slot]
-            .parameters
-            .insert("source".into(), Value::Null);
+        d.records[slot].parameters.remove("d_lo");
     });
     assert!(
-        e.contains("(OrientedSlot)'s source is null, not Object"),
+        e.contains("(OrientedSlot) has no center, which draftwright reads"),
         "{e}"
     );
 }
@@ -1788,7 +1789,19 @@ fn the_reader_knows_the_providers_schema() {
         native::SCHEMA_VERSION,
         quiddity::recognition::SCHEMA_VERSION
     );
-    assert_eq!(native::FAMILIES, quiddity::recognition::RECORD_TYPES);
+    // quiddity 0.2.0 merged the oriented families into their plain ones (#92); the reader
+    // restores them from the records' own fields (`native::in_file_axes`).
+    let derived = [
+        "oriented_chamfers",
+        "oriented_slots",
+        "oriented_slot_patterns",
+    ];
+    let read: Vec<_> = native::FAMILIES
+        .iter()
+        .filter(|(f, _)| !derived.contains(f))
+        .copied()
+        .collect();
+    assert_eq!(read, quiddity::recognition::RECORD_TYPES);
 }
 
 /// quiddity and haecceity come from one commit of quiddity-rust: their `source` lines in

@@ -750,81 +750,24 @@ fn recess_gap(analysis: &Analysis, p: &Projection, f: &Feature, tip: P) -> Resul
 
 /// The page distance from *tip* to slot *f*'s walls as *p* draws them: a through slot's outline
 /// (its ends semicircles when its end radius is half its width) swept through it; an oriented
-/// slot's passage section swept along its run.
+/// slot's outline swept through its depth, along its own axes.
 fn slot_gap(analysis: &Analysis, p: &Projection, f: &Feature, tip: P) -> Result<f64, String> {
     if f.kind == "oriented_slot" {
-        let frame = holes::frame(analysis);
-        let source = f
-            .parameters
-            .get("source")
-            .ok_or("its record gives no passage")?;
-        let fr = source
-            .get("frame")
-            .ok_or("its record gives no passage frame")?;
-        let [origin, run, u, v] = ["origin", "run", "u", "v"].map(|k| point(fr.get(k)));
-        let (Some(origin), Some(run), Some(u), Some(v)) = (origin, run, u, v) else {
-            return Err("its passage frame has no origin, run, u or v".into());
-        };
-        let interval: Vec<f64> = source
-            .get("run_interval")
-            .and_then(serde_json::Value::as_array)
-            .map(|a| a.iter().filter_map(serde_json::Value::as_f64).collect())
-            .unwrap_or_default();
-        let interval =
-            <[f64; 2]>::try_from(interval).map_err(|_| "its passage has no run interval")?;
-        let section = source.get("section");
-        let boundary: Vec<([f64; 2], f64)> = section
-            .and_then(|s| s.get("boundary"))
-            .and_then(serde_json::Value::as_array)
-            .map(|b| {
-                b.iter()
-                    .filter_map(|e| {
-                        let c = e.get("point")?.as_array()?;
-                        let bulge = e
-                            .get("bulge")
-                            .and_then(serde_json::Value::as_f64)
-                            .unwrap_or(0.0);
-                        Some(([c.first()?.as_f64()?, c.get(1)?.as_f64()?], bulge))
-                    })
-                    .collect()
-            })
-            .unwrap_or_default();
-        if boundary.len() < 3 {
-            return Err("its passage section has no boundary".into());
-        }
-        let closed = section
-            .and_then(|s| s.get("closure"))
-            .and_then(serde_json::Value::as_str)
-            != Some("open");
-        let dir = |d: V3| unit(dir_to_part(&frame, d)).ok_or("its passage frame is degenerate");
+        let s = super::oriented_slots::passage(analysis, f)?;
         return Prism {
-            origin: to_part(&frame, origin),
-            run: dir(run)?,
-            u: dir(u)?,
-            v: dir(v)?,
-            interval,
-            boundary,
-            closed,
+            origin: s.origin,
+            run: s.run,
+            u: s.u,
+            v: s.v,
+            interval: s.interval,
+            boundary: s.boundary,
+            closed: s.closed,
             caps: [Some(false); 2],
         }
         .gap(p, tip);
     }
     let s = super::slots::outline(analysis, f)?;
-    let (half, [e0, e1], c) = (0.5 * s.width, s.ends, s.centre);
-    let boundary = match s.end_radius {
-        Some(r) if (r - half).abs() <= 1e-3 && e1 - e0 > 2.0 * r => vec![
-            ([e0 + r, c - half], 0.0),
-            ([e1 - r, c - half], 1.0),
-            ([e1 - r, c + half], 0.0),
-            ([e0 + r, c + half], 1.0),
-        ],
-        _ => vec![
-            ([e0, c - half], 0.0),
-            ([e1, c - half], 0.0),
-            ([e1, c + half], 0.0),
-            ([e0, c + half], 0.0),
-        ],
-    };
+    let boundary = super::oriented_slots::outline(s.width, s.ends, s.centre, s.end_radius);
     Prism {
         origin: [0.0; 3],
         run: axis(s.deep),

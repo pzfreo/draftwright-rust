@@ -2350,16 +2350,6 @@
     "evidence": "Python's document enrichment restates the plate's thickness, 16.485: hi - lo of its own record, within its 1e-3 rounding (checked for every plate of every compared recognition). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). lint/channels.rs reads the plate's lo and hi, not the named size."
   },
   {
-    "set": "golden",
-    "part": "oriented_slots",
-    "subject": "oriented_slot_patterns[0]",
-    "field": "parameters.named_dimensions",
-    "python": "{\"center_spacing\":30.0,\"direction\":[-1.0,0.0,0.0]}",
-    "rust": "-",
-    "verdict": "equivalent",
-    "evidence": "Python's document enrichment restates sizes the record carries: center_spacing is the pitch (30) and direction the direction. The native document never carries named_dimensions (quiddity-rust src/recognition.rs), and the pattern is not a feature on either path, so nothing reads them."
-  },
-  {
     "set": "oriented",
     "part": "h467",
     "subject": "f:oriented_slot:1",
@@ -2578,26 +2568,6 @@
     "rust": "f:flat:4 [11] {\"across\":6.5,\"at\":[14.301,-3.0,1.75],\"axis\":\"z\",\"axis_direction\":[0.0,0.0,1.0],\"axis_distance\":3.0,\"axis_line\":[12.15,0.0],\"flat_plane\":{\"at\":[-14.7,-3.0,0.0],\"normal\":[0.0,1.0,0.0]},\"opposed\":false,\"stock_span\":[0.0,3.5]}",
     "verdict": "rust-correct",
     "evidence": "Python quiddity's standalone recognise_flats on the file (0.4.0.dev0, run 2026-10-09) gives these 14 flats, as quiddity-rust does; its orchestrated document runs it in the working frame (origin (-4.189, 32.215, 3.637), axes (z, x, y) of the part's), where the flat's depth below the D7 stock, r - s, is 0.4999999999836575 on the three flats at the part's y = -3.0 end (faces 0, 7, 11) and 0.5000000000163425 on their mirror images at y = 67.595 (faces 16, 20, 24), so `r - s < _MIN_FLAT_DEPTH` (0.5, flats.py) drops the first three only; in the file's frame r - s is exactly 0.5 on all six. quiddity-rust keeps a flat whose depth is within COORD_FLOOR of the minimum wherever the part sits (features/flats.rs, too_shallow), so its six symmetric flats are the part's. draftwright reads flats for lint/flats.rs and dims; on this part the native path has the three flats Python's document drops. Coplanar faces 0 and 7 on the same stock are now one flat in Draftwright; flat IDs are ranked after that merge. The geometric plane/axis proof is recorded in the provider frame. This updates the exact identity/presence expectation without changing the provider-difference verdict (drawn-values-2026-10-18)."
-  },
-  {
-    "set": "pads",
-    "part": "whistle_frame_reference",
-    "subject": "f:plate:1",
-    "field": "presence",
-    "python": "f:plate:1 [4, 6, 10, 14, 39, 62, 188, 194, 200] {\"axis\":\"x\",\"body_key\":[-15.65,-3.5,0.0,15.65,68.095,15.3,6313.313392,5359.867186],\"hi\":-7.700464,\"lo\":-14.700464,\"named_dimensions\":{\"thickness\":7.0},\"u\":33.368317,\"v\":4.845668}",
-    "rust": "-",
-    "verdict": "undetermined",
-    "evidence": "quiddity-rust 0.1.1 (draftwright alpha.13): the same faces give one plate on both sides, but Python reads it 7.0 thick (hi -7.700464) and quiddity-rust 0.1.1 reads lo -14.7, hi -7.4, so the pair is listed as presence on both sides. Not resolved for alpha.13 (accepted); recheck with draftwright's framed-record handling in alpha.14."
-  },
-  {
-    "set": "pads",
-    "part": "whistle_frame_reference",
-    "subject": "rust f:plate:1",
-    "field": "presence",
-    "python": "-",
-    "rust": "f:plate:1 [4, 6, 10, 14, 39, 62, 188, 194, 200] {\"axis\":\"x\",\"body_key\":[-15.65,-3.5,0.0,15.65,68.095,15.3,6313.313392,5359.867186],\"hi\":-7.4,\"lo\":-14.7,\"u\":33.368317,\"v\":4.845668}",
-    "verdict": "undetermined",
-    "evidence": "quiddity-rust 0.1.1 (draftwright alpha.13): the same faces give one plate on both sides, but Python reads it 7.0 thick (hi -7.700464) and quiddity-rust 0.1.1 reads lo -14.7, hi -7.4, so the pair is listed as presence on both sides. Not resolved for alpha.13 (accepted); recheck with draftwright's framed-record handling in alpha.14."
   },
   {
     "set": "corpus",
@@ -3118,5 +3088,1095 @@
     "rust": "f:hole:9 [189] {\"axis\":[0.0,0.0,1.0],\"bottom\":\"through\",\"cbore\":null,\"csink\":null,\"depth\":9.78,\"diameter\":15.0825,\"location\":[61.6,-78.10216,-106.718355],\"spotface\":null}",
     "verdict": "equivalent",
     "evidence": "quiddity-rust 0.1.1 (draftwright alpha.13): the same through hole on face 188/189: its location differs by 0.0018 mm along z, beyond the comparison tolerance, so the pair is listed as presence on both sides. FTC-07's inferred frame (pzfreo/quiddity-rust#81); accepted for alpha.13."
+  },
+  {
+    "set": "slot_patterns",
+    "part": "slot_grid",
+    "subject": "f:slot_pattern:1",
+    "field": "parameters.col_direction",
+    "python": "-",
+    "rust": "[0.0,1.0,0.0]",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) gives a slot grid explicit row and column directions; Python's grid states them by its angle. draftwright reads neither: it names the members and reads the pitches."
+  },
+  {
+    "set": "slot_patterns",
+    "part": "slot_grid",
+    "subject": "f:slot_pattern:1",
+    "field": "parameters.row_direction",
+    "python": "-",
+    "rust": "[-1.0,0.0,0.0]",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) gives a slot grid explicit row and column directions; Python's grid states them by its angle. draftwright reads neither: it names the members and reads the pitches."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:1",
+    "field": "faces",
+    "python": "[6, 7, 8, 9]",
+    "rust": "[6, 9]",
+    "verdict": "rust-wrong",
+    "evidence": "quiddity-rust 0.2.0 recognises golden's 30-degree slots with its plain slot recogniser in a turned frame (#81) and publishes them as slots (#92), whose defining faces are the two walls; Python's oriented slot claims the walls and both end faces. The ends stay unclaimed by the slot."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:1",
+    "field": "parameters.body_key",
+    "python": "[-60.0,-45.0,-5.0,60.0,45.0,5.0,103680.0,26736.0]",
+    "rust": "{\"area\":26736.0,\"axes\":[\"z\",[-0.5,0.866025,0.0],[-0.866025,-0.5,0.0]],\"bounds\":[[-5.0,5.0],[-68.971143,68.971143],[-74.461524,74.461524]],\"origin\":[0.0,0.0,0.0],\"volume\":103680.0}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:1",
+    "field": "parameters.corner_radius",
+    "python": "-",
+    "rust": "null",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:1",
+    "field": "parameters.d_hi",
+    "python": "-",
+    "rust": "5.0",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:1",
+    "field": "parameters.d_lo",
+    "python": "-",
+    "rust": "-5.0",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:1",
+    "field": "parameters.depth_axis",
+    "python": "-",
+    "rust": "\"z\"",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:1",
+    "field": "parameters.end_radius",
+    "python": "-",
+    "rust": "null",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:1",
+    "field": "parameters.hi",
+    "python": "-",
+    "rust": "37.980762",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:1",
+    "field": "parameters.lo",
+    "python": "-",
+    "rust": "13.980762",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:1",
+    "field": "parameters.long_axis",
+    "python": "-",
+    "rust": "[-0.866025,-0.5,0.0]",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:1",
+    "field": "parameters.origin",
+    "python": "-",
+    "rust": "[0.0,0.0,0.0]",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:1",
+    "field": "parameters.source",
+    "python": "{\"ends\":{\"high_capped\":false,\"high_gradient\":[0.0,0.0],\"low_capped\":false,\"low_gradient\":[0.0,0.0]},\"frame\":{\"origin\":[-30.0,0.0,0.0],\"run\":[0.0,0.0,1.0],\"u\":[0.0,1.0,0.0],\"v\":[-1.0,0.0,0.0]},\"run_interval\":[-5.0,5.0],\"section\":{\"boundary\":[{\"bulge\":0.0,\"point\":[-8.5981,8.8923]},{\"bulge\":0.0,\"point\":[3.4019,-11.8923]},{\"bulge\":0.0,\"point\":[8.5981,-8.8923]},{\"bulge\":0.0,\"point\":[-3.4019,11.8923]}]}}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:1",
+    "field": "parameters.w_center",
+    "python": "-",
+    "rust": "15.0",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:1",
+    "field": "parameters.width_axis",
+    "python": "-",
+    "rust": "[-0.5,0.866025,0.0]",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:1",
+    "field": "parameters.width_direction",
+    "python": "[-0.499997,0.866027,0.0]",
+    "rust": "[-0.5,0.866025,0.0]",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:2",
+    "field": "faces",
+    "python": "[10, 11, 12, 13]",
+    "rust": "[10, 13]",
+    "verdict": "rust-wrong",
+    "evidence": "quiddity-rust 0.2.0 recognises golden's 30-degree slots with its plain slot recogniser in a turned frame (#81) and publishes them as slots (#92), whose defining faces are the two walls; Python's oriented slot claims the walls and both end faces. The ends stay unclaimed by the slot."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:2",
+    "field": "parameters.body_key",
+    "python": "[-60.0,-45.0,-5.0,60.0,45.0,5.0,103680.0,26736.0]",
+    "rust": "{\"area\":26736.0,\"axes\":[\"z\",[-0.5,0.866025,0.0],[-0.866025,-0.5,0.0]],\"bounds\":[[-5.0,5.0],[-68.971143,68.971143],[-74.461524,74.461524]],\"origin\":[0.0,0.0,0.0],\"volume\":103680.0}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:2",
+    "field": "parameters.corner_radius",
+    "python": "-",
+    "rust": "null",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:2",
+    "field": "parameters.d_hi",
+    "python": "-",
+    "rust": "5.0",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:2",
+    "field": "parameters.d_lo",
+    "python": "-",
+    "rust": "-5.0",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:2",
+    "field": "parameters.depth_axis",
+    "python": "-",
+    "rust": "\"z\"",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:2",
+    "field": "parameters.end_radius",
+    "python": "-",
+    "rust": "null",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:2",
+    "field": "parameters.hi",
+    "python": "-",
+    "rust": "12.0",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:2",
+    "field": "parameters.lo",
+    "python": "-",
+    "rust": "-12.0",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:2",
+    "field": "parameters.long_axis",
+    "python": "-",
+    "rust": "[-0.866025,-0.5,0.0]",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:2",
+    "field": "parameters.origin",
+    "python": "-",
+    "rust": "[0.0,0.0,0.0]",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:2",
+    "field": "parameters.source",
+    "python": "{\"ends\":{\"high_capped\":false,\"high_gradient\":[0.0,0.0],\"low_capped\":false,\"low_gradient\":[0.0,0.0]},\"frame\":{\"origin\":[0.0,0.0,0.0],\"run\":[0.0,0.0,1.0],\"u\":[0.0,1.0,0.0],\"v\":[-1.0,0.0,0.0]},\"run_interval\":[-5.0,5.0],\"section\":{\"boundary\":[{\"bulge\":0.0,\"point\":[-8.5981,8.8923]},{\"bulge\":0.0,\"point\":[3.4019,-11.8923]},{\"bulge\":0.0,\"point\":[8.5981,-8.8923]},{\"bulge\":0.0,\"point\":[-3.4019,11.8923]}]}}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:2",
+    "field": "parameters.w_center",
+    "python": "-",
+    "rust": "0.0",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:2",
+    "field": "parameters.width_axis",
+    "python": "-",
+    "rust": "[-0.5,0.866025,0.0]",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:2",
+    "field": "parameters.width_direction",
+    "python": "[-0.499997,0.866027,0.0]",
+    "rust": "[-0.5,0.866025,0.0]",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:3",
+    "field": "faces",
+    "python": "[14, 15, 16, 17]",
+    "rust": "[14, 16]",
+    "verdict": "rust-wrong",
+    "evidence": "quiddity-rust 0.2.0 recognises golden's 30-degree slots with its plain slot recogniser in a turned frame (#81) and publishes them as slots (#92), whose defining faces are the two walls; Python's oriented slot claims the walls and both end faces. The ends stay unclaimed by the slot."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:3",
+    "field": "parameters.body_key",
+    "python": "[-60.0,-45.0,-5.0,60.0,45.0,5.0,103680.0,26736.0]",
+    "rust": "{\"area\":26736.0,\"axes\":[\"z\",[-0.5,0.866025,0.0],[-0.866025,-0.5,0.0]],\"bounds\":[[-5.0,5.0],[-68.971143,68.971143],[-74.461524,74.461524]],\"origin\":[0.0,0.0,0.0],\"volume\":103680.0}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:3",
+    "field": "parameters.corner_radius",
+    "python": "-",
+    "rust": "null",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:3",
+    "field": "parameters.d_hi",
+    "python": "-",
+    "rust": "5.0",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:3",
+    "field": "parameters.d_lo",
+    "python": "-",
+    "rust": "-5.0",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:3",
+    "field": "parameters.depth_axis",
+    "python": "-",
+    "rust": "\"z\"",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:3",
+    "field": "parameters.end_radius",
+    "python": "-",
+    "rust": "null",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:3",
+    "field": "parameters.hi",
+    "python": "-",
+    "rust": "-13.980762",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:3",
+    "field": "parameters.lo",
+    "python": "-",
+    "rust": "-37.980762",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:3",
+    "field": "parameters.long_axis",
+    "python": "-",
+    "rust": "[-0.866025,-0.5,0.0]",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:3",
+    "field": "parameters.origin",
+    "python": "-",
+    "rust": "[0.0,0.0,0.0]",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:3",
+    "field": "parameters.source",
+    "python": "{\"ends\":{\"high_capped\":false,\"high_gradient\":[0.0,0.0],\"low_capped\":false,\"low_gradient\":[0.0,0.0]},\"frame\":{\"origin\":[30.0,0.0,0.0],\"run\":[0.0,0.0,1.0],\"u\":[0.0,1.0,0.0],\"v\":[-1.0,0.0,0.0]},\"run_interval\":[-5.0,5.0],\"section\":{\"boundary\":[{\"bulge\":0.0,\"point\":[-8.5981,8.8923]},{\"bulge\":0.0,\"point\":[3.4019,-11.8923]},{\"bulge\":0.0,\"point\":[8.5981,-8.8923]},{\"bulge\":0.0,\"point\":[-3.4019,11.8923]}]}}",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:3",
+    "field": "parameters.w_center",
+    "python": "-",
+    "rust": "-15.0",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:3",
+    "field": "parameters.width_axis",
+    "python": "-",
+    "rust": "[-0.5,0.866025,0.0]",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "f:oriented_slot:3",
+    "field": "parameters.width_direction",
+    "python": "[-0.499997,0.866027,0.0]",
+    "rust": "[-0.5,0.866025,0.0]",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "golden",
+    "part": "oriented_slots",
+    "subject": "oriented_slot_patterns[0]",
+    "field": "presence",
+    "python": "[\"f:oriented_slot:3\", \"f:oriented_slot:2\", \"f:oriented_slot:1\"]",
+    "rust": "-",
+    "verdict": "equivalent",
+    "evidence": "The pattern is not a feature on either path (draftwright gives oriented slot arrays no drafting grammar); quiddity-rust 0.2.0's three slots are the same, read one by one as oriented slots."
+  },
+  {
+    "set": "pads",
+    "part": "whistle_frame_reference",
+    "subject": "f:plate:1",
+    "field": "faces",
+    "python": "[4, 6, 10, 14, 39, 62, 188, 194, 200]",
+    "rust": "[4, 6, 10, 14, 39, 62]",
+    "verdict": "undetermined",
+    "evidence": "quiddity-rust 0.1.1's plate bounds from the plate's own skins on the grid (quiddity-rust #84, #85) changed this plate's faces and position across its axis; not yet compared against the part."
+  },
+  {
+    "set": "pads",
+    "part": "whistle_frame_reference",
+    "subject": "f:plate:1",
+    "field": "parameters.named_dimensions",
+    "python": "{\"thickness\":7.0}",
+    "rust": "-",
+    "verdict": "undetermined",
+    "evidence": "quiddity-rust 0.1.1's plate bounds from the plate's own skins on the grid (quiddity-rust #84, #85) changed this plate's faces and position across its axis; not yet compared against the part."
+  },
+  {
+    "set": "pads",
+    "part": "whistle_frame_reference",
+    "subject": "f:plate:1",
+    "field": "parameters.u",
+    "python": "33.368317",
+    "rust": "33.261008",
+    "verdict": "undetermined",
+    "evidence": "quiddity-rust 0.1.1's plate bounds from the plate's own skins on the grid (quiddity-rust #84, #85) changed this plate's faces and position across its axis; not yet compared against the part."
+  },
+  {
+    "set": "pads",
+    "part": "whistle_frame_reference",
+    "subject": "f:plate:1",
+    "field": "parameters.v",
+    "python": "4.845668",
+    "rust": "4.232872",
+    "verdict": "undetermined",
+    "evidence": "quiddity-rust 0.1.1's plate bounds from the plate's own skins on the grid (quiddity-rust #84, #85) changed this plate's faces and position across its axis; not yet compared against the part."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:groove:1",
+    "field": "parameters.profile.body_bounds",
+    "python": "[-178.81027,241.18973,-65.446353,65.493647,-65.467132,65.472868]",
+    "rust": "{\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265]}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:groove:1",
+    "field": "parameters.profile.body_key",
+    "python": "[-178.81027,-65.446353,-65.467132,241.18973,65.493647,65.472868,2008493.17813,319596.096198]",
+    "rust": "{\"area\":319596.095701,\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265],\"volume\":2008493.11653}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:groove:2",
+    "field": "parameters.profile.body_bounds",
+    "python": "[-178.81027,241.18973,-65.446353,65.493647,-65.467132,65.472868]",
+    "rust": "{\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265]}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:groove:2",
+    "field": "parameters.profile.body_key",
+    "python": "[-178.81027,-65.446353,-65.467132,241.18973,65.493647,65.472868,2008493.17813,319596.096198]",
+    "rust": "{\"area\":319596.095701,\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265],\"volume\":2008493.11653}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:groove:3",
+    "field": "parameters.profile.body_bounds",
+    "python": "[-178.81027,241.18973,-65.446353,65.493647,-65.467132,65.472868]",
+    "rust": "{\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265]}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:groove:3",
+    "field": "parameters.profile.body_key",
+    "python": "[-178.81027,-65.446353,-65.467132,241.18973,65.493647,65.472868,2008493.17813,319596.096198]",
+    "rust": "{\"area\":319596.095701,\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265],\"volume\":2008493.11653}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:turned_step:1",
+    "field": "parameters.profile.body_bounds",
+    "python": "[-178.81027,241.18973,-65.446353,65.493647,-65.467132,65.472868]",
+    "rust": "{\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265]}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:turned_step:1",
+    "field": "parameters.profile.body_key",
+    "python": "[-178.81027,-65.446353,-65.467132,241.18973,65.493647,65.472868,2008493.17813,319596.096198]",
+    "rust": "{\"area\":319596.095701,\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265],\"volume\":2008493.11653}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:turned_step:2",
+    "field": "parameters.profile.body_bounds",
+    "python": "[-178.81027,241.18973,-65.446353,65.493647,-65.467132,65.472868]",
+    "rust": "{\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265]}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:turned_step:2",
+    "field": "parameters.profile.body_key",
+    "python": "[-178.81027,-65.446353,-65.467132,241.18973,65.493647,65.472868,2008493.17813,319596.096198]",
+    "rust": "{\"area\":319596.095701,\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265],\"volume\":2008493.11653}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:turned_step:3",
+    "field": "parameters.profile.body_bounds",
+    "python": "[-178.81027,241.18973,-65.446353,65.493647,-65.467132,65.472868]",
+    "rust": "{\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265]}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:turned_step:3",
+    "field": "parameters.profile.body_key",
+    "python": "[-178.81027,-65.446353,-65.467132,241.18973,65.493647,65.472868,2008493.17813,319596.096198]",
+    "rust": "{\"area\":319596.095701,\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265],\"volume\":2008493.11653}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:turned_step:4",
+    "field": "parameters.profile.body_bounds",
+    "python": "[-178.81027,241.18973,-65.446353,65.493647,-65.467132,65.472868]",
+    "rust": "{\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265]}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:turned_step:4",
+    "field": "parameters.profile.body_key",
+    "python": "[-178.81027,-65.446353,-65.467132,241.18973,65.493647,65.472868,2008493.17813,319596.096198]",
+    "rust": "{\"area\":319596.095701,\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265],\"volume\":2008493.11653}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:turned_step:5",
+    "field": "parameters.profile.body_bounds",
+    "python": "[-178.81027,241.18973,-65.446353,65.493647,-65.467132,65.472868]",
+    "rust": "{\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265]}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:turned_step:5",
+    "field": "parameters.profile.body_key",
+    "python": "[-178.81027,-65.446353,-65.467132,241.18973,65.493647,65.472868,2008493.17813,319596.096198]",
+    "rust": "{\"area\":319596.095701,\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265],\"volume\":2008493.11653}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:turned_step:6",
+    "field": "parameters.profile.body_bounds",
+    "python": "[-178.81027,241.18973,-65.446353,65.493647,-65.467132,65.472868]",
+    "rust": "{\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265]}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:turned_step:6",
+    "field": "parameters.profile.body_key",
+    "python": "[-178.81027,-65.446353,-65.467132,241.18973,65.493647,65.472868,2008493.17813,319596.096198]",
+    "rust": "{\"area\":319596.095701,\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265],\"volume\":2008493.11653}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:turned_step:7",
+    "field": "parameters.profile.body_bounds",
+    "python": "[-178.81027,241.18973,-65.446353,65.493647,-65.467132,65.472868]",
+    "rust": "{\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265]}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:turned_step:7",
+    "field": "parameters.profile.body_key",
+    "python": "[-178.81027,-65.446353,-65.467132,241.18973,65.493647,65.472868,2008493.17813,319596.096198]",
+    "rust": "{\"area\":319596.095701,\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265],\"volume\":2008493.11653}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "corpus",
+    "part": "m1000",
+    "subject": "f:fillet:1",
+    "field": "presence",
+    "python": "f:fillet:1 [22] {\"at\":[43.337358,5.076131,9.779743],\"axis\":\"z\",\"radius\":7.179,\"side\":\"convex\",\"turned\":false}",
+    "rust": "-",
+    "verdict": "rust-correct",
+    "evidence": "quiddity-rust #89 decides fillet convexity from the face, not the frame: this face is not the convex fillet Python reports, so quiddity-rust no longer gives it as one."
+  },
+  {
+    "set": "corpus",
+    "part": "m10127",
+    "subject": "f:fillet:1",
+    "field": "presence",
+    "python": "f:fillet:1 [18] {\"at\":[2.93634,13.436355,41.792304],\"axis\":\"y\",\"radius\":4.153,\"side\":\"convex\",\"turned\":false}",
+    "rust": "-",
+    "verdict": "rust-correct",
+    "evidence": "quiddity-rust #89 decides fillet convexity from the face, not the frame: this face is not the convex fillet Python reports, so quiddity-rust no longer gives it as one."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:groove:1",
+    "field": "parameters.profile.body_bounds",
+    "python": "[-178.81027,241.18973,-65.446353,65.493647,-65.467132,65.472868]",
+    "rust": "{\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265]}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:groove:1",
+    "field": "parameters.profile.body_key",
+    "python": "[-178.81027,-65.446353,-65.467132,241.18973,65.493647,65.472868,2008493.17813,319596.096198]",
+    "rust": "{\"area\":319596.095701,\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265],\"volume\":2008493.11653}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:groove:2",
+    "field": "parameters.profile.body_bounds",
+    "python": "[-178.81027,241.18973,-65.446353,65.493647,-65.467132,65.472868]",
+    "rust": "{\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265]}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:groove:2",
+    "field": "parameters.profile.body_key",
+    "python": "[-178.81027,-65.446353,-65.467132,241.18973,65.493647,65.472868,2008493.17813,319596.096198]",
+    "rust": "{\"area\":319596.095701,\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265],\"volume\":2008493.11653}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:groove:3",
+    "field": "parameters.profile.body_bounds",
+    "python": "[-178.81027,241.18973,-65.446353,65.493647,-65.467132,65.472868]",
+    "rust": "{\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265]}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:groove:3",
+    "field": "parameters.profile.body_key",
+    "python": "[-178.81027,-65.446353,-65.467132,241.18973,65.493647,65.472868,2008493.17813,319596.096198]",
+    "rust": "{\"area\":319596.095701,\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265],\"volume\":2008493.11653}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:turned_step:1",
+    "field": "parameters.profile.body_bounds",
+    "python": "[-178.81027,241.18973,-65.446353,65.493647,-65.467132,65.472868]",
+    "rust": "{\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265]}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:turned_step:1",
+    "field": "parameters.profile.body_key",
+    "python": "[-178.81027,-65.446353,-65.467132,241.18973,65.493647,65.472868,2008493.17813,319596.096198]",
+    "rust": "{\"area\":319596.095701,\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265],\"volume\":2008493.11653}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:turned_step:2",
+    "field": "parameters.profile.body_bounds",
+    "python": "[-178.81027,241.18973,-65.446353,65.493647,-65.467132,65.472868]",
+    "rust": "{\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265]}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:turned_step:2",
+    "field": "parameters.profile.body_key",
+    "python": "[-178.81027,-65.446353,-65.467132,241.18973,65.493647,65.472868,2008493.17813,319596.096198]",
+    "rust": "{\"area\":319596.095701,\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265],\"volume\":2008493.11653}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:turned_step:3",
+    "field": "parameters.profile.body_bounds",
+    "python": "[-178.81027,241.18973,-65.446353,65.493647,-65.467132,65.472868]",
+    "rust": "{\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265]}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:turned_step:3",
+    "field": "parameters.profile.body_key",
+    "python": "[-178.81027,-65.446353,-65.467132,241.18973,65.493647,65.472868,2008493.17813,319596.096198]",
+    "rust": "{\"area\":319596.095701,\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265],\"volume\":2008493.11653}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:turned_step:4",
+    "field": "parameters.profile.body_bounds",
+    "python": "[-178.81027,241.18973,-65.446353,65.493647,-65.467132,65.472868]",
+    "rust": "{\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265]}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:turned_step:4",
+    "field": "parameters.profile.body_key",
+    "python": "[-178.81027,-65.446353,-65.467132,241.18973,65.493647,65.472868,2008493.17813,319596.096198]",
+    "rust": "{\"area\":319596.095701,\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265],\"volume\":2008493.11653}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:turned_step:5",
+    "field": "parameters.profile.body_bounds",
+    "python": "[-178.81027,241.18973,-65.446353,65.493647,-65.467132,65.472868]",
+    "rust": "{\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265]}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:turned_step:5",
+    "field": "parameters.profile.body_key",
+    "python": "[-178.81027,-65.446353,-65.467132,241.18973,65.493647,65.472868,2008493.17813,319596.096198]",
+    "rust": "{\"area\":319596.095701,\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265],\"volume\":2008493.11653}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:turned_step:6",
+    "field": "parameters.profile.body_bounds",
+    "python": "[-178.81027,241.18973,-65.446353,65.493647,-65.467132,65.472868]",
+    "rust": "{\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265]}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:turned_step:6",
+    "field": "parameters.profile.body_key",
+    "python": "[-178.81027,-65.446353,-65.467132,241.18973,65.493647,65.472868,2008493.17813,319596.096198]",
+    "rust": "{\"area\":319596.095701,\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265],\"volume\":2008493.11653}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:turned_step:7",
+    "field": "parameters.profile.body_bounds",
+    "python": "[-178.81027,241.18973,-65.446353,65.493647,-65.467132,65.472868]",
+    "rust": "{\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265]}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:turned_step:7",
+    "field": "parameters.profile.body_key",
+    "python": "[-178.81027,-65.446353,-65.467132,241.18973,65.493647,65.472868,2008493.17813,319596.096198]",
+    "rust": "{\"area\":319596.095701,\"axes\":[\"z\",[-0.459791,-0.888027,0.0],[0.888027,-0.459791,0.0]],\"bounds\":[[-178.810265,241.189735],[-65.446351,65.493649],[-65.467136,65.472864]],\"origin\":[0.00833,0.022318,178.810265],\"volume\":2008493.11653}",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92, recognition/6) keys a turned profile measured in a turned frame by its oriented box ({origin, axes, bounds}), not the file-aligned envelope Python gives. draftwright compares body keys only whole, between records of one document, which share the one form."
+  },
+  {
+    "set": "sheets",
+    "part": "m1000",
+    "subject": "f:fillet:1",
+    "field": "presence",
+    "python": "f:fillet:1 [22] {\"at\":[43.337358,5.076131,9.779743],\"axis\":\"z\",\"radius\":7.179,\"side\":\"convex\",\"turned\":false}",
+    "rust": "-",
+    "verdict": "rust-correct",
+    "evidence": "quiddity-rust #89 decides fillet convexity from the face, not the frame: this face is not the convex fillet Python reports, so quiddity-rust no longer gives it as one."
+  },
+  {
+    "set": "sheets",
+    "part": "m10127",
+    "subject": "f:fillet:1",
+    "field": "presence",
+    "python": "f:fillet:1 [18] {\"at\":[2.93634,13.436355,41.792304],\"axis\":\"y\",\"radius\":4.153,\"side\":\"convex\",\"turned\":false}",
+    "rust": "-",
+    "verdict": "rust-correct",
+    "evidence": "quiddity-rust #89 decides fillet convexity from the face, not the frame: this face is not the convex fillet Python reports, so quiddity-rust no longer gives it as one."
+  },
+  {
+    "set": "steps",
+    "part": "h363",
+    "subject": "f:fillet:1",
+    "field": "presence",
+    "python": "f:fillet:1 [14] {\"at\":[21.583872,5.964371,19.083408],\"axis\":\"x\",\"radius\":2.0,\"side\":\"convex\",\"turned\":false}",
+    "rust": "-",
+    "verdict": "rust-correct",
+    "evidence": "quiddity-rust #89 decides fillet convexity from the face, not the frame: this face is not the convex fillet Python reports, so quiddity-rust no longer gives it as one."
+  },
+  {
+    "set": "steps",
+    "part": "h363",
+    "subject": "f:fillet:2",
+    "field": "presence",
+    "python": "f:fillet:2 [25] {\"at\":[16.049872,5.690371,5.690408],\"axis\":\"x\",\"radius\":8.047,\"side\":\"convex\",\"turned\":false}",
+    "rust": "-",
+    "verdict": "rust-correct",
+    "evidence": "quiddity-rust #89 decides fillet convexity from the face, not the frame: this face is not the convex fillet Python reports, so quiddity-rust no longer gives it as one."
+  },
+  {
+    "set": "oriented",
+    "part": "h467",
+    "subject": "f:oriented_slot:1",
+    "field": "parameters.corner_radius",
+    "python": "-",
+    "rust": "null",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "oriented",
+    "part": "h467",
+    "subject": "f:oriented_slot:1",
+    "field": "parameters.d_hi",
+    "python": "-",
+    "rust": "0.0",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "oriented",
+    "part": "h467",
+    "subject": "f:oriented_slot:1",
+    "field": "parameters.d_lo",
+    "python": "-",
+    "rust": "-14.627",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "oriented",
+    "part": "h467",
+    "subject": "f:oriented_slot:1",
+    "field": "parameters.depth_axis",
+    "python": "-",
+    "rust": "[-1.0,0.0,0.0]",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "oriented",
+    "part": "h467",
+    "subject": "f:oriented_slot:1",
+    "field": "parameters.end_radius",
+    "python": "-",
+    "rust": "null",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "oriented",
+    "part": "h467",
+    "subject": "f:oriented_slot:1",
+    "field": "parameters.hi",
+    "python": "-",
+    "rust": "2.271755",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "oriented",
+    "part": "h467",
+    "subject": "f:oriented_slot:1",
+    "field": "parameters.lo",
+    "python": "-",
+    "rust": "-2.271755",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "oriented",
+    "part": "h467",
+    "subject": "f:oriented_slot:1",
+    "field": "parameters.long_axis",
+    "python": "-",
+    "rust": "[0.0,0.89161,0.452804]",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "oriented",
+    "part": "h467",
+    "subject": "f:oriented_slot:1",
+    "field": "parameters.origin",
+    "python": "-",
+    "rust": "[0.0,16.987,4.01]",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "oriented",
+    "part": "h467",
+    "subject": "f:oriented_slot:1",
+    "field": "parameters.w_center",
+    "python": "-",
+    "rust": "0.0",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "oriented",
+    "part": "h467",
+    "subject": "f:oriented_slot:1",
+    "field": "parameters.width_axis",
+    "python": "-",
+    "rust": "[0.0,0.452785,-0.89162]",
+    "verdict": "equivalent",
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
   }
 ]
