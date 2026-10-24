@@ -1292,13 +1292,15 @@ basis, placed, reference?, determined_by?}`:
     Lint proves the count from the closed loop of visible edges through the drawn corner.
 
   An angle stays local to its corner, so a reader sees which corner it states: its arc's radius
-  is at most the corner's shorter straight edge on the paper and at most eight label heights,
-  its label sits on its arc (on or beside the bisector), and all its ink lies within the view's
-  reserved area. It stands inside the corner (label on proven blank face) or in the equal sector
-  between the extended edges (label on proven exterior paper). A place whose lines cross
-  nothing is preferred; otherwise its arc and witness lines may cross straight edges of the part
-  (as dimension and extension lines may where unavoidable), but never a curved face (hole, boss,
-  blend), never another item's dimension line, leader, arrow, frame or label; only other
+  and its whole label lie within twelve label heights of the corner (about 26 mm), its label
+  sits on its arc (on or beside the bisector), and all its ink lies within the view's reserved
+  area. A short edge does not limit it: the witness lines extend the corner's edges outward past
+  the part, as a short chamfer's angle is drawn. It stands inside the corner (label on proven
+  blank face) or in the equal sector between the extended edges (label on proven exterior
+  paper). A place whose lines cross nothing is preferred; otherwise its arc and witness lines may
+  cross the part's edges, an edge blend's silhouette included (as dimension and extension lines
+  may where unavoidable), but never a hole or boss seen end-on, never another item's dimension
+  line, leader, arrow, frame or label; only other
   dimensions' extension lines, centre lines and cutting-plane chain lines may be crossed
   transversely. No callout's leader or padded label may meet its witness lines (the 2026-10-12
   extension contact rule), and leader refinement keeps clear of them as of linear extension

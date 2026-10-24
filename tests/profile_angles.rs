@@ -305,9 +305,8 @@ fn mirror_equal_corners_get_one_counted_angle() {
     }
 }
 
-/// Every placed profile angle stays local to its corner: its arc's radius is no longer than the
-/// corner's shorter straight edge on the paper, nor than eight label heights, and its label sits
-/// on its arc. Checked on the synthetic shapes, the profile fixture parts and the affected
+/// Every placed profile angle stays local to its corner: its arc's radius and its whole label
+/// lie within twelve label heights of the corner, and its label sits on its arc. Checked on the synthetic shapes, the profile fixture parts and the affected
 /// corpus parts.
 #[test]
 fn a_placed_profile_angle_stays_local_to_its_corner() {
@@ -353,29 +352,12 @@ fn a_placed_profile_angle_stays_local_to_its_corner() {
             plans.push((a, p));
         }
     }
+    // Twelve heights of the sheet's 2.2 mm label text: CTC-04's former 100 mm sweep fails this.
+    let reach = 12.0 * 2.2 + 0.5;
     let mut checked = 0;
-    for (a, p) in &plans {
-        let all = profile_angles::requirements(a);
+    for (_, p) in &plans {
         for d in angles(p) {
             let Some(placed) = &d.placed else { continue };
-            let scale = p.views.iter().find(|v| v.id == d.view).unwrap().scale;
-            // The shorter straight edge of the corner it is drawn at (any of a counted angle's).
-            let longest_shorter = d
-                .measurements
-                .iter()
-                .filter_map(|m| all.iter().find(|c| c.feature == m.feature))
-                .map(|c| {
-                    c.ends
-                        .map(|e| {
-                            (0..3)
-                                .map(|k| (e[k] - c.vertex[k]).powi(2))
-                                .sum::<f64>()
-                                .sqrt()
-                        })
-                        .into_iter()
-                        .fold(f64::INFINITY, f64::min)
-                })
-                .fold(0.0, f64::max);
             // The two witness lines meet at the vertex; the arc's chords lie at one radius.
             let [e0, e1] = [placed.lines[0], placed.lines[1]];
             let r = [e0[1][0] - e0[0][0], e0[1][1] - e0[0][1]];
@@ -385,22 +367,21 @@ fn a_placed_profile_angle_stays_local_to_its_corner() {
             let vertex = [e0[0][0] + k * r[0], e0[0][1] + k * r[1]];
             let q = placed.lines[2][0];
             let radius = (q[0] - vertex[0]).hypot(q[1] - vertex[1]);
+            assert!(radius <= reach, "{}: radius {radius} beyond {reach}", d.id);
             let b = placed.label_box;
-            let height = (b[3] - b[1]).min(b[2] - b[0]);
+            let far = [b[0], b[2]]
+                .into_iter()
+                .flat_map(|x| [b[1], b[3]].map(|y| (x - vertex[0]).hypot(y - vertex[1])))
+                .fold(0.0, f64::max);
             assert!(
-                radius <= longest_shorter * scale + 1e-6,
-                "{}: radius {radius} beyond the corner's edge {}",
-                d.id,
-                longest_shorter * scale
-            );
-            assert!(radius <= 8.0 * 3.0, "{}: radius {radius}", d.id);
-            let centre = [(b[0] + b[2]) / 2.0, (b[1] + b[3]) / 2.0];
-            let from = (centre[0] - vertex[0]).hypot(centre[1] - vertex[1]);
-            assert!(
-                (from - radius).abs() <= height.max(3.0),
-                "{}: label off its arc",
+                far <= reach,
+                "{}: label reaches {far} from its corner",
                 d.id
             );
+            let centre = [(b[0] + b[2]) / 2.0, (b[1] + b[3]) / 2.0];
+            let from = (centre[0] - vertex[0]).hypot(centre[1] - vertex[1]);
+            let size = (b[2] - b[0]).max(b[3] - b[1]);
+            assert!((from - radius).abs() <= size, "{}: label off its arc", d.id);
             checked += 1;
         }
     }

@@ -659,15 +659,15 @@ pub(super) fn withdraw_profile_contacts(items: &[Want], placed: &mut [Option<Pla
     }
 }
 
-/// How far a profile angle's arc may reach from its corner, in label heights: a reader must
-/// see which corner it dimensions.
-const LOCAL_REACH: f64 = 8.0;
+/// How far a profile angle's arc and label may reach from its corner, in label heights: a
+/// reader must see which corner it dimensions (about 26 mm for a 2.2 mm label).
+const LOCAL_REACH: f64 = 12.0;
 
-/// The largest radius a profile angle's arc may take at a corner whose physical ink is *ink*,
-/// for a label *height* high: no longer than the corner's shorter straight edge on the paper,
-/// and at most [`LOCAL_REACH`] label heights.
-fn local_radius(ink: &Ink, height: f64) -> f64 {
-    ink.lengths[0].min(ink.lengths[1]).min(LOCAL_REACH * height)
+/// The largest radius a profile angle's arc may take for a label *height* high:
+/// [`LOCAL_REACH`] label heights. A short edge does not bound it: its witness line extends the
+/// edge outward past the part, as a short chamfer's angle is drawn.
+fn local_radius(height: f64) -> f64 {
+    LOCAL_REACH * height
 }
 
 /// Places each profile-corner angle of *items* (see [`super::profile_angles`]) one at a time in
@@ -755,7 +755,14 @@ pub(super) fn place_profile(
             )
             .collect();
         let area = page.area(view);
-        let clear = |c: &Placed, stubs: usize, straight_ok: bool| {
+        let clear = |c: &Placed, stubs: usize, straight_ok: bool, vertex: P2| {
+            // The label within the same reach of its corner as the arc.
+            let b = c.label_box;
+            let far = [b[0], b[2]]
+                .into_iter()
+                .flat_map(|x| [b[1], b[3]].map(|y| (x - vertex[0]).hypot(y - vertex[1])))
+                .fold(0.0, f64::max);
+            far <= local_radius(size[1]) &&
             // Within the view's reserved area: never paper the layout did not give the view.
             area.is_none_or(|b| {
                 ink_points(c).all(|q| q[0] >= b[0] && q[0] <= b[2] && q[1] >= b[1] && q[1] <= b[3])
@@ -786,14 +793,14 @@ pub(super) fn place_profile(
                 size,
             )?;
             extended.lengths = [0.0; 2];
-            let reach = local_radius(&physical, size[1]);
+            let reach = local_radius(size[1]);
             // The label may slide off the bisector; its arc pieces must still carry arrows.
             let inks: Vec<(Ink, usize)> = [0.5, 0.35, 0.65, 0.25, 0.75]
                 .iter()
                 .flat_map(|&f| [(physical.along(f), 2), (extended.along(f), 0)])
                 .collect();
-            // First an arc that crosses nothing; then one whose arc may cross a straight edge
-            // of the part (never a hole, boss or blend, never its witness lines).
+            // First an arc that crosses nothing; then one whose arc and witnesses may cross the
+            // part's edges, blend silhouettes included, but never a hole or boss seen end-on.
             [false, true].into_iter().find_map(|straight_ok| {
                 (0..TRIES)
                     .map(|n| n as f64 * STEP)
@@ -804,7 +811,7 @@ pub(super) fn place_profile(
                             (radius <= reach)
                                 .then(|| g.placed(radius, terms))
                                 .flatten()
-                                .filter(|c| clear(c, *stubs, straight_ok))
+                                .filter(|c| clear(c, *stubs, straight_ok, g.vertex))
                         })
                     })
             })

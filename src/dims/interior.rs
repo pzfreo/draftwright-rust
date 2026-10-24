@@ -77,6 +77,8 @@ pub(super) struct Proof {
     require_visible_attachment: bool,
     /// Boxes a curved face's silhouette may lie anywhere within.
     boxes: Vec<[f64; 4]>,
+    /// The covers of cylinders seen end-on: holes and bosses, drawn as circles.
+    holes: Vec<[f64; 4]>,
     /// Planar faces square to the view: their box and their chords.
     faces: Vec<Face>,
     /// All planar projections and full curved-face covers, for proving exterior voids.
@@ -324,6 +326,7 @@ fn build_camera_with_exterior(
         return None;
     }
     let mut boxes = Vec::new();
+    let mut holes = Vec::new();
     let mut curved_cover = Vec::new();
     for f in &ink.curved {
         let [lo, hi] = f.bounds;
@@ -336,6 +339,7 @@ fn build_camera_with_exterior(
             let along = dot(axis).abs();
             if along > 1.0 - 1e-9 {
                 // Seen end-on: its outline is its rims, which are edges.
+                holes.push(bounds_of(corners.clone().map(|p| view.map(p))));
                 continue;
             }
             if along < 1e-9 {
@@ -371,6 +375,7 @@ fn build_camera_with_exterior(
         depths,
         require_visible_attachment: true,
         boxes,
+        holes,
         faces,
         exterior_faces,
         curved_cover,
@@ -498,9 +503,9 @@ impl Proof {
     /// Whether thin annotation *lines* and *arrows* stay clear of the view's line work; an
     /// arrow tip may touch the edge it ends on, and the first *witnesses* lines start at the
     /// corner they witness (their first 0.6 mm is that corner's attachment).
-    /// With *straight_ok*, the lines may cross straight projected edges (dimension and extension
-    /// lines crossing an outline where unavoidable, ISO 129-1) but still no curved face: no
-    /// hole, boss or blend.
+    /// With *straight_ok*, the lines may cross projected edges (dimension and extension lines
+    /// crossing an outline where unavoidable, ISO 129-1), including an edge blend's silhouette,
+    /// but never a hole or boss seen end-on.
     pub(super) fn lines_clear(
         &self,
         v: &PlannedView,
@@ -512,10 +517,7 @@ impl Proof {
         let c = 0.2 / v.scale + SLACK;
         let curved_clear = |s: [P2; 2]| {
             let m = [self.model_point(v, s[0]), self.model_point(v, s[1])];
-            self.boxes
-                .iter()
-                .chain(&self.curved_cover)
-                .all(|x| !near_box(m, *x, c))
+            self.holes.iter().all(|x| !near_box(m, *x, c))
         };
         // The arc ends on the corner's edges, which a blended edge's cover surrounds: the last
         // 1.5 mm before each arrow tip is the arc's attachment.

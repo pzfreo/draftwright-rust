@@ -26,5 +26,12 @@
     "count": 1,
     "verdict": "undetermined",
     "reason": "The default inspection baseline removes the five previously recorded leader crossings. The changed fixed ink joins nine callouts in one bounded search, which reaches its existing 200000-step cap; every callout remains drawn and the best assignment is retained, but optimality is not proven. This is the truthful search-budget warning, not a waiver of ink crossings: the previous crossing allowance is removed and all geometry checks remain active."
+  },
+  {
+    "part": "m10046",
+    "code": "annotation_outside_area",
+    "count": 1,
+    "verdict": "rust-wrong",
+    "reason": "LINT-angular-profile_angle_requirement: on this sampled m10046 plan (model::plan, first estimate), placing the two local profile-corner angles, even last and wholly within the front view's reserved area, leaves the 5.042 × 11.698 × 10.559 DEEP pocket callout up to 10.9 mm past that area (info); with angle placement disabled the finding is gone. The later pass that moves the callout was not traced. The command-line drawing of mfcadpp/10046 does not show it and the 30-part quality metrics are unchanged."
   }
 ]

@@ -15,12 +15,12 @@ All notable changes to draftwright-rust are recorded here, in the style of
   linearly fixed corner, gives any other corner its angle in the view that shows it true
   (`d:envelope/profile_angle.angle.f<face>_e<i>_e<j>`), gives a closed polygon of equal corners
   one counted angle (`8× 135°`) and two mirror-equal corners one `2× θ°`; lint proves both counts
-  from the drawn edges. An angle is placed only local to its corner (arc no longer than the
-  corner's shorter edge, label on its arc) and clear of the part's curved faces and every other
-  item; otherwise it is dropped (`angular_dimension_dropped`, info) and its corner stays
-  reported. Placement never moves another item or changes the sheet, and the 30-part quality
-  metrics are unchanged. On the NIST and mfcadpp parts no corner currently has such a place, so
-  their `angular_requirement_*` findings are unchanged.
+  from the drawn edges. An angle is placed only local to its corner (arc and label within twelve
+  label heights of it, label on its arc) and clear of holes and every other item; otherwise it
+  is dropped (`angular_dimension_dropped`, info) and its corner stays reported. Placement never
+  moves another item or changes the sheet, and the 30-part quality metrics are unchanged. NIST
+  FTC-08 (`8× 135°`), CTC-03 (`2× 135°`) and cadgenbench cgb207 now have no
+  `angular_requirement_*` finding; CTC-04 and the mfcadpp parts keep theirs.
 - `faces/<face>/profile_corners` (`auto`, `angle`, `linear`) chooses how a face's outer-profile
   corners are defined (`linear` locates the missing stations,
   `d:envelope/profile_location_<axis>.length.f<face>_<n>`); `dimensions/<id>` `{}` shows and `omit` hides one corner's angle.

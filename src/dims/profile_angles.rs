@@ -21,7 +21,7 @@
 //!   reference where linearly defined) or `linear` (locate the missing stations instead).
 //!
 //! The angles are placed one at a time ([`super::angular::place_profile`]), local to their corner
-//! (radius bounded by its shorter edge and eight label heights) and only where they are clear:
+//! (arc and label within twelve label heights of it) and only where they are clear:
 //! last of all, or before the callouts route when that states more corners and is no worse. One with no clear
 //! place stays undrawn (`angular_dimension_dropped`) and lint still reports its corner missing;
 //! it never moves another item, takes a fallback or asks for more paper.
