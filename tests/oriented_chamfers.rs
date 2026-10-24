@@ -44,10 +44,8 @@ fn ctc01_consumes_bevel_faces_and_sizes_both_notches_without_duplicate_c50() {
     assert!(p.completeness.claimed_faces > 77, "{:?}", p.completeness);
     assert_eq!(p.sheet.size, "A3");
     assert_eq!(p.sheet.scale, "1:5");
-    // quiddity-rust 0.1.1 (accepted for alpha.13): the radius-centre table (four R25 rows on
-    // alpha.8) is not planned, because CTC-01's blend senses follow the inferred frame; the
-    // 4× R25 corners are called out instead. Draftwright framed-record handling, fix in
-    // alpha.14 (restore the four-row table check).
+    // No radius-centre table: the 4× R25 corners' leader is not obstructed, so they are called
+    // out (alpha.12 tabulated them, when the 350 row pitch's extension lines crossed it).
     assert!(p.radius_table.is_none());
     assert!(
         p.dimensions

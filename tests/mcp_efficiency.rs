@@ -717,10 +717,9 @@ fn crossing_remedies_are_scoped_and_ordered_in_mcp_rows() {
                         .as_str()
                         .unwrap()
                         .contains("d:f:hole:1/location.length.z");
-                    // quiddity-rust 0.1.1 (accepted for alpha.13): CTC-01 has no radius-centre
-                    // table, so no row is a table carrier and every first offer is local (on
-                    // alpha.8 only the front-view hole location's was). Draftwright
-                    // framed-record handling, fix in alpha.14.
+                    // CTC-01 plans no radius-centre table (its 4× R25 leader is not
+                    // obstructed), so no row is a table carrier and every first offer is local
+                    // (on alpha.12 only the front-view hole location's was).
                     assert_eq!(fixes[0]["scope"], "local");
                     if local {
                         local_count += 1;
@@ -790,9 +789,9 @@ fn crossing_remedies_are_scoped_and_ordered_in_mcp_rows() {
             assert_eq!(
                 count,
                 match code {
-                    // quiddity-rust 0.1.1 (accepted for alpha.13): CTC-01's frame-dependent
-                    // senses drop the radius-centre table and its two leader crossings on the
-                    // 350 line: 2 -> 0. The extension rows still exercise the remedies.
+                    // No leader crosses the 350 row pitch's extension lines, which start at
+                    // the grid's right-hand column (two did on alpha.12, from the left). The
+                    // extension rows still exercise the remedies.
                     "annotation_leader_crossing" => 0,
                     "extension_through_feature" => 9,
                     _ => unreachable!(),

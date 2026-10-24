@@ -403,8 +403,8 @@ fn assert_review_summary(file: &str, expected: [(usize, usize); 4]) {
             4
         );
         assert_eq!(wire["summary"]["groups"]["extension_through_feature"], 9);
-        // quiddity-rust 0.1.1 (accepted for alpha.13): no radius-centre table on CTC-01, and
-        // so no leader crossings on the 350 line: this group 2 -> absent.
+        // CTC-01's 350 row pitch is witnessed from the grid's right-hand column, so no callout
+        // leader crosses its extension lines (on alpha.12, from the left-hand column, two did).
         assert!(wire["summary"]["groups"]["annotation_leader_crossing:extension_line"].is_null());
     }
 }
@@ -415,11 +415,10 @@ fn ctc01_counts_gaps_and_repeated_causes_without_hiding_findings() {
         "nist/nist_ctc_01_asme1_rd.stp",
         // The soft preferences retain this main-readable A3 drawing and its
         // reported unavailable detail; summary groups must retain every finding.
-        // quiddity-rust 0.1.1 (accepted for alpha.13): CTC-01's blend paths and section
-        // frames take the inferred frame's senses (from 0.1.0), so the 4× R25 corners are
-        // called out instead of tabled. Readability (1, 1) -> (2, 2): + radius_leader_not_radial
-        // on d:f:blend:12; advisory (13, 4) -> (11, 3): the two annotation_leader_crossing
-        // findings on the 350 line are gone.
+        // The 350 row pitch's extension lines cross no leader, so the 4× R25 leader is not
+        // obstructed and stays a counted callout rather than a radius-centre table; it meets
+        // its arc off radial (radius_leader_not_radial, readability), as the counted leaders
+        // on CTC-02 and FTC-09 do. Advisory: no annotation_leader_crossing on the 350 line.
         [(6, 2), (1, 1), (2, 2), (11, 3)],
     );
 }

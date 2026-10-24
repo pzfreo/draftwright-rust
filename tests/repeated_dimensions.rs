@@ -259,26 +259,54 @@ fn slots_sharing_a_width_across_one_span_state_it_once_counted() {
         claiming(&plan, "f:slot:2", "slot_length.length").id
     );
     let issues = lint::check(&a, &marks(&plan));
-    // quiddity-rust 0.1.1 (accepted for alpha.13): the slots' low ends land on a 0.005 mm
-    // tie after the frame's motion (14.97 -> 14.96 long; locations printed 285.965 and
-    // 79.075), and lint rounds them the other way (285.96, 79.07). So each slot's
-    // location_slot.length is unverifiable: none -> exactly these two. Draftwright
-    // framed-record handling, fix in alpha.14.
-    let mut slot: Vec<_> = issues
-        .iter()
-        .filter(|i| i.code.starts_with("slot_requirement_"))
-        .map(|i| i.id.as_str())
-        .collect();
-    slot.sort();
-    assert_eq!(
-        slot,
-        [
-            "l:slot_requirement_unverifiable:f:slot:1/location_slot.length",
-            "l:slot_requirement_unverifiable:f:slot:2/location_slot.length",
-        ],
+    // Lint judges each slot's low end where the planner puts it (the exact centre of its faces
+    // less half its length), not quiddity's separately rounded `lo`: on quiddity-rust 0.1.1 the
+    // two fall either side of a 0.005 mm tie (285.965 drawn, 95.96 recorded).
+    assert!(
+        issues
+            .iter()
+            .all(|i| !i.code.starts_with("slot_requirement_")),
         "{issues:?}"
     );
     assert_each_quantity_once("cgb245", &plan);
+}
+
+/// CTC-03's two identical obround slots stand side by side, their widths on different spans:
+/// the width is stated once, counted (`2× 19.05`), as their length is across their one span
+/// (`2× 107.95`), so no size label repeats in the plan. Each slot keeps its own end-radius
+/// callout (`2× R9.52`, the two ends of that slot).
+#[test]
+fn identical_slots_share_one_width_counted() {
+    let Some(dir) = corpus::dir() else {
+        eprintln!("SKIPPED (corpus part): the corpus is not found; set DRAFTWRIGHT_CORPUS");
+        return;
+    };
+    let a = native(&dir, "nist/nist_ctc_03_asme1_rc.stp");
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    for (parameter, label) in [
+        ("slot_width.length", "2× 19.05"),
+        ("slot_length.length", "2× 107.95"),
+    ] {
+        let d = claiming(&plan, "f:slot:1", parameter);
+        assert_eq!(d.label, label);
+        assert!(d.placed.is_some(), "{}", d.id);
+        assert_eq!(claiming(&plan, "f:slot:2", parameter).id, d.id);
+    }
+    for slot in ["f:slot:1", "f:slot:2"] {
+        assert_eq!(
+            claiming(&plan, slot, "slot_end_radius.radius").label,
+            "2× R9.52"
+        );
+    }
+    let issues = lint::check(&a, &marks(&plan));
+    assert!(
+        !issues
+            .iter()
+            .any(|i| i.code.starts_with("slot_requirement_")
+                && !i.id.ends_with("location_slot.length")),
+        "{issues:?}"
+    );
+    assert_each_quantity_once("ctc03", &plan);
 }
 
 /// ftc06's four ø44.5 bosses stand 38.1 high from the base, and ftc07's four square bosses 2.5

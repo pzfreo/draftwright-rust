@@ -285,9 +285,9 @@ fn ctc01_crossings_offer_local_edits_and_identify_the_sheet_remedy() {
             )
         })
         .collect();
-    // quiddity-rust 0.1.1 (accepted for alpha.13): CTC-01's frame-dependent senses (from
-    // 0.1.0) drop the radius-centre table, and with it the two leader crossings on the 350
-    // line: 2 -> 0. The extension crossings below still exercise the remedies.
+    // CTC-01's 350 row pitch is witnessed from the grid's right-hand column, so no leader
+    // crosses its extension lines (two did on alpha.12, when it was witnessed from the left).
+    // The extension crossings below still exercise the remedies.
     assert_eq!(
         crossings
             .iter()
@@ -302,11 +302,10 @@ fn ctc01_crossings_offer_local_edits_and_identify_the_sheet_remedy() {
             .count(),
         9
     );
-    // quiddity-rust 0.1.1 (accepted for alpha.13): CTC-01 has no radius-centre table, so no
-    // dimension carries one, and every crossing's first offer is a local edit (on alpha.8 only
-    // d:f:hole:1/location.length.z's was; the table carriers' were sheet fixes). The rest of
-    // this test checks the table-carrier contract and runs again once the table is back
-    // (draftwright framed-record handling, fix in alpha.14).
+    // CTC-01 plans no radius-centre table (its 4× R25 leader is not obstructed), so no
+    // dimension carries one, and every crossing's first offer is a local edit (on alpha.12
+    // only d:f:hole:1/location.length.z's was; the table carriers' were sheet fixes). The rest
+    // of this test checks the table-carrier contract for a plan that has the table.
     if plan.radius_table.is_none() {
         for p in &crossings {
             let fixes = p.offered_fixes();

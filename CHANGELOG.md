@@ -64,6 +64,33 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Fixed
 
+- **Slot location lint agrees with the drawn end.** Lint judged a slot's `location_slot.length` at
+  quiddity's recorded `lo`, while the planner draws the low end at the exact centre of the slot's
+  faces less half its length. Each is rounded to 0.01 mm separately, so on quiddity-rust 0.1.1 they
+  fall either side of a 0.005 mm tie: cgb245 drew 285.965 and 79.075 against a recorded 285.96
+  and 79.07, and both slots' locations were reported unverifiable. Lint now reads the end the
+  planner draws. cgb245 has no slot findings again, and CTC-03's first slot location (112.547) is
+  no longer reported unverifiable.
+- **Identical slots share one width** (CTC-03's repeated label, accepted in alpha.13). Lone slots
+  in one view with the same width, length and end radius, run the same way, share one counted
+  width wherever they lie (`2× 19.05`); widths spanning one stretch still share as before.
+  CTC-03's two slots, which alpha.12 read as 19.04/19.05 wide, now read the same 19.05 and were
+  stated twice: repeated_label 1 → 0. Their length was already shared across its one span
+  (`2× 107.95`), and each slot keeps its own `2× R9.52`. CTC-04 now reads `2× 75` and
+  `2× 140` (repeated_label 2 → 0, line_through_feature 22 → 19; the `2× 75` label sits beside
+  its 15 mm span, text_off_span 0 → 1, accepted) and FTC-09 `2× 6.35` (repeated_label 1 → 0,
+  line_through_feature 2 → 0). Sharing lengths and end radii of
+  identical slots on different spans too was tried and left out: it moved CTC-03's radius
+  leader onto an extension line and put FTC-08 on A1 at 1:1 with three extensions through a
+  slot.
+- **CTC-01's radius-centre table: correct as it is** (listed as a known regression in alpha.13).
+  alpha.12 tabulated the 4× R25 corners only because the 350 row pitch was witnessed from the
+  grid's left-hand column and its extension lines crossed the 4× R25 leader (two
+  `annotation_leader_crossing` findings). The pitch is witnessed from the grid's first member,
+  which quiddity-rust 0.1.x lists in the right-hand column, so its extension lines are short and
+  cross nothing, and the leader is not obstructed. The 4× R25 callout stays; it meets its arc off
+  radial, as the counted leaders on CTC-02 and FTC-09 do, which are kept by design. The pitch's
+  station still follows quiddity's member order.
 - **Manufacturing table with no room.** When the thread and knurl requirements table has no place
   on the sheet (only reachable with an explicit `sheet/size` and `sheet/scale`), the callouts now
   state each requirement in full instead of pointing with `SEE MFG n` to a table that is not drawn,
