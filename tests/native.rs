@@ -1462,9 +1462,13 @@ fn the_reader_refuses_what_it_does_not_know() {
     };
     let e = refused(&|d| d.schema_version = "quiddity-rust/recognition/1".into());
     assert!(e.contains("\"quiddity-rust/recognition/1\", not"), "{e}");
-    // A field left in the part's own frame is not in the file's coordinates.
-    let e = refused(&|d| d.records[0].local = vec!["axis".into()]);
-    assert!(e.contains("leaves axis in the part's own frame"), "{e}");
+    // A record measured from its own origin is not in the file's coordinates.
+    let e = refused(&|d| {
+        d.records[0]
+            .parameters
+            .insert("origin".into(), serde_json::json!([1.0, 2.0, 3.0]));
+    });
+    assert!(e.contains("gives origin in the part's own frame"), "{e}");
     let e = refused(&|d| d.coordinate_space = "working".into());
     assert!(e.contains("\"working\" coordinates"), "{e}");
     let e = refused(&|d| d.face_count += 1);
@@ -1615,21 +1619,20 @@ fn the_reader_checks_each_familys_fields() {
             .insert("profile".into(), p.into());
     })
     .unwrap_err();
-    assert!(
-        e.contains("'s profile.body_key is \"b\", not NumbersOrNull"),
-        "{e}"
-    );
-    let e = read(&|d| {
+    assert!(e.contains("'s profile.body_key is \"b\", not Key"), "{e}");
+    // A direction where draftwright reads an axis letter is no file axis: the step is left out.
+    let n = read(&|d| {
         let mut p = profile(d);
-        p.insert("axis".into(), Value::from(vec![0.0, 0.0, 1.0]));
+        p.insert("axis".into(), Value::from(vec![0.6, 0.8, 0.0]));
         d.records[step]
             .parameters
             .insert("profile".into(), p.into());
     })
-    .unwrap_err();
+    .unwrap();
     assert!(
-        e.contains("'s profile.axis is [0.0,0.0,1.0], not Letter"),
-        "{e}"
+        !n.features
+            .iter()
+            .any(|f| f.faces == doc.records[step].faces)
     );
     // No profile: nothing in it to check.
     read(&|d| {
@@ -1662,8 +1665,9 @@ fn the_reader_checks_each_familys_fields() {
     })
     .unwrap_err();
     assert!(e.contains("(Groove) has no width"), "{e}");
-    // A groove's axis must be a letter (lint/turned.rs reads it so).
-    let e = read(&|d| {
+    // A groove's axis must be a letter (lint/turned.rs reads it so): a direction is no file axis,
+    // so the groove is left out.
+    let n = read(&|d| {
         let r = &mut d.records[fillet];
         r.family = "grooves".into();
         r.record_type = "Groove".into();
@@ -1672,13 +1676,10 @@ fn the_reader_checks_each_familys_fields() {
         }
         r.parameters.insert("profile".into(), Value::Null);
         r.parameters
-            .insert("axis".into(), Value::from(vec![0.0, 0.0, 1.0]));
+            .insert("axis".into(), Value::from(vec![0.6, 0.8, 0.0]));
     })
-    .unwrap_err();
-    assert!(
-        e.contains("(Groove)'s axis is [0.0,0.0,1.0], not Letter"),
-        "{e}"
-    );
+    .unwrap();
+    assert!(!n.features.iter().any(|f| f.kind == "groove"));
     // Faces must be strictly ascending: a face named twice is refused, for every family.
     let e = read(&|d| d.records[fillet].faces = vec![1, 1]).unwrap_err();
     assert!(e.contains("has no ascending faces"), "{e}");
@@ -2032,14 +2033,17 @@ fn pad_fields_are_checked() {
         e.contains("(RaisedPad) has no z1, which draftwright reads"),
         "{e}"
     );
+    // A direction where draftwright reads an axis letter is no file axis: the pad is left out.
+    let n = edited(&|p| {
+        p.insert("axis".into(), serde_json::json!([0.6, 0.8, 0.0]));
+    })
+    .unwrap();
+    assert!(!n.features.iter().any(|f| f.kind == "pad"));
     let e = edited(&|p| {
-        p.insert("axis".into(), serde_json::json!([1.0, 0.0, 0.0]));
+        p.insert("axis".into(), serde_json::json!("w"));
     })
     .unwrap_err();
-    assert!(
-        e.contains("(RaisedPad)'s axis is [1.0,0.0,0.0], not Letter"),
-        "{e}"
-    );
+    assert!(e.contains("(RaisedPad)'s axis is \"w\", not Letter"), "{e}");
     let e = edited(&|p| {
         p.insert("x0".into(), Value::from("5.623"));
     })
@@ -2179,11 +2183,6 @@ fn corpus_pads_are_pythons() {
 fn modelled_threads_and_refusals_survive_recognition_and_analysis_json() {
     let (part, mut doc) = document("turned");
     assert_eq!(doc.schema_version, native::SCHEMA_VERSION);
-    for legacy in &native::SCHEMA_VERSIONS[..2] {
-        let mut old = doc.clone();
-        old.schema_version = (*legacy).into();
-        native::read(&part, &old).unwrap();
-    }
     let parameters = serde_json::json!({
         "axis": {"point": [0, 0, 0], "direction": [0, 0, 1]},
         "side": "external", "major_diameter": 20, "minor_diameter": 19,
@@ -2196,7 +2195,6 @@ fn modelled_threads_and_refusals_survive_recognition_and_analysis_json() {
     thread.family = "modelled_threads".into();
     thread.record_type = "ModelledThread".into();
     thread.faces = vec![0, 1];
-    thread.local.clear();
     thread.parameters = parameters.as_object().unwrap().clone();
     doc.records.push(thread);
     let mut refusal = doc.records.last().unwrap().clone();
@@ -2272,8 +2270,12 @@ fn modelled_threads_and_refusals_survive_recognition_and_analysis_json() {
     );
 
     let mut bad = doc.clone();
-    bad.schema_version = "quiddity-rust/recognition/3".into();
-    assert!(native::read(&part, &bad).unwrap_err().contains("requires"));
+    bad.schema_version = "quiddity-rust/recognition/5".into();
+    assert!(
+        native::read(&part, &bad)
+            .unwrap_err()
+            .contains("recognition/5\", not")
+    );
     let index = doc
         .records
         .iter()
@@ -2310,9 +2312,11 @@ fn modelled_threads_and_refusals_survive_recognition_and_analysis_json() {
             .unwrap_err()
             .contains("face claims")
     );
-    // A thread whose axis quiddity left in the part's own frame is left out, not misread.
+    // A thread quiddity measures from its own origin is left out, not misread.
     let mut bad = doc.clone();
-    bad.records[index].local.push("axis".into());
+    bad.records[index]
+        .parameters
+        .insert("origin".into(), serde_json::json!([1.0, 2.0, 3.0]));
     assert!(
         !native::read(&part, &bad)
             .unwrap()
@@ -2321,4 +2325,103 @@ fn modelled_threads_and_refusals_survive_recognition_and_analysis_json() {
             .any(|f| f.faces == doc.records[index].faces)
     );
     assert!(native::left_in_frame(&bad.records[index]));
+}
+
+/// recognition/6 (quiddity #92) gives a record whose frame is not the file's an `origin` and its
+/// coordinates as distances from it along named measuring axes. A plate or turned step so
+/// given, along file axes, reads exactly as the same record in absolute file coordinates.
+#[test]
+fn a_record_measured_from_its_origin_reads_as_in_file_coordinates() {
+    let origin = [3.25, -5.5, 7.125];
+    let mut converted = 0;
+    for name in ["plate", "turned"] {
+        let (part, doc) = document(name);
+        let mut moved = doc.clone();
+        for r in &mut moved.records {
+            if !matches!(r.family.as_str(), "plates" | "turned_steps") {
+                continue;
+            }
+            let p = &mut r.parameters;
+            let Some(w) = ["x", "y", "z"].iter().position(|l| p["axis"] == *l) else {
+                continue;
+            };
+            for k in ["lo", "hi"] {
+                p[k] = serde_json::json!(p[k].as_f64().unwrap() - origin[w]);
+            }
+            if r.family == "plates" {
+                // Across the axis, descending, to check `u`/`v` go back by file axis.
+                let [a, b] = match w {
+                    0 => [2, 1],
+                    1 => [2, 0],
+                    _ => [1, 0],
+                };
+                let (u, v) = (p["u"].as_f64().unwrap(), p["v"].as_f64().unwrap());
+                p.insert("u".into(), serde_json::json!(v - origin[a]));
+                p.insert("v".into(), serde_json::json!(u - origin[b]));
+                let letters = [["x", "y", "z"][a], ["x", "y", "z"][b]];
+                p.insert("section_axes".into(), serde_json::json!(letters));
+            }
+            p.insert("origin".into(), serde_json::json!(origin));
+            assert!(!native::left_in_frame(r), "{}", r.id);
+            converted += 1;
+        }
+        assert_eq!(
+            native::read(&part, &moved).unwrap(),
+            native::read(&part, &doc).unwrap(),
+            "{name}"
+        );
+    }
+    assert!(converted >= 2, "{converted}");
+}
+
+/// threaded_connector_109 is turned about file z in a frame turned about it, so quiddity 0.2.0
+/// gives its turned steps and flat from that frame's origin: all are read, the flat's stock axis
+/// on z, and its turned profiles keyed by their own boxes.
+#[test]
+fn threaded_connector_109s_framed_records_are_read_in_file_coordinates() {
+    let Some(dir) = corpus::dir() else {
+        eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
+        return;
+    };
+    let (part, _) = model::analyse(&dir.join("cadgenbench/threaded_connector_109.step")).unwrap();
+    let r = quiddity::correspondence::recognise(&part);
+    let doc = quiddity::recognition::document(&r, part.faces.len());
+    let framed: Vec<_> = doc
+        .records
+        .iter()
+        .filter(|r| r.parameters.contains_key("origin"))
+        .collect();
+    assert!(
+        framed.iter().any(|r| r.family == "turned_steps")
+            && framed.iter().any(|r| r.family == "flats"),
+        "{:?}",
+        framed.iter().map(|r| &r.id).collect::<Vec<_>>()
+    );
+    assert!(framed.iter().all(|r| !native::left_in_frame(r)));
+    let n = native::read(&part, &doc).unwrap();
+    let flat = n.features.iter().find(|f| f.kind == "flat").unwrap();
+    assert_eq!(flat.parameters["axis_line"], serde_json::json!([0.0, 0.0]));
+    let turned: Vec<_> = n
+        .features
+        .iter()
+        .filter(|f| f.kind == "turned_step")
+        .collect();
+    assert_eq!(
+        turned.len(),
+        framed.iter().filter(|r| r.family == "turned_steps").count()
+    );
+    for f in turned {
+        let p = &f.parameters;
+        assert!(!p.contains_key("origin"), "{}", f.id);
+        let (lo, hi) = (p["lo"].as_f64().unwrap(), p["hi"].as_f64().unwrap());
+        assert!(
+            (0.0..=420.0).contains(&lo) && lo < hi && hi <= 420.0,
+            "{} {lo} {hi}",
+            f.id
+        );
+        assert_eq!(
+            p["profile"]["axis_origin"],
+            serde_json::json!([0.0, 0.0, 0.0])
+        );
+    }
 }

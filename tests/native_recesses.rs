@@ -457,8 +457,8 @@ fn native_reader_refuses_bad_recess_fields_local_coordinates_and_pattern_links()
         .iter_mut()
         .find(|r| r.record_type == "SectionRecess")
         .unwrap()
-        .local
-        .push("geometry.frame".into());
+        .parameters
+        .insert("origin".into(), json!([1.0, 2.0, 3.0]));
     assert!(native::read(&part, &bad).is_err());
     for members in [json!([0, 0, 1]), json!([0, 1, 9999])] {
         let mut bad = doc.clone();
