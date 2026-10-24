@@ -294,7 +294,8 @@ fn slot_and_boss_items_can_be_omitted_by_id() {
         .filter(|d| d.id.contains("/boss"))
         .map(|d| d.id.clone())
         .collect();
-    assert_eq!(ids.len(), 2, "{ids:?}");
+    // Its diameter; its height is conveyed by the hole callout on whose floor it stands (ADR1-8).
+    assert_eq!(ids, ["d:f:boss:1/boss.diameter"]);
     let mut spec = Spec::default();
     spec.dimensions.insert(
         ids[0].clone(),
@@ -613,12 +614,23 @@ fn a_boss_height_between_the_parts_own_faces_is_the_overall_extents() {
         return;
     };
     let mut a = analysed(&corpus, "m10127");
-    // m10127's boss stands proud (5.7 along y on a part 32.3 deep): it keeps its height
-    // (ISSUE-1154-a's control).
+    // m10127's boss stands proud (5.7 along y on a part 32.3 deep), on the flat floor of the
+    // ⌀12.99 hole 5.73 deep: its height is not the overall's (ISSUE-1154-a's control) but the
+    // hole's depth, which the hole's callout states (ADR1-8), so the callout carries its claim.
     let proud = model::plan(&a, &Spec::default()).unwrap();
+    assert_eq!(items(&proud, "boss_height"), vec![]);
+    let callout = proud
+        .dimensions
+        .iter()
+        .find(|d| {
+            d.measurements
+                .iter()
+                .any(|m| m.parameter == "boss_height.length")
+        })
+        .unwrap();
     assert_eq!(
-        items(&proud, "boss_height"),
-        strs(&[("boss_height.length", "side", "5.73")])
+        (callout.id.as_str(), callout.label.as_str()),
+        ("d:f:hole:2/bore.diameter", "⌀12.990 ↧ 5.73")
     );
     // Flush with both faces of the part, its height is the overall depth's: one fact, one owner.
     let [lo, hi] = a.envelope;

@@ -132,12 +132,23 @@ pub(crate) fn span(a: &Analysis, feature: &str, parameter: &str) -> Option<Span>
             .then(|| Span::new(k, a.envelope[0][k], n.mouth[k]));
     }
     if parameter.starts_with("pocket_") || parameter.starts_with("location_pocket.") {
-        return pocket_span(a, feature, parameter);
+        return pocket_span(a, feature, parameter).or_else(|| depth_span(a, feature, parameter));
+    }
+    if parameter == "circular_step_depth.length"
+        || parameter == "rectangular_blind_slot_depth.length"
+    {
+        return depth_span(a, feature, parameter);
     }
     let f = a.features.iter().find(|f| f.id == feature)?;
     if f.kind == "turned_step" && parameter == "step.length" && coaxial(a) {
         let b = super::turned::band(&frame(a), f).ok()?;
         return Some(Span::new(b.axis, b.lo, b.hi));
+    }
+    if f.kind == "hole" && parameter == "bore.depth" {
+        return hole_depth_span(a, f);
+    }
+    if f.kind == "through_step" {
+        return super::steps::leg_span(a, f, parameter);
     }
     if f.kind == "plate" && parameter == "thickness.length" {
         let p = super::plates::read(a, f).ok()?;
@@ -239,6 +250,70 @@ fn pocket_span(a: &Analysis, feature: &str, parameter: &str) -> Option<Span> {
         "pocket_depth.length" if !p.mouth => Some(at(p.depth_axis, p.depth)),
         _ => None,
     }
+}
+
+/// ADR1-8: a plain flat-bottomed blind hole's depth (`bore.depth`), from the face its mouth opens
+/// on to its floor, along its axis. A drill point ends on no face, and a hole with a counterbore,
+/// spotface or countersink has none: which face its depth is taken from is the callout's
+/// convention, not a support plane.
+fn hole_depth_span(a: &Analysis, f: &crate::bridge::Feature) -> Option<Span> {
+    let p = &f.parameters;
+    if p.get("bottom").and_then(|b| b.as_str()) != Some("flat")
+        || ["cbore", "csink", "spotface"]
+            .iter()
+            .any(|k| p.get(*k).is_some_and(|v| !v.is_null()))
+    {
+        return None;
+    }
+    let depth = p.get("depth")?.as_f64().filter(|d| *d > 0.)?;
+    let axis = super::parameters::direction(&frame(a), p.get("axis"))?;
+    let k = principal(axis)?;
+    let at = to_part(&frame(a), point(p.get("location"))?);
+    Some(Span::new(k, at[k], at[k] + axis[k].signum() * depth))
+}
+
+/// ADR1-8: the support planes of a blind depth a callout states: a circular blind step's, from
+/// its blind terminal to its open end (`circular_step_depth.length`), a hexagonal pocket's, from
+/// its floor to its mouth (`pocket_depth.length`), and a rectangular blind slot's, from its floor
+/// to the face it opens into (`rectangular_blind_slot_depth.length`), along the part's axis.
+fn depth_span(a: &Analysis, feature: &str, parameter: &str) -> Option<Span> {
+    use super::section_recesses::{Grammar, grammar};
+    let f = a.features.iter().find(|f| f.id == feature)?;
+    let ends: [[f64; 3]; 2] = match (f.kind.as_str(), parameter) {
+        ("circular_blind_step", "circular_step_depth.length") => {
+            let line = f.parameters.get("centreline")?.as_array()?;
+            let [p, q] = line.as_slice() else {
+                return None;
+            };
+            [point(Some(p))?, point(Some(q))?]
+        }
+        ("section_recess", "pocket_depth.length") => match grammar(f).ok()? {
+            Grammar::HexPocket {
+                axis, at, floor, ..
+            } => {
+                let mut bottom = at;
+                bottom[axis] = floor;
+                [at, bottom]
+            }
+            _ => return None,
+        },
+        ("section_recess", "rectangular_blind_slot_depth.length") => match grammar(f).ok()? {
+            Grammar::RectangularBlindSlot(s) => {
+                let (mut top, mut bottom) = (s.origin, s.origin);
+                top[s.depth_axis] += s.depth / 2.;
+                bottom[s.depth_axis] -= s.depth / 2.;
+                [top, bottom]
+            }
+            _ => return None,
+        },
+        _ => return None,
+    };
+    let [p, q] = ends.map(|e| to_part(&frame(a), e));
+    let along: Vec<usize> = (0..3).filter(|&k| (p[k] - q[k]).abs() > 1e-9).collect();
+    let [k] = along[..] else {
+        return None;
+    };
+    Some(Span::new(k, p[k], q[k]))
 }
 
 /// Stream K6 (#33, #26): a dimension drawn in brackets is reference, for information only; one
@@ -358,8 +433,12 @@ pub fn coverage(a: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
                         continue;
                     }
                 }
+                // Two holes' callouts (or schedule rows) each state their own hole's depth, even
+                // where the depths run between the same planes.
+                let (mine, theirs) = (depths(m), depths(&marks[route[0]]));
                 if duplicate
-                    && marks[route[0]].view != m.view
+                    && (marks[route[0]].view != m.view
+                        || (!mine.is_empty() && !theirs.is_empty() && mine.is_disjoint(&theirs)))
                     && m.claims.iter().all(|c| {
                         c.feature.starts_with("f:hole:") || c.feature.starts_with("f:hole_pattern:")
                     })
@@ -383,6 +462,15 @@ pub fn coverage(a: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
         edges.extend(halves.into_iter().map(|s| (s, i)));
     }
     issues
+}
+
+/// The holes whose depth (`bore.depth`) mark *m* claims.
+fn depths(m: &Mark) -> std::collections::BTreeSet<&str> {
+    m.claims
+        .iter()
+        .filter(|c| c.parameter == "bore.depth")
+        .map(|c| c.feature.as_str())
+        .collect()
 }
 
 /// The support-plane intervals mark *m* states: each claim's plane interval, or an outside
@@ -453,10 +541,11 @@ fn repeated(text: &str) -> Option<&str> {
 /// the drawing's controlling dimensions walk from one of its support planes to the other. Drops
 /// each `missing` finding on an axial length, boss height or polygonal boss height they determine.
 pub fn determined(a: &Analysis, marks: &[Mark], issues: &mut Vec<LintIssue>) {
-    const CODES: [&str; 3] = [
+    const CODES: [&str; 4] = [
         "axial_length_missing",
         "boss_height_missing",
         "polygonal_boss_requirement_missing",
+        "through_step_requirement_missing",
     ];
     if a.solid_count.is_some_and(|n| n > 1)
         || !issues.iter().any(|i| CODES.contains(&i.code.as_str()))

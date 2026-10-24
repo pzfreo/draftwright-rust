@@ -2752,16 +2752,6 @@
   {
     "part": "m10127",
     "side": "rust",
-    "family": "boss",
-    "view": "side",
-    "label": "5.73",
-    "count": 1,
-    "verdict": "rust-correct",
-    "reason": "Faithful nominal display intentionally replaces Python one-decimal rounding; exact model hundredths/thousandths are retained up to three places. Existing ownership and view differences remain independently listed (docs/drawn-values-2026-10-18.md)."
-  },
-  {
-    "part": "m10127",
-    "side": "rust",
     "family": "callout",
     "view": "side",
     "label": "⌀8.094 THRU",
@@ -3118,6 +3108,16 @@
     "count": 1,
     "verdict": "rust-correct",
     "reason": "When no faithful decimal fits within three places, the specified fallback prints all three places and reports nominal_rounded. Exact revised nominal text; measurements and ownership remain unchanged (docs/drawn-values-2026-10-18.md)."
+  },
+  {
+    "part": "plates_pads_levels_and_slanted_steps",
+    "side": "python",
+    "family": "through_step",
+    "view": "front",
+    "label": "32",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "One owner per physical measurement (ADR1-8): the through step's 32 leg runs from the base plate's top to the top of the part, which the plate's 4 thickness and the 36 overall height already state; the port leaves the leg to them (a reference with sheet/references), draftwright draws all three."
   },
   {
     "part": "spool132",

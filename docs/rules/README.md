@@ -81,6 +81,14 @@ take one counted angle (`8× 135°`) and two mirror-equal corners one `2× θ°`
 only local to their corner and clear, else dropped and still reported; `faces/<face>/profile_corners`
 (including `linear`) and per-corner `dimensions/<id>` overrides steer it. ADR1-8 and ARCH0020-1 remain pending.
 
+The third one-owner stream (2026-10-24) ports through-step legs and blind depths into the
+support-plane walk: a leg is walked last and yields to the plate, rung or overall that states
+it; circular-step, hex-pocket, rectangular blind-slot and flat-bottomed hole depths are callout
+members that carry chains, so a rung or boss height they state or close yields. ADR1-8 stays
+pending, so the counts are unchanged: hole point ordinates were tried and backed out (an
+ordinate ends on an axis, not a face), and rebased ladder datums are blocked on lint reading a
+rung's interval from the box.
+
 The triage covered all 190 rules then pending: 80 PORT, 98 TRANSLATE and 12 RETIRE.
 The original PORT triage recorded value, size and stream in `port_note`. Of the TRANSLATE
 group, seven rules already met in Rust are marked ported with verified test citations:

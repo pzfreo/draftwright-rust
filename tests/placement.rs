@@ -678,6 +678,11 @@ fn omitting_one_dimension_moves_no_other() {
                             if survivor.region == Some(dims::CandidateRegion::Interior) {
                                 continue;
                             }
+                            // Nor does a callout that conveyed it (ADR1-8: a boss height a hole
+                            // callout's depth states): it is placed in its own view, outside.
+                            if survivor.kind != "linear" {
+                                continue;
+                            }
                             let survivor = survivor.placed.as_ref().unwrap();
                             assert!(
                                 (lane(p) - lane(survivor)).abs() < 1e-9,
@@ -704,6 +709,28 @@ fn omitting_one_dimension_moves_no_other() {
                         let (now, old) = (d.placed.as_ref().unwrap(), was.placed.as_ref().unwrap());
                         assert_eq!(&now.lines[..2], &old.lines[..2], "{} witnesses", d.id);
                         assert_eq!(now.arrows, old.arrows, "{} arrows", d.id);
+                        continue;
+                    }
+                    // ADR1-8: an item conveyed across views (m10127's boss height, by the hole
+                    // callout down its axis) comes back in its own view, where the omitted owner
+                    // held no lane for it; a leader callout there may re-route around its ink.
+                    // Its view and text stay, and every linear item stays fixed.
+                    let owner_view = full
+                        .dimensions
+                        .iter()
+                        .find(|e| e.id == *gone)
+                        .map(|e| &e.view);
+                    if d.kind != "linear"
+                        && owner_view.is_some_and(|v| *v != d.view)
+                        && plan
+                            .dimensions
+                            .iter()
+                            .any(|e| promoted.contains(&e.id.as_str()) && e.view == d.view)
+                    {
+                        assert_eq!(
+                            (d.view.as_str(), d.label.as_str()),
+                            (was.view.as_str(), was.label.as_str())
+                        );
                         continue;
                     }
                     reference_geometry::assert_local(was, d);

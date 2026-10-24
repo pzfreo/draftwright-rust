@@ -4502,8 +4502,16 @@ fn plan_with_presentation(
                 && p.pinned
                 && p.view.is_none()
             {
+                // ADR1-8: an item the canonical plan leaves to another (a boss height conveyed
+                // by a hole callout in the view down the hole) is pinned in its own default view,
+                // not its owner's, which may not see it across.
+                let covered = base
+                    .omitted
+                    .iter()
+                    .any(|o| &o.id == id && matches!(o.state, crate::items::State::Covered { .. }));
                 p.view = d.view.clone().or_else(|| {
                     crate::placement_intent::carrier(base, id)
+                        .filter(|_| !covered)
                         .map(|v| v.trim_start_matches("v:").into())
                 });
             }

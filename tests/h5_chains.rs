@@ -1001,3 +1001,251 @@ fn a_rung_closed_by_a_rung_and_a_plate_without_a_label_stays_controlling() {
         }
     }
 }
+
+/// The dimension *id* in *p*, by its label and whether it is drawn as reference.
+fn shown(p: &Plan, id: &str) -> (String, bool) {
+    let d = p
+        .dimensions
+        .iter()
+        .find(|d| d.id == id)
+        .unwrap_or_else(|| panic!("{id} is not drawn"));
+    (d.label.clone(), d.reference)
+}
+
+/// Lint's findings on *marks* among *codes*, by ID.
+fn findings(a: &Analysis, marks: &[Mark], codes: &[&str]) -> Vec<String> {
+    lint::check(a, marks)
+        .into_iter()
+        .filter(|i| codes.contains(&i.code.as_str()))
+        .map(|i| i.id)
+        .collect()
+}
+
+/// ADR1-8 (through-step legs): mfcadpp_holdout 275's through step has a 9.353 leg along x and a
+/// 22.715 leg along y, each the rest of the box beyond a plate (4.045 and 11.345 thick). The legs
+/// are the members that yield, to the plate and the overall: the plates and overalls stay
+/// controlling, and lint (which accepts a plate's thickness with the extent as a leg's statement)
+/// finds every leg and plate stated and nothing stated twice. With `references` the legs are
+/// shown bracketed, determined by the plate and the overall; a toleranced leg stays controlling.
+#[test]
+fn h275_through_step_legs_yield_to_the_plates_and_overalls_that_state_them() {
+    let a = trimmed("h275");
+    let x = "d:f:through_step:1/through_step_leg.length.x";
+    let y = "d:f:through_step:1/through_step_leg.length.y";
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    assert_eq!(covered_by(&p, x), "d:f:plate:1/thickness.length");
+    assert_eq!(covered_by(&p, y), "d:f:plate:2/thickness.length");
+    for (id, label) in [
+        ("d:f:plate:1/thickness.length", "4.045"),
+        ("d:f:plate:2/thickness.length", "11.345"),
+        ("d:envelope/width.length", "13.398"),
+        ("d:envelope/depth.length", "34.060"),
+    ] {
+        assert_eq!(shown(&p, id), (label.to_string(), false), "{id}");
+    }
+    let codes = [
+        "through_step_requirement_missing",
+        "plate_requirement_missing",
+        "duplicate_measurement",
+        "closed_dimension_chain",
+    ];
+    assert!(findings(&a, &marks(&p), &codes).is_empty());
+    let with = model::plan(&a, &references()).unwrap();
+    for (id, label, by) in [
+        (
+            x,
+            "(9.353)",
+            ["d:f:plate:1/thickness.length", "d:envelope/width.length"],
+        ),
+        (
+            y,
+            "(22.715)",
+            ["d:f:plate:2/thickness.length", "d:envelope/depth.length"],
+        ),
+    ] {
+        assert_eq!(shown(&with, id), (label.to_string(), true));
+        let d = with.dimensions.iter().find(|d| d.id == id).unwrap();
+        assert_eq!(d.determined_by, by);
+    }
+    let toleranced: Spec =
+        serde_json::from_value(json!({"dimensions": {x: {"tolerance": "±0.1"}}})).unwrap();
+    let kept = model::plan(&a, &toleranced).unwrap();
+    assert_eq!(shown(&kept, x), ("9.353 ±0.1".to_string(), false));
+    assert_eq!(
+        shown(&kept, "d:f:plate:1/thickness.length"),
+        ("4.045".to_string(), false)
+    );
+    // Lint, independently: the leg drawn beside the plate and the overall closes a chain.
+    let mut drawn = marks(&p);
+    drawn.push(mark(
+        x,
+        "9.353",
+        &[("f:through_step:1", "through_step_leg.length.x")],
+    ));
+    assert_eq!(
+        findings(&a, &drawn, &codes),
+        ["l:closed_dimension_chain:f:through_step:1/through_step_leg.length.x"]
+    );
+}
+
+/// ADR1-8 (through-step legs): mfcadpp_holdout 274's step runs along x with its 33.488 leg from
+/// the 8.395 face level to the top. The rung and the overall height state it; the leg yields to
+/// them, and lint accepts the rung and the extent as the leg's statement.
+#[test]
+fn h274_a_leg_from_a_face_level_to_the_top_yields_to_the_rung_and_the_overall() {
+    let a = trimmed("h274");
+    let leg = "d:f:through_step:1/through_step_leg.length.z";
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    assert_eq!(
+        covered_by(&p, leg),
+        "d:step_level/step_height.length.h8_395"
+    );
+    assert_eq!(
+        shown(&p, "d:step_level/step_height.length.h8_395"),
+        ("8.395".to_string(), false)
+    );
+    let codes = [
+        "through_step_requirement_missing",
+        "duplicate_measurement",
+        "closed_dimension_chain",
+    ];
+    assert!(findings(&a, &marks(&p), &codes).is_empty());
+    let with = model::plan(&a, &references()).unwrap();
+    assert_eq!(shown(&with, leg), ("(33.488)".to_string(), true));
+}
+
+/// ADR1-8 (circular-step depths): mfcadpp_holdout 483's `R2 × 18.243 DEEP` step runs down from the
+/// top to the 6.495 face level, so that rung is the overall less the step's depth. The rung
+/// yields (bracketed with `references`, determined by the overall and the callout); the callout
+/// never does. Drawn controlling beside them, lint reports the closed chain.
+#[test]
+fn h483_a_rung_a_circular_step_depth_closes_is_a_reference() {
+    let a = trimmed("h483");
+    let rung = "d:step_level/step_height.length.h6_495";
+    let callout = "d:f:circular_blind_step:1/circular_step_radius.radius";
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    assert_eq!(covered_by(&p, rung), "d:envelope/height.length");
+    assert_eq!(shown(&p, callout), ("R2 × 18.243 DEEP".to_string(), false));
+    let codes = ["duplicate_measurement", "closed_dimension_chain"];
+    assert!(findings(&a, &marks(&p), &codes).is_empty());
+    let with = model::plan(&a, &references()).unwrap();
+    assert_eq!(shown(&with, rung), ("(6.495)".to_string(), true));
+    let d = with.dimensions.iter().find(|d| d.id == rung).unwrap();
+    assert_eq!(d.determined_by, ["d:envelope/height.length", callout]);
+    let mut drawn = marks(&p);
+    drawn.push(mark(
+        rung,
+        "6.495",
+        &[("step_level", "step_height.length.h6_495")],
+    ));
+    assert_eq!(
+        findings(&a, &drawn, &codes),
+        ["l:closed_dimension_chain:step_level/step_height.length.h6_495"]
+    );
+}
+
+/// ADR1-8 (hex-pocket depths): mfcadpp_holdout 265's `HEX 4.818 A/F × 5.35 DEEP` pocket opens on
+/// the base, so its floor is the 5.35 face level: the rung is conveyed by the callout, which
+/// takes its claim, and lint finds it stated once.
+#[test]
+fn h265_a_rung_on_a_hex_pockets_floor_is_conveyed_by_its_callout() {
+    let a = trimmed("h265");
+    let rung = "d:step_level/step_height.length.h5_35";
+    let callout = "d:f:section_recess:4/polygon_across_flats.length";
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    assert_eq!(covered_by(&p, rung), callout);
+    assert_eq!(
+        owners(&p, "step_level", "step_height.length.h5_35"),
+        [(callout.to_string(), "HEX 4.818 A/F × 5.35 DEEP".to_string())]
+    );
+    let codes = ["duplicate_measurement", "closed_dimension_chain"];
+    assert!(findings(&a, &marks(&p), &codes).is_empty());
+    let mut twice = marks(&p);
+    twice.push(mark(
+        rung,
+        "5.35",
+        &[("step_level", "step_height.length.h5_35")],
+    ));
+    assert!(
+        findings(&a, &twice, &codes)
+            .contains(&"l:duplicate_measurement:step_level/step_height.length.h5_35".to_string())
+    );
+}
+
+/// ADR1-8 (blind-slot depths): mfcadpp_regressions 11512's `OPEN SLOT 2.458 × 11.672 × 6.674
+/// DEEP` opens on the top and its floor is the 8.189 face level, which the overall height less
+/// the slot's depth determines: the rung is a reference, and lint agrees.
+#[test]
+fn r11512_a_rung_a_blind_slot_depth_closes_is_a_reference() {
+    let a = trimmed("r11512");
+    let rung = "d:step_level/step_height.length.h8_189";
+    let callout = "d:f:section_recess:1/rectangular_blind_slot_width.length";
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    assert_eq!(covered_by(&p, rung), "d:envelope/height.length");
+    let codes = ["duplicate_measurement", "closed_dimension_chain"];
+    assert!(findings(&a, &marks(&p), &codes).is_empty());
+    let with = model::plan(&a, &references()).unwrap();
+    let d = with.dimensions.iter().find(|d| d.id == rung).unwrap();
+    assert_eq!((d.label.as_str(), d.reference), ("(8.189)", true));
+    assert_eq!(d.determined_by, ["d:envelope/height.length", callout]);
+}
+
+/// ADR1-8 (hole depths): mfcadpp 1008's ø2.123 boss stands on the flat floor of a ⌀2.895 hole
+/// 9.67 deep, up to the face the hole opens on: the boss height and the hole's depth run between
+/// the same two planes. The callout states the depth and never yields, so the boss height is
+/// conveyed by it (its claim moves to the callout); a toleranced boss height stays controlling.
+/// Lint: two different holes' callouts stating equal depths are not a duplicate (hole schedules
+/// list each hole's own), but the boss height drawn again beside the callout is.
+#[test]
+fn m1008_a_boss_height_a_flat_hole_depth_states_is_conveyed_by_the_hole_callout() {
+    let a = trimmed("m1008");
+    let boss = "d:f:boss:1/boss_height.length";
+    let callout = "d:f:hole:1/bore.diameter";
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    assert_eq!(covered_by(&p, boss), callout);
+    assert_eq!(
+        owners(&p, "f:boss:1", "boss_height.length"),
+        [(callout.to_string(), "⌀2.895 ↧ 9.67".to_string())]
+    );
+    let codes = [
+        "boss_height_missing",
+        "duplicate_measurement",
+        "closed_dimension_chain",
+    ];
+    assert!(findings(&a, &marks(&p), &codes).is_empty());
+    let toleranced: Spec =
+        serde_json::from_value(json!({"dimensions": {boss: {"tolerance": "±0.1"}}})).unwrap();
+    let kept = model::plan(&a, &toleranced).unwrap();
+    assert_eq!(shown(&kept, boss), ("9.67 ±0.1".to_string(), false));
+    // A second, identical hole beside the first: each callout states its own hole's depth.
+    let mut two = a.clone();
+    let mut other = two
+        .features
+        .iter()
+        .find(|f| f.id == "f:hole:1")
+        .unwrap()
+        .clone();
+    other.id = "f:hole:2".into();
+    other.parameters["location"][0] = json!(5.0);
+    two.features.push(other);
+    let callouts = [
+        mark(
+            "h1",
+            "⌀2.895 ↧ 9.67",
+            &[("f:hole:1", "bore.diameter"), ("f:hole:1", "bore.depth")],
+        ),
+        mark(
+            "h2",
+            "⌀2.895 ↧ 9.67",
+            &[("f:hole:2", "bore.diameter"), ("f:hole:2", "bore.depth")],
+        ),
+    ];
+    let codes = ["duplicate_measurement", "closed_dimension_chain"];
+    assert!(findings(&two, &callouts, &codes).is_empty());
+    let mut again = callouts.to_vec();
+    again.push(mark(boss, "9.67", &[("f:boss:1", "boss_height.length")]));
+    assert_eq!(
+        findings(&two, &again, &codes),
+        ["l:duplicate_measurement:f:boss:1/boss_height.length"]
+    );
+}
