@@ -245,7 +245,8 @@ fn golden_paired_ramp_step_is_one_angle_and_run_callout() {
 /// quiddity's golden_plates_pads_levels_and_slanted_steps: the end wall's step along y is a
 /// through step (no level, shoulder or plate states its 5 mm leg), and the ladder states the two
 /// levels above the base plate, but not the plate's own top (its thickness's, as the part has
-/// plates on two axes): draftwright's sheet, item for item.
+/// plates on two axes): draftwright's sheet, item for item, but for the step's 32 leg, which
+/// the plate's thickness and the overall height state (ADR1-8).
 #[test]
 fn golden_plates_pads_levels_ladder_leaves_the_base_plates_top_to_the_plate() {
     let a = fixture("plates_pads_levels_and_slanted_steps");
@@ -256,12 +257,23 @@ fn golden_plates_pads_levels_ladder_leaves_the_base_plates_top_to_the_plate() {
     );
     let plan = model::plan(&a, &Spec::default()).unwrap();
     let steps = items(&plan, &STEPS);
+    assert_eq!(steps, strs(&[("through_step_leg.length.x", "front", "5")]));
+    let leg = plan
+        .omitted
+        .iter()
+        .find(|o| o.id.ends_with("/through_step_leg.length.z"))
+        .unwrap();
+    // ADR1-8: its 32 leg from the base plate's top to the top of the part is the overall
+    // height less the plate's thickness; the leg yields to them (draftwright draws all three).
     assert_eq!(
-        steps,
-        strs(&[
-            ("through_step_leg.length.x", "front", "5"),
-            ("through_step_leg.length.z", "front", "32"),
-        ])
+        leg.state,
+        draftwright::items::State::Covered {
+            by: "d:f:plate:1/thickness.length".into()
+        }
+    );
+    assert!(
+        leg.basis
+            .ends_with("dependencies: d:f:plate:1/thickness.length, d:envelope/height.length")
     );
     let ladder = items(&plan, &LADDER);
     assert_eq!(
@@ -272,7 +284,12 @@ fn golden_plates_pads_levels_ladder_leaves_the_base_plates_top_to_the_plate() {
         ])
     );
     let f = facts_of("plates_pads_levels_and_slanted_steps");
-    assert_eq!(shown(&steps), python(&f, &["through_step"]));
+    let mut drawn = shown(&steps);
+    drawn.push(("front".into(), "32".into()));
+    drawn.sort();
+    let mut theirs = python(&f, &["through_step"]);
+    theirs.sort();
+    assert_eq!(drawn, theirs);
     let mut labels: Vec<_> = shown(&ladder).into_iter().map(|(_, label)| label).collect();
     labels.sort();
     let mut expected: Vec<_> = python(&f, &["step_level"])

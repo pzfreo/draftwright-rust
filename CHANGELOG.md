@@ -44,6 +44,20 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Changed
 
+- **One owner for through-step legs and blind depths** (ADR1-8, still pending). A through step's
+  leg now has support planes and yields to the plate thickness, face-level rung or overall extent
+  that states it (lint already accepts those as the leg's statement); the plate, rung and overall
+  stay controlling. A circular blind step's, hexagonal pocket's, rectangular blind slot's and
+  plain flat-bottomed blind hole's depth now counts as the interval its callout states: the
+  callout never yields, so a rung it states or closes is conveyed by it or shown as reference,
+  and a boss height that a hole's depth states (a boss on the hole's floor) is conveyed by the
+  hole callout. A tolerance keeps any of these controlling; `sheet/references` shows a yielded one
+  bracketed. On the corpus, 4 legs (3 parts), 10 rungs (8 parts) and 32 boss heights (23 parts)
+  leave mfcadpp drawings; NIST, gramel and cadgenbench drawings are unchanged and there are no
+  new lint findings. Lint no longer reports two holes' callouts or schedule rows of equal depth
+  as one measurement stated twice, and a pinned item that its canonical plan conveys by another
+  is pinned in its own view (it was given its owner's, which could refuse the spec).
+  Hole point ordinates and rebased ladder datums remain.
 - **Leader and witness targets.** Lint checks flat, recess and slot callout tips against the
   faces their records publish, never a pocket's open mouth or a seat's chord
   (`flat_`, `recess_` and `slot_leader_target_*`), and a turned length's extension lines against

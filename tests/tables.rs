@@ -553,17 +553,21 @@ fn tables_match_draftwrights_on_corpus_parts() {
                     same_corner
                         // Adding furniture can reserve a strip and move a
                         // principal after allocation. Its original footprint
-                        // still explains why that corner was unavailable.
+                        // still explains why that corner was unavailable. A table
+                        // first seeks the 6 mm block gutter (layout's
+                        // PREFERRED_BLOCK_GUTTER) anywhere before the corner at the
+                        // text padding: m10127's front view stands 6 mm above the
+                        // corner since its boss height left the side view (ADR1-8).
                         || plan.views.iter().chain(&bare.views).any(|v| overlaps(
                             original_corner,
                             [
-                                v.area[0] - 2.0,
-                                v.area[1] - 2.0,
-                                v.area[2] + 2.0,
-                                v.area[3] + 2.0
+                                v.area[0] - 6.0,
+                                v.area[1] - 6.0,
+                                v.area[2] + 6.0,
+                                v.area[3] + 6.0
                             ]
                         )),
-                    "{name} {} {:?} {pb:?}: a settled or pre-furniture view must occupy the displaced corner after allowing the rule stroke",
+                    "{name} {} {:?} {pb:?}: a settled or pre-furniture view must occupy the displaced corner within the preferred block gutter",
                     t.id,
                     p.cells
                 );

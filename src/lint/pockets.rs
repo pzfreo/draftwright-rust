@@ -259,6 +259,7 @@ pub fn hexes(analysis: &Analysis) -> Vec<Hex<'_>> {
                 depth,
                 across_flats,
                 at,
+                ..
             }) => {
                 let mut e = [0.0; 3];
                 e[axis] = 1.0;

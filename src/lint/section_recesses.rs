@@ -130,6 +130,8 @@ pub enum Grammar {
         depth: f64,
         across_flats: f64,
         at: P3,
+        /// Its floor's coordinate along the run axis (the mouth's is `at`'s).
+        floor: f64,
     },
     /// A part-cylindrical channel: its run axis, radius, length and swept angle (degrees), the
     /// midpoint of its cylinder's axis, and its anchor (the arc's middle, mid-run).
@@ -1035,9 +1037,14 @@ fn hex_pocket(g: &Geometry) -> Result<Grammar, Refusal> {
         return unsupported("six-sided profile is not regular at the published polygon resolution");
     }
     // The mouth's centre: the section's centre across, the open end along.
-    let opening = if g.ends[1].open { g.high } else { g.low };
+    let (opening, closed) = if g.ends[1].open {
+        (g.high, g.low)
+    } else {
+        (g.low, g.high)
+    };
     let mut at = [0.0; 3];
     at[run] = g.origin[run] + opening * g.run[run];
+    let floor = g.origin[run] + closed * g.run[run];
     at[across[0]] = centre[0];
     at[across[1]] = centre[1];
     Ok(Grammar::HexPocket {
@@ -1045,6 +1052,7 @@ fn hex_pocket(g: &Geometry) -> Result<Grammar, Refusal> {
         depth,
         across_flats,
         at,
+        floor,
     })
 }
 

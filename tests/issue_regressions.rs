@@ -636,7 +636,19 @@ fn a_hex_pocket_needs_a_regular_hexagon_and_keeps_each_claim() {
         .iter()
         .map(|m| (m.feature.as_str(), m.parameter.as_str()))
         .collect();
-    assert_eq!(claims.len(), 12);
+    // ADR1-8: the pockets' floors are the 1.9 face level, so that level's rung is conveyed by
+    // the callout too, which carries its claim beside the pockets' twelve.
+    let own = claims
+        .iter()
+        .filter(|(f, _)| found.iter().any(|(id, ..)| id == f))
+        .count();
+    let conveyed: Vec<(&str, &str)> = claims
+        .iter()
+        .copied()
+        .filter(|(f, _)| !found.iter().any(|(id, ..)| id == f))
+        .collect();
+    assert_eq!(own, 12);
+    assert_eq!(conveyed, [("step_level", "step_height.length.h1_9")]);
     for (id, ..) in &found {
         for parameter in ["polygon_across_flats.length", "pocket_depth.length"] {
             assert!(

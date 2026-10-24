@@ -1933,20 +1933,35 @@ fn lint_finds_what_is_taken_off_a_captured_sheet() {
     // found. The sheet's structured hole locations are not joined into claims here (location
     // coverage is compared on Python's recorded input, tests/lint_coverage.rs), so
     // feature_not_located is left out.
+    // ADR1-8: the sheet also states the boss's 5.7 height beside the ⌀13 hole's `↧ 5.7` depth,
+    // which runs between the same two planes (the boss stands on the hole's flat floor): one
+    // interval stated twice (the port conveys the boss height by the hole callout).
     let refused = "section_recess_recognition_refused";
     let profile = "unrecognised_defining_geometry";
     let unjoined = "feature_not_located";
-    let found: Vec<String> = lint::check(&analysis, &marks)
-        .into_iter()
-        .map(|i| i.code)
+    let twice = "duplicate_measurement";
+    let issues = lint::check(&analysis, &marks);
+    let found: Vec<String> = issues
+        .iter()
+        .map(|i| i.code.clone())
         .filter(|c| c != unjoined)
         .collect();
-    assert_eq!(found, [refused, profile]);
+    assert_eq!(found, [refused, profile, twice]);
+    let dup = issues.iter().find(|i| i.code == twice).unwrap();
+    assert_eq!(
+        (dup.annotation.as_deref(), dup.related.as_slice()),
+        (
+            Some("m_bossheight_y0"),
+            ["hc_front0".to_string()].as_slice()
+        )
+    );
     // hc_side0 prints "⌀8.1 THRU" for the through hole.
     let codes = |marks: &[Mark]| {
         lint::check(&analysis, marks)
             .into_iter()
-            .filter(|i| i.code != refused && i.code != profile && i.code != unjoined)
+            .filter(|i| {
+                i.code != refused && i.code != profile && i.code != unjoined && i.code != twice
+            })
             .map(|i| format!("{} {}", i.code, i.requirements[0].parameter))
             .collect::<Vec<_>>()
     };
@@ -1983,21 +1998,28 @@ fn lint_finds_what_is_taken_off_a_captured_sheet() {
     );
     // The other families: the boss's height (m_bossheight_y0, "5.7"), the fillet (m_fillet_y0,
     // "R4.2") and the through step's x leg (dim_through_step_z0_x, "18.7"), taken away; and the
-    // fillet's radius misprinted.
-    let without: Vec<Mark> = marks
-        .iter()
-        .filter(|m| {
-            !["m_bossheight_y0", "m_fillet_y0", "dim_through_step_z0_x"].contains(&m.name.as_str())
-        })
-        .cloned()
-        .collect();
+    // fillet's radius misprinted. The hole callout's `↧ 5.7` still states the boss height's
+    // interval (ADR1-8), so the height is found missing only with that callout gone too.
+    let taken = |names: &[&str]| -> Vec<Mark> {
+        marks
+            .iter()
+            .filter(|m| !names.contains(&m.name.as_str()))
+            .cloned()
+            .collect()
+    };
+    let without = taken(&["m_bossheight_y0", "m_fillet_y0", "dim_through_step_z0_x"]);
     assert_eq!(
         codes(&without),
         [
-            "boss_height_missing boss_height.length",
             "fillet_requirement_missing fillet.radius",
             "through_step_requirement_missing through_step_leg.length.x"
         ]
+    );
+    let bare = taken(&["m_bossheight_y0", "hc_front0"]);
+    assert!(
+        codes(&bare).contains(&"boss_height_missing boss_height.length".to_string()),
+        "{:?}",
+        codes(&bare)
     );
     let misprinted: Vec<Mark> = marks
         .iter()

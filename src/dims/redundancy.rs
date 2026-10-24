@@ -26,6 +26,13 @@ fn ladder_span(a: &Analysis, w: &Want) -> Option<(Span, bool)> {
     Some((drawn, !same_planes(drawn, original)))
 }
 
+/// A through step's leg (`through_step_leg.length.<axis>`).
+fn leg(w: &Want) -> bool {
+    w.measurements
+        .iter()
+        .any(|m| m.parameter.starts_with("through_step_leg.length."))
+}
+
 fn same_planes(a: Span, b: Span) -> bool {
     a.axis == b.axis && (a.lo - b.lo).abs() <= 1e-6 && (a.hi - b.hi).abs() <= 1e-6
 }
@@ -183,6 +190,8 @@ pub(super) fn consolidate(
             let w = &kept[i].0;
             if crate::dims::is_envelope_extent(&w.id) {
                 0
+            } else if leg(w) {
+                4
             } else if w.id.contains("step_level") || w.id.contains("/location") {
                 3
             } else {
@@ -216,6 +225,18 @@ pub(super) fn consolidate(
                 .map(|s| (s, i))
         })
         .collect();
+    // ADR1-8: a through step's leg is walked last, with the ladder's rungs (heights and shoulder
+    // positions from the box) among its edges: lint::steps accepts a leg stated by a rung, a
+    // plate's thickness or either with the overall extent, so the leg is the member that yields,
+    // never the plate, rung or overall that states it too. A rung rebased onto a datum is no
+    // edge: lint reads a rung's interval from the box, so it could not see what the leg yielded to.
+    let ladder: Vec<(Span, usize)> = (0..kept.len())
+        .filter(|i| !gone.contains(i) && kept[*i].0.id.starts_with("d:step_level/"))
+        .filter_map(|i| match ladder_span(a, &kept[i].0) {
+            Some((s, false)) => Some((s, i)),
+            _ => None,
+        })
+        .collect();
     let mut edges = Vec::new();
     // ADR1-8: a counted or compound label states its members' intervals; they carry chains as
     // controlling statements but never yield (a count or callout is not one interval).
@@ -239,10 +260,15 @@ pub(super) fn consolidate(
             && measurements
                 .iter()
                 .all(|m| m.parameter == "boss_height.length");
-        let found = path(&edges, s).or_else(|| {
-            let with: Vec<_> = edges.iter().chain(&rungs).copied().collect();
-            path(&with, s).filter(|route| boss && route.len() > 1)
-        });
+        let found = if leg(&kept[i].0) {
+            let with: Vec<_> = edges.iter().chain(&ladder).copied().collect();
+            path(&with, s)
+        } else {
+            path(&edges, s).or_else(|| {
+                let with: Vec<_> = edges.iter().chain(&rungs).copied().collect();
+                path(&with, s).filter(|route| boss && route.len() > 1)
+            })
+        };
         if let Some(route) = found {
             // A dimension the spec tolerances, or one that states the part's PMI, is controlling,
             // never reference (#33: reference is for redundant, untoleranced dimensions only).
@@ -482,8 +508,10 @@ fn retarget(kept: &mut [Kept], references: &mut References, i: usize, j: usize) 
 /// ADR1-8, ADR4-U1: the member intervals a counted (`4× 255`) or compound
 /// (`2 × 3.7 × 4.761 DEEP`) label prints, read as lint reads its text.
 fn members(analysis: &Analysis, w: &Want) -> Vec<Span> {
+    // A hole callout (`⌀6 ↧ 10`) states its blind depth's interval too.
     if w.id.starts_with("d:pmi:")
-        || !w.terms.iter().any(|t| t.contains('×'))
+        || !(w.terms.iter().any(|t| t.contains('×'))
+            || w.measurements.iter().any(|m| m.parameter == "bore.depth"))
         || w.terms.first().is_some_and(|t| t.starts_with('('))
     {
         return Vec::new();
@@ -533,6 +561,8 @@ fn rungs_on_compound_labels(
                 && given[i].is_empty()
                 && !w.terms.iter().any(|t| t.starts_with('('))
                 && !w.measurements.iter().any(|m| m.feature.starts_with("pmi:"))
+                // A rung that determines a reference already (a leg's, a boss height's) stays.
+                && !references.values().any(|by| by.contains(&w.id))
                 && w.measurements.iter().any(|m| {
                     m.feature == "step_level"
                         && (m.parameter.starts_with("step_height.length.h")

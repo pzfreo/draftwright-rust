@@ -98,7 +98,7 @@ fn a_moved_label_keeps_clear_of_strokes_it_never_touched() {
 fn short_native_dimensions_keep_their_text_on_their_span() {
     for (name, labels) in [
         ("mfcadpp/1000.step", vec!["6.925", "8.854", "10.854"]),
-        ("mfcadpp/10020.step", vec!["2.08", "2.845", "3.886"]),
+        ("mfcadpp/10020.step", vec!["2.845", "3.886"]),
         ("mfcadpp/10007.step", vec!["14.031"]),
         ("gramel/string_post.step", vec!["3.75", "6.5", "7.6"]),
     ] {

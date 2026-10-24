@@ -137,6 +137,21 @@ fn spans(f: &Feature, frame: &[[f64; 3]; 4]) -> Result<(usize, Vec<Span>), Strin
 /// A leg as an interval: the part's axis it lies along, and its low and high coordinates.
 type Span = (usize, f64, f64);
 
+/// ADR1-8: the support planes of a through step's leg `through_step_leg.length.<axis>`: its two
+/// ends along the part's axis it lies along (the box face or level it opens to, and the concave
+/// corner), as redundancy walks them.
+pub(crate) fn leg_span(
+    analysis: &Analysis,
+    f: &Feature,
+    parameter: &str,
+) -> Option<super::redundancy::Span> {
+    let axis = parameter.strip_prefix("through_step_leg.length.")?;
+    let k = AXES.iter().position(|a| *a == axis)?;
+    let (_, spans) = spans(f, &frame(analysis)).ok()?;
+    let (_, lo, hi) = spans.into_iter().find(|s| s.0 == k)?;
+    Some(super::redundancy::Span::new(k, lo, hi))
+}
+
 /// A leg's requirement (`through_step_leg.length.<axis>`) and its alternative statements, each a
 /// list of terms all of which must be stated.
 pub type Alternatives = (String, Vec<Vec<Term>>);
