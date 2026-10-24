@@ -3669,7 +3669,7 @@ pub(super) fn intent(
                 label_box: label_box(&ink, at, 0.0),
             }
         }
-        Shape::Angular { angle } => super::angular::intent(frame, angle, &w.terms, p)?,
+        Shape::Angular { angle, .. } => super::angular::intent(frame, angle, &w.terms, p)?,
     };
     if matches!(w.shape, Shape::Linear { .. })
         && let Some(along) = p.along
@@ -4161,6 +4161,22 @@ fn dimension_segments(p: &Placed) -> impl Iterator<Item = [P2; 2]> + '_ {
 
 pub(super) fn dimension_lines_clear(a: &Placed, b: &Placed) -> bool {
     dimension_segments(a).all(|a| dimension_segments(b).all(|b| !super::leaders::lines_meet(a, b)))
+}
+
+/// [`dimension_lines_clear`], except that *a* may cross the first *crossable* lines of *b*
+/// (its extension lines, or every line of a chain line) transversely; it may still never run
+/// along or end on them.
+pub(super) fn lines_clear_but(a: &Placed, b: &Placed, crossable: usize) -> bool {
+    dimension_segments(a).all(|s| {
+        b.lines.iter().enumerate().all(|(k, t)| {
+            !super::leaders::lines_meet(s, *t)
+                || (k < crossable && super::leaders::segments_cross(s, *t))
+        }) && b
+            .arrows
+            .iter()
+            .flat_map(|h| super::leaders::head(*h))
+            .all(|t| !super::leaders::lines_meet(s, t))
+    })
 }
 
 pub(super) fn annotations_clear(a: &Placed, b: &Placed) -> bool {
@@ -4868,6 +4884,11 @@ fn collisions_impl(
                             proof.blank(v, lb)
                                 || (d.measurements.iter().any(|m| m.parameter == "notch.angle")
                                     && proof.exterior_annotation_clear(v, p))
+                                || (d
+                                    .measurements
+                                    .iter()
+                                    .any(|m| m.parameter == super::profile_angles::PARAMETER)
+                                    && proof.exterior_clear(v, p.label_box, &[], &[]))
                         }) || (d.id.starts_with("pmi:datum.")
                             && datum_proofs
                                 .get(&v.id)

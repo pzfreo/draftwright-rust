@@ -51,6 +51,8 @@ mod pmi_dimensions;
 mod pmi_modes;
 #[path = "../precision.rs"]
 mod precision;
+#[path = "../profile_angles.rs"]
+mod profile_angles;
 #[path = "../repeated_dimensions.rs"]
 mod repeated_dimensions;
 #[path = "../tolerances.rs"]

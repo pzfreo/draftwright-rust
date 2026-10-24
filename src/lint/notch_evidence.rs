@@ -268,6 +268,7 @@ fn from_profile(a: &Analysis, s: &Source) -> Vec<Notch> {
             first: a0,
             second: b1,
             virtual_vertex: rounded,
+            ends: [a0, b1],
         };
         let faces = a
             .outer_profiles

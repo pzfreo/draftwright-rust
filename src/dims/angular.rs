@@ -234,6 +234,7 @@ const TRIES: usize = 400;
 const SAMPLING: f64 = 0.04;
 
 /// One angle's ink on the page, its radius free: [`AngularGeometry`] in page mm.
+#[derive(Clone)]
 struct Ink {
     vertex: P2,
     start: f64,
@@ -317,6 +318,22 @@ impl Ink {
             tangent_half,
             minimum,
         })
+    }
+
+    /// The same ink with its label at *fraction* of the sweep from its start (0.5 is the
+    /// bisector), turned to read from below or the right.
+    fn along(&self, fraction: f64) -> Ink {
+        let mut g = self.clone();
+        g.middle = g.start + g.sweep * fraction;
+        let tangent = (g.middle + std::f64::consts::FRAC_PI_2).rem_euclid(std::f64::consts::TAU);
+        g.text_angle = if std::f64::consts::FRAC_PI_2 < tangent
+            && tangent <= 3.0 * std::f64::consts::FRAC_PI_2
+        {
+            tangent - std::f64::consts::PI
+        } else {
+            tangent
+        };
+        g
     }
 
     fn point(&self, radius: f64, angle: f64) -> P2 {
@@ -501,9 +518,13 @@ pub(super) fn place(
         if placed[i].is_some() {
             continue;
         }
-        let (Shape::Angular { angle }, Some(view)) = (&items[i].shape, views_of[i]) else {
+        let (Shape::Angular { angle, .. }, Some(view)) = (&items[i].shape, views_of[i]) else {
             continue;
         };
+        // Profile-corner angles come last, around everything else ([`place_profile`]).
+        if super::profile_angles::is_profile_angle(&items[i]) {
+            continue;
+        }
         let terms = &items[i].terms;
         let ink = label_ink(terms, font());
         let size = [ink.max[0] - ink.min[0], ink.max[1] - ink.min[1]];
@@ -613,6 +634,189 @@ pub(super) fn place(
             placed[j] = Some(p);
         }
         placed[i] = chosen.or(fallback).or(first);
+    }
+}
+
+/// Withdraws each placed profile-corner angle whose witness lines a callout routed after it
+/// now meets (see [`place_profile`]); the caller places them again, last.
+pub(super) fn withdraw_profile_contacts(items: &[Want], placed: &mut [Option<Placed>]) {
+    let callouts: Vec<Placed> = placed
+        .iter()
+        .zip(items)
+        .filter(|(_, w)| matches!(w.shape, Shape::Callout { .. }))
+        .filter_map(|(q, _)| q.clone())
+        .collect();
+    for (q, w) in placed.iter_mut().zip(items) {
+        if super::profile_angles::is_profile_angle(w)
+            && q.as_ref().is_some_and(|c| {
+                callouts
+                    .iter()
+                    .any(|l| super::leaders::meets_extensions(&c.lines[..2], &l.lines, l.label_box))
+            })
+        {
+            *q = None;
+        }
+    }
+}
+
+/// How far a profile angle's arc and label may reach from its corner, in label heights: a
+/// reader must see which corner it dimensions (about 26 mm for a 2.2 mm label).
+const LOCAL_REACH: f64 = 12.0;
+
+/// The largest radius a profile angle's arc may take for a label *height* high:
+/// [`LOCAL_REACH`] label heights. A short edge does not bound it: its witness line extends the
+/// edge outward past the part, as a short chamfer's angle is drawn.
+fn local_radius(height: f64) -> f64 {
+    LOCAL_REACH * height
+}
+
+/// Places each profile-corner angle of *items* (see [`super::profile_angles`]) one at a time in
+/// its true-shape view, at its corner or (a counted angle) at any one of its equal corners:
+/// inside the corner's material (an arc whose sides are the corner's own edges, its label on
+/// proven blank face) or in the equal sector between the extended edges, outside the material.
+/// The arc stays local to its corner ([`local_radius`]) and wholly within the view's reserved
+/// area; it crosses no projected edge of the part, no other item's lines, and touches no
+/// label; no callout's leader or padded label meets its witness lines. With no such place the
+/// angle stays unplaced (dropped): it never takes a fallback, moves another item or asks for
+/// more paper. One already placed by its authored placement intent is kept.
+#[allow(clippy::too_many_arguments)]
+pub(super) fn place_profile(
+    frames: &std::collections::BTreeMap<&str, Frame>,
+    items: &[Want],
+    views_of: &[Option<&'static str>],
+    obstacles: &[super::PlannedDimension],
+    placed: &mut [Option<Placed>],
+    page: &Page,
+    views: &[crate::model::PlannedView],
+    proofs: &std::collections::BTreeMap<String, std::rc::Rc<super::interior::Proof>>,
+) {
+    for i in 0..items.len() {
+        // An authored placement (`dimensions/<id>/place`) has already been honoured.
+        if !super::profile_angles::is_profile_angle(&items[i]) || placed[i].is_some() {
+            continue;
+        }
+        let (Shape::Angular { angle, alternates }, Some(view)) = (&items[i].shape, views_of[i])
+        else {
+            continue;
+        };
+        let own = format!("v:{view}");
+        let (Some(frame), Some(v)) = (frames.get(view), views.iter().find(|v| v.id == own)) else {
+            continue;
+        };
+        let Some(proof) = proofs.get(&own) else {
+            continue;
+        };
+        let terms = &items[i].terms;
+        let ink = label_ink(terms, font());
+        let size = [ink.max[0] - ink.min[0], ink.max[1] - ink.min[1]];
+        // Every other item, and which of its lines the angle's lines may cross transversely:
+        // a linear dimension's extension lines, and a centre line or cutting-plane chain line
+        // (a corner on a section line cannot avoid it). Never a dimension line, leader, arrow,
+        // letter, symbol or label.
+        let others: Vec<(&Placed, usize)> = placed
+            .iter()
+            .enumerate()
+            .filter(|(j, _)| *j != i)
+            .filter_map(|(j, q)| {
+                let witnesses = if matches!(items[j].shape, Shape::Linear { .. }) {
+                    2
+                } else {
+                    0
+                };
+                q.as_ref().map(|q| (q, witnesses))
+            })
+            .chain(obstacles.iter().filter_map(|d| {
+                let crossable = if d.id.starts_with("ink:")
+                    && !d.id.contains(":arrow:")
+                    && !d.id.contains(":letter:")
+                {
+                    usize::MAX
+                } else if d.kind == "linear" {
+                    2
+                } else {
+                    0
+                };
+                d.placed.as_ref().map(|q| (q, crossable))
+            }))
+            .collect();
+        // A placed callout whose leader or padded label meets the angle's witness lines reads
+        // as touching an extension line (the maintainer's 2026-10-12 contact rule).
+        let callouts: Vec<&Placed> = placed
+            .iter()
+            .zip(items)
+            .enumerate()
+            .filter(|(j, (_, w))| *j != i && matches!(w.shape, Shape::Callout { .. }))
+            .filter_map(|(_, (q, _))| q.as_ref())
+            .chain(
+                obstacles
+                    .iter()
+                    .filter(|d| d.kind == "callout")
+                    .filter_map(|d| d.placed.as_ref()),
+            )
+            .collect();
+        let area = page.area(view);
+        let clear = |c: &Placed, stubs: usize, straight_ok: bool, vertex: P2| {
+            // The label within the same reach of its corner as the arc.
+            let b = c.label_box;
+            let far = [b[0], b[2]]
+                .into_iter()
+                .flat_map(|x| [b[1], b[3]].map(|y| (x - vertex[0]).hypot(y - vertex[1])))
+                .fold(0.0, f64::max);
+            far <= local_radius(size[1]) &&
+            // Within the view's reserved area: never paper the layout did not give the view.
+            area.is_none_or(|b| {
+                ink_points(c).all(|q| q[0] >= b[0] && q[0] <= b[2] && q[1] >= b[1] && q[1] <= b[3])
+            }) && page.fits_interior(c, view)
+                && callouts
+                    .iter()
+                    .all(|q| !super::leaders::meets_extensions(&c.lines[..2], &q.lines, q.label_box))
+                && others.iter().all(|&(q, crossable)| {
+                    super::placement::annotations_clear(c, q)
+                        && super::placement::lines_clear_but(c, q, crossable)
+                })
+                // The label on proven blank paper: a blank face inside the corner, or exterior
+                // paper clear of every projected edge.
+                && (proof.blank(v, c.label_box) || proof.exterior_clear(v, c.label_box, &[], &[]))
+                // The arc and its arrows cross no edge of the part; inside the corner its
+                // witness stubs lie on the corner's own edges.
+                && proof.lines_clear(v, &c.lines[stubs..], &c.arrows, 2 - stubs, straight_ok)
+        };
+        let chosen = std::iter::once(angle).chain(alternates).find_map(|angle| {
+            let physical = Ink::new(frame, angle, size)?;
+            let mut extended = Ink::new(
+                frame,
+                &Angle {
+                    vertex: angle.vertex,
+                    first: [0, 1, 2].map(|k| 2.0 * angle.vertex[k] - angle.first[k]),
+                    second: [0, 1, 2].map(|k| 2.0 * angle.vertex[k] - angle.second[k]),
+                },
+                size,
+            )?;
+            extended.lengths = [0.0; 2];
+            let reach = local_radius(size[1]);
+            // The label may slide off the bisector; its arc pieces must still carry arrows.
+            let inks: Vec<(Ink, usize)> = [0.5, 0.35, 0.65, 0.25, 0.75]
+                .iter()
+                .flat_map(|&f| [(physical.along(f), 2), (extended.along(f), 0)])
+                .collect();
+            // First an arc that crosses nothing; then one whose arc and witnesses may cross the
+            // part's edges, blend silhouettes included, but never a hole or boss seen end-on.
+            [false, true].into_iter().find_map(|straight_ok| {
+                (0..TRIES)
+                    .map(|n| n as f64 * STEP)
+                    .take_while(|d| inks.iter().any(|(g, _)| g.minimum + d <= reach))
+                    .find_map(|d| {
+                        inks.iter().find_map(|(g, stubs)| {
+                            let radius = g.minimum + d;
+                            (radius <= reach)
+                                .then(|| g.placed(radius, terms))
+                                .flatten()
+                                .filter(|c| clear(c, *stubs, straight_ok, g.vertex))
+                        })
+                    })
+            })
+        });
+        placed[i] = chosen;
     }
 }
 

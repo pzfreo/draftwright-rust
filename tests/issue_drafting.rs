@@ -1423,7 +1423,13 @@ fn every_authored_tolerance_reaches_the_label_that_claims_it() {
                 d.id
             );
             if d.placed.is_none() {
-                assert!(reported("view_plan_incomplete", &d.id), "{name}: {}", d.id);
+                // A profile-corner angle with no clear place is dropped by design and reported.
+                assert!(
+                    reported("view_plan_incomplete", &d.id)
+                        || reported("angular_dimension_dropped", &d.id),
+                    "{name}: {}",
+                    d.id
+                );
             }
             seen += 1;
         }
@@ -1512,6 +1518,9 @@ fn an_overall_extent_is_placed_or_reported() {
             .dimensions
             .iter()
             .filter(|d| d.id.starts_with("d:envelope/"))
+            // A profile-corner angle shares the envelope prefix but is dropped, reported, when
+            // it has no clear place (LINT-angular-profile_angle_requirement).
+            .filter(|d| !d.id.starts_with("d:envelope/profile_angle."))
         {
             let p = d
                 .placed

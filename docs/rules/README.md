@@ -20,8 +20,8 @@ drawing-consumer checks. The PMI/source and precision batch retains its six veri
 (exact aligned PMI, source-site fidelity, extent bands and fits, display precision and structured
 feature-note authority). The coverage/holes stream retains its nine ported rules (body-local
 corridors, prismatic shoulders, countersink seats, compound double-D callouts, pattern
-counts and balloon assignment). Automatic profile-angle placement remains pending after
-failing the unchanged drawing-quality bar. The oriented-chamfer consumer adds a bounded
+counts and balloon assignment). Automatic profile-angle placement, first withdrawn after
+failing the unchanged drawing-quality bar, is now ported (below). The oriented-chamfer consumer adds a bounded
 symmetric V-notch grammar, with true included angles, theoretical sharp depths and datum
 locations; it reuses the existing C-notation and ownership rules. It ports no additional full
 Python catalogue rule, so the counts below remain unchanged. The rules-text merge retains its two completed
@@ -43,9 +43,9 @@ Counts are computed from the merged YAML entries:
 | File | Pending | Ported | Translated | Retired |
 | --- | --- | --- | --- | --- |
 | `adr.yaml` | 2 | 71 | 61 | 26 |
-| `lint.yaml` | 1 | 131 | 14 | 20 |
+| `lint.yaml` | 0 | 132 | 14 | 20 |
 | `issues.yaml` | 0 | 114 | 50 | 26 |
-| **All** | **3** | **316** | **125** | **72** |
+| **All** | **2** | **317** | **125** | **72** |
 
 The evaluation of 2026-10-22 re-read the 30 rules then pending against main (alpha.12) and
 closed 17. Two were met in full (LINT-code-pmi_source_text_mismatch, ISSUE-1143-e) and 14 are
@@ -72,7 +72,14 @@ The maintainer approved four retirements on 2026-10-23: ADR4-U1's angular sets, 
 off-page Z recovery and solid Boolean cut caps, and the modelled-thread half of
 LINT-hole_coverage-thread_and_profile, whose lint (a depth asked of a thread recognised from
 modelled geometry) is removed. The three rules are ported, each `rust_note` naming the retired
-clauses and why. ADR1-8, ARCH0020-1 and LINT-angular-profile_angle_requirement remain pending.
+clauses and why. ADR1-8, ARCH0020-1 and LINT-angular-profile_angle_requirement remained pending.
+
+The profile-angle stream (2026-10-23) ports LINT-angular-profile_angle_requirement on the
+design the maintainer agreed (ISO 129-1, ASME Y14.5): a corner is satisfied when its angle is
+stated or its geometry is fixed by drawn linear dimensions; a closed polygon's equal corners
+take one counted angle (`8× 135°`) and two mirror-equal corners one `2× θ°`; angles are placed
+only local to their corner and clear, else dropped and still reported; `faces/<face>/profile_corners`
+(including `linear`) and per-corner `dimensions/<id>` overrides steer it. ADR1-8 and ARCH0020-1 remain pending.
 
 The triage covered all 190 rules then pending: 80 PORT, 98 TRANSLATE and 12 RETIRE.
 The original PORT triage recorded value, size and stream in `port_note`. Of the TRANSLATE

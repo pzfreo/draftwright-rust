@@ -378,6 +378,75 @@ fn an_angles_rays_are_the_corners_physical_edges() {
     );
 }
 
+/// LINT-angular-profile_angle_requirement: a regular polygon's equal corners carry one counted
+/// angle, proved by the closed loop of visible edges through the drawn corner, which must have
+/// exactly that many corners, each at the stated angle.
+#[test]
+fn a_counted_angle_is_proved_by_its_closed_polygon() {
+    let code = "angular_support_mismatch";
+    // A regular hexagon with one corner at the vertex, its sides along 0° and 120° from it,
+    // each side drawn in two collinear pieces as hidden-line removal may split it.
+    let mut at = VERTEX;
+    let mut hexagon = Vec::new();
+    for k in 0..6 {
+        let t = (60.0 * k as f64).to_radians();
+        let next = [at[0] + 40.0 * t.cos(), at[1] + 40.0 * t.sin()];
+        let middle = [(at[0] + next[0]) / 2.0, (at[1] + next[1]) / 2.0];
+        hexagon.push(Curve::Line(at, middle));
+        hexagon.push(Curve::Line(middle, next));
+        at = next;
+    }
+    let check = |label: &str, edges: Vec<Curve>| {
+        let issues = structural::check(&sheet(1.0, edges, vec![(angle(0.0, 120.0, 20.0), label)]));
+        found(&issues, code).len()
+    };
+    assert_eq!(check("6× 120°", hexagon.clone()), 0);
+    assert_eq!(
+        check("5× 120°", hexagon.clone()),
+        1,
+        "the count must match the loop"
+    );
+    // An open chain proves nothing beyond its one corner.
+    let mut open = hexagon.clone();
+    open.truncate(8);
+    assert_eq!(check("6× 120°", open), 1);
+    // A branching corner is ambiguous.
+    let mut branched = hexagon;
+    branched.push(Curve::Line(polar(40.0, 0.0), polar(80.0, -30.0)));
+    assert_eq!(check("6× 120°", branched), 1);
+}
+
+/// `2× θ` for two mirror-equal corners: the drawn corner and its mirror image across a vertical
+/// or horizontal line must both stand on visible edges (a rounded corner's straight edges may
+/// stop short of the theoretical vertex).
+#[test]
+fn a_two_times_angle_is_proved_by_its_mirror_corner() {
+    let code = "angular_support_mismatch";
+    let mirror = |p: P| [2.0 * (VERTEX[0] + 50.0) - p[0], p[1]];
+    let mut edges = corner();
+    // The mirror corner, its edges stopping 3 mm short of its vertex.
+    edges.push(Curve::Line(
+        mirror(polar(3.0, 0.0)),
+        mirror(polar(60.0, 0.0)),
+    ));
+    edges.push(Curve::Line(
+        mirror(polar(3.0, 60.0)),
+        mirror(polar(60.0, 60.0)),
+    ));
+    let check = |edges: Vec<Curve>| {
+        let issues =
+            structural::check(&sheet(1.0, edges, vec![(angle(0.0, 60.0, 20.0), "2× 60°")]));
+        found(&issues, code).len()
+    };
+    assert_eq!(check(edges.clone()), 0);
+    assert_eq!(check(corner()), 1, "one corner proves no 2×");
+    // A corner of another angle is no mirror.
+    let mut other = corner();
+    other.push(Curve::Line(mirror(VERTEX), mirror(polar(60.0, 0.0))));
+    other.push(Curve::Line(mirror(VERTEX), mirror(polar(60.0, 75.0))));
+    assert_eq!(check(other), 1);
+}
+
 #[test]
 fn both_angular_supports_can_extend_through_their_common_corner() {
     for degrees in [60.0, 120.0] {

@@ -484,6 +484,18 @@ pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
         })
         .chain(relief_issues)
         .collect();
+    // A corner its drawn linear dimensions fix needs no angle (ISO 129-1).
+    if issues
+        .iter()
+        .any(|i| i.code == "angular_requirement_missing")
+    {
+        let defined = profile_angles::defined_by_drawing(analysis, drawing);
+        issues.retain(|i| {
+            i.code != "angular_requirement_missing"
+                || i.requirements.is_empty()
+                || !i.requirements.iter().all(|r| defined.contains(&r.feature))
+        });
+    }
     issues.extend(gears::check(analysis, drawing));
     issues.extend(schedule_evidence::check(drawing));
     issues.extend(pmi_coverage::manufacturing_references(analysis, drawing));

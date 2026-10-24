@@ -118,6 +118,10 @@ pub struct FaceSpec {
     /// A note on a leader to the face ([`crate::spec_notes`]).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub note: Option<String>,
+    /// How the corners of the face's outer profile are defined: `auto` (linear where the
+    /// dimensions nearly fix them, else angles), `angle` or `linear` ([`crate::dims`]).
+    #[serde(skip_serializing_if = "crate::dims::CornerMode::is_auto")]
+    pub profile_corners: crate::dims::CornerMode,
 }
 
 /// Whether *spec* authors any datum or control.

@@ -90,6 +90,8 @@ mod plates;
 mod pmi_dimensions;
 pub(crate) mod pmi_policy;
 pub mod precision;
+mod profile_angles;
+pub use profile_angles::{CornerMode, PARAMETER as PROFILE_ANGLE};
 mod profiled_bores;
 mod recesses;
 mod redundancy;
@@ -520,8 +522,13 @@ enum Shape {
         sites: Vec<(P3, f64)>,
         arcs: Vec<crate::arc::ProfileArc>,
     },
-    /// An angle between two sides, drawn about its vertex ([`angular`]).
-    Angular { angle: angular::Angle },
+    /// An angle between two sides, drawn about its vertex ([`angular`]). A counted angle may be
+    /// drawn at any one of its equal corners: *alternates* are the others, tried in order.
+    Angular {
+        angle: angular::Angle,
+        #[serde(skip_serializing_if = "Vec::is_empty")]
+        alternates: Vec<angular::Angle>,
+    },
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -2052,6 +2059,7 @@ pub(crate) fn check_known(analysis: &Analysis, spec: &Spec) -> Result<(), Invali
     callouts::apply(analysis, spec, &mut wants);
     schemes::apply(analysis, spec, &mut wants)?;
     authored::append(analysis, spec, &mut wants)?;
+    profile_angles::apply(analysis, spec, &mut wants)?;
     unknown_dimensions(spec, &wants.iter().map(|w| w.id.as_str()).collect())
 }
 
@@ -2221,9 +2229,61 @@ fn plan_inventory_uncached(
     cache: &footprints::Cache,
     excluded: &BTreeSet<String>,
 ) -> Result<(Planned, Vec<PlannedDimension>), Invalid> {
-    let first = plan_inventory_ordered(
-        analysis, spec, sheet, views, obstacles, held, cache, excluded, 0,
+    // Profile-corner angles placed early let the callouts route around them. That is kept only
+    // when it states more corners than placing them last, around everything else, and makes no
+    // drawing finding worse; otherwise they go last and the callouts keep their routes.
+    let angles = |plan: &Planned| {
+        plan.0
+            .iter()
+            .filter(|d| {
+                d.placed.is_some()
+                    && d.measurements
+                        .iter()
+                        .any(|m| m.parameter == profile_angles::PARAMETER)
+            })
+            .count()
+    };
+    let findings = |plan: &Planned| {
+        plan.2
+            .iter()
+            .filter(|p| {
+                matches!(
+                    p.code.as_str(),
+                    "annotation_off_sheet"
+                        | "annotation_over_title_block"
+                        | "annotation_overlap"
+                        | "annotation_ink_overlap"
+                        | "annotation_over_view"
+                        | "annotation_line_over_view"
+                        | "annotation_leader_crossing"
+                        | "annotation_outside_area"
+                        | "dimension_line_shared"
+                        | "dimension_text_stray"
+                        | "leader_through_feature"
+                        | "extension_through_feature"
+                )
+            })
+            .count()
+            + leader_on_extension(&plan.0).len()
+    };
+    let mut profile_first = false;
+    let mut first = plan_inventory_ordered(
+        analysis, spec, sheet, views, obstacles, held, cache, excluded, 0, false,
     )?;
+    if first.0.0.iter().any(|d| {
+        d.placed.is_none()
+            && d.measurements
+                .iter()
+                .any(|m| m.parameter == profile_angles::PARAMETER)
+    }) {
+        let early = plan_inventory_ordered(
+            analysis, spec, sheet, views, obstacles, held, cache, excluded, 0, true,
+        )?;
+        if angles(&early.0) > angles(&first.0) && findings(&early.0) <= findings(&first.0) {
+            first = early;
+            profile_first = true;
+        }
+    }
     let new = |d: &PlannedDimension| {
         !d.measurements.is_empty()
             && d.measurements
@@ -2339,7 +2399,16 @@ fn plan_inventory_uncached(
         return Ok(first);
     }
     let alternative = plan_inventory_ordered(
-        analysis, spec, sheet, views, obstacles, held, cache, excluded, 1,
+        analysis,
+        spec,
+        sheet,
+        views,
+        obstacles,
+        held,
+        cache,
+        excluded,
+        1,
+        profile_first,
     )?;
     let mut best = if score(&alternative.0) < a {
         alternative
@@ -2379,6 +2448,7 @@ fn plan_inventory_uncached(
             cache,
             excluded,
             2,
+            profile_first,
         )?;
         if score(&joint.0) < score(&best.0) {
             best = joint;
@@ -2398,7 +2468,16 @@ fn plan_inventory_uncached(
         // remaining existing corridors while new witnesses claim theirs first.
         // This avoids buying a short new form leader with a blocked datum leg.
         let preserved = plan_inventory_ordered(
-            analysis, spec, sheet, views, obstacles, held, cache, excluded, 3,
+            analysis,
+            spec,
+            sheet,
+            views,
+            obstacles,
+            held,
+            cache,
+            excluded,
+            3,
+            profile_first,
         )?;
         if score(&preserved.0) < score(&best.0) {
             best = preserved;
@@ -2419,11 +2498,13 @@ fn plan_inventory_ordered(
     cache: &footprints::Cache,
     excluded: &BTreeSet<String>,
     stage: u8,
+    profile_first: bool,
 ) -> Result<(Planned, Vec<PlannedDimension>), Invalid> {
     let (mut wants, mut problems, notes) = pmi_policy::wants(analysis, spec);
     callouts::apply(analysis, spec, &mut wants);
     let scheme_covered = schemes::apply(analysis, spec, &mut wants)?;
     authored::append(analysis, spec, &mut wants)?;
+    profile_angles::apply(analysis, spec, &mut wants)?;
 
     let retired: Vec<_> = if scheme_covered.is_empty() {
         Vec::new()
@@ -3153,6 +3234,21 @@ fn plan_inventory_ordered(
                     .is_some_and(|proof| proof.exterior_annotation_clear(v, p))
             })
     };
+    // Profile-corner angles take their clear places before the callouts route around the
+    // settled dimensions (or, *profile_first* false, last of all); they never move an item
+    // already placed.
+    if profile_first {
+        angular::place_profile(
+            &frames,
+            &all,
+            &chosen,
+            obstacles,
+            &mut placed,
+            &page,
+            views,
+            &interior_proofs,
+        );
+    }
     angular::place(
         &frames,
         &all,
@@ -3492,6 +3588,22 @@ fn plan_inventory_ordered(
             ));
         }
     }
+    // A callout routed after an early angle may still meet its witness lines: that angle is
+    // withdrawn and, like every profile angle still unplaced, tried once more around the
+    // finished ink.
+    if profile_first {
+        angular::withdraw_profile_contacts(&all, &mut placed);
+    }
+    angular::place_profile(
+        &frames,
+        &all,
+        &chosen,
+        obstacles,
+        &mut placed,
+        &page,
+        views,
+        &interior_proofs,
+    );
     let inventory = all
         .iter()
         .enumerate()
@@ -3617,7 +3729,21 @@ fn plan_inventory_ordered(
             from_spec.push("place".into());
         }
         let view = chosen.unwrap_or(w.views[0]);
-        if placed.is_none() {
+        let dropped_angle =
+            placed.is_none() && chosen.is_some() && profile_angles::is_profile_angle(&w);
+        if dropped_angle {
+            problems.push(Problem {
+                id: format!("p:angular_dimension_dropped:{}", w.id),
+                code: "angular_dimension_dropped".into(),
+                severity: "info".into(),
+                message: format!(
+                    "{} is not drawn: no clear place was found for it in the view that shows it true. Its corner stays undefined; dimension it linearly (faces/<face>/profile_corners: linear) or make room.",
+                    crate::wording::capital(&wording_of(&w))
+                ),
+                subjects: vec![w.id.clone()],
+                ..Default::default()
+            });
+        } else if placed.is_none() {
             missing
                 .entry((w.views.clone(), along))
                 .or_default()
@@ -3679,7 +3805,14 @@ fn plan_inventory_ordered(
             from_spec,
             basis,
             // Unplaced only when no shown view can carry it (reported below).
-            state: State::placed_or(placed.is_some(), "view_plan_incomplete"),
+            state: State::placed_or(
+                placed.is_some(),
+                if dropped_angle {
+                    "angular_dimension_dropped"
+                } else {
+                    "view_plan_incomplete"
+                },
+            ),
             placed,
         });
     }
@@ -4326,6 +4459,7 @@ pub(crate) fn callout_members(
     callouts::apply(analysis, spec, &mut wants);
     if schemes::apply(analysis, spec, &mut wants).is_err()
         || authored::append(analysis, spec, &mut wants).is_err()
+        || profile_angles::apply(analysis, spec, &mut wants).is_err()
     {
         return Vec::new();
     }
@@ -4375,6 +4509,7 @@ pub(crate) fn placement_options_with_spec(
     callouts::apply(analysis, spec, &mut wants);
     if schemes::apply(analysis, spec, &mut wants).is_err()
         || authored::append(analysis, spec, &mut wants).is_err()
+        || profile_angles::apply(analysis, spec, &mut wants).is_err()
     {
         return BTreeMap::new();
     }
@@ -4462,6 +4597,7 @@ pub(crate) fn local_placement_fix(
     callouts::apply(analysis, &plan.spec, &mut raw);
     schemes::apply(analysis, &plan.spec, &mut raw).ok()?;
     authored::append(analysis, &plan.spec, &mut raw).ok()?;
+    profile_angles::apply(analysis, &plan.spec, &mut raw).ok()?;
     detail_routes(analysis, &mut raw, &plan.views);
     let mut all = plan.dimensions.clone();
     all.extend(plan.gdt.iter().filter_map(gdt::proxy));

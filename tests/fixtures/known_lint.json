@@ -361,9 +361,9 @@
     {
       "part": "m10046",
       "code": "angular_requirement_missing",
-      "count": 12,
+      "count": 10,
       "verdict": "rust-correct",
-      "reason": "The new independent ordered outer-profile ledger reports exactly twelve provider-issued non-right convex corners without live angular ink. This exposes the pending LINT-angular-profile_angle_requirement; it does not excuse any drawing collision or claim those angles are dimensioned. Automatic arcs were implemented and withdrawn when the unchanged 30-part quality bar regressed (m10046 ink 0 to 17, and further NIST regressions). This exact diagnostic count stays pinned until a complete angular placement solve can state the corners without weakening the quality bar."
+      "reason": "LINT-angular-profile_angle_requirement: of m10046's twelve provider-issued non-right convex corners, two carry an automatic angle placed locally (within twelve label heights) and clear. The other ten, on tiny, dense synthetic profiles, have no clear local place; they are dropped (angular_dimension_dropped), never forced, and stay missing here; none is fixed by drawn linear dimensions."
     },
     {
       "part": "m10046",

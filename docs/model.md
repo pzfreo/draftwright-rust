@@ -272,7 +272,7 @@ The design also includes `views/sections` (for example `"sections": [{"id": "A",
   `iso_scale_factor`, `dimension_source`, `dimension_schemes/<name>` (`scheme`, `axis`, `targets`, `view`, `from`), `hole_table` (`auto`, `always`, `never`), `dimensions/<id>` (`omit`, `tolerance`, `fit`, `text`, `style`, `place`, `kind`, `between`, `along`, and the earlier `view`
   spelling), `annotations/<id>` (`omit`, `place`, `text` for prose callouts and automatic notes), `features/<id>` (`fit`, `datum`, `controls`, `finish`, `thread`, `knurl`, `note`, `anchor`, `reclassify`, `suppress`, `split`, `pattern`), `feature_declarations`,
   `faces/<face>` (`datum`, `controls`, `finish`, `note`: "Datums and controls authored in the Spec" and "Finish, threads,
-  knurls and notes authored in the Spec", below), `notes` and `tables`.
+  knurls and notes authored in the Spec", below; `profile_corners`: "Outer-profile corners", below), `notes` and `tables`.
   Unknown fields, including page coordinates, are refused. Absent fields keep their defaults.
 - **The spec stores intent, never geometry.** A fit, lane, side or fractional label position is
   resolved against the part and its anchors on every plan. Measured values and resolved paper
@@ -1273,6 +1273,59 @@ basis, placed, reference?, determined_by?}`:
   an overall tolerance or fit. The IDs accept omit, tolerance, placement and label-text intent.
   Authored angles compare the same projected supports even when their normal-section stations
   differ; authored mode transfers the automatic role, and auto mode names the existing owner.
+- **Outer-profile corners** (`src/lint/profile_angles.rs`, `src/dims/profile_angles.rs`;
+  LINT-angular-profile_angle_requirement). Each non-right convex corner of the foremost
+  camera-facing outer profile needs its geometry *defined*, not necessarily its angle printed
+  (ISO 129-1, ASME Y14.5: dimension only what is needed; no angle is implied except 0°, 90° and
+  180°). A corner is defined when its two edges are located by linear dimensions chained to the
+  part's box or datum planes: the offset of a principal edge, both coordinates of both ends of an
+  oblique edge (a rounded end uses its theoretical sharp vertex). By default (`auto`):
+  - a corner already defined gets no angle (never a toleranced angle on a linearly fixed
+    corner);
+  - any other corner, even one a single station short, gets its angle in the principal view
+    that shows it true, `d:envelope/profile_angle.angle.f<face>_e<i>_e<j>`. Completing a
+    corner with linear stations is the explicit `linear` choice below, not automatic: the
+    stations have no lane reserved when the sheet is laid out, and on mfcadpp/1013 one
+    automatic station moved the drawing from A4 to A3;
+  - a closed all-line profile whose corners are all issued and equal (FTC-08's octagon) gets one
+    counted angle, `8× 135°` as `d:envelope/profile_angle.angle.f<face>`, never one per corner.
+    Lint proves the count from the closed loop of visible edges through the drawn corner.
+
+  An angle stays local to its corner, so a reader sees which corner it states: its arc's radius
+  and its whole label lie within twelve label heights of the corner (about 26 mm), its label
+  sits on its arc (on or beside the bisector), and all its ink lies within the view's reserved
+  area. A short edge does not limit it: the witness lines extend the corner's edges outward past
+  the part, as a short chamfer's angle is drawn. It stands inside the corner (label on proven
+  blank face) or in the equal sector between the extended edges (label on proven exterior
+  paper). A place whose lines cross nothing is preferred; otherwise its arc and witness lines may
+  cross the part's edges, an edge blend's silhouette included (as dimension and extension lines
+  may where unavoidable), but never a hole or boss seen end-on, never another item's dimension
+  line, leader, arrow, frame or label; only other
+  dimensions' extension lines, centre lines and cutting-plane chain lines may be crossed
+  transversely. No callout's leader or padded label may meet its witness lines (the 2026-10-12
+  extension contact rule), and leader refinement keeps clear of them as of linear extension
+  lines. Two mirror-equal corners in one view (CTC-04's waist) take one counted angle, `2× θ°`,
+  drawn at whichever corner has a clear place; lint proves the count from the mirrored corner's
+  visible edges. The
+  angles are placed last of all, around the finished ink. Only when that leaves corners
+  unstated is placing them before the callouts route tried, and it is kept only when it states
+  more corners and makes no drawing finding (including extension contacts) worse; an early angle
+  a later callout meets is withdrawn and tried again last. An angle with no clear place is not drawn
+  (`angular_dimension_dropped`, info) and lint still reports its corner
+  `angular_requirement_missing`. Placement never moves another item, takes a fallback place, or
+  changes the sheet: profile angles are not required measurements when sheets and scales are
+  compared. Lint reads linear definition from the drawn ink (each linear dimension re-measured
+  from its witnesses through its view's transform), so a corner fixed by drawn dimensions is
+  not reported.
+
+  Overrides (Spec intent): `dimensions/<id>` with `{}` shows a corner's angle even where the
+  defaults would not draw it (as a reference, in parentheses, when linear dimensions already
+  fix the corner), and `omit` hides it. `faces/face:<n>/profile_corners` chooses, for the outer
+  profile of face *n*: `auto` (the default above), `angle` (every corner's angle; a reference
+  where the corner is already linearly fixed) or `linear` (locate every missing station with
+  linear dimensions from the minimum datum, `d:envelope/profile_location_<axis>.length.f<face>_<n>`,
+  instead of angles; these are ordinary dimensions and may need more paper). A box side (`top`, `front`, …) names its faces as for
+  datums.
   An existing source PMI angle on the exact same flank faces also owns the bounded
   angle across normal-section heights: AP242 CTC-01 keeps its `60 ±0.5` and omits the
   duplicate automatic `60°`. Its PMI ID and tolerance remain, with both claims.

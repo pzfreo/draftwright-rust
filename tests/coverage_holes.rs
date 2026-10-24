@@ -540,14 +540,24 @@ fn independent_outer_profile_evidence_retains_every_undrawn_corner_requirement()
             count,
             "{name}"
         );
-        let missing = lint::check(&a, &marks(&a))
+        // Each corner is either stated by a placed angle claiming it or still reported missing:
+        // nothing is credited silently (marks carry no ink, so linear definition is not read).
+        let marks = marks(&a);
+        let stated = lint::profile_angles::requirements(&a)
+            .iter()
+            .filter(|c| {
+                marks.iter().any(|m| {
+                    m.claims
+                        .iter()
+                        .any(|k| k.feature == c.feature && k.parameter == "profile_angle.angle")
+                })
+            })
+            .count();
+        let missing = lint::check(&a, &marks)
             .into_iter()
             .filter(|i| i.code == "angular_requirement_missing")
             .count();
-        assert_eq!(
-            missing, count,
-            "{name}: automatic arcs remain pending, not silently credited"
-        );
+        assert_eq!(missing, count - stated, "{name}: {stated} stated");
     }
 }
 
