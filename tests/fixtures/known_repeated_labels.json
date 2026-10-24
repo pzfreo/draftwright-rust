@@ -13,32 +13,6 @@
     "reason": "Two slots of the same 14.96 length at mirrored positions: their lengths lie on different spans, so each is a dimension of its own feature. draftwright's slot width coalescing (`_slot_shared_width_key`) needs the same view, width axis and the same two width edges, which these do not share; the port's `share` (src/dims/mod.rs) applies the same one-span rule, extended to slot lengths and boss heights. Default nominal precision now preserves the modelled hundredths; these same item IDs and distinct physical spans remain repeated. quiddity-rust 0.1.0 measures sizes from raw geometry with decimal ties to even (alpha.9, #46), so the label moved from 14.97 to 14.96."
   },
   {
-    "part": "nist/nist_ctc_04_asme1_rd.stp",
-    "view": "plan",
-    "label": "140",
-    "rotation": 0,
-    "items": [
-      "d:f:slot:4/slot_width.length",
-      "d:f:slot:6/slot_width.length"
-    ],
-    "verdict": "identical-features",
-    "draftwright": "m_locx3 '140' (a hole's x location), m_slot4_width '140' and m_slot5_width '140' in the plan: the same three.",
-    "reason": "Two 140-wide slots at x = -110 and +110 (slot 4 and slot 6) have their widths on different spans, each its own dimension (draftwright's slot width coalescing (`_slot_shared_width_key`) needs the same view, width axis and the same two width edges, which these do not share; the port's `share` (src/dims/mod.rs) applies the same one-span rule, extended to slot lengths and boss heights); the hole's x location from the part's box is a different quantity that happens to be 140. H1: the hole location is now a table coordinate; only the two slot widths remain as linear dimensions."
-  },
-  {
-    "part": "nist/nist_ctc_04_asme1_rd.stp",
-    "view": "plan",
-    "label": "75",
-    "rotation": 0,
-    "items": [
-      "d:f:slot:3/slot_width.length",
-      "d:f:slot:5/slot_width.length"
-    ],
-    "verdict": "identical-features",
-    "draftwright": "m_slot2_width '75' and m_slot3_width '75' in the plan, one per slot.",
-    "reason": "Two 75-wide slots at x = -77.5 and +77.5 have their widths on different spans, each its own dimension; draftwright's slot width coalescing (`_slot_shared_width_key`) needs the same view, width axis and the same two width edges, which these do not share; the port's `share` (src/dims/mod.rs) applies the same one-span rule, extended to slot lengths and boss heights."
-  },
-  {
     "part": "nist/nist_ftc_08_asme1_rc.stp",
     "view": "plan",
     "label": "31.75",
@@ -50,31 +24,5 @@
     "verdict": "identical-features",
     "draftwright": "m_slot1_length '31.8' and m_slot2_length '31.8' in the plan, one per slot (y = -46.4 and +46.4).",
     "reason": "Two slots of the same 31.75 length at mirrored positions: their lengths lie on different spans, each its own dimension; draftwright's slot width coalescing (`_slot_shared_width_key`) needs the same view, width axis and the same two width edges, which these do not share; the port's `share` (src/dims/mod.rs) applies the same one-span rule, extended to slot lengths and boss heights. Default nominal precision now preserves the modelled hundredths; these same item IDs and distinct physical spans remain repeated."
-  },
-  {
-    "part": "nist/nist_ftc_09_asme1_rd.stp",
-    "view": "front",
-    "label": "6.35",
-    "rotation": 90,
-    "items": [
-      "d:f:slot:1/slot_width.length",
-      "d:f:slot:2/slot_width.length"
-    ],
-    "verdict": "identical-features",
-    "draftwright": "plans slot0's and slot1's widths as two dimensions and drops both for room (lint slot_dim_dropped 'slot0 width' and 'slot1 width'); m_slot0_pos '130.2' claims both slots' common location.",
-    "reason": "Two 6.35-wide slots side by side at one x station have their widths on different spans along z, each its own dimension; draftwright's slot width coalescing (`_slot_shared_width_key`) needs the same view, width axis and the same two width edges, which these do not share; the port's `share` (src/dims/mod.rs) applies the same one-span rule, extended to slot lengths and boss heights. Default nominal precision now preserves the modelled hundredths; these same item IDs and distinct physical spans remain repeated. quiddity-rust 0.1.0 measures sizes from raw geometry with decimal ties to even (alpha.9, #46), so the label moved from 6.34 to 6.35."
-  },
-  {
-    "part": "nist/nist_ctc_03_asme1_rc.stp",
-    "view": "plan",
-    "label": "19.05",
-    "rotation": 0,
-    "items": [
-      "d:f:slot:1/slot_width.length",
-      "d:f:slot:2/slot_width.length"
-    ],
-    "verdict": "identical-features",
-    "draftwright": "plans each slot's width as its own dimension, one per slot.",
-    "reason": "Two slots of the same 19.05 (3/4 in) width, each width on its own span: each is a dimension of its own feature, as the port's `share` (src/dims/mod.rs) one-span rule requires. Before quiddity-rust 0.1.0 one was labelled 19.04 and the other 19.05, so they did not repeat; quiddity now measures sizes from raw geometry with decimal ties to even (alpha.9, #46), and both read 19.05."
   }
 ]

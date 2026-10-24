@@ -421,11 +421,10 @@ fn ctc01_states_real_corners_and_the_radius_default_without_logo_callouts() {
     let Some(dir) = corpus::dir() else { return };
     let (part, a) = cache::native(&dir.join("nist/nist_ctc_01_asme1_rd.stp"));
     let p = cache::default_plan(&a, false);
-    // quiddity-rust 0.1.1 (accepted for alpha.13): CTC-01's blend paths and section frames
-    // take the inferred frame's senses (from 0.1.0), and the radius-centre table is no longer
-    // planned. 4× R25 was omitted, covered by t:radius-centres with four R25 rows; it is now
-    // a placed callout in the plan view and there is no radius table. Draftwright
-    // framed-record handling, fix in alpha.14 (restore the table and this assertion).
+    // 4× R25 is a placed callout in the plan view, and no radius-centre table is planned: its
+    // leader is not obstructed. (On alpha.12 the 350 row pitch was witnessed from the grid's
+    // left-hand column, its extension lines crossed the 4× R25 leader, and the corners were
+    // tabulated; the pitch is now witnessed from the right-hand column.)
     assert!(
         p.dimensions
             .iter()
@@ -658,9 +657,8 @@ fn deep_profiles_are_not_exempted_as_shallow_relief() {
 
 // Every row locates one occurrence; changing or deleting its locator loses that occurrence
 // and the dependent default. Copying another row cannot replace its exact identity.
-// CTC-01 rd is not a case for alpha.13: quiddity-rust 0.1.1 plans no radius table on it
-// (pinned in ctc01_states_real_corners_and_the_radius_default_without_logo_callouts);
-// draftwright framed-record handling, restore the case in alpha.14.
+// CTC-01 rd plans no radius table: its 4× R25 leader is not obstructed (pinned in
+// ctc01_states_real_corners_and_the_radius_default_without_logo_callouts).
 part_cases!(radius_centre_table_credits_every_occurrence_and_rejects_wrong_locators;
     nist_ctc_02_asme1_rc => "nist/nist_ctc_02_asme1_rc.stp",
     nist_ftc_08_asme1_rc => "nist/nist_ftc_08_asme1_rc.stp",

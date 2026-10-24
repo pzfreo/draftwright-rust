@@ -53,7 +53,15 @@ pub fn location(analysis: &Analysis, f: &Feature) -> Result<(&'static str, f64),
     // The ends' coordinates along the part's axis k: quiddity's origin, and its long axis
     // carried onto k (its other axes are square to k, so they add nothing).
     let ends = [lo, hi].map(|t| frame[0][k] + t * d[k]);
-    Ok((AXES[k], ends[0].min(ends[1]) - analysis.envelope[0][k]))
+    // The low end the planner dimensions ([`outline`]: the exact centre of the slot's faces less
+    // half its length, where the record agrees with it). quiddity rounds `lo`, `hi` and `length`
+    // to 0.01 mm each, so the recorded `lo` and that end can round apart on a 0.005 tie (cgb245:
+    // 95.96 recorded, 95.9648 from the centre); lint judges the end the drawing states.
+    let low = match outline(analysis, f) {
+        Ok(o) if o.long == k => o.ends[0],
+        _ => ends[0].min(ends[1]),
+    };
+    Ok((AXES[k], low - analysis.envelope[0][k]))
 }
 
 /// A through slot in the part's frame, as the planner places it (`dims::slots`): the axes it
@@ -531,6 +539,45 @@ mod tests {
             location(&a, &first),
             Err("its long axis lies along no axis of the part".into())
         );
+    }
+
+    /// quiddity rounds a slot's `lo`, `hi` and `length` to 0.01 mm each, so its recorded `lo`
+    /// (95.96) and the low end the planner draws (the exact centre of its faces, 103.444798, less
+    /// half of 14.96: 95.9648) can fall either side of a 0.005 tie, as on cgb245. Lint judges the
+    /// drawn end: `95.965` states the location and `95.960` (the recorded end) does not.
+    #[test]
+    fn a_slot_location_is_judged_at_the_end_the_planner_draws() {
+        let mut a = part(&[(
+            "slot",
+            &[0],
+            json!({ "width": 6.0, "length": 14.96, "end_radius": 3.0, "long_axis": "x",
+                    "width_axis": "y", "lo": 95.96, "hi": 110.93, "w_center": 50.0,
+                    "d_lo": 0.0, "d_hi": 10.0 }),
+        )]);
+        a.features[0].fingerprint.position = [103.444798, 50.0, 5.0];
+        let f = &a.features[0];
+        let (axis, at) = location(&a, f).unwrap();
+        assert_eq!(axis, "x");
+        assert_eq!(at, outline(&a, f).unwrap().ends[0] - a.envelope[0][0]);
+        assert_eq!(fmt(at), "95.965");
+        let unverified = |text: &str| -> Vec<String> {
+            let marks = [Mark {
+                name: "m:f:slot:1:location_slot.length".into(),
+                view: Some("v:plan".into()),
+                text: text.into(),
+                claims: vec![Claim {
+                    feature: "f:slot:1".into(),
+                    parameter: "location_slot.length".into(),
+                }],
+            }];
+            coverage(&a, &marks)
+                .into_iter()
+                .filter(|i| i.requirements[0].parameter == "location_slot.length")
+                .map(|i| i.code)
+                .collect()
+        };
+        assert!(unverified("95.965").is_empty());
+        assert_eq!(unverified("95.960"), ["slot_requirement_unverifiable"]);
     }
 
     /// LINT-slot_coverage-slot_pattern: a linear array of three obround slots has its member's

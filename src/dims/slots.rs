@@ -233,6 +233,21 @@ fn size(s: &Slot, view: &str, m: usize, lo: f64, hi: f64, order: u8) -> Shape {
     }
 }
 
+/// What makes two lone slots identical on a drawing: the view that looks through them, the axes
+/// they run along and across, their width and length, and their end radius.
+type Alike = (&'static str, usize, usize, i64, i64, Option<i64>);
+
+fn alike(s: &Slot) -> Alike {
+    (
+        end_on(s.deep),
+        s.long,
+        s.wide,
+        key(s.width),
+        key(s.length),
+        s.end_radius.map(key),
+    )
+}
+
 fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     let analysis = cx.analysis;
     let [lo, _] = analysis.envelope;
@@ -286,22 +301,27 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     }
 
     // Widths spanning the same stretch of one axis share one dimension where draftwright solves
-    // them together: across the view, or in the front.
-    let mut widths: BTreeMap<(&str, usize, i64, i64, i64), Vec<usize>> = BTreeMap::new();
+    // them together: across the view, or in the front (same-stretch widths elsewhere are merged
+    // later, as one span, one dimension). Identical slots (the same width, length and end radius,
+    // run the same way) seen in one view whose widths lie on different stretches also share one
+    // width, counted: the same size is not stated twice. Such a slot joins the group of the first
+    // identical slot before its own stretch is compared.
+    type WidthKey<'k> = (&'k str, usize, i64, i64, i64);
+    let mut widths: BTreeMap<WidthKey, Vec<usize>> = BTreeMap::new();
+    let mut identical: BTreeMap<Alike, (WidthKey, [i64; 2])> = BTreeMap::new();
     let mut order = Vec::new();
     for (i, s) in slots.iter().enumerate() {
         let view = end_on(s.deep);
-        let k = if view == "front" || s.wide == horizontal(view) {
-            (
-                view,
-                s.wide,
-                key(s.edge(s.wide, -1.0)),
-                key(s.edge(s.wide, 1.0)),
-                key(s.width),
-            )
-        } else {
-            (view, s.wide, i64::MIN, i as i64, 0)
+        let same = alike(s);
+        let stretch = [key(s.edge(s.wide, -1.0)), key(s.edge(s.wide, 1.0))];
+        let k = match identical.get(&same) {
+            Some((k, first)) if *first != stretch => *k,
+            _ if view == "front" || s.wide == horizontal(view) => {
+                (view, s.wide, stretch[0], stretch[1], key(s.width))
+            }
+            _ => (view, s.wide, i64::MIN, i as i64, 0),
         };
+        identical.entry(same).or_insert((k, stretch));
         let members = widths.entry(k).or_default();
         if members.is_empty() {
             order.push(k);
@@ -333,10 +353,19 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                 })
                 .collect(),
             turning: None,
-            basis: if n > 1 {
+            basis: if n > 1
+                && members.iter().all(|&m| {
+                    key(slots[m].edge(s.wide, -1.0)) == key(s.edge(s.wide, -1.0))
+                        && key(slots[m].edge(s.wide, 1.0)) == key(s.edge(s.wide, 1.0))
+                })
+            {
                 format!(
                     "{n} slots whose widths span the same stretch in {} share one width, counted, in the view that looks through them",
                     AXES[s.wide]
+                )
+            } else if n > 1 {
+                format!(
+                    "{n} identical slots share one width, counted, in the view that looks through them"
                 )
             } else {
                 "a slot's width, across it, in the view that looks through it".into()
