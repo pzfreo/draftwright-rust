@@ -6,6 +6,58 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+## 0.1.0-alpha.14 (2026-10-25)
+
+Now on quiddity-rust **v0.2.0-alpha.2** (previously `0.1.1`), which publishes recognition schema 6.
+It picks up quiddity-rust's fixes for #81, #83, #84, #85 and #89 and its decision on #82, and
+recovers most of the regressions accepted in alpha.13. Those still open are listed under **Known regressions** below.
+
+### quiddity-rust v0.2.0-alpha.2
+
+- **Recognition schema 6** (#92). Records quiddity measures in a part's own frame now carry an
+  `origin` and measuring axes (a file-axis letter or a unit vector in file coordinates), with
+  distances measured along those axes. draftwright reads them back into file coordinates.
+  Oriented slots, chamfers and slot patterns now arrive in `slots`, `chamfers` and
+  `slot_patterns`; draftwright still checks and draws them as oriented features, and their
+  draftwright IDs (`f:oriented_slot:1`, …) are unchanged. A record still in the part's frame is left out with a reason, never
+  drawn in the wrong place. Schema 5 and earlier are refused.
+- **Recovered from alpha.13's known regressions.**
+  - CTC-02 AP242: the axis-aligned frame is back (#81). It has no undimensioned features
+    (previously 15), and `10× R25` is drawn again.
+  - FTC-07 AP242: A1 1:1 again (previously A2 1:2), with 4 undimensioned features
+    (previously 25). quiddity now also finds its 4 polygonal bosses, which are not yet located
+    (see Known regressions).
+  - The countersink-two-face fixture's hole links to its seat again (#83).
+  - 1000.step's plate top is on the grid (#84), so its 4.219 has no rounding advisory.
+  - whistle_frame_reference's plate is 7.0 thick again (#85), and it is back on alpha.12's
+    single A2 2:1 sheet.
+  - cgb202: the false fillets are gone (#89). 91 warnings and 1 error fall to 50 warnings and no
+    errors, with no undimensioned features (previously 42).
+  - cgb207: `2× R5` and "ALL UNSPECIFIED RADII" are drawn again, and R5 is no longer
+    undimensioned.
+- **Settled as correct.** CTC-02 rc's 49.5 mm array stays unpublished: quiddity found two
+  mirror-image rows with equal claim and publishes neither (#82). Every hole is still drawn and
+  located.
+- **Other drawing changes** (#89): a few mfcadpp parts lose one radius callout, as quiddity no
+  longer reads a concave round as a fillet. mfcadpp 10033 moves from A3 2:1 to A4 1:1, and 10163
+  from A4 1:2 to A4 1:1.
+- **Speed.** Unchanged: planning CTC-02 rc costs 1.0003× main's instructions, FTC-06 0.993×.
+
+### Known regressions
+
+- STC-06 AP242: A2 1:5 (alpha.12: A0 1:1).
+- FTC-06: A2 1:5 (alpha.12: A1 1:2).
+- FTC-10 rb: two A2 sheets (alpha.12: one A1).
+- 10119: A4 1:1 (alpha.12: 2:1).
+- CTC-01 merge: 30 warnings (alpha.12: 21).
+- FTC-07 AP242: its 4 newly recognised polygonal bosses are not located (12 unlocated features,
+  previously 4), and extension lines through features rise from 14 to 23.
+- cgb241: quiddity now calls one of its two mirrored R23 rounds a fillet. The sheet stays A3 1:5,
+  but `2× R23` is led from the fillet: 71 mm with three hidden-line crossings, where main's
+  leader from the blend was 37 mm with none.
+- cgb217: quiddity's frame vote moves it from 13.1° to 45° (#81), leaving 15 undimensioned
+  features (alpha.13: 7). Its ø60 band is still read as a boss, not a turned step.
+
 ### Added
 
 - **Outer-profile corners are defined, angled only where needed** (LINT-angular-profile_angle_requirement,
@@ -44,19 +96,6 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Changed
 
-- **quiddity-rust 0.2.0-alpha.2** (recognition schema 6). Records quiddity measures in a part's
-  own frame are read back into file coordinates: `origin` plus distances along each record's
-  measuring axes, letters or unit vectors. Turned slots, chamfers and slot patterns now arrive in
-  `slots`, `chamfers` and `slot_patterns`; draftwright still checks and draws them as oriented
-  features, from the slot's own fields when it has no `source`. Schema 5 and earlier are refused.
-  A record still in the part's frame is left out with a reason, never drawn in the wrong place.
-  Drawing changes on the 100-part corpus come mostly from quiddity's fillet/blend reading (#89)
-  and its grid and precision fixes: a few mfcadpp radii are no longer called out, 1000's plate
-  prints 4.219 without a rounding advisory, mfcadpp 10033 moves from A3 2:1 to A4 1:1 and 10163
-  from A4 1:2 to A4 1:1, and cgb207 regains its `2× R5` callout and general radius note.
-  cgb202 and cgb207 lose their undimensioned-feature warnings; a two-face countersink again
-  reports only its unattributed seat.
-
 - **One owner for through-step legs and blind depths** (ADR1-8, still pending). A through step's
   leg now has support planes and yields to the plate thickness, face-level rung or overall extent
   that states it (lint already accepts those as the leg's statement); the plate, rung and overall
@@ -91,6 +130,11 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Fixed
 
+- **Pin replay on multi-sheet plans** (#170). Pins replay in the unpinned drawing's frames, and
+  later sheets keep its gutters and incumbent callout routes. FTC-10's five and CTC-03's one
+  failing random-pin cells, accepted in alpha.13, now pass; `tools/known-pin-failures.json` is
+  empty.
+
 - **A fillet callout joined by equal blends is placed at its final size.** When quiddity calls
   one of two equal rounds a fillet and the other a blend, the blend is still joined to the
   fillet's callout after layout (`2× R23`), but the fillet callout now carries that count from the
@@ -121,7 +165,7 @@ All notable changes to draftwright-rust are recorded here, in the style of
   alpha.12 tabulated the 4× R25 corners only because the 350 row pitch was witnessed from the
   grid's left-hand column and its extension lines crossed the 4× R25 leader (two
   `annotation_leader_crossing` findings). The pitch is witnessed from the grid's first member,
-  which quiddity-rust 0.1.x lists in the right-hand column, so its extension lines are short and
+  which quiddity-rust lists in the right-hand column, so its extension lines are short and
   cross nothing, and the leader is not obstructed. The 4× R25 callout stays; it meets its arc off
   radial, as the counted leaders on CTC-02 and FTC-09 do, which are kept by design. The pitch's
   station still follows quiddity's member order.
