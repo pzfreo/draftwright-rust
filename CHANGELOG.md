@@ -44,6 +44,19 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Changed
 
+- **quiddity-rust 0.2.0-alpha.2** (recognition schema 6). Records quiddity measures in a part's
+  own frame are read back into file coordinates: `origin` plus distances along each record's
+  measuring axes, letters or unit vectors. Turned slots, chamfers and slot patterns now arrive in
+  `slots`, `chamfers` and `slot_patterns`; draftwright still checks and draws them as oriented
+  features, from the slot's own fields when it has no `source`. Schema 5 and earlier are refused.
+  A record still in the part's frame is left out with a reason, never drawn in the wrong place.
+  Drawing changes on the 100-part corpus come mostly from quiddity's fillet/blend reading (#89)
+  and its grid and precision fixes: a few mfcadpp radii are no longer called out, 1000's plate
+  prints 4.219 without a rounding advisory, mfcadpp 10033 moves from A3 2:1 to A4 1:1 and 10163
+  from A4 1:2 to A4 1:1, and cgb207 regains its `2× R5` callout and general radius note.
+  cgb202 and cgb207 lose their undimensioned-feature warnings; a two-face countersink again
+  reports only its unattributed seat.
+
 - **One owner for through-step legs and blind depths** (ADR1-8, still pending). A through step's
   leg now has support planes and yields to the plate thickness, face-level rung or overall extent
   that states it (lint already accepts those as the leg's statement); the plate, rung and overall
@@ -77,6 +90,13 @@ All notable changes to draftwright-rust are recorded here, in the style of
   rules are marked ported, which leaves three pending.
 
 ### Fixed
+
+- **A fillet callout joined by equal blends is placed at its final size.** When quiddity calls
+  one of two equal rounds a fillet and the other a blend, the blend is still joined to the
+  fillet's callout after layout (`2× R23`), but the fillet callout now carries that count from the
+  start, so its leader is placed with the label it ends with. A label that grew after placement
+  could run past its view's area and push the sheet up: cgb241 went to A0 1:2 during the move to
+  quiddity-rust 0.2.0-alpha.2 and is A3 1:5 again. Overridden callouts are joined as before.
 
 - **Slot location lint agrees with the drawn end.** Lint judged a slot's `location_slot.length` at
   quiddity's recorded `lo`, while the planner draws the low end at the exact centre of the slot's

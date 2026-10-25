@@ -469,9 +469,29 @@ fn seeded_edits_on_slice_parts_preserve_pinned_geometry() {
                 };
                 let p = model::plan_recovered(&a, &s).unwrap();
                 for (id, expected) in &snapshot {
+                    // A pinned view holds its position, scale and orientation. Its reserved
+                    // area is whatever its free neighbours leave unused: a neighbour whose
+                    // ink grows reclaims that paper (main does the same on 10127 when the
+                    // bore takes a tolerance), so the area need only still hold its ink.
+                    let (mut actual, mut expected) = (geometry(&p, id), expected.clone());
+                    if id.starts_with("v:") {
+                        let v = p.views.iter().find(|v| v.id == *id).unwrap();
+                        let b = a.iso_bounds;
+                        let ink = [0, 1, 2, 3].map(|k| v.at[k % 2] + v.scale * b[k]);
+                        assert!(
+                            v.area[0] <= ink[0] + 1e-6
+                                && v.area[1] <= ink[1] + 1e-6
+                                && v.area[2] >= ink[2] - 1e-6
+                                && v.area[3] >= ink[3] - 1e-6,
+                            "{name} seed={seed} pin={id}: area {:?} does not hold its ink {ink:?}",
+                            v.area
+                        );
+                        actual.as_object_mut().unwrap().remove("area");
+                        expected.as_object_mut().unwrap().remove("area");
+                    }
                     assert_eq!(
-                        serde_json::to_vec(&geometry(&p, id)).unwrap(),
-                        serde_json::to_vec(expected).unwrap(),
+                        serde_json::to_vec(&actual).unwrap(),
+                        serde_json::to_vec(&expected).unwrap(),
                         "{name} seed={seed} pin={id}"
                     );
                 }

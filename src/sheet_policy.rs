@@ -1909,9 +1909,10 @@ mod tests {
         };
         assert_eq!(at_limit(277.0).scale("A4", 1, 1.0), Some(1.0));
         assert_eq!(at_limit(277.01).scale("A4", 1, 1.0), None);
-        // mfcadpp 10163's aligned front and side estimate is within 5% of A4's drawable
-        // width at 1:2, and that full trial is the winner.
-        let Some(a) = corpus("mfcadpp/10163.step") else {
+        // mfcadpp holdout 317's aligned front and side estimate is within 5% of A4's drawable
+        // width at 1:2, and that full trial is the winner. (mfcadpp 10163 was this case until
+        // quiddity-rust 0.2.0 read one fewer fillet and it moved off the limit.)
+        let Some(a) = corpus("mfcadpp_holdout/317.step") else {
             return;
         };
         let p = model::plan_recovered(&a, &Spec::default()).unwrap();
@@ -2016,10 +2017,9 @@ mod tests {
     fn bounded_trials_keep_clean_reductions_and_reject_new_ink() {
         for (file, size, scale) in [
             ("mfcadpp/10020.step", "A4", "1:1"),
-            // The former A4 reduction gains a leader/extension contact.
-            ("mfcadpp/10033.step", "A3", "2:1"),
-            // Whole-view packing clears the A4 frame at the original readable scale.
-            ("mfcadpp/10163.step", "A4", "1:2"),
+            // Without the fillet quiddity 0.2.0 no longer reads, A4 is clean at 1:1.
+            ("mfcadpp/10033.step", "A4", "1:1"),
+            ("mfcadpp/10163.step", "A4", "1:1"),
             // Usable on preferred A3, as on main: nothing clipped and nothing lost.
             ("cadgenbench_inputs/cgb245.step", "A3", "1:5"),
             ("nist/nist_ftc_07_asme1_rd.stp", "A3", "1:5"),

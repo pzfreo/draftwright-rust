@@ -375,11 +375,12 @@ fn native_oriented_records_are_checked_and_non45_callouts_state_both_values() {
     let i = doc
         .records
         .iter()
-        .position(|r| r.family == "oriented_chamfers")
+        .position(|r| r.family == "chamfers" && r.parameters["leg1_direction"].is_array())
         .unwrap();
+    // quiddity 0.2.0 merges oriented chamfers into chamfers (#92), their run as the axis.
     for field in [
         "corner",
-        "run",
+        "axis",
         "leg1_direction",
         "leg2_direction",
         "support_spans",

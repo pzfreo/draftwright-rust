@@ -1,4 +1,4 @@
-//! Native recognition/3, /4 and /5 reader. Unified section recesses and their patterns use the same
+//! Native recognition/6 reader. Unified section recesses and their patterns use the same
 //! parameters, constituent faces, feature IDs and grammar as the Python bridge. Source
 //! recess families are represented by this projection; source refusals remain lint evidence.
 //! Step levels and risers are retained as evidence, as on the bridge path.
@@ -8,10 +8,12 @@
 //! file's coordinates, the part's face count, and only the families and record types that schema
 //! has ([`FAMILIES`]); anything else is refused, not guessed at. [`recognise`] runs quiddity's
 //! recognition, which recognises in the part's own frame and maps records back to the file's;
-//! a value with no file axis to map to is listed in the record's `local`. A record taken here
-//! whose `local` names a field draftwright reads is not read in the wrong axes: it is left out
-//! and counted as unrecognised ([`left_in_frame`]), or, where patterns depend on it, the
-//! document is refused. Step levels and risers are kept as evidence whatever their frame (their
+//! a record whose frame is not the file's gives its coordinates from an `origin` along named
+//! measuring axes, each a file-axis letter or a direction, and these are made absolute where
+//! they are file axes ([`in_file_axes`]). A record taken here that still has its `origin`, or
+//! a direction where draftwright reads an axis letter, is not read in the wrong axes: it is
+//! left out and counted as unrecognised ([`left_in_frame`]), or, where patterns depend on it,
+//! the document is refused. Step levels and risers are kept as evidence whatever their frame (their
 //! parameters are not read). A record of a family read here
 //! must carry every field draftwright reads of it ([`FIELDS`]), or it is refused. Families not in
 //! [`READ`] are known but not taken here: they still come through the bridge.
@@ -60,14 +62,11 @@ use serde_json::{Map, Value};
 use super::{FINGERPRINT_VERSION, Feature, Fingerprint, HolePattern, QHolePattern};
 
 /// The one document schema this reader knows.
-pub const SCHEMA_VERSION: &str = "quiddity-rust/recognition/5";
-/// Older documents still read: v3 has no thread records or thread refusals, and v4 no face
-/// accounting (which this reader does not use).
-pub const SCHEMA_VERSIONS: &[&str] = &[
-    "quiddity-rust/recognition/3",
-    "quiddity-rust/recognition/4",
-    SCHEMA_VERSION,
-];
+pub const SCHEMA_VERSION: &str = "quiddity-rust/recognition/6";
+/// The schemas read. Earlier ones list frame-relative fields in a record's `local`, which
+/// recognition/6 replaced with file-coordinate measuring axes ([`in_file_axes`]); quiddity's
+/// record no longer carries `local`, so an earlier document's would be lost unread.
+pub const SCHEMA_VERSIONS: &[&str] = &[SCHEMA_VERSION];
 
 /// The identity frame: the document's coordinates are the part's.
 pub const IDENTITY: [[f64; 3]; 4] = [[0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]];
@@ -222,6 +221,8 @@ pub enum Field {
     Records(&'static str),
     /// Numbers, or null.
     NumbersOrNull,
+    /// Numbers, an object or null: a body's key, which is only compared whole.
+    Key,
     /// An object, or null.
     ObjectOrNull,
     /// An object.
@@ -365,7 +366,7 @@ pub const FIELDS: &[(&str, &[(&str, Field)])] = &[
             ("profile", Field::ObjectOrNull),
             ("profile.axis", Field::Letter),
             ("profile.axis_origin", Field::Point),
-            ("profile.body_key", Field::NumbersOrNull),
+            ("profile.body_key", Field::Key),
         ],
     ),
     (
@@ -530,11 +531,14 @@ pub const FIELDS: &[(&str, &[(&str, Field)])] = &[
             ("center", Field::Point),
             ("width_direction", Field::Point),
             ("long_direction", Field::Point),
-            ("source", Field::Object),
-            ("source.frame", Field::Object),
-            ("source.run_interval", Field::Pair),
-            ("source.section", Field::Object),
-            ("source.ends", Field::Object),
+            ("origin", Field::Point),
+            ("depth_axis", Field::Axis),
+            ("lo", Field::Number),
+            ("hi", Field::Number),
+            ("w_center", Field::Number),
+            ("d_lo", Field::Number),
+            ("d_hi", Field::Number),
+            ("end_radius", Field::NumberOrNull),
         ],
     ),
     (
@@ -611,8 +615,7 @@ pub fn recognise(part: &Part) -> Result<Native, String> {
 
 /// Reads the families of [`READ`] from *doc*, Rust quiddity's recognition of *part*.
 pub fn read(part: &Part, doc: &RecognitionDocument) -> Result<Native, String> {
-    let restored = restore_file_axes(doc);
-    let doc = restored.as_ref().unwrap_or(doc);
+    let doc = &in_file_axes(doc);
     if !SCHEMA_VERSIONS.contains(&doc.schema_version.as_str()) {
         return Err(format!(
             "quiddity's recognition document is {:?}, not {SCHEMA_VERSION:?}",
@@ -640,14 +643,6 @@ pub fn read(part: &Part, doc: &RecognitionDocument) -> Result<Native, String> {
     let mut evidence = Vec::new();
     let mut refusals = Vec::new();
     for r in &doc.records {
-        if doc.schema_version == SCHEMA_VERSIONS[0]
-            && matches!(
-                r.family.as_str(),
-                "modelled_threads" | "modelled_thread_refusals"
-            )
-        {
-            return Err(format!("{} requires {} or later", r.id, SCHEMA_VERSIONS[1]));
-        }
         let known = FAMILIES
             .iter()
             .find(|(f, _)| *f == r.family)
@@ -669,16 +664,16 @@ pub fn read(part: &Part, doc: &RecognitionDocument) -> Result<Native, String> {
                 r.id
             ));
         }
-        let local = local_read_fields(r);
-        if !local.is_empty() {
+        let unresolved = unresolved(r);
+        if !unresolved.is_empty() {
             if !PATTERN_LINKED.contains(&r.family.as_str()) {
                 // Left out and counted as unrecognised ([`left_in_frame`]).
                 continue;
             }
             return Err(format!(
-                "{} leaves {} in the part's own frame, not the file's",
+                "{} gives {} in the part's own frame, not the file's",
                 r.id,
-                local.join(", ")
+                unresolved.join(", ")
             ));
         }
         match r.family.as_str() {
@@ -1003,6 +998,11 @@ fn check(record: &Map<String, Value>, record_type: &str) -> Result<(), String> {
                 v.is_null() || v.as_array().is_some_and(|a| a.iter().all(Value::is_number))
             }
             Field::ObjectOrNull => v.is_null() || v.is_object(),
+            Field::Key => {
+                v.is_null()
+                    || v.is_object()
+                    || v.as_array().is_some_and(|a| a.iter().all(Value::is_number))
+            }
             Field::Object => v.is_object(),
             Field::BlendPath => v.as_object().is_some_and(|o| {
                 let straight = o.len() == 2 && point("at") && point("direction");
@@ -1154,37 +1154,22 @@ fn ascending(faces: &[usize]) -> bool {
     !faces.is_empty() && faces.windows(2).all(|w| w[0] < w[1])
 }
 
-/// *doc* in the file's axes and without sub-floor round-off, or `None` where it is not framed.
+/// *doc* in absolute file coordinates and without sub-floor round-off.
 ///
 /// quiddity publishes framed records in the file's coordinates, the positions it rounds on
 /// their grids (quiddity-rust 0.1.1, #69), and a frame within the coordinate floor of the
 /// file's axes in those axes (#70). Positions it publishes unrounded still pass through the
 /// frame's motion and back, and keep its round-off: string_post's turned profile has its axis
 /// at (1e-8, 1.4e-7) where the file has it at the origin, and a boss on a file axis can lie
-/// 5e-12 off it. Such a value decides which way a tie between mirror-image choices falls, so a
-/// number within the kernel's coordinate floor (`COORD_FLOOR`, 1e-6 mm) of the 0.001 mm grid
-/// is put on it; no other value moves.
+/// 5e-12 off it. Such a value decides which way a tie between mirror-image choices falls, so on
+/// a framed document a number within the kernel's coordinate floor (`COORD_FLOOR`, 1e-6 mm) of
+/// the 0.001 mm grid is put on it; no other value moves.
 ///
-/// On a frame where only some axes are file axes (a hexagonal bar's axis is, its in-plane axes
-/// are not; a part turned about one file axis), quiddity maps no axis letter and lists each in
-/// `local`. Each local top-level axis letter whose frame axis is a file axis is renamed to that
-/// file axis, and an interval along the record's own axis (a plate's `lo`/`hi`, a prism's
-/// `base`/`top`) and a plate's position across it are moved as quiddity moves them on an exact
-/// frame. A local letter whose frame axis is no file axis, in a field that may also be a
-/// direction ([`Field::Axis`]: a fillet's axis), is replaced by that axis's direction in the
-/// file. Each restored field leaves `local`.
-pub(crate) fn restore_file_axes(doc: &RecognitionDocument) -> Option<RecognitionDocument> {
-    let quiddity::frames::RecordFrame::Inferred(frame) = &doc.frame else {
-        return None;
-    };
-    let axes = [frame.x, frame.y, frame.z];
-    // Each frame axis's file axis and sense, where it is one.
-    let file_axes: [Option<(usize, f64)>; 3] = axes.map(|axis| {
-        let w = (0..3).find(|&w| axis[w].abs() == 1.0)?;
-        (0..3)
-            .all(|v| v == w || axis[v] == 0.0)
-            .then_some((w, axis[w]))
-    });
+/// Where the frame is not the file's, recognition/6 (quiddity #92) gives a record an `origin`
+/// and its scalar coordinates as distances from it along named measuring axes, each a file-axis
+/// letter or a direction. Each record's distances are made absolute where its axes are file
+/// axes ([`resolve_origin`]); a record left with its `origin` is not read ([`unresolved`]).
+pub(crate) fn in_file_axes(doc: &RecognitionDocument) -> RecognitionDocument {
     fn snap(value: &mut Value) {
         match value {
             Value::Number(n) => {
@@ -1206,137 +1191,302 @@ pub(crate) fn restore_file_axes(doc: &RecognitionDocument) -> Option<Recognition
             _ => {}
         }
     }
+    let framed = matches!(doc.frame, quiddity::frames::RecordFrame::Inferred(_));
     let mut out = doc.clone();
     for r in &mut out.records {
-        if !r.local.is_empty() {
-            restore_local(r, &axes, &file_axes, &frame.origin);
+        unmerge(r);
+        resolve_origin(r);
+        if framed {
+            r.parameters.values_mut().for_each(snap);
         }
-        r.parameters.values_mut().for_each(snap);
     }
-    Some(out)
+    out
 }
 
-/// The local fields of *r* that [`restore_file_axes`] can restore, restored.
-fn restore_local(
-    r: &mut quiddity::recognition::Record,
-    axes: &[[f64; 3]; 3],
-    file_axes: &[Option<(usize, f64)>; 3],
-    origin: &[f64; 3],
-) {
-    const LETTERS: [&str; 3] = ["x", "y", "z"];
-    let letter = |v: Option<&Value>| {
-        v.and_then(Value::as_str)
-            .and_then(|l| LETTERS.iter().position(|x| *x == l))
+/// *r* back in the family draftwright reads it as, where quiddity 0.2.0 merged that family into
+/// another (#92: one published family per feature kind, whatever the frame).
+///
+/// Null optional details on plain chamfers and slots are dropped, as 0.1.1 gave none.
+///
+/// - A chamfer with any of an oriented chamfer's details (its legs' directions, support spans or
+///   length: quiddity's oriented chamfer, a true normal-section bevel) is an `oriented_chamfers`
+///   record, its axis its `run`, and must then carry them all.
+/// - A slot whose width or long axis is a direction, not a file axis, is an `oriented_slots`
+///   record ([`oriented_slot`]), and a slot pattern of such slots an `oriented_slot_patterns`
+///   one. A slot along file axes measured from an origin is made absolute ([`resolve_slot`]).
+fn unmerge(r: &mut quiddity::recognition::Record) {
+    // A plain record gives the merged family's optional details as null: it has none.
+    let unproved: &[&str] = match r.family.as_str() {
+        "chamfers" => &[
+            "leg1_direction",
+            "leg2_direction",
+            "length",
+            "support_spans",
+            "body_key",
+        ],
+        "slots" => &["source"],
+        _ => &[],
     };
+    for k in unproved {
+        if r.parameters.get(*k).is_some_and(Value::is_null) {
+            r.parameters.remove(*k);
+        }
+    }
+    if r.family == "slot_patterns"
+        && let Some(Value::Array(members)) = r.parameters.get_mut("slots")
+    {
+        for m in members.iter_mut().filter_map(Value::as_object_mut) {
+            if m.get("source").is_some_and(Value::is_null) {
+                m.remove("source");
+            }
+        }
+    }
+    match r.family.as_str() {
+        "chamfers"
+            if [
+                "leg1_direction",
+                "leg2_direction",
+                "support_spans",
+                "length",
+            ]
+            .iter()
+            .any(|k| r.parameters.contains_key(*k)) =>
+        {
+            if let Some(run) = r.parameters.get("axis").and_then(direction) {
+                r.parameters.insert("run".into(), serde_json::json!(run));
+                r.family = "oriented_chamfers".into();
+                r.record_type = "OrientedChamfer".into();
+            }
+        }
+        "slots" => {
+            if oriented_slot(&mut r.parameters) {
+                r.family = "oriented_slots".into();
+                r.record_type = "OrientedSlot".into();
+            } else {
+                resolve_slot(&mut r.parameters);
+            }
+        }
+        "slot_patterns" => {
+            let Some(Value::Array(members)) = r.parameters.get_mut("slots") else {
+                return;
+            };
+            let mut oriented = 0;
+            for m in members.iter_mut() {
+                if let Value::Object(m) = m {
+                    if oriented_slot(m) {
+                        oriented += 1;
+                    } else {
+                        resolve_slot(m);
+                    }
+                }
+            }
+            if oriented > 0 && oriented == members.len() {
+                r.family = "oriented_slot_patterns".into();
+                r.record_type = format!("Oriented{}", r.record_type);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// Whether slot *p* has a width or long axis that is a direction, and if so *p* with what
+/// draftwright reads of an oriented slot: its `center` (from its `origin`, midway along its long
+/// axis, on its width centre, midway through its depth) and its `width_direction` and
+/// `long_direction`.
+fn oriented_slot(p: &mut Map<String, Value>) -> bool {
+    if !["width_axis", "long_axis"]
+        .iter()
+        .any(|k| p.get(*k).is_some_and(|v| point3(v).is_some()))
+    {
+        return false;
+    }
+    let number = |k: &str| p.get(k).and_then(Value::as_f64);
+    let axis = |k: &str| p.get(k).and_then(direction);
+    if let (
+        Some(o),
+        Some(w),
+        Some(l),
+        Some(d),
+        Some(lo),
+        Some(hi),
+        Some(c),
+        Some(d_lo),
+        Some(d_hi),
+    ) = (
+        p.get("origin").and_then(point3),
+        axis("width_axis"),
+        axis("long_axis"),
+        axis("depth_axis"),
+        number("lo"),
+        number("hi"),
+        number("w_center"),
+        number("d_lo"),
+        number("d_hi"),
+    ) {
+        let (m, e) = (0.5 * (lo + hi), 0.5 * (d_lo + d_hi));
+        let center: [f64; 3] = std::array::from_fn(|k| o[k] + m * l[k] + c * w[k] + e * d[k]);
+        p.insert("center".into(), serde_json::json!(center));
+        p.insert("width_direction".into(), serde_json::json!(w));
+        p.insert("long_direction".into(), serde_json::json!(l));
+    }
+    true
+}
+
+/// Slot *p*, along file axes but measured from an `origin`, in absolute file coordinates: its
+/// long extent, width centre and depth extent each from the origin along its axis.
+fn resolve_slot(p: &mut Map<String, Value>) {
+    let Some(o) = p.get("origin").and_then(point3) else {
+        return;
+    };
+    let [Some(l), Some(w), Some(d)] =
+        ["long_axis", "width_axis", "depth_axis"].map(|k| letter(p.get(k)))
+    else {
+        return;
+    };
+    let mut updates = Vec::new();
+    for (k, a) in [
+        ("lo", l),
+        ("hi", l),
+        ("w_center", w),
+        ("d_lo", d),
+        ("d_hi", d),
+    ] {
+        let Some(x) = p.get(k).and_then(Value::as_f64) else {
+            return;
+        };
+        updates.push((k, o[a] + x));
+    }
+    for (k, x) in updates {
+        p.insert(k.into(), serde_json::json!(x));
+    }
+    p.remove("origin");
+    p.remove("depth_axis");
+}
+
+/// The axis letter *v* names, as an index.
+fn letter(v: Option<&Value>) -> Option<usize> {
+    v.and_then(Value::as_str)
+        .and_then(|l| ["x", "y", "z"].iter().position(|x| *x == l))
+}
+
+/// A measuring axis, a letter or three numbers, as a direction.
+fn direction(v: &Value) -> Option<[f64; 3]> {
+    match letter(Some(v)) {
+        Some(i) => Some(std::array::from_fn(|v| if v == i { 1.0 } else { 0.0 })),
+        None => point3(v),
+    }
+}
+
+/// *r*'s distances from its `origin` (recognition/6), made absolute where it is a record read
+/// here whose measuring axes are file axes, and its converted turned profile in an unconverted
+/// one's form. A snapped letter names the positive file axis, so a distance `d` along axis `w`
+/// is at `origin[w] + d`: an interval along the record's own axis (a plate's or turned step's
+/// `lo`/`hi`, a prism's `base`/`top`), a plate's position across it (`u`/`v` along
+/// `section_axes`, ascending by file axis), and a flat's `axis_line` (its stock's centre, along
+/// `section_axes`, which may be directions: across a file axis the line is that point's two
+/// other coordinates, on the record's grid). A resolved record loses `origin` and the
+/// `section_axes` it used; any other keeps both, and is not read ([`unresolved`]).
+fn resolve_origin(r: &mut quiddity::recognition::Record) {
     let number = |p: &Map<String, Value>, k: &str| p.get(k).and_then(Value::as_f64);
     let parameters = &mut r.parameters;
-    let interval = match r.family.as_str() {
-        "plates" | "turned_steps" => Some(("lo", "hi")),
-        "polygonal_stock" | "polygonal_bosses" => Some(("base", "top")),
-        _ => None,
+    // A converted turned profile (turned steps, grooves) keys its body by an oriented box and
+    // gives its axis origin in full; an unconverted one's axis origin is a point of the turning
+    // axis with its own coordinate zeroed, on eight decimals. The key is only compared whole.
+    if let Some(Value::Object(profile)) = parameters.get_mut("profile")
+        && profile.get("body_key").is_some_and(Value::is_object)
+        && let Some(w) = letter(profile.get("axis"))
+        && let Some(q) = profile.get("axis_origin").and_then(point3)
+    {
+        let q: [f64; 3] = std::array::from_fn(|v| {
+            if v == w {
+                0.0
+            } else {
+                haecceity::py::without_negative_zero(haecceity::py::round_to(q[v], 8))
+            }
+        });
+        profile.insert("axis_origin".into(), serde_json::json!(q));
+    }
+    let Some(origin) = parameters.get("origin").and_then(point3) else {
+        return;
     };
-    if let Some((lo_key, hi_key)) = interval
-        && r.local.iter().any(|p| p == lo_key)
-        && let Some(i) = letter(parameters.get("axis"))
-        && let Some((w, s)) = file_axes[i]
-        && let (Some(lo), Some(hi)) = (number(parameters, lo_key), number(parameters, hi_key))
-    {
-        let (lo, hi) = (origin[w] + s * lo, origin[w] + s * hi);
-        let (lo, hi) = if s > 0.0 { (lo, hi) } else { (hi, lo) };
-        // A turned step's ends are published on the 0.001 mm grid; quiddity rounded them in the
-        // frame, so they go back on it in the file's axes.
-        let (lo, hi) = if r.family == "turned_steps" {
-            (on_grid(lo), on_grid(hi))
-        } else {
-            (lo, hi)
-        };
-        parameters.insert(lo_key.into(), serde_json::json!(lo));
-        parameters.insert(hi_key.into(), serde_json::json!(hi));
-        r.local.retain(|p| p != lo_key && p != hi_key);
-        let [a, b] = match i {
-            0 => [1, 2],
-            1 => [0, 2],
-            _ => [0, 1],
-        };
-        if r.family == "plates"
-            && let (Some((wa, sa)), Some((wb, sb))) = (file_axes[a], file_axes[b])
-            && let (Some(u), Some(v)) = (number(parameters, "u"), number(parameters, "v"))
-        {
-            let (va, vb) = (origin[wa] + sa * u, origin[wb] + sb * v);
-            let (u, v) = if wa < wb { (va, vb) } else { (vb, va) };
-            parameters.insert("u".into(), serde_json::json!(u));
-            parameters.insert("v".into(), serde_json::json!(v));
-            r.local.retain(|p| p != "u" && p != "v");
-        }
-    }
-    // A turned profile (turned steps, grooves): its axis letter, and its axis origin (a point of
-    // the turning axis with its own coordinate zeroed, on eight decimals) where that axis is a
-    // file axis: the frame's motion takes the point to the file's, as quiddity does.
-    if let Some(Value::Object(profile)) = parameters.get_mut("profile") {
-        if r.local.iter().any(|p| p == "profile.axis_origin")
-            && let Some(k) = letter(profile.get("axis"))
-            && let Some((w, _)) = file_axes[k]
-            && let Some(q) = profile.get("axis_origin").and_then(point3)
-        {
-            let file: [f64; 3] = std::array::from_fn(|v| {
-                let at = origin[v] + (0..3).map(|i| q[i] * axes[i][v]).sum::<f64>();
-                if v == w {
-                    0.0
-                } else {
-                    haecceity::py::without_negative_zero(haecceity::py::round_to(at, 8))
+    let section = parameters
+        .get("section_axes")
+        .and_then(Value::as_array)
+        .filter(|a| a.len() == 2)
+        .and_then(|a| Some([direction(&a[0])?, direction(&a[1])?]));
+    let axis = letter(parameters.get("axis"));
+    let mut updates: Vec<(&str, Value)> = Vec::new();
+    let resolved = match (r.family.as_str(), axis) {
+        ("turned_steps" | "plates" | "polygonal_stock" | "polygonal_bosses", Some(w)) => {
+            let (lo_key, hi_key) = if r.family.starts_with("polygonal") {
+                ("base", "top")
+            } else {
+                ("lo", "hi")
+            };
+            let across = if r.family == "plates" {
+                // Each of `u`/`v` along a file axis, as an unconverted plate gives them.
+                let letters = parameters
+                    .get("section_axes")
+                    .and_then(Value::as_array)
+                    .and_then(|a| Some([letter(a.first())?, letter(a.get(1))?]));
+                match (letters, number(parameters, "u"), number(parameters, "v")) {
+                    (Some([a, b]), Some(u), Some(v)) => {
+                        let (u, v) = (origin[a] + u, origin[b] + v);
+                        Some(if a < b { (u, v) } else { (v, u) })
+                    }
+                    _ => None,
                 }
-            });
-            profile.insert("axis_origin".into(), serde_json::json!(file));
-            r.local.retain(|p| p != "profile.axis_origin");
+            } else {
+                Some((0.0, 0.0))
+            };
+            match (
+                number(parameters, lo_key),
+                number(parameters, hi_key),
+                across,
+            ) {
+                (Some(lo), Some(hi), Some((u, v))) => {
+                    let (lo, hi) = (origin[w] + lo, origin[w] + hi);
+                    // A turned step's ends are published on the 0.001 mm grid.
+                    let (lo, hi) = if r.family == "turned_steps" {
+                        (on_grid(lo), on_grid(hi))
+                    } else {
+                        (lo, hi)
+                    };
+                    updates.extend([(lo_key, lo.into()), (hi_key, hi.into())]);
+                    if r.family == "plates" {
+                        updates.extend([("u", u.into()), ("v", v.into())]);
+                    }
+                    true
+                }
+                _ => false,
+            }
         }
-        if r.local.iter().any(|p| p == "profile.axis")
-            && let Some(k) = letter(profile.get("axis"))
-            && let Some((w, _)) = file_axes[k]
-        {
-            profile.insert("axis".into(), Value::String(LETTERS[w].into()));
-            r.local.retain(|p| p != "profile.axis");
+        ("flats", Some(w)) => match (
+            section,
+            parameters
+                .get("axis_line")
+                .and_then(Value::as_array)
+                .and_then(|l| Some([l.first()?.as_f64()?, l.get(1)?.as_f64()?])),
+        ) {
+            (Some([s, t]), Some([a, b])) => {
+                let line: Vec<f64> = (0..3)
+                    .filter(|&v| v != w)
+                    .map(|v| on_grid(origin[v] + a * s[v] + b * t[v]))
+                    .collect();
+                updates.push(("axis_line", serde_json::json!(line)));
+                true
+            }
+            _ => false,
+        },
+        _ => false,
+    };
+    if resolved {
+        for (k, v) in updates {
+            parameters.insert(k.into(), v);
         }
+        parameters.remove("origin");
+        parameters.remove("section_axes");
     }
-    // A flat's `axis_line`: the stock's centre on the two axes across its axis, in the frame. Where
-    // that axis is a file axis, the other frame axes span the plane across it, so the line maps
-    // to the file's other two axes (ascending), on the record's grid.
-    if r.local.iter().any(|p| p == "axis_line")
-        && let Some(i) = letter(parameters.get("axis"))
-        && let Some((w, _)) = file_axes[i]
-        && let Some([a, b]) = parameters
-            .get("axis_line")
-            .and_then(Value::as_array)
-            .and_then(|l| Some([l.first()?.as_f64()?, l.get(1)?.as_f64()?]))
-    {
-        let others: Vec<usize> = (0..3).filter(|&j| j != i).collect();
-        let at = |v: usize| origin[v] + a * axes[others[0]][v] + b * axes[others[1]][v];
-        let line: Vec<f64> = (0..3).filter(|&v| v != w).map(|v| on_grid(at(v))).collect();
-        parameters.insert("axis_line".into(), serde_json::json!(line));
-        r.local.retain(|p| p != "axis_line");
-    }
-    let directions: Vec<&str> = FIELDS
-        .iter()
-        .find(|(t, _)| *t == r.record_type)
-        .map(|(_, fields)| {
-            fields
-                .iter()
-                .filter(|(_, kind)| *kind == Field::Axis)
-                .map(|(name, _)| *name)
-                .collect()
-        })
-        .unwrap_or_default();
-    r.local.retain(|path| {
-        let Some(k) = letter(parameters.get(path.as_str())) else {
-            return true;
-        };
-        let restored = match file_axes[k] {
-            Some((w, _)) => Value::String(LETTERS[w].into()),
-            None if directions.contains(&path.as_str()) => serde_json::json!(axes[k]),
-            None => return true,
-        };
-        parameters.insert(path.clone(), restored);
-        false
-    });
 }
 
 /// *x* on the 0.001 mm grid, without a negative zero.
@@ -1364,14 +1514,13 @@ const PATTERN_LINKED: [&str; 10] = [
     "section_recess_patterns",
 ];
 
-/// The fields of *r*, a record of a family read here, that draftwright reads ([`FIELDS`]) and
-/// quiddity left in the part's own frame (`local`). quiddity 0.1.0 recognises in the part's frame
-/// and maps records back to the file's; a value with no file axis to map to stays `local`. Step
-/// levels and risers are horizontal in that frame, so on a part whose frame's z is not the file's
-/// all their fields are; draftwright keeps them only as evidence by their faces, and reads its
-/// own levels in the file's axes ([`crate::dims::levels::evidence`]), so none is read. A record
-/// type without a [`FIELDS`] entry (holes, hole patterns) reads every field.
-fn local_read_fields(r: &quiddity::recognition::Record) -> Vec<&str> {
+/// The fields of *r*, a record of a family read here, that draftwright cannot read in the
+/// file's axes: its `origin`, where [`resolve_origin`] left its distances relative to it, and
+/// each field draftwright reads as an axis letter ([`Field::Letter`]) that quiddity gives as a
+/// direction because it is no file axis. Step levels and risers are horizontal in the part's
+/// frame; draftwright keeps them only as evidence by their faces, and reads its own levels in
+/// the file's axes ([`crate::dims::levels::evidence`]), so none is unresolved.
+fn unresolved(r: &quiddity::recognition::Record) -> Vec<&'static str> {
     let family = r.family.as_str();
     let taken = matches!(family, "holes" | "hole_patterns")
         || READ.contains(&family)
@@ -1379,38 +1528,33 @@ fn local_read_fields(r: &quiddity::recognition::Record) -> Vec<&str> {
     if !taken || matches!(family, "step_levels" | "risers") {
         return Vec::new();
     }
-    let read = FIELDS.iter().find(|(t, _)| *t == r.record_type);
-    // `path` lies inside field `name`.
-    let under = |path: &str, name: &str| {
-        path.strip_prefix(name)
-            .is_some_and(|rest| rest.starts_with('.') || rest.starts_with('['))
-    };
-    r.local
-        .iter()
-        .map(String::as_str)
-        // A turned profile's body key and bounds only tell one body's profile from another's
-        // (`profile` is compared whole, and `body_key` by value, in [`crate::demand`]): every
-        // record of a document shares its frame, so they compare alike in it.
-        .filter(|path| !matches!(*path, "profile.body_key" | "profile.body_bounds"))
-        .filter(|path| {
-            read.is_none_or(|(_, fields)| {
-                fields.iter().any(|(name, _)| {
-                    // The field itself, a value inside a field whose parts are not listed
-                    // separately, or an object holding a read field.
-                    *path == *name
-                        || (under(path, name) && !fields.iter().any(|(n, _)| under(n, name)))
-                        || under(name, path)
-                })
-            })
-        })
-        .collect()
+    let mut out = Vec::new();
+    // An oriented slot is drawn from its origin and measuring axes ([`unmerge`]).
+    if r.parameters.contains_key("origin") && family != "oriented_slots" {
+        out.push("origin");
+    }
+    if let Some((_, fields)) = FIELDS.iter().find(|(t, _)| *t == r.record_type) {
+        for &(name, field) in fields.iter() {
+            let v = match name.split_once('.') {
+                Some((outer, inner)) => r.parameters.get(outer).and_then(|o| o.get(inner)),
+                None => r.parameters.get(name),
+            };
+            if field == Field::Letter && v.is_some_and(|v| point3(v).is_some()) {
+                out.push(name);
+            }
+        }
+    }
+    out
 }
 
-/// Whether [`read`] leaves *r* out: a field draftwright reads of it is in the part's own frame
-/// ([`local_read_fields`]), and no pattern depends on it. Such records are counted as
-/// unrecognised rather than drawn in the wrong axes or refusing the whole part.
+/// Whether [`read`] leaves *r* out: once its distances are resolved ([`resolve_origin`]), a
+/// field draftwright reads of it is not in the file's axes ([`unresolved`]), and no pattern
+/// depends on it. Such records are counted as unrecognised rather than drawn in the wrong axes
+/// or refusing the whole part.
 pub fn left_in_frame(r: &quiddity::recognition::Record) -> bool {
-    !PATTERN_LINKED.contains(&r.family.as_str()) && !local_read_fields(r).is_empty()
+    let mut r = r.clone();
+    resolve_origin(&mut r);
+    !PATTERN_LINKED.contains(&r.family.as_str()) && !unresolved(&r).is_empty()
 }
 
 /// Legacy recess readings represented by the unified projection, including its refusals.

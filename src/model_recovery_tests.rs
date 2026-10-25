@@ -281,7 +281,12 @@ fn clear_fixed_sheet_finish_preserves_inventory_and_passes_fresh_audit() {
             .unwrap();
             assert!(
                 !raw.problems.iter().any(crate::sheet_policy::layout_problem),
-                "{file}: expected clear settled ink"
+                "{file}: expected clear settled ink: {:?}",
+                raw.problems
+                    .iter()
+                    .filter(|p| crate::sheet_policy::layout_problem(p))
+                    .map(|p| (&p.code, &p.message))
+                    .collect::<Vec<_>>()
             );
             let mut fast = raw.clone();
             crate::planning::fixed_pair(|| finish_nominal_plan(&a, &spec, &mut fast));
