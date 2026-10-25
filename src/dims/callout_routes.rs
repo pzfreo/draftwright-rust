@@ -236,7 +236,7 @@ pub(crate) fn prefer_interior(analysis: &Analysis, spec: &Spec, plan: &mut Plan)
         return;
     }
     let cache = super::footprints::Cache::default();
-    let proofs = interior::proofs(analysis, &plan.views);
+    let proofs = interior::callout_proofs(analysis, &plan.views);
     let mut wants = super::wants(analysis).0;
     let frames: BTreeMap<_, _> = plan
         .views
@@ -261,108 +261,117 @@ pub(crate) fn prefer_interior(analysis: &Analysis, spec: &Spec, plan: &mut Plan)
             .map(|[a, b]| (b[0] - a[0]).hypot(b[1] - a[1]))
             .sum::<f64>()
     };
-    for i in 0..plan.dimensions.len() {
-        let d = &all[i];
-        let Some(old) = d.placed.clone() else {
-            continue;
-        };
-        if d.kind != "callout"
-            || d.region == Some(super::CandidateRegion::Interior)
-            || spec
-                .dimensions
-                .get(&d.id)
-                .is_some_and(|s| s.place.is_some())
-        {
-            continue;
-        }
-        let Some(view) = plan.views.iter().find(|v| v.id == d.view) else {
-            continue;
-        };
-        let (Some(frame), Some(proof)) = (
-            frames.get(view.id.trim_start_matches("v:")),
-            proofs.get(&view.id),
-        ) else {
-            continue;
-        };
-        if placement::boxes_overlap(old.label_box, frame.outline()) {
-            continue;
-        }
-        let Some(sheet) = std::iter::once(&plan.sheet)
-            .chain(&plan.sheets)
-            .find(|s| s.number == view.sheet)
-        else {
-            continue;
-        };
-        let Some(want) = wants.iter().find(|w| w.id == d.id) else {
-            continue;
-        };
-        let peers: Vec<_> = all
-            .iter()
-            .enumerate()
-            .filter(|(j, q)| {
-                *j != i
-                    && plan
-                        .views
-                        .iter()
-                        .find(|v| v.id == q.view)
-                        .is_none_or(|v| v.sheet == sheet.number)
-            })
-            .map(|(_, q)| q.clone())
-            .chain(fixed.iter().cloned())
-            .collect();
-        let candidates = leaders::settled_routes(
-            analysis,
-            sheet,
-            &plan.views,
-            d,
-            Some(want),
-            &peers,
-            Some(proof.as_ref()),
-        );
-        let id = d.id.clone();
-        let found = placement::collisions_for(analysis, &all, sheet, &plan.views, &cache, &id);
-        let before = counts(&found);
-        for next in candidates.into_iter().take(40) {
-            if !placement::boxes_overlap(next.label_box, frame.outline())
-                || !proof.annotation_clear(view, &next, true)
-                || length(&next) > length(&old) + 1e-6
+    // Repeat until nothing moves, so finishing a finished drawing changes nothing: a callout
+    // moved inside can free the room another one needs.
+    for _ in 0..4 {
+        let moved = changed.len();
+        for i in 0..plan.dimensions.len() {
+            let d = &all[i];
+            let Some(old) = d.placed.clone() else {
+                continue;
+            };
+            if d.kind != "callout"
+                || d.region == Some(super::CandidateRegion::Interior)
+                || spec
+                    .dimensions
+                    .get(&d.id)
+                    .is_some_and(|s| s.place.is_some())
             {
                 continue;
             }
-            all[i].placed = Some(next.clone());
-            let after = counts(&placement::collisions_for(
+            let Some(view) = plan.views.iter().find(|v| v.id == d.view) else {
+                continue;
+            };
+            let (Some(frame), Some(proof)) = (
+                frames.get(view.id.trim_start_matches("v:")),
+                proofs.get(&view.id),
+            ) else {
+                continue;
+            };
+            if placement::boxes_overlap(old.label_box, frame.outline()) {
+                continue;
+            }
+            let Some(sheet) = std::iter::once(&plan.sheet)
+                .chain(&plan.sheets)
+                .find(|s| s.number == view.sheet)
+            else {
+                continue;
+            };
+            let Some(want) = wants.iter().find(|w| w.id == d.id) else {
+                continue;
+            };
+            let peers: Vec<_> = all
+                .iter()
+                .enumerate()
+                .filter(|(j, q)| {
+                    *j != i
+                        && plan
+                            .views
+                            .iter()
+                            .find(|v| v.id == q.view)
+                            .is_none_or(|v| v.sheet == sheet.number)
+                })
+                .map(|(_, q)| q.clone())
+                .chain(fixed.iter().cloned())
+                .collect();
+            let candidates = leaders::settled_routes(
                 analysis,
-                &all,
                 sheet,
                 &plan.views,
-                &cache,
-                &id,
-            ));
-            if after
-                .iter()
-                .all(|(code, n)| before.get(code).is_some_and(|m| n <= m))
-            {
-                rechecked_codes.extend(found.iter().map(|p| p.code.clone()));
-                changed.insert(id.clone());
-                let d = &mut plan.dimensions[i];
-                d.placed = Some(next.clone());
-                d.region = Some(super::CandidateRegion::Interior);
-                if !d.basis.contains(interior::BASIS) {
-                    d.basis += interior::BASIS;
+                d,
+                Some(want),
+                &peers,
+                Some(proof.as_ref()),
+            );
+            let id = d.id.clone();
+            let found = placement::collisions_for(analysis, &all, sheet, &plan.views, &cache, &id);
+            let before = counts(&found);
+            for next in candidates.into_iter().take(40) {
+                if !placement::boxes_overlap(next.label_box, frame.outline())
+                    || !proof.annotation_clear(view, &next, true)
+                    || length(&next) > length(&old) + 1e-6
+                {
+                    continue;
                 }
-                plan.callout_tips.insert(
-                    id.clone(),
-                    (
-                        d.view.clone(),
-                        [
-                            next.lines[0][0][0] - view.at[0],
-                            next.lines[0][0][1] - view.at[1],
-                        ],
-                    ),
-                );
-                break;
+                all[i].placed = Some(next.clone());
+                let after = counts(&placement::collisions_for(
+                    analysis,
+                    &all,
+                    sheet,
+                    &plan.views,
+                    &cache,
+                    &id,
+                ));
+                if after
+                    .iter()
+                    .all(|(code, n)| before.get(code).is_some_and(|m| n <= m))
+                {
+                    rechecked_codes.extend(found.iter().map(|p| p.code.clone()));
+                    changed.insert(id.clone());
+                    let d = &mut plan.dimensions[i];
+                    d.placed = Some(next.clone());
+                    d.region = Some(super::CandidateRegion::Interior);
+                    if !d.basis.contains(interior::BASIS) {
+                        d.basis += interior::BASIS;
+                    }
+                    all[i].region = d.region;
+                    plan.callout_tips.insert(
+                        id.clone(),
+                        (
+                            d.view.clone(),
+                            [
+                                next.lines[0][0][0] - view.at[0],
+                                next.lines[0][0][1] - view.at[1],
+                            ],
+                        ),
+                    );
+                    break;
+                }
+                all[i].placed = Some(old.clone());
             }
-            all[i].placed = Some(old.clone());
+        }
+        if changed.len() == moved {
+            break;
         }
     }
     if changed.is_empty() {
@@ -379,10 +388,12 @@ pub(crate) fn prefer_interior(analysis: &Analysis, spec: &Spec, plan: &mut Plan)
     plan.problems.extend(checked.into_iter().filter(|p| {
         p.subjects.iter().any(|s| changed.contains(s)) && rechecked_codes.contains(&p.code)
     }));
+    plan.sheet.fill = crate::sheet_fit::fill(analysis, plan);
     plan.status = crate::completeness::status(&plan.problems);
 }
 
 pub(crate) fn finish(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
+    prefer_interior(analysis, spec, plan);
     if crate::nominal::comparison()
         || crate::planning::lookup::<bool>(analysis, "canonical-circular-recipes", &[])
             .unwrap_or(false)

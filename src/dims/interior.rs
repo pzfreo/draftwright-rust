@@ -85,6 +85,9 @@ pub(super) struct Proof {
     exterior_faces: Vec<([f64; 4], Vec<usize>)>,
     curved_cover: Vec<[f64; 4]>,
     grid: Grid,
+    /// Whether [`Proof::blank`] also accepts openings the part surrounds or flanks
+    /// ([`callout_proofs`]).
+    voids: bool,
 }
 
 #[derive(Clone)]
@@ -158,6 +161,33 @@ pub(super) fn proofs(
     views: &[PlannedView],
 ) -> BTreeMap<String, std::rc::Rc<Proof>> {
     prepared_proofs(analysis, views, false)
+}
+
+/// [`proofs`] for feature callout routes, which may also put a label in an opening the part
+/// surrounds or flanks: a slot's opening, the gap between lugs (maintainer 2026-10-25). Paper and
+/// scale trials and other interior placement keep face-only proofs.
+pub(super) fn callout_proofs(
+    analysis: &Analysis,
+    views: &[PlannedView],
+) -> BTreeMap<String, std::rc::Rc<Proof>> {
+    let key = serde_json::to_vec(
+        &views
+            .iter()
+            .map(|v| (&v.id, v.direction, v.up, &v.cut))
+            .collect::<Vec<_>>(),
+    )
+    // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
+    .expect("projection inputs serialize");
+    crate::planning::memo(analysis, "callout-proofs", key, || {
+        proofs(analysis, views)
+            .into_iter()
+            .map(|(id, p)| {
+                let mut p = (*p).clone();
+                p.voids = true;
+                (id, std::rc::Rc::new(p))
+            })
+            .collect()
+    })
 }
 
 /// Datum placement can prove exterior paper without a square planar face.
@@ -380,6 +410,7 @@ fn build_camera_with_exterior(
         exterior_faces,
         curved_cover,
         grid,
+        voids: false,
     })
 }
 
@@ -749,16 +780,21 @@ impl Proof {
                 .faces
                 .iter()
                 .any(|face| self.face_contains(face, middle))
-                || self.void(b, c))
+                || (self.voids && self.void(b, c)))
     }
 
     /// Whether model box *b* lies in no curved face's cover (padded by *c*) and its middle in no
-    /// planar face's projection.
+    /// planar face's projection, yet within some planar face's extent: an opening the part
+    /// surrounds or flanks, never paper off the part.
     fn void(&self, b: [f64; 4], c: f64) -> bool {
         let middle = [(b[0] + b[2]) / 2.0, (b[1] + b[3]) / 2.0];
-        self.curved_cover
+        self.exterior_faces
             .iter()
-            .all(|x| !boxes_overlap(*x, padded(b, c)))
+            .any(|(fb, _)| contains(*fb, middle))
+            && self
+                .curved_cover
+                .iter()
+                .all(|x| !boxes_overlap(*x, padded(b, c)))
             && self.exterior_faces.iter().all(|(fb, chords)| {
                 !contains(*fb, middle)
                     || chords
@@ -1384,9 +1420,16 @@ mod tests {
         assert!(blank.leader_clear(&view(), &p, true));
         let blocked = proof(&ink(vec![
             vec![[0., -10.], [0., 10.]],
-            vec![[0.3, -10.], [0.3, 10.]],
+            vec![[0.3, -10.], [1.3, 10.]],
         ]));
         assert!(!blocked.leader_clear(&view(), &p, true));
+        // An outline parallel to the tip's own edge (a chamfer band around a hex's flats) must
+        // be crossed by any leader leaving the tip; crossing it squarely is forgiven.
+        let banded = proof(&ink(vec![
+            vec![[0., -10.], [0., 10.]],
+            vec![[1., -10.], [1., 10.]],
+        ]));
+        assert!(banded.leader_clear(&view(), &p, true));
     }
 
     #[test]
@@ -1497,11 +1540,20 @@ mod tests {
         // An edge through it, or within the half-millimetre gap of it.
         assert!(!proof(&ink(vec![vec![[0., -10.], [0., 10.]]])).blank(&v, label));
         assert!(!proof(&ink(vec![vec![[-10., 5.3], [10., 5.3]]])).blank(&v, label));
-        // A hole loop around it: the face's even/odd containment excludes the hole.
+        // A hole loop around it: the face's even/odd containment excludes the hole; a callout
+        // proof also takes the opening the face surrounds as blank paper (a label in a slot).
         let hole = vec![[-6., 0.], [6., 0.], [6., 8.], [-6., 8.], [-6., 0.]];
         let mut holed = ink(vec![hole]);
         holed.planes[0].edges.push(4);
         assert!(!proof(&holed).blank(&v, label));
+        let mut callout = proof(&holed);
+        callout.voids = true;
+        assert!(callout.blank(&v, label));
+        assert!(
+            !callout.blank(&v, [-3., 6., 3., 9.]),
+            "across the opening's edge"
+        );
+        assert!(!callout.blank(&v, [60., 2., 66., 5.]), "off the plate");
         // Off the plate entirely.
         assert!(!proof(&ink(vec![])).blank(&v, [60., 2., 66., 5.]));
         // No face square to the view proves nothing.

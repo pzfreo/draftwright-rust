@@ -2565,7 +2565,7 @@ pub(crate) fn settle_radius_leaders(
             inward: false,
             edge_attachment: true,
             interior_proof: proofs
-                .get_or_init(|| super::interior::proofs(analysis, views))
+                .get_or_init(|| super::interior::callout_proofs(analysis, views))
                 .get(&v.id)
                 .map(|p| (v, p.as_ref())),
             profile_proof: None,
@@ -2697,6 +2697,7 @@ pub(crate) fn settle_radius_leaders(
                                 || crate::material::reentry(footprint.solids(), [tip, elbow]) > 0.0
                                 || c.crossings > before.crossings
                                 || c.text > before.text
+                                || c.clearance > before.clearance
                                 || c.feature_crossings > before.feature_crossings
                                 || c.beside > before.beside
                                 || (centred && c.score() >= before.score())

@@ -2534,6 +2534,7 @@ mod tests {
         // the passthrough check for every drawing field and all remedy metadata.
         crate::sheets::furnish(&mut b);
         crate::fixes::retain_local_layout(&mut b);
+        crate::dims::callout_routes::finish(&a, &s, &mut b);
         let p = model::plan_recovered(&a, &s).unwrap();
         assert!(p.sheet_candidates.is_empty());
         assert_eq!(
