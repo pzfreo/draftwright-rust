@@ -1146,6 +1146,19 @@
             }
           ]
         },
+        "frame_gutter": {
+          "anyOf": [
+            {
+              "type": "number",
+              "minimum": 0,
+              "maximum": 20,
+              "description": "Clear mm every view and annotation keeps inside the frame (default 3); spare paper widens it. 0 lets the drawing run to the frame."
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "fit_limits": {
           "anyOf": [
             {
