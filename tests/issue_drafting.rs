@@ -1511,7 +1511,7 @@ fn a_jittered_pattern_claims_no_pitch_tolerance() {
 /// port withholds no extent).
 #[test]
 fn an_overall_extent_is_placed_or_reported() {
-    let margin = draftwright::layout::MARGIN;
+    let margin = draftwright::layout::margin();
     for (name, _, plan) in planned() {
         let [w, h] = plan.sheet.page;
         for d in plan

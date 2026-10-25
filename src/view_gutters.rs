@@ -7,6 +7,9 @@ use crate::placement_intent::{move_box, move_point};
 // About eight annotation capitals: ample separation on sparse sheets while the
 // projections still read as one set. Tight sheets share less, down to zero.
 pub(crate) const PREFERRED: f64 = 25.0;
+/// Spare paper also moves views away from the frame, beyond the frame gutter every drawing
+/// keeps ([`crate::layout::FRAME_GUTTER`]), up to this much more (maintainer 2026-10-25).
+pub(crate) const FRAME_SPACE: f64 = 10.0;
 
 fn include(a: &mut Rect, b: Rect) {
     for k in 0..2 {
@@ -337,17 +340,25 @@ fn translations(
         // Principal bands already contain blank annotation padding. The iso band
         // is measured ink, so keep its caption one mm inside the drawn frame.
         let inset = margin() + if v.id == "v:iso" { 1.0 } else { 0.0 };
+        let edge = FRAME_SPACE.min(preferred);
         for k in 0..2 {
+            let (low, high) = (
+                (bounds[i][k] - inset - 1e-5).max(0.0),
+                (sheet.page[k] - inset - bounds[i][k + 2] - 1e-5).max(0.0),
+            );
             hard[k].push(Edge {
                 from: i,
                 to: n,
-                limit: (bounds[i][k] - inset - 1e-5).max(0.0),
+                limit: low,
             });
             hard[k].push(Edge {
                 from: n,
                 to: i,
-                limit: (sheet.page[k] - inset - bounds[i][k + 2] - 1e-5).max(0.0),
+                limit: high,
             });
+            // The frame is a neighbour too: spare paper opens its gaps as it does a pair's.
+            soft[k].push((i, n, low, edge));
+            soft[k].push((n, i, high, edge));
         }
         let mut obstacles = vec![sheet.title_block];
         obstacles.extend(crate::sheet_fit::furniture_bounds(analysis, sheet, &[]));
@@ -434,7 +445,7 @@ fn translations(
             if explicit(i, j) || explicit(j, i) {
                 continue;
             }
-            soft[k].push((from, to, gap));
+            soft[k].push((from, to, gap, preferred));
         }
     }
     let mut result = vec![[0.0; 2]; n];
@@ -442,7 +453,7 @@ fn translations(
         let mut edges = hard[k].clone();
         // Start at the known feasible composition and spend slack on each pair.
         // A constrained pair never prevents another pair from getting room.
-        for &(from, to, gap) in &soft[k] {
+        for &(from, to, gap, _) in &soft[k] {
             edges.push(Edge {
                 from,
                 to,
@@ -453,9 +464,9 @@ fn translations(
         // Share tight slack before improving individual pairs: no early pair may
         // consume all the paper and leave another automatic pair touching.
         let set_common = |edges: &mut [Edge], fraction: f64| {
-            for (edge, &(_, _, gap)) in edges[hard[k].len()..].iter_mut().zip(&soft[k]) {
+            for (edge, &(_, _, gap, wanted)) in edges[hard[k].len()..].iter_mut().zip(&soft[k]) {
                 let floor = gap.min(0.0);
-                edge.limit = gap - (floor + fraction * (preferred - floor));
+                edge.limit = gap - (floor + fraction * (wanted - floor));
             }
         };
         set_common(&mut edges, 1.0);
@@ -473,8 +484,8 @@ fn translations(
             set_common(&mut edges, lo);
         }
         for slot in hard[k].len()..edges.len() {
-            let gap = soft[k][slot - hard[k].len()].2;
-            let target = gap - preferred;
+            let (_, _, gap, wanted) = soft[k][slot - hard[k].len()];
+            let target = gap - wanted;
             let old = edges[slot].limit;
             edges[slot].limit = target;
             if solve(n + 1, &edges).is_none() {

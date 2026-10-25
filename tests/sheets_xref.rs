@@ -290,7 +290,7 @@ fn small_part_remote_zones_match_drawn_view_and_cutting_letter() {
 /// once (the frame's line), and no view lies on it.
 #[test]
 fn title_block_is_flush_with_the_frame_on_every_sheet() {
-    use draftwright::layout::MARGIN;
+    use draftwright::layout::FRAME as MARGIN;
     use draftwright::output::{Curve, Item};
     let (part, analysis) = model::analyse_with(
         &fixture("parts/plate.step"),

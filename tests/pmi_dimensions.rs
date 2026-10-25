@@ -1337,7 +1337,7 @@ fn oblique_pmi_draws_its_exact_projected_station_span() {
                 }
             );
             let p = d.placed.as_ref().unwrap();
-            let margin = draftwright::layout::MARGIN;
+            let margin = draftwright::layout::margin();
             assert!(
                 p.label_box[0] >= margin
                     && p.label_box[1] >= margin

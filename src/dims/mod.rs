@@ -299,8 +299,8 @@ pub fn lane_pitch() -> f64 {
 }
 
 /// Run *run* with the Spec's dimension spacing and frame gutter: an explicit value sets each,
-/// and an unset one keeps the enclosing plan's (normal spacing and a 5 mm gutter at the top
-/// level). Planning memos are partitioned by both ([`crate::planning`]).
+/// and an unset one keeps the enclosing plan's (normal spacing and a 3 mm frame gutter at the
+/// top level). Planning memos are partitioned by both ([`crate::planning`]).
 pub(crate) fn spaced<T>(spec: &crate::model::Spec, run: impl FnOnce() -> T) -> T {
     let compact = match spec.sheet.dimension_spacing {
         Some(crate::model::DimensionSpacing::Compact) => true,

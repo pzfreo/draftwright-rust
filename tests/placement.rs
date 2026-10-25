@@ -915,7 +915,7 @@ fn what_does_not_fit_the_page_is_reported() {
     let mut crossings = 0;
     for (name, analysis) in &parts {
         let plan = model::plan(analysis, &Spec::default()).unwrap();
-        let m = draftwright::layout::MARGIN;
+        let m = draftwright::layout::margin();
         let [w, h] = plan.sheet.page;
         let boxes = view_boxes(&plan, analysis);
         for d in &plan.dimensions {

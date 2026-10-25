@@ -54,8 +54,8 @@ fn small(a: &model::Analysis, p: &model::Plan) -> bool {
         .filter(|v| v.id == "v:plan" || v.id == "v:front")
         .map(|v| size(v)[1] + 2. * layout::dim_pad())
         .sum();
-    row <= layout::PAGES[1].1 - 2. * layout::MARGIN
-        && column <= layout::PAGES[1].2 - 2. * layout::MARGIN
+    row <= layout::PAGES[1].1 - 2. * layout::margin()
+        && column <= layout::PAGES[1].2 - 2. * layout::margin()
 }
 fn main() {
     let args: Vec<_> = std::env::args().collect();

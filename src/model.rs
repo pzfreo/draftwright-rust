@@ -506,9 +506,9 @@ pub struct SheetSpec {
     /// that fallback and `compact` uses compact lanes directly.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dimension_spacing: Option<DimensionSpacing>,
-    /// Clear space between the frame and any view or annotation ink, mm, from 0 to 20: unset
-    /// is 5; 0 lets the drawing run to the frame. The title block, zones, centring marks and
-    /// frame-corner tables stay on the frame.
+    /// Clear space every view and annotation keeps inside the frame, mm, from 0 to 20: unset is
+    /// 3; spare paper widens it further. 0 lets the drawing run to the frame. The title block,
+    /// zones, centring marks and frame-corner tables stay on the frame.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub frame_gutter: Option<f64>,
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]

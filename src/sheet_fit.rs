@@ -406,19 +406,45 @@ pub(crate) fn inside_frames(analysis: &Analysis, plan: &Plan) -> bool {
                     .iter()
                     .filter_map(|b| b.placed.as_ref().map(|p| p.cells))
             }));
+            // Tables stand in frame corners too.
+            let tables: Vec<Rect> = local
+                .tables
+                .iter()
+                .filter_map(|t| t.placed.as_ref().map(|p| p.cells))
+                .chain(local.hole_table.iter().flat_map(|t| {
+                    t.blocks
+                        .iter()
+                        .filter_map(|b| b.placed.as_ref().map(|p| p.cells))
+                }))
+                .collect();
+            // So do the sheet requirements set beside the title block.
+            let requirements: Vec<Rect> = local
+                .requirements
+                .iter()
+                .filter_map(|r| r.placed.as_ref())
+                .map(|p| {
+                    let mut b = p.label_box;
+                    include(&mut b, [p.glyph[0], p.glyph[1]]);
+                    include(&mut b, [p.glyph[2], p.glyph[3]]);
+                    b
+                })
+                .collect();
+            framed.extend(tables.iter().chain(&requirements).copied());
             let mut ink = footprints_with_notes(analysis, &local, false, false);
+            ink.retain(|b| !tables.contains(b) && !requirements.contains(b));
             ink.extend(local.captions.iter().map(|c| c.ink));
             for v in &local.views {
                 ink.extend(v.line_work.iter().flat_map(|w| &w.curves).map(|c| c.bbox()));
             }
-            ink.extend(
+            // Notes blocks stand in a frame corner, as tables do.
+            framed.extend(
                 local
                     .notes_block
                     .iter()
                     .chain(&local.radius_notes_block)
                     .map(|n| n.cells),
             );
-            ink.extend(
+            framed.extend(
                 local
                     .radius_table
                     .iter()
@@ -490,20 +516,21 @@ pub(crate) fn inside_frames(analysis: &Analysis, plan: &Plan) -> bool {
                     && b[2] <= sheet.page[0] - crate::layout::FRAME + 1e-6
                     && b[3] <= sheet.page[1] - crate::layout::FRAME + 1e-6
             };
-            framed.iter().all(on_frame) && ink.into_iter().enumerate().all(|(i, b)| {
-                // View outlines keep their whole stroke inside the frame. Thinner ink
-                // (a witness or centre line, a crop edge) may end on the frame line itself:
-                // its stroke stays under the frame's own, so nothing is clipped.
-                let stroke = if i < local.views.len() {
-                    crate::output::layer_styles()[0].1.width / 2.0
-                } else {
-                    0.0
-                };
-                b[0] >= margin() + stroke - 1e-6
-                    && b[1] >= margin() + stroke - 1e-6
-                    && b[2] <= sheet.page[0] - margin() - stroke + 1e-6
-                    && b[3] <= sheet.page[1] - margin() - stroke + 1e-6
-            })
+            framed.iter().all(on_frame)
+                && ink.into_iter().enumerate().all(|(i, b)| {
+                    // View outlines keep their whole stroke inside the frame. Thinner ink
+                    // (a witness or centre line, a crop edge) may end on the frame line itself:
+                    // its stroke stays under the frame's own, so nothing is clipped.
+                    let stroke = if i < local.views.len() {
+                        crate::output::layer_styles()[0].1.width / 2.0
+                    } else {
+                        0.0
+                    };
+                    b[0] >= margin() + stroke - 1e-6
+                        && b[1] >= margin() + stroke - 1e-6
+                        && b[2] <= sheet.page[0] - margin() - stroke + 1e-6
+                        && b[3] <= sheet.page[1] - margin() - stroke + 1e-6
+                })
         })
 }
 

@@ -948,10 +948,10 @@ fn recovered_ftc09_keeps_a1_and_perpendicular_witnesses() {
     for k in 0..2 {
         assert!(iso.at[k] + iso.scale * a.iso_bounds[k] >= iso.area[k] - 1e-6);
         assert!(iso.at[k] + iso.scale * a.iso_bounds[k + 2] <= iso.area[k + 2] + 1e-6);
-        assert!(iso.at[k] + iso.scale * a.iso_bounds[k] >= draftwright::layout::MARGIN + 2.0);
+        assert!(iso.at[k] + iso.scale * a.iso_bounds[k] >= draftwright::layout::margin() + 2.0);
         assert!(
             iso.at[k] + iso.scale * a.iso_bounds[k + 2]
-                <= plan.sheet.page[k] - draftwright::layout::MARGIN - 2.0
+                <= plan.sheet.page[k] - draftwright::layout::margin() - 2.0
         );
     }
     for d in plan.dimensions.iter().filter(|d| d.kind == "linear") {

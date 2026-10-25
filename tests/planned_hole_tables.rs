@@ -514,10 +514,10 @@ fn the_cgb245_view_pin_reproducer_keeps_its_schedule() {
         );
     }
     for k in 0..2 {
-        assert!(iso.at[k] + iso.scale * analysis.iso_bounds[k] >= draftwright::layout::MARGIN);
+        assert!(iso.at[k] + iso.scale * analysis.iso_bounds[k] >= draftwright::layout::margin());
         assert!(
             iso.at[k] + iso.scale * analysis.iso_bounds[k + 2]
-                <= base.sheet.page[k] - draftwright::layout::MARGIN
+                <= base.sheet.page[k] - draftwright::layout::margin()
         );
     }
     let mut ops: Vec<_> = ["d:envelope/height.length", "d:f:slot:1/location_slot.length", "d:f:slot:1/slot_length.length", "d:f:slot:1/slot_width.length", "d:step_level/step_height.length.h13_226", "d:step_level/step_height.length.h9_226"].iter().map(|id| serde_json::json!({"op":"set", "path":format!("dimensions/{}/place",draftwright::items::key(id)), "value":{"pinned":true}})).collect();

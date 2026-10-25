@@ -16,9 +16,9 @@
 /// The frame's inset from the trimmed sheet edge (ISO 5457): the frame, title block, zones,
 /// centring marks and frame-corner tables are placed against it.
 pub const FRAME: f64 = 10.0;
-/// The default clear gutter between the frame and any view or annotation ink
-/// (`sheet/frame_gutter`, maintainer 2026-10-25).
-pub const FRAME_GUTTER: f64 = 5.0;
+/// The clear gutter every view and annotation keeps inside the frame (`sheet/frame_gutter`,
+/// maintainer 2026-10-25: 3 mm at least). Spare paper widens it further ([`crate::view_gutters`]).
+pub const FRAME_GUTTER: f64 = 3.0;
 
 thread_local! {
     static GUTTER: std::cell::Cell<f64> = const { std::cell::Cell::new(FRAME_GUTTER) };
