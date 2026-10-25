@@ -246,44 +246,46 @@ pub(super) fn count_oblique(a: &Analysis, wants: &mut [Want], problems: &mut Vec
     }
 }
 
-/// The recogniser's fillet/blend distinction is not a second radius requirement on paper
-/// ([`consolidate`]). Count an equal blend callout into the fillet callout before layout, as
-/// [`count_oblique`] does, so the leader is placed with its final label rather than relabelled
-/// after its space was judged. A pair with an authored entry is left to [`consolidate`].
-pub(super) fn count_equal(spec: &crate::model::Spec, wants: &mut Vec<Want>) {
-    let authored = |id: &str| spec.dimensions.contains_key(id) || spec.precision.contains_key(id);
+/// [`consolidate`] joins an equal blend callout to the fillet callout after layout. Give the
+/// fillet its final count first, so its leader is placed with the label it will carry rather
+/// than relabelled after its space was judged; a longer label could then run past its view's
+/// area. Only where consolidation will apply: neither callout overridden, and one fillet
+/// callout of that radius.
+pub(super) fn count_equal(spec: &crate::model::Spec, wants: &mut [Want]) {
     let callout = |w: &Want, p: &str| {
-        !authored(&w.id)
+        !overridden(spec, spec, &w.id)
             && matches!(w.shape, Shape::Callout { .. })
             && !w.measurements.is_empty()
             && w.measurements.iter().all(|m| m.parameter == p)
     };
-    let mut i = 0;
-    while i < wants.len() {
-        let Some(j) = (callout(&wants[i], "blend.radius"))
-            .then(|| {
-                wants.iter().position(|w| {
-                    callout(w, "fillet.radius") && fmt(w.value) == fmt(wants[i].value)
-                })
+    let mut counts = BTreeMap::<String, usize>::new();
+    for w in wants.iter().filter(|w| callout(w, "blend.radius")) {
+        *counts.entry(fmt(w.value)).or_default() += w.measurements.len();
+    }
+    for (r, blends) in counts {
+        let fillets: Vec<_> = (0..wants.len())
+            .filter(|&j| {
+                matches!(wants[j].shape, Shape::Callout { .. })
+                    && wants[j]
+                        .measurements
+                        .iter()
+                        .any(|m| m.parameter == "fillet.radius")
+                    && fmt(wants[j].value) == r
             })
-            .flatten()
-        else {
-            i += 1;
-            continue;
-        };
-        let blend = wants.remove(i);
-        let j = if j > i { j - 1 } else { j };
-        let w = &mut wants[j];
-        let n = blend.measurements.len();
-        w.measurements.extend(blend.measurements);
-        w.terms = vec![
-            format!("{}×", w.measurements.len()),
-            format!("R{}", fmt(w.value)),
-        ];
-        w.basis += &format!(
-            "; {n} equal blend{} counted here",
-            if n == 1 { " is" } else { "s are" },
-        );
+            .collect();
+        if let [j] = fillets[..]
+            && !overridden(spec, spec, &wants[j].id)
+            && wants[j]
+                .measurements
+                .iter()
+                .all(|m| m.parameter == "fillet.radius" || m.parameter == "blend.radius")
+        {
+            let w = &mut wants[j];
+            w.terms = vec![
+                format!("{}×", w.measurements.len() + blends),
+                format!("R{}", fmt(w.value)),
+            ];
+        }
     }
 }
 

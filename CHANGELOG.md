@@ -91,12 +91,12 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Fixed
 
-- **An equal fillet and blend share one radius callout, sized before layout.** When quiddity
-  calls one of two equal rounds a fillet and the other a blend, the blend is counted into the
-  fillet's callout (`2× R23`) before placement, rather than relabelled after its space was
-  judged. A callout that grew afterwards could run past its view's area and push the sheet up:
-  cgb241 went to A0 1:2 on quiddity-rust 0.2.0 and is A3 1:5 again. A pair with an authored
-  entry is still joined after layout, as before.
+- **A fillet callout joined by equal blends is placed at its final size.** When quiddity calls
+  one of two equal rounds a fillet and the other a blend, the blend is still joined to the
+  fillet's callout after layout (`2× R23`), but the fillet callout now carries that count from the
+  start, so its leader is placed with the label it ends with. A label that grew after placement
+  could run past its view's area and push the sheet up: cgb241 went to A0 1:2 during the move to
+  quiddity-rust 0.2.0-alpha.2 and is A3 1:5 again. Overridden callouts are joined as before.
 
 - **Slot location lint agrees with the drawn end.** Lint judged a slot's `location_slot.length` at
   quiddity's recorded `lo`, while the planner draws the low end at the exact centre of the slot's
