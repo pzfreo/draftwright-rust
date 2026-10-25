@@ -1123,9 +1123,11 @@ fn replay_pins(
         && raw.sheet.scale == canonical.sheet.scale
         && raw.sheets.len() == canonical.sheets.len()
         && raw.views.len() == canonical.views.len()
-        && raw.views.iter().zip(&canonical.views).all(|(a, b)| {
-            a.id == b.id && (0..2).all(|k| (a.at[k] - b.at[k]).abs() < 1e-6)
-        })
+        && raw
+            .views
+            .iter()
+            .zip(&canonical.views)
+            .all(|(a, b)| a.id == b.id && (0..2).all(|k| (a.at[k] - b.at[k]).abs() < 1e-6))
     {
         model::plan_automatic(analysis, spec)?
     } else {

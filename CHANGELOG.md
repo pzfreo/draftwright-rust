@@ -16,6 +16,16 @@ All notable changes to draftwright-rust are recorded here, in the style of
   interior dimensions stay put, omitting one dimension moves no other, and an item promoted
   into an omitted item's lane follows it. NIST CTC-01's plan band goes from 8 lanes to 5. On the
   100-part corpus no finding changes, and mfcadpp 10119 returns to A4 2:1 (alpha.13: 1:1).
+- **A 3 mm gutter inside the frame.** Views and their annotation keep at least 3 mm clear of the
+  frame (maintainer, 2026-10-25); `sheet/frame_gutter` sets another width, 0–20 mm. Tables,
+  notes, the title block and other sheet furniture still stand against the frame. When there is
+  spare paper, each sheet's composition moves away from the frame as one block, up to 10 mm
+  more, after the gaps between views have had their share. A strip of dimensions that would
+  overflow is first packed, nesting lines that overlap, which keeps NIST CTC-01's baseline whole
+  on A3 1:5. On the 100-part corpus, 91 parts are
+  unchanged; seven synthetic mfcadpp parts change paper or scale (four one step smaller on A4,
+  three from A4 1:1 to A3 2:1), and NIST CTC-04 loses its two leader crossings and five
+  extension lines through features.
 
 ### Fixed
 
