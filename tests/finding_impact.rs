@@ -416,10 +416,11 @@ fn ctc01_counts_gaps_and_repeated_causes_without_hiding_findings() {
         // The soft preferences retain this main-readable A3 drawing and its
         // reported unavailable detail; summary groups must retain every finding.
         // The 350 row pitch's extension lines cross no leader, so the 4× R25 leader is not
-        // obstructed and stays a counted callout rather than a radius-centre table; it meets
-        // its arc off radial (radius_leader_not_radial, readability), as the counted leaders
-        // on CTC-02 and FTC-09 do. Advisory: no annotation_leader_crossing on the 350 line.
-        [(6, 2), (1, 1), (2, 2), (11, 3)],
+        // obstructed and stays a counted callout rather than a radius-centre table; a radius
+        // leader that breaks the middle-arc/radial rule takes a longer compliant route, so 4× R25
+        // now meets its arc radially (no radius_leader_not_radial). Advisory: no
+        // annotation_leader_crossing on the 350 line.
+        [(6, 2), (1, 1), (1, 1), (11, 3)],
     );
 }
 #[test]

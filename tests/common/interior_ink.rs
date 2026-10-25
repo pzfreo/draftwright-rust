@@ -57,6 +57,31 @@ fn overlaps(a: [f64; 4], b: [f64; 4]) -> bool {
     a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1]
 }
 
+/// An outline parallel to the tip's own edge and within 3 mm of the tip (a chamfer band around
+/// a hex's flats), crossed by the leader at more than 20 degrees: any leader leaving the tip
+/// crosses it, inside the view or out.
+fn banded(visible: &[[P; 2]], [tip, elbow]: [P; 2], e: [P; 2]) -> bool {
+    let unit = |[a, b]: [P; 2]| {
+        let d = [b[0] - a[0], b[1] - a[1]];
+        let n = d[0].hypot(d[1]);
+        (n > 1e-12).then(|| [d[0] / n, d[1] / n])
+    };
+    let cross = |a: P, b: P| a[0] * b[1] - a[1] * b[0];
+    let Some(own) = visible
+        .iter()
+        .filter(|s| distance(tip, **s) < 0.15)
+        .find_map(|s| unit(*s))
+    else {
+        return false;
+    };
+    let (Some(leader), Some(d)) = (unit([tip, elbow]), unit(e)) else {
+        return false;
+    };
+    cross(own, leader).abs() >= 20f64.to_radians().sin()
+        && cross(own, d).abs() < 2f64.to_radians().sin()
+        && cross([e[0][0] - tip[0], e[0][1] - tip[1]], own).abs() <= 3.0
+}
+
 pub fn assert_clear(drawing: &Drawing, d: &PlannedDimension) {
     let p = d.placed.as_ref().unwrap();
     let visible = layer(drawing, "part");
@@ -131,7 +156,9 @@ pub fn assert_clear(drawing: &Drawing, d: &PlannedDimension) {
             ];
         }
         assert!(
-            !edges.iter().any(|e| meet(s, *e, 0.1)),
+            !edges
+                .iter()
+                .any(|e| meet(s, *e, 0.1) && !(*attachment && banded(&visible, p.lines[0], *e))),
             "{} line/arrow {i} crosses drawn line-work",
             d.id
         );

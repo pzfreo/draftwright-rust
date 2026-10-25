@@ -197,10 +197,12 @@ fn site(on: Option<P3>, at: P3, axis: usize) -> P3 {
     p
 }
 
-/// A fillet callout's leader sites in view *view* once it is chosen, when a site misses every arc
-/// the view sees end-on: its members' trimmed arcs that the view sees end-on ([`crate::radius`]'s
-/// evidence), so the tip lands on a drawn arc, never on a straight edge. A callout whose sites all
-/// lie on such arcs, or none of whose members shows an arc there, keeps its sites.
+/// A radius callout's (fillet or blend) leader sites in view *view* once it is chosen, when a site
+/// misses the middle half of every arc the view sees end-on: its members' trimmed arcs that the
+/// view sees end-on ([`crate::radius`]'s evidence), so the tip lands well on a drawn arc, never at
+/// its tangent point with a straight edge, where the leader reads as pointing at the edge
+/// (maintainer 2026-10-25). A callout whose sites all lie in such arcs' middle halves, or none of
+/// whose members shows an arc there, keeps its sites.
 pub(super) fn route_profile(analysis: &crate::model::Analysis, w: &mut Want, view: &str) {
     let Shape::Callout { sites, arcs } = &mut w.shape else {
         return;
@@ -212,7 +214,7 @@ pub(super) fn route_profile(analysis: &crate::model::Analysis, w: &mut Want, vie
         || !w
             .measurements
             .iter()
-            .any(|m| m.parameter == "fillet.radius")
+            .any(|m| m.parameter == "fillet.radius" || m.parameter == "blend.radius")
     {
         return;
     }
@@ -224,7 +226,7 @@ pub(super) fn route_profile(analysis: &crate::model::Analysis, w: &mut Want, vie
     for m in w
         .measurements
         .iter()
-        .filter(|m| m.parameter == "fillet.radius")
+        .filter(|m| m.parameter == "fillet.radius" || m.parameter == "blend.radius")
     {
         if let Ok(more) = crate::radius::projected(analysis, &m.feature, *toward, page) {
             shown.extend(more);
@@ -233,10 +235,12 @@ pub(super) fn route_profile(analysis: &crate::model::Analysis, w: &mut Want, vie
     if shown.is_empty() {
         return;
     }
-    if sites
-        .iter()
-        .all(|(p, r)| *r == 0.0 && shown.iter().any(|arc| arc.on_arc(page(*p))))
-    {
+    if sites.iter().all(|(p, r)| {
+        *r == 0.0
+            && shown
+                .iter()
+                .any(|arc| arc.on_arc(page(*p)) && arc.middle(page(*p)))
+    }) {
         return;
     }
     // The middle half of each arc the view sees end-on: the leader's tip is set on it towards its
@@ -245,7 +249,7 @@ pub(super) fn route_profile(analysis: &crate::model::Analysis, w: &mut Want, vie
     for m in w
         .measurements
         .iter()
-        .filter(|m| m.parameter == "fillet.radius")
+        .filter(|m| m.parameter == "fillet.radius" || m.parameter == "blend.radius")
     {
         for arc in analysis.radius_arcs.get(&m.feature).into_iter().flatten() {
             if crate::radius::seen_end_on(arc.axis, *toward) {
