@@ -6,6 +6,43 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+## 0.1.0 (2026-10-25)
+
+The first release without an alpha tag. It is still on quiddity-rust **v0.2.0-alpha.2**, as in
+alpha.14. Since alpha.14: dimension lanes are closed up, views keep a 3 mm gutter inside the
+frame, more feature callouts sit inside the views, radius leaders prefer the middle of their arc
+and a radial approach, only datums that something uses are drawn, and face claims follow quiddity's face
+accounting. Drawings still report what they do not state; dense parts are not yet as clean as
+Python draftwright's (see **Known regressions** and the README's "Known limitations").
+
+**Speed.** In instructions retired, as measured in the pull requests and not re-measured for this
+release: the interior-callout pass (#208) makes each edit cost about 10% more; the frame gutter
+(#205), against the build before it, is 0.89× on CTC-01, 1.002× on string_post, 1.012× on
+FTC-08 and 1.048× on cgb245.
+
+### Known regressions
+
+Measured on this release; the alpha.12 figures are the reference from before the move to
+quiddity-rust's framed records.
+
+- STC-06 AP242: A2 1:5 (alpha.12: A0 1:1).
+- FTC-06: A2 1:5 (alpha.12: A1 1:2).
+- FTC-10 rb: two A2 sheets (alpha.12: one A1).
+- 10119: A4 1:1 (alpha.12: 2:1). Closing up the lanes restored 2:1; the frame gutter took it back.
+- CTC-01 merge: 23 warnings (alpha.12: 21; alpha.14: 30).
+- FTC-07 AP242: its 4 polygonal bosses are not located (12 unlocated features), extension lines
+  through features are 26 (alpha.12: 14), and it is now on A2 1:2 (alpha.14: A1 1:1) with
+  40 leader crossings (alpha.14: 33).
+- cgb241: `2× R23` is still led from the fillet: 71 mm with three hidden-line crossings, where
+  alpha.12's leader from the blend was 37 mm with none.
+- cgb217: quiddity's frame vote still puts it at 45° (#81), leaving 15 undimensioned features
+  (alpha.13: 7).
+- string_post: one random-pin cell (seed 1, 8 pins) puts the hole centreline on the title
+  block's scale note (#206), listed in `tools/known-pin-failures.json`.
+- 58 of the 94 corpus parts claim 1–6 fewer faces (CTC-01, FTC-06 and string_post among them):
+  the envelope planes quiddity marks `unexplained` are no longer claimed by draftwright's own
+  stock rule, until quiddity-rust#100 adds body evidence.
+
 ### Changed
 
 - **Dimension lanes are closed up after layout.** Dimensions that do not overlap now share a lane
@@ -15,7 +52,7 @@ All notable changes to draftwright-rust are recorded here, in the style of
   lies inside it, so sizes stay nearest and a baseline keeps its order. Authored, pinned and
   interior dimensions stay put, omitting one dimension moves no other, and an item promoted
   into an omitted item's lane follows it. NIST CTC-01's plan band goes from 8 lanes to 5. On the
-  100-part corpus no finding changes, and mfcadpp 10119 returns to A4 2:1 (alpha.13: 1:1).
+  100-part corpus no finding changes.
 - **A 3 mm gutter inside the frame.** Views and their annotation keep at least 3 mm clear of the
   frame (maintainer, 2026-10-25); `sheet/frame_gutter` sets another width, 0–20 mm. Tables,
   notes, the title block and other sheet furniture still stand against the frame. When there is
@@ -25,7 +62,10 @@ All notable changes to draftwright-rust are recorded here, in the style of
   on A3 1:5. On the 100-part corpus, 91 parts are
   unchanged; seven synthetic mfcadpp parts change paper or scale (four one step smaller on A4,
   three from A4 1:1 to A3 2:1), and NIST CTC-04 loses its two leader crossings and five
-  extension lines through features.
+  extension lines through features. Off the corpus, FTC-07 AP242 moves from A1 1:1 to A2 1:2
+  (its leaders through features fall from 10 to 4, but extension lines through features rise
+  from 23 to 26 and leader crossings from 33 to 40), and the CTC-01 merge fixture falls from 30
+  warnings to 23.
 - **Only used datums are drawn by default (revising #141).** A declared datum's symbol is drawn
   when a control frame cites it or dimensions measure from it (the planar datum selected as an
   axis's origin, as for Specify ± mode origins). Any other declared datum is not drawn; it stays
@@ -45,7 +85,7 @@ All notable changes to draftwright-rust are recorded here, in the style of
   radius_leader_not_radial finding goes) and 7× R50 points at the middle of a lug corner. The
   pass runs on the selected drawing only; when the Spec omits items, the moves come from the same
   request without them, so an omission moves nothing else. A radius route may not run into more
-  extension lines than the one drawn. Edits cost about 10% more instructions.
+  extension lines than the one drawn.
 
 ### Fixed
 
@@ -55,7 +95,8 @@ All notable changes to draftwright-rust are recorded here, in the style of
   analyses without that accounting. On NIST CTC-01 (AP242) the end blocks' inner walls, the notch
   side walls and slot 1's end walls are no longer reported, while the envelope planes quiddity
   leaves unexplained, the hex boss's top among them, now are (26 unclaimed faces become 27)
-  until quiddity-rust#100 supplies body evidence.
+  until quiddity-rust#100 supplies body evidence. Across the 94-part corpus, 27 parts claim more
+  faces (cgb245 +274, CTC-02 rc +51, sm-hanger +44), 58 claim 1–6 fewer and 9 are unchanged.
 - **Sheet choice.** A part whose views fit A3 at 1:1 is no longer offered A2 or larger by the
   paper search either, as the automatic planner already ruled (maintainer, 2026-10-15). A refused
   automatic drawing gets one smaller readable scale on its own paper before larger paper, and a
