@@ -2106,7 +2106,7 @@ fn compact_authored_row(analysis: &Analysis, plan: &mut Plan) {
 
 /// The first of the large sheets ([`layout::PAGES`]): A2 and larger are for parts that need
 /// them at 1:1 (maintainer, 2026-10-15).
-const LARGE_SHEET: usize = 2;
+pub(crate) const LARGE_SHEET: usize = 2;
 
 /// Whether the part's views fit A3 at 1:1 (maintainer, 2026-10-15): drawn full size, each with
 /// one dimension row ([`layout::dim_pad`]) on either side, the row of views (the front with the
@@ -5932,6 +5932,15 @@ fn plan_with_presentation(
                 &footprint_cache,
                 false,
             );
+            let _ = crate::dims::compact_inventory(
+                analysis,
+                &base,
+                &sheet,
+                &views,
+                &mut natural,
+                &natural_fixed,
+                &footprint_cache,
+            );
             (before, natural)
         };
         let bounded_notches = !crate::notches::requirements(analysis).is_empty();
@@ -6036,10 +6045,25 @@ fn plan_with_presentation(
         &footprint_cache,
         false,
     ));
-    for d in &mut dimensions {
+    let compacted = crate::dims::compact_inventory(
+        analysis,
+        &label_spec,
+        &sheet,
+        &views,
+        &mut inventory,
+        &settle_fixed,
+        &footprint_cache,
+    );
+    let mut outside: Vec<_> = Vec::new();
+    for (i, d) in dimensions.iter_mut().enumerate() {
         if let Some(settled) = inventory.iter().find(|settled| settled.id == d.id) {
             d.placed = settled.placed.clone();
+        } else {
+            outside.push(i);
         }
+    }
+    for i in outside {
+        crate::dims::follow_lanes(std::slice::from_mut(&mut dimensions[i]), &compacted);
     }
     if !crate::placement_intent::has_pins(spec)
         && inventory.iter().any(|d| {

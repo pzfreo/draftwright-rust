@@ -913,6 +913,202 @@ fn settle_inventory_uncached(
     }
 }
 
+/// A strip's dimension line: (view, normal axis, side), its distance from the view's centre,
+/// and the inventory indices drawn on it.
+type Line = ((String, usize, bool), f64, Vec<usize>);
+
+/// Close a strip's lanes after layout. Dimensions on one dimension line move together. Taking
+/// the strip's lines inner first, each is tried in the lanes inside its own, from the strip's
+/// innermost lane outward, and moves to the first one where no dimension already there comes
+/// within a clearance of it (so ends never meet as a false chain) and every member's
+/// collisions are no worse, code by code: a move can never add a finding. A line stays
+/// outside every dimension it overlaps that already lies inside it (sizes stay nearest, a
+/// baseline keeps its order). Dimensions the author placed or pinned, and interior ones, do
+/// not move. It runs on the complete inventory, so omitting an item moves no other; each move
+/// is returned as (view, normal axis, old line, new line), so an item drawn outside the
+/// inventory on a moved line (one promoted into an omitted item's lane) can follow it
+/// ([`follow_lanes`]).
+pub(crate) fn compact_inventory(
+    analysis: &Analysis,
+    spec: &Spec,
+    sheet: &PlannedSheet,
+    views: &[PlannedView],
+    inventory: &mut [PlannedDimension],
+    fixed: &[PlannedDimension],
+    cache: &super::footprints::Cache,
+) -> Vec<(String, usize, f64, f64)> {
+    let mut moves = Vec::new();
+    let pitch = lane_pitch();
+    let straight = |d: &PlannedDimension| {
+        d.kind == "linear"
+            && d.placed.as_ref().is_some_and(|p| {
+                p.arrows.len() == 2
+                    && p.lines.len() >= 3
+                    && (p.rotation == 0.0 || p.rotation.abs() == 90.0)
+            })
+    };
+    let movable = |d: &PlannedDimension| {
+        straight(d)
+            && d.region != Some(super::CandidateRegion::Interior)
+            && spec
+                .dimensions
+                .get(&d.id)
+                .is_none_or(|e| e.place.is_none() && e.view.is_none())
+            && views
+                .iter()
+                .any(|v| v.id == d.view && v.sheet == sheet.number)
+    };
+    // (view, normal axis, side) and the dimension line's distance from the view's centre.
+    let strip = |d: &PlannedDimension| {
+        let p = d.placed.as_ref()?;
+        let k = 1 - axis(p);
+        let centre = views.iter().find(|v| v.id == d.view)?.at[k];
+        let at = p.arrows[0][0][k];
+        Some((
+            (d.view.clone(), k, at > centre),
+            (at - centre).abs(),
+            centre,
+        ))
+    };
+    let footprint = |p: &Placed| {
+        let k = axis(p);
+        let (lo, hi) = tips(p);
+        (
+            lo.min(p.label_box[k]) - CLEAR,
+            hi.max(p.label_box[k + 2]) + CLEAR,
+        )
+    };
+    let meets = |a: (f64, f64), b: (f64, f64)| a.1 >= b.0 && b.1 >= a.0;
+    let n = inventory.len();
+    // Lines: straight dimensions of one strip on one dimension line.
+    let mut lines: Vec<Line> = Vec::new();
+    for i in (0..n).filter(|&i| straight(&inventory[i])) {
+        let Some((key, reach, _)) = strip(&inventory[i]) else {
+            continue;
+        };
+        match lines
+            .iter_mut()
+            .find(|(k, r, _)| *k == key && (r - reach).abs() < 1e-6)
+        {
+            Some(line) => line.2.push(i),
+            None => lines.push((key, reach, vec![i])),
+        }
+    }
+    lines.sort_by(|a, b| a.1.total_cmp(&b.1));
+    let mut all: Vec<_> = inventory.iter().chain(fixed).cloned().collect();
+    let counts = |problems: Vec<crate::model::Problem>| {
+        let mut c = std::collections::BTreeMap::<String, usize>::new();
+        for q in problems {
+            *c.entry(q.code).or_default() += 1;
+        }
+        c
+    };
+    for l in 0..lines.len() {
+        let (key, reach, members) = lines[l].clone();
+        if !members.iter().all(|&i| movable(&inventory[i])) {
+            continue;
+        }
+        let spans: Vec<_> = members
+            .iter()
+            .filter_map(|&i| all[i].placed.as_ref().map(footprint))
+            .collect();
+        let others: Vec<_> = lines
+            .iter()
+            .enumerate()
+            .filter(|(m, (k, _, _))| *m != l && *k == key)
+            .map(|(_, (_, r, ms))| {
+                let f: Vec<_> = ms
+                    .iter()
+                    .filter_map(|&j| all[j].placed.as_ref().map(footprint))
+                    .collect();
+                (*r, f)
+            })
+            .collect();
+        let touches = |f: &[(f64, f64)]| spans.iter().any(|a| f.iter().any(|b| meets(*a, *b)));
+        let inner = others.iter().map(|(r, _)| *r).fold(reach, f64::min);
+        let floor = others
+            .iter()
+            .filter(|(r, f)| *r < reach - 1e-6 && touches(f))
+            .map(|(r, _)| r + pitch)
+            .fold(inner, f64::max);
+        let before: Vec<_> = members
+            .iter()
+            .map(|&i| {
+                counts(super::placement::collisions_for(
+                    analysis, &all, sheet, views, cache, &all[i].id,
+                ))
+            })
+            .collect();
+        let sign = if key.2 { 1.0 } else { -1.0 };
+        let originals: Vec<_> = members.iter().map(|&i| all[i].placed.clone()).collect();
+        let mut lane = floor;
+        while lane < reach - 0.5 * pitch {
+            let occupied = others
+                .iter()
+                .any(|(r, f)| (r - lane).abs() < 0.5 * pitch && touches(f));
+            if !occupied {
+                for &i in &members {
+                    // Invariant: lines hold placed dimensions only.
+                    let p = all[i].placed.clone().expect("placed dimension");
+                    let (_, _, centre) = strip(&all[i]).expect("strip of a placed dimension");
+                    all[i].placed = Some(in_lane(&p, centre + sign * lane));
+                }
+                let free = members.iter().zip(&before).all(|(&i, was)| {
+                    counts(super::placement::collisions_for(
+                        analysis, &all, sheet, views, cache, &all[i].id,
+                    ))
+                    .iter()
+                    .all(|(code, n)| was.get(code).is_some_and(|m| n <= m))
+                });
+                if free {
+                    for &i in &members {
+                        inventory[i].placed = all[i].placed.clone();
+                    }
+                    // Invariant: lines hold placed dimensions only.
+                    let centre = strip(&all[members[0]])
+                        .expect("strip of a placed dimension")
+                        .2;
+                    moves.push((
+                        key.0.clone(),
+                        key.1,
+                        centre + sign * reach,
+                        centre + sign * lane,
+                    ));
+                    lines[l].1 = lane;
+                    break;
+                }
+                for (&i, p) in members.iter().zip(&originals) {
+                    all[i].placed = p.clone();
+                }
+            }
+            lane += pitch;
+        }
+    }
+    moves
+}
+
+/// Moves the dimensions drawn outside the inventory that lie on a line [`compact_inventory`]
+/// moved, by the same amount.
+pub(crate) fn follow_lanes(
+    dimensions: &mut [PlannedDimension],
+    moves: &[(String, usize, f64, f64)],
+) {
+    for d in dimensions {
+        let Some(p) = &d.placed else { continue };
+        if d.kind != "linear" || p.arrows.len() != 2 || p.lines.len() < 3 {
+            continue;
+        }
+        let k = 1 - axis(p);
+        let at = p.arrows[0][0][k];
+        if let Some((_, _, _, to)) = moves
+            .iter()
+            .find(|(view, axis, from, _)| *view == d.view && *axis == k && (from - at).abs() < 1e-6)
+        {
+            d.placed = Some(in_lane(p, *to));
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

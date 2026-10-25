@@ -650,7 +650,30 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
     let mut separated = std::collections::BTreeMap::<(String, u64), Option<Plan>>::new();
     let mut scale_sources = std::collections::BTreeMap::<u64, Option<Plan>>::new();
     let mut unblocked = std::collections::BTreeMap::<(String, u64, bool), Plan>::new();
+    // A2 and larger are for parts that need them at 1:1 (maintainer, 2026-10-15), as in the
+    // automatic search: a part whose views fit A3 full size is not offered a large sheet.
+    let small = std::cell::OnceCell::new();
     for (size, max) in requests(spec) {
+        let large = layout::PAGES
+            .iter()
+            .position(|p| p.0 == size)
+            .is_some_and(|i| i >= model::LARGE_SHEET);
+        if large
+            && spec.sheet.size.is_none()
+            && *small.get_or_init(|| model::fits_a3_at_full_size(fit, &baseline))
+        {
+            candidates.push(Candidate {
+                size: size.into(),
+                preferred_max_size: String::new(),
+                preferred_max_sheets: 0,
+                max,
+                outcome: "not offered: the views fit A3 at 1:1; large sheets are for larger parts"
+                    .into(),
+                kind: None,
+                scales: Vec::new(),
+            });
+            continue;
+        }
         let mut scales = Vec::new();
         // No readable standard scale passes the necessary reserved-footprint test: the
         // request is not planned, and its outcome states the shortfall. Otherwise the first
@@ -722,8 +745,16 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
                 )
             })
             .collect();
-        if chosen.is_some() || baseline_fits {
+        if chosen.is_some() {
             steps.clear();
+        } else if baseline_fits {
+            // A refused baseline still earns one smaller readable scale on its own paper
+            // before a larger sheet is tried.
+            steps = layout::SCALES
+                .into_iter()
+                .find(|s| *s < baseline.sheet.scale_factor && *s + 1e-9 >= floor)
+                .into_iter()
+                .collect();
         }
         // The compact fallback keeps a drawing on one sheet of this paper; a split keeps
         // normal lanes (pinned replay across whole-view sheets is not yet reliable).
@@ -774,6 +805,7 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
                 // earns compact spacing or the smaller scale; a routing refusal would only
                 // repeat itself.
                 let cramped = model::findings(&plan).hard > 0
+                    || model::findings(&plan).dropped > 0
                     || plan
                         .problems
                         .iter()

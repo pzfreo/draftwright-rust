@@ -6,6 +6,25 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### Changed
+
+- **Dimension lanes are closed up after layout.** Dimensions that do not overlap now share a lane
+  whatever their kind, instead of each taking its own. After layout each dimension line, inner
+  first, moves into the innermost lane where nothing already there comes within a clearance of
+  it and none of its own findings grows; a line stays outside any dimension it overlaps that
+  lies inside it, so sizes stay nearest and a baseline keeps its order. Authored, pinned and
+  interior dimensions stay put, omitting one dimension moves no other, and an item promoted
+  into an omitted item's lane follows it. NIST CTC-01's plan band goes from 8 lanes to 5. On the
+  100-part corpus no finding changes, and mfcadpp 10119 returns to A4 2:1 (alpha.13: 1:1).
+
+### Fixed
+
+- **Sheet choice.** A part whose views fit A3 at 1:1 is no longer offered A2 or larger by the
+  paper search either, as the automatic planner already ruled (maintainer, 2026-10-15). A refused
+  automatic drawing gets one smaller readable scale on its own paper before larger paper, and a
+  trial that dropped items for want of room counts as cramped, so it too tries the smaller scale
+  (cadgenbench cgb245 stays on A3 1:5).
+
 ## 0.1.0-alpha.14 (2026-10-25)
 
 Now on quiddity-rust **v0.2.0-alpha.2** (previously `0.1.1`), which publishes recognition schema 6.
