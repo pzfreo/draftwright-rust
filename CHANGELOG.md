@@ -29,6 +29,13 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Fixed
 
+- **Unclaimed faces follow quiddity's face accounting (#207).** A face quiddity accounts to any
+  record, evidence records such as `step_levels` included, is claimed, and its `body` faces are
+  credited once the overall sizes are stated; the envelope-plane stock rule now applies only to
+  analyses without that accounting. On NIST CTC-01 (AP242) the end blocks' inner walls, the notch
+  side walls and slot 1's end walls are no longer reported, while the envelope planes quiddity
+  leaves unexplained, the hex boss's top among them, now are (26 unclaimed faces become 27)
+  until quiddity-rust#100 supplies body evidence.
 - **Sheet choice.** A part whose views fit A3 at 1:1 is no longer offered A2 or larger by the
   paper search either, as the automatic planner already ruled (maintainer, 2026-10-15). A refused
   automatic drawing gets one smaller readable scale on its own paper before larger paper, and a

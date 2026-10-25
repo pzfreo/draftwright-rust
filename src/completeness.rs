@@ -41,11 +41,24 @@ pub fn report(analysis: &Analysis, plan: &mut Plan) {
     } else {
         "warning"
     };
+    // quiddity's accounting, where the recognition carries it (#207): a face of any record,
+    // evidence records included, is a feature's; body faces are credited below.
+    let accounted = |group: crate::model::FaceGroup| -> Vec<usize> {
+        analysis
+            .face_accounting
+            .as_ref()
+            .map_or(Vec::new(), |groups| {
+                (0..groups.len().min(analysis.binding.face_count))
+                    .filter(|&i| groups[i] == group)
+                    .collect()
+            })
+    };
     let mut claimed: BTreeSet<usize> = analysis
         .features
         .iter()
         .flat_map(|f| f.faces.iter().copied())
         .filter(|&i| i < analysis.binding.face_count)
+        .chain(accounted(crate::model::FaceGroup::Feature))
         .collect();
     let feature_claims = claimed.len();
     for n in crate::notches::requirements(analysis) {
@@ -83,7 +96,10 @@ pub fn report(analysis: &Analysis, plan: &mut Plan) {
     let overall_stated = crate::lint::envelope::outcomes(analysis, &marks)
         .iter()
         .all(|o| o.state == crate::lint::turned::State::Placed);
-    if analysis.solid_count == Some(1) && overall_stated {
+    if analysis.solid_count == Some(1) && overall_stated && analysis.face_accounting.is_some() {
+        claimed.extend(accounted(crate::model::FaceGroup::Body));
+    } else if analysis.solid_count == Some(1) && overall_stated {
+        // Without quiddity's accounting, the envelope planes stand in for its body evidence.
         claimed.extend(
             analysis
                 .stock_faces
