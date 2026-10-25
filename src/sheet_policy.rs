@@ -1070,6 +1070,7 @@ fn replay_pins(
     // are measured on it, so an offset at its automatic bend is a bare pin.
     let mut held = canonical.clone();
     let effective = crate::spec_gdt::effective(analysis, &held.spec)?;
+    crate::dims::callout_routes::prefer_interior(effective.as_ref(), base, &mut held, None);
     crate::dims::callout_routes::finish(effective.as_ref(), base, &mut held);
     let mut plan = if only_bare_pins(&intent, base, &held) {
         // A bare pin holds the selected finished ink, including peers on every
@@ -2534,6 +2535,7 @@ mod tests {
         // the passthrough check for every drawing field and all remedy metadata.
         crate::sheets::furnish(&mut b);
         crate::fixes::retain_local_layout(&mut b);
+        crate::dims::callout_routes::prefer_interior(&a, &s, &mut b, None);
         crate::dims::callout_routes::finish(&a, &s, &mut b);
         let p = model::plan_recovered(&a, &s).unwrap();
         assert!(p.sheet_candidates.is_empty());

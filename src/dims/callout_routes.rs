@@ -231,11 +231,78 @@ fn rehang(g: &mut gdt::PlannedGdt, next: &Placed) {
 /// automatic feature callout drawn outside its view takes the best interior route the
 /// settled-route sweep offers, when its whole label is on proven blank face, its leader is no
 /// longer and none of its findings grows, code by code. Linear dimensions stay outside.
-pub(crate) fn prefer_interior(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
+///
+/// *natural* is the same request finished without the Spec's omissions. When it shares this
+/// drawing's paper and view positions, its moves are copied for the items both draw and no other
+/// item moves, so omitting one item moves no other.
+pub(crate) fn prefer_interior(
+    analysis: &Analysis,
+    spec: &Spec,
+    plan: &mut Plan,
+    natural: Option<&Plan>,
+) {
     if crate::nominal::comparison() {
         return;
     }
     let cache = super::footprints::Cache::default();
+    if let Some(n) = natural.filter(|n| {
+        n.sheet.size == plan.sheet.size
+            && n.sheet.scale == plan.sheet.scale
+            && n.views.len() == plan.views.len()
+            && n.views
+                .iter()
+                .zip(&plan.views)
+                .all(|(a, b)| a.id == b.id && a.at == b.at)
+    }) {
+        let mut all = plan.dimensions.clone();
+        all.extend(plan.gdt.iter().filter_map(gdt::proxy));
+        let mut changed = BTreeSet::new();
+        let mut rechecked_codes = BTreeSet::new();
+        for i in 0..plan.dimensions.len() {
+            let d = &plan.dimensions[i];
+            let Some(q) = n.dimensions.iter().find(|q| {
+                q.id == d.id
+                    && q.region == Some(super::CandidateRegion::Interior)
+                    && q.basis.contains(interior::BASIS)
+            }) else {
+                continue;
+            };
+            if d.kind != "callout"
+                || d.region == Some(super::CandidateRegion::Interior)
+                || d.placed == q.placed
+                || spec
+                    .dimensions
+                    .get(&d.id)
+                    .is_some_and(|s| s.place.is_some())
+            {
+                continue;
+            }
+            let Some(sheet) = plan.views.iter().find(|v| v.id == d.view).and_then(|v| {
+                std::iter::once(&plan.sheet)
+                    .chain(&plan.sheets)
+                    .find(|s| s.number == v.sheet)
+            }) else {
+                continue;
+            };
+            rechecked_codes.extend(
+                placement::collisions_for(analysis, &all, sheet, &plan.views, &cache, &d.id)
+                    .into_iter()
+                    .map(|p| p.code),
+            );
+            all[i].placed.clone_from(&q.placed);
+            all[i].region = q.region;
+            let d = &mut plan.dimensions[i];
+            d.placed.clone_from(&q.placed);
+            d.region = q.region;
+            d.basis.clone_from(&q.basis);
+            if let Some(t) = n.callout_tips.get(&d.id) {
+                plan.callout_tips.insert(d.id.clone(), t.clone());
+            }
+            changed.insert(d.id.clone());
+        }
+        refresh(analysis, plan, &all, &cache, &changed, &rechecked_codes);
+        return;
+    }
     let proofs = interior::callout_proofs(analysis, &plan.views);
     let mut wants = super::wants(analysis).0;
     let frames: BTreeMap<_, _> = plan
@@ -374,13 +441,24 @@ pub(crate) fn prefer_interior(analysis: &Analysis, spec: &Spec, plan: &mut Plan)
             break;
         }
     }
+    refresh(analysis, plan, &all, &cache, &changed, &rechecked_codes);
+}
+
+/// A moved callout's collision findings, measured again where it now stands.
+fn refresh(
+    analysis: &Analysis,
+    plan: &mut Plan,
+    all: &[PlannedDimension],
+    cache: &super::footprints::Cache,
+    changed: &BTreeSet<String>,
+    rechecked_codes: &BTreeSet<String>,
+) {
     if changed.is_empty() {
         return;
     }
-    // A moved callout's collision findings are measured again where it now stands.
     let checked: Vec<_> = std::iter::once(&plan.sheet)
         .chain(&plan.sheets)
-        .flat_map(|s| placement::collisions_cached(analysis, &all, s, &plan.views, &cache))
+        .flat_map(|s| placement::collisions_cached(analysis, all, s, &plan.views, cache))
         .collect();
     plan.problems.retain(|p| {
         !p.subjects.iter().any(|s| changed.contains(s)) || !rechecked_codes.contains(&p.code)
@@ -393,7 +471,6 @@ pub(crate) fn prefer_interior(analysis: &Analysis, spec: &Spec, plan: &mut Plan)
 }
 
 pub(crate) fn finish(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
-    prefer_interior(analysis, spec, plan);
     if crate::nominal::comparison()
         || crate::planning::lookup::<bool>(analysis, "canonical-circular-recipes", &[])
             .unwrap_or(false)

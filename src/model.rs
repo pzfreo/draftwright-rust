@@ -3671,6 +3671,15 @@ fn plan_recovered_inner(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invali
             let effective = crate::spec_gdt::effective(analysis, &plan.spec)?;
             // Repair only the selected drawing. Candidate paper/scale trials keep their
             // established costs, so a clearer route cannot force a larger sheet.
+            // A reference that cannot be planned (an authored item duplicating an automatic
+            // one) leaves the drawing to its own pass.
+            let natural = natural_spec(spec).and_then(|full| plan_recovered(analysis, &full).ok());
+            crate::dims::callout_routes::prefer_interior(
+                effective.as_ref(),
+                spec,
+                &mut plan,
+                natural.as_ref(),
+            );
             crate::dims::callout_routes::finish(effective.as_ref(), spec, &mut plan);
             crate::dims::pmi_policy::audit(effective.as_ref(), &plan.spec.clone(), &mut plan);
             if crate::dims::pmi_policy::carries(effective.as_ref()) || !spec.origin.is_empty() {
@@ -4264,6 +4273,24 @@ fn plan_once(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     Ok(plan)
 }
 
+/// The request without the Spec's omissions (every automatic item, none left out), when it has
+/// any: the drawing an omission must leave every other item of.
+fn natural_spec(spec: &Spec) -> Option<Spec> {
+    if spec.dimension_source != DimensionSource::Authored
+        && !spec.dimensions.values().any(|d| d.omit)
+    {
+        return None;
+    }
+    let mut full = spec.clone();
+    full.dimension_source = DimensionSource::Auto;
+    for d in full.dimensions.values_mut() {
+        d.omit = false;
+    }
+    full.dimensions
+        .retain(|_, d| *d != DimensionSpec::default());
+    Some(full)
+}
+
 fn plan_inner(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     if spec.sheet.keep_layout == Some(true) {
         return plan_recovered(analysis, spec);
@@ -4275,6 +4302,14 @@ fn plan_inner(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
         crate::dims::spaced(spec, || {
             let mut plan = plan_with(analysis, spec, false, false, None, false, false)?;
             finish_nominal_plan(analysis, spec, &mut plan);
+            let natural =
+                natural_spec(spec).and_then(|full| crate::model::plan(analysis, &full).ok());
+            crate::dims::callout_routes::prefer_interior(
+                analysis,
+                spec,
+                &mut plan,
+                natural.as_ref(),
+            );
             crate::dims::callout_routes::finish(analysis, spec, &mut plan);
             if !crate::placement_intent::has_pins(spec) {
                 plan.record_dimension_labels();
@@ -4432,6 +4467,7 @@ fn plan_with_presentation(
                 let mut finished = plan_automatic(analysis, base)?;
                 // A bare pin holds the published route, including final-inventory
                 // interior/GD&T repair, rather than an intermediate paper trial.
+                crate::dims::callout_routes::prefer_interior(analysis, base, &mut finished, None);
                 crate::dims::callout_routes::finish(analysis, base, &mut finished);
                 Ok(finished)
             } else {
