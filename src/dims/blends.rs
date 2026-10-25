@@ -246,6 +246,47 @@ pub(super) fn count_oblique(a: &Analysis, wants: &mut [Want], problems: &mut Vec
     }
 }
 
+/// The recogniser's fillet/blend distinction is not a second radius requirement on paper
+/// ([`consolidate`]). Count an equal blend callout into the fillet callout before layout, as
+/// [`count_oblique`] does, so the leader is placed with its final label rather than relabelled
+/// after its space was judged. A pair with an authored entry is left to [`consolidate`].
+pub(super) fn count_equal(spec: &crate::model::Spec, wants: &mut Vec<Want>) {
+    let authored = |id: &str| spec.dimensions.contains_key(id) || spec.precision.contains_key(id);
+    let callout = |w: &Want, p: &str| {
+        !authored(&w.id)
+            && matches!(w.shape, Shape::Callout { .. })
+            && !w.measurements.is_empty()
+            && w.measurements.iter().all(|m| m.parameter == p)
+    };
+    let mut i = 0;
+    while i < wants.len() {
+        let Some(j) = (callout(&wants[i], "blend.radius"))
+            .then(|| {
+                wants.iter().position(|w| {
+                    callout(w, "fillet.radius") && fmt(w.value) == fmt(wants[i].value)
+                })
+            })
+            .flatten()
+        else {
+            i += 1;
+            continue;
+        };
+        let blend = wants.remove(i);
+        let j = if j > i { j - 1 } else { j };
+        let w = &mut wants[j];
+        let n = blend.measurements.len();
+        w.measurements.extend(blend.measurements);
+        w.terms = vec![
+            format!("{}×", w.measurements.len()),
+            format!("R{}", fmt(w.value)),
+        ];
+        w.basis += &format!(
+            "; {n} equal blend{} counted here",
+            if n == 1 { " is" } else { "s are" },
+        );
+    }
+}
+
 fn problem(f: &Feature, why: &str) -> Problem {
     Problem {
         id: format!("p:feature_not_dimensioned:{}", f.id),

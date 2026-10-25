@@ -1450,12 +1450,11 @@ fn flat_cut_bands_chamfers_and_fillets_lead_to_their_own_faces() {
         (
             "cadgenbench_inputs/cgb202.step.gz",
             &[
-                // The fillets on faces 1436 and 2104 (f:fillet:217 and :286 on alpha.8):
-                // quiddity-rust 0.1.1 reads 16 earlier fillets of cgb202 as blends, so they
-                // are numbered 203 and 270. Draftwright framed-record handling, fix in
-                // alpha.14.
-                "d:f:fillet:203/fillet.radius",
-                "d:f:fillet:270/fillet.radius",
+                // The fillets on faces 1436 and 2104 (f:fillet:217 and :286 on alpha.8,
+                // 203 and 270 on quiddity-rust 0.1.1). quiddity-rust 0.2.0's fillet/blend
+                // reading numbers them 200 and 277.
+                "d:f:fillet:200/fillet.radius",
+                "d:f:fillet:277/fillet.radius",
             ][..],
         ),
     ] {
