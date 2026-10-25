@@ -691,10 +691,12 @@ fn authored_aligned_span_clears_dimension_lines_extensions_and_arrowheads() {
                 }
             }
         }
-        // The parallel offset should use short perpendicular witnesses, even
-        // when an unpinned hint requested the obstructed side.
+        // The parallel offset should use short perpendicular witnesses. The unpinned
+        // below/lane-1 hint found that side obstructed until the 3 mm frame gutter (2026-10-25)
+        // re-spaced the plate; it is now honoured, one lane (7 mm) further out.
+        let limit = if place.is_null() { 20.0 } else { 20.0 + 7.0 };
         for [a, b] in placed.lines.iter().take(2) {
-            assert!((b[0] - a[0]).hypot(b[1] - a[1]) < 20.0, "{placed:?}");
+            assert!((b[0] - a[0]).hypot(b[1] - a[1]) < limit, "{placed:?}");
         }
     }
 }
