@@ -388,7 +388,13 @@ fn layout_calls_match_draftwright() {
 /// `choose_scale` and `_layout_geometry` for the same inputs.
 #[test]
 fn unsampled_paths_match_draftwright() {
-    let req = |size| Request::new(size, Principals::ALL, true);
+    // draftwright's own arithmetic places views against its 10 mm frame, without the frame
+    // gutter the port keeps (2026-10-25).
+    let req = |size| {
+        let mut r = Request::new(size, Principals::ALL, true);
+        r.margins = draftwright::layout::Margins::uniform(layout::FRAME);
+        r
+    };
     let none = |_: f64| Scaled::default();
     let auto = layout::AUTOMATIC_ARRANGEMENTS;
     // Too large for every standard scale: the largest scale that fits A0, by bisection.
