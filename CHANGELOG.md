@@ -50,8 +50,9 @@ All notable changes to draftwright-rust are recorded here, in the style of
   `slots`, `chamfers` and `slot_patterns`; draftwright still checks and draws them as oriented
   features, from the slot's own fields when it has no `source`. Schema 5 and earlier are refused.
   A record still in the part's frame is left out with a reason, never drawn in the wrong place.
-  Drawing changes on the 100-part corpus come from quiddity's fillet/blend reading (#89): a few
-  mfcadpp radii are no longer called out, mfcadpp 10033 moves from A3 2:1 to A4 1:1 and 10163
+  Drawing changes on the 100-part corpus come mostly from quiddity's fillet/blend reading (#89)
+  and its grid and precision fixes: a few mfcadpp radii are no longer called out, 1000's plate
+  prints 4.219 without a rounding advisory, mfcadpp 10033 moves from A3 2:1 to A4 1:1 and 10163
   from A4 1:2 to A4 1:1, and cgb207 regains its `2× R5` callout and general radius note.
   cgb202 and cgb207 lose their undimensioned-feature warnings; a two-face countersink again
   reports only its unattributed seat.
