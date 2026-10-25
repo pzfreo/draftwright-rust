@@ -1181,9 +1181,12 @@ impl Session {
                         })
                         .map(|p| p.message.as_str())
                         .collect();
-                    let reason = if let Some(reason) =
-                        crate::spec_gdt::datum_omission(&self.plan().spec, report, record)
-                    {
+                    let reason = if let Some(reason) = crate::spec_gdt::datum_omission(
+                        &self.plan().spec,
+                        report,
+                        record,
+                        &crate::dims::pmi_policy::origin_datums(&self.analysis, &self.plan().spec),
+                    ) {
                         reason.into()
                     } else if !reasons.is_empty() {
                         reasons.join("; ")

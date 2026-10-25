@@ -86,6 +86,19 @@ pub struct FilePart {
     pub instances: usize,
 }
 
+/// The group quiddity accounts a face to (`face_accounting` in its recognition document).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FaceGroup {
+    /// A recognised feature's face, evidence records included.
+    Feature,
+    /// Part body: stock walls, plate edges and the like.
+    Body,
+    /// Named by a refused projection only.
+    Refused,
+    Unexplained,
+}
+
 /// What the part is: regenerable from its STEP file, never edited.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -104,9 +117,14 @@ pub struct Analysis {
     /// Absent in older analyses; several solids make completeness findings informational.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub solid_count: Option<usize>,
-    /// Principal outer stock faces, credited only when the overall sizes are stated.
+    /// Principal outer stock faces, credited only when the overall sizes are stated and
+    /// [`Analysis::face_accounting`] is absent.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub stock_faces: Vec<usize>,
+    /// quiddity's account of every face, by file face index (#207); absent for analyses whose
+    /// recognition carries none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub face_accounting: Option<Vec<FaceGroup>>,
     /// Where the features came from; absent when none were recognised.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub recognition: Option<Recognition>,
@@ -452,8 +470,9 @@ pub struct SheetSpec {
     /// Keep explicit paper, scale and count without automatic selection or refitting.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub keep_layout: Option<bool>,
-    /// Draw declared datums even when no tolerance frame cites them (default true).
-    /// False retains uncited symbols in the plan as explicit user omissions.
+    /// Declared datums no tolerance frame cites. Unset (the default), those no dimension measures
+    /// from either are not drawn, each reported as `datum_not_drawn` (info); true draws every
+    /// declared datum; false hides every uncited one as the user's omission.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub uncited_datums: Option<bool>,
     /// ISO 5457 grid zones and centring marks on every sheet (default true). False omits
@@ -1324,6 +1343,7 @@ fn analyse_step_input(
         source_stem: chosen.map(|_| stem),
         envelope: [b.min, b.max],
         solid_count: Some(part.solids.len()),
+        face_accounting: None,
         stock_faces: (0..part.faces.len())
             .filter(|&f| {
                 if !matches!(
@@ -1524,6 +1544,22 @@ pub fn recognise_document(
         records: Some(n),
     }));
     analysis.unrecognised = unrecognised;
+    analysis.face_accounting = doc
+        .face_accounting
+        .as_ref()
+        .filter(|groups| groups.len() == part.faces.len())
+        .map(|groups| {
+            use quiddity::recognition::FaceAccounting as A;
+            groups
+                .iter()
+                .map(|g| match g {
+                    A::Feature { .. } => FaceGroup::Feature,
+                    A::Body { .. } => FaceGroup::Body,
+                    A::Refused { .. } => FaceGroup::Refused,
+                    A::Unexplained => FaceGroup::Unexplained,
+                })
+                .collect()
+        });
     analysis.recognition = Some(Recognition {
         recogniser: read.recogniser,
         frame: native::IDENTITY,
@@ -3671,6 +3707,15 @@ fn plan_recovered_inner(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invali
             let effective = crate::spec_gdt::effective(analysis, &plan.spec)?;
             // Repair only the selected drawing. Candidate paper/scale trials keep their
             // established costs, so a clearer route cannot force a larger sheet.
+            // A reference that cannot be planned (an authored item duplicating an automatic
+            // one) leaves the drawing to its own pass.
+            let natural = natural_spec(spec).and_then(|full| plan_recovered(analysis, &full).ok());
+            crate::dims::callout_routes::prefer_interior(
+                effective.as_ref(),
+                spec,
+                &mut plan,
+                natural.as_ref(),
+            );
             crate::dims::callout_routes::finish(effective.as_ref(), spec, &mut plan);
             crate::dims::pmi_policy::audit(effective.as_ref(), &plan.spec.clone(), &mut plan);
             if crate::dims::pmi_policy::carries(effective.as_ref()) || !spec.origin.is_empty() {
@@ -4264,6 +4309,24 @@ fn plan_once(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     Ok(plan)
 }
 
+/// The request without the Spec's omissions (every automatic item, none left out), when it has
+/// any: the drawing an omission must leave every other item of.
+fn natural_spec(spec: &Spec) -> Option<Spec> {
+    if spec.dimension_source != DimensionSource::Authored
+        && !spec.dimensions.values().any(|d| d.omit)
+    {
+        return None;
+    }
+    let mut full = spec.clone();
+    full.dimension_source = DimensionSource::Auto;
+    for d in full.dimensions.values_mut() {
+        d.omit = false;
+    }
+    full.dimensions
+        .retain(|_, d| *d != DimensionSpec::default());
+    Some(full)
+}
+
 fn plan_inner(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     if spec.sheet.keep_layout == Some(true) {
         return plan_recovered(analysis, spec);
@@ -4275,6 +4338,14 @@ fn plan_inner(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
         crate::dims::spaced(spec, || {
             let mut plan = plan_with(analysis, spec, false, false, None, false, false)?;
             finish_nominal_plan(analysis, spec, &mut plan);
+            let natural =
+                natural_spec(spec).and_then(|full| crate::model::plan(analysis, &full).ok());
+            crate::dims::callout_routes::prefer_interior(
+                analysis,
+                spec,
+                &mut plan,
+                natural.as_ref(),
+            );
             crate::dims::callout_routes::finish(analysis, spec, &mut plan);
             if !crate::placement_intent::has_pins(spec) {
                 plan.record_dimension_labels();
@@ -4432,6 +4503,7 @@ fn plan_with_presentation(
                 let mut finished = plan_automatic(analysis, base)?;
                 // A bare pin holds the published route, including final-inventory
                 // interior/GD&T repair, rather than an intermediate paper trial.
+                crate::dims::callout_routes::prefer_interior(analysis, base, &mut finished, None);
                 crate::dims::callout_routes::finish(analysis, base, &mut finished);
                 Ok(finished)
             } else {
@@ -4776,7 +4848,14 @@ fn plan_with_presentation(
     }
     crate::dims::check_known(analysis, spec)?;
     let mut demand = crate::demand::read(analysis);
-    if spec.annotations.values().any(|a| a.text.is_some()) {
+    // The analysis's demand assumes the default Spec; edited wording or datum visibility
+    // (`sheet/uncited_datums`, a datum's omit) changes which symbols need room.
+    if spec
+        .annotations
+        .values()
+        .any(|a| a.text.is_some() || a.omit)
+        || spec.sheet.uncited_datums.is_some()
+    {
         demand.gdt = [
             crate::dims::gdt::demand_with_spec(analysis, spec, &|_| true),
             crate::dims::gdt::demand_with_spec(analysis, spec, &|v| v != "side"),

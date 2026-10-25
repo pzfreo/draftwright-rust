@@ -785,12 +785,18 @@ fn empty_report(analysis: &Analysis) -> Report {
     }
 }
 
-/// Why this datum symbol is hidden by explicit Spec intent. Frame citations are semantic:
-/// hiding a frame does not turn its datum into an uncited datum.
+/// Why a declared datum no frame cites and no dimension measures from is not drawn by default.
+pub(crate) const UNCITED_DATUM: &str = "not drawn: no control frame cites this datum and no dimension measures from it (sheet/uncited_datums=true draws it)";
+
+/// Why this datum symbol is hidden: by explicit Spec intent, or by default because no frame
+/// cites it and no dimension measures from it (*origins*, the source ids of the datums dimensions
+/// measure from; maintainer 2026-10-25, revising #141). Frame citations are semantic: hiding a
+/// frame does not turn its datum into an uncited datum.
 pub(crate) fn datum_omission(
     spec: &crate::model::Spec,
     report: &Report,
     record: &Record,
+    origins: &std::collections::BTreeSet<String>,
 ) -> Option<&'static str> {
     if record.category != Category::Datum {
         return None;
@@ -804,13 +810,20 @@ pub(crate) fn datum_omission(
     {
         return Some("datum symbol omitted by annotations/<id>/omit");
     }
-    if spec.sheet.uncited_datums == Some(false)
+    // Unset, a datum dimensions measure from counts as used; false hides every datum no frame
+    // cites, as before.
+    if spec.sheet.uncited_datums != Some(true)
+        && (spec.sheet.uncited_datums == Some(false) || !origins.contains(&record.source_id))
         && !report.records.iter().any(|r| {
             r.category == Category::GeometricTolerance
                 && r.datum_refs.iter().any(|d| d.trim() == record.label.trim())
         })
     {
-        return Some("uncited datum symbol omitted by sheet/uncited_datums=false");
+        return Some(if spec.sheet.uncited_datums == Some(false) {
+            "uncited datum symbol omitted by sheet/uncited_datums=false"
+        } else {
+            UNCITED_DATUM
+        });
     }
     None
 }

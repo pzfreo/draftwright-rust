@@ -1161,6 +1161,9 @@ fn a_manufacturing_table_with_no_place_falls_back_to_full_callouts() {
     let spec = |sheet: serde_json::Value| -> Spec {
         let mut sheet = sheet;
         sheet["callouts"] = serde_json::json!({"style": "note"});
+        // Both declared datums drawn, as when this case was recorded: undrawn, datum A leaves
+        // the table room on A4 at 5:1.
+        sheet["uncited_datums"] = serde_json::json!(true);
         serde_json::from_value(serde_json::json!({ "sheet": sheet })).unwrap()
     };
     // With room, the requirements go to the table, as before.

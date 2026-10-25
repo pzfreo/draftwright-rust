@@ -280,12 +280,29 @@ fn cited_spindle_datums_have_separate_attachments_and_short_leaders() {
     }
 }
 
+/// GRM-03's two datums: B is drawn; A, a cylindrical datum no frame cites and no dimension measures
+/// from, is not drawn by default and is reported (maintainer 2026-10-25, revising #141).
+/// `sheet/uncited_datums: true` draws both, clear of other annotation.
 #[test]
-fn grm03_declared_origin_datums_have_symbols_without_a_tolerance_citation() {
+fn grm03_draws_its_used_datum_and_reports_the_uncited_one() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/pmi/step/GRM-03_thumbwheel_drive_screw_AP242_PMI.step.gz");
     let (_, a) = model::analyse_native(&path).unwrap();
-    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let automatic = model::plan_recovered(&a, &Spec::default()).unwrap();
+    for g in automatic.gdt.iter().filter(|g| g.kind == "datum_feature") {
+        assert_eq!(g.placed.is_some(), g.label == "B", "{}", g.label);
+    }
+    assert!(
+        automatic
+            .problems
+            .iter()
+            .any(|p| p.code == "datum_not_drawn"
+                && p.severity == "info"
+                && p.message.starts_with("Datum A "))
+    );
+    let mut every = Spec::default();
+    every.sheet.uncited_datums = Some(true);
+    let plan = model::plan_recovered(&a, &every).unwrap();
     let Some(draftwright::pmi::Reading::Read(report)) = &a.pmi else {
         panic!("GRM has PMI")
     };

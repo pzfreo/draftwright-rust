@@ -85,6 +85,9 @@ pub(super) struct Proof {
     exterior_faces: Vec<([f64; 4], Vec<usize>)>,
     curved_cover: Vec<[f64; 4]>,
     grid: Grid,
+    /// Whether [`Proof::blank`] also accepts openings the part surrounds or flanks
+    /// ([`callout_proofs`]).
+    voids: bool,
 }
 
 #[derive(Clone)]
@@ -158,6 +161,33 @@ pub(super) fn proofs(
     views: &[PlannedView],
 ) -> BTreeMap<String, std::rc::Rc<Proof>> {
     prepared_proofs(analysis, views, false)
+}
+
+/// [`proofs`] for feature callout routes, which may also put a label in an opening the part
+/// surrounds or flanks: a slot's opening, the gap between lugs (maintainer 2026-10-25). Paper and
+/// scale trials and other interior placement keep face-only proofs.
+pub(super) fn callout_proofs(
+    analysis: &Analysis,
+    views: &[PlannedView],
+) -> BTreeMap<String, std::rc::Rc<Proof>> {
+    let key = serde_json::to_vec(
+        &views
+            .iter()
+            .map(|v| (&v.id, v.direction, v.up, &v.cut))
+            .collect::<Vec<_>>(),
+    )
+    // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
+    .expect("projection inputs serialize");
+    crate::planning::memo(analysis, "callout-proofs", key, || {
+        proofs(analysis, views)
+            .into_iter()
+            .map(|(id, p)| {
+                let mut p = (*p).clone();
+                p.voids = true;
+                (id, std::rc::Rc::new(p))
+            })
+            .collect()
+    })
 }
 
 /// Datum placement can prove exterior paper without a square planar face.
@@ -380,6 +410,7 @@ fn build_camera_with_exterior(
         exterior_faces,
         curved_cover,
         grid,
+        voids: false,
     })
 }
 
@@ -469,10 +500,56 @@ impl Proof {
             0.0
         };
         let start = [a[0] + t * (b[0] - a[0]), a[1] + t * (b[1] - a[1])];
-        self.line_clear(
-            [self.model_point(v, start), self.model_point(v, b)],
-            0.2 / v.scale + SLACK,
-        )
+        let s = [self.model_point(v, start), self.model_point(v, b)];
+        let c = 0.2 / v.scale + SLACK;
+        if !attachment {
+            return self.line_clear(s, c);
+        }
+        let banded = self.banded(v, [a, b]);
+        let g = padded(bounds_of(s), c);
+        self.grid
+            .near(g)
+            .all(|i| banded.contains(&i) || segment_distance(s, self.segments[i]) > c)
+            && self.boxes.iter().all(|x| !near_box(s, *x, c))
+    }
+
+    /// The chords a leader leaving its tip must cross to reach open paper: those parallel to the
+    /// tip's own edge and within 3 paper mm of it (a chamfer or step's concentric outlines, as
+    /// around a hex boss's flats), crossed at more than 20°. The leader crosses them wherever
+    /// its label sits, outside the view too.
+    fn banded(&self, v: &PlannedView, [a, b]: [P2; 2]) -> Vec<usize> {
+        let tip = self.model_point(v, a);
+        let touch = 0.05 / v.scale + SLACK;
+        let unit = |[p, q]: [P2; 2]| {
+            let d = [q[0] - p[0], q[1] - p[1]];
+            let n = d[0].hypot(d[1]);
+            (n > 1e-12).then(|| [d[0] / n, d[1] / n])
+        };
+        let Some(own) = self
+            .grid
+            .near(padded([tip[0], tip[1], tip[0], tip[1]], touch))
+            .filter(|&i| i < self.depths.len() && distance(tip, self.segments[i]) <= touch)
+            .find_map(|i| unit(self.segments[i]))
+        else {
+            return Vec::new();
+        };
+        let Some(leader) = unit([tip, self.model_point(v, b)]) else {
+            return Vec::new();
+        };
+        if (own[0] * leader[1] - own[1] * leader[0]).abs() < 20f64.to_radians().sin() {
+            return Vec::new();
+        }
+        let reach = 3.0 / v.scale;
+        self.grid
+            .near(padded([tip[0], tip[1], tip[0], tip[1]], reach))
+            .filter(|&i| {
+                let [p, _] = self.segments[i];
+                unit(self.segments[i]).is_some_and(|d| {
+                    (d[0] * own[1] - d[1] * own[0]).abs() < 2f64.to_radians().sin()
+                        && ((p[0] - tip[0]) * own[1] - (p[1] - tip[1]) * own[0]).abs() <= reach
+                })
+            })
+            .collect()
     }
 
     fn arrow_clear(&self, v: &PlannedView, [tip, tail]: [P2; 2], attachment: bool) -> bool {
@@ -494,10 +571,17 @@ impl Proof {
             [tail[0] + normal[0], tail[1] + normal[1]],
             [tail[0] - normal[0], tail[1] - normal[1]],
         ];
-        self.box_clear(
-            bounds_of(points.map(|p| self.model_point(v, p))),
-            0.2 / v.scale + SLACK,
-        )
+        let b = bounds_of(points.map(|p| self.model_point(v, p)));
+        let c = 0.2 / v.scale + SLACK;
+        if !attachment {
+            return self.box_clear(b, c);
+        }
+        let banded = self.banded(v, [tip, tail]);
+        let g = padded(b, c);
+        self.grid
+            .near(g)
+            .all(|i| banded.contains(&i) || !near_box(self.segments[i], b, c))
+            && self.boxes.iter().all(|x| !boxes_overlap(*x, g))
     }
 
     /// Whether thin annotation *lines* and *arrows* stay clear of the view's line work; an
@@ -584,10 +668,12 @@ impl Proof {
             .map(|i| distance(tip, self.segments[i]))
             .fold(f64::INFINITY, f64::min);
         let eps = 1e-8 / v.scale;
+        let banded = self.banded(v, p.lines[0]);
         let clear = |line: [P2; 2]| {
             let s = line.map(|p| self.model_point(v, p));
             self.grid.near(padded(bounds_of(s), eps)).all(|i| {
                 (i < self.depths.len() && distance(tip, self.segments[i]) <= closest + eps)
+                    || banded.contains(&i)
                     || segment_distance(s, self.segments[i]) > eps
             }) && self.boxes.iter().all(|b| !near_box(s, *b, eps))
         };
@@ -678,8 +764,11 @@ impl Proof {
             && p.arrows.iter().all(|s| self.arrow_clear(v, *s, true))
     }
 
-    /// Whole-label containment in one planar face square to the view, clear of all projected
-    /// edges and silhouettes by 0.5 paper mm.
+    /// Whole-label containment in one planar face square to the view, or in a void the view
+    /// shows (a through slot's opening, the open paper between lugs), clear of all projected
+    /// edges and silhouettes by 0.5 paper mm (maintainer 2026-10-25: labels sit inside where the
+    /// paper is blank). A void is proven as exterior paper is: outside every curved face's
+    /// cover and every planar face's projection, so curved material never carries a label.
     pub(super) fn blank(&self, v: &PlannedView, label: [f64; 4]) -> bool {
         let lo = self.model_point(v, [label[0], label[1]]);
         let hi = self.model_point(v, [label[2], label[3]]);
@@ -687,10 +776,39 @@ impl Proof {
         let b = [lo[0], lo[1], hi[0], hi[1]];
         let middle = [(b[0] + b[2]) / 2.0, (b[1] + b[3]) / 2.0];
         self.box_clear(b, c)
-            && self
+            && (self
                 .faces
                 .iter()
                 .any(|face| self.face_contains(face, middle))
+                || (self.voids && self.void(b, c)))
+    }
+
+    /// Whether model box *b* lies in no curved face's cover (padded by *c*) and its middle in no
+    /// planar face's projection, yet within some planar face's extent: an opening the part
+    /// surrounds or flanks, never paper off the part.
+    fn void(&self, b: [f64; 4], c: f64) -> bool {
+        let middle = [(b[0] + b[2]) / 2.0, (b[1] + b[3]) / 2.0];
+        self.exterior_faces
+            .iter()
+            .any(|(fb, _)| contains(*fb, middle))
+            && self
+                .curved_cover
+                .iter()
+                .all(|x| !boxes_overlap(*x, padded(b, c)))
+            && self.exterior_faces.iter().all(|(fb, chords)| {
+                !contains(*fb, middle)
+                    || chords
+                        .iter()
+                        .filter(|&&i| {
+                            let [a, z] = self.segments[i];
+                            (a[1] > middle[1]) != (z[1] > middle[1])
+                                && middle[0]
+                                    < a[0] + (middle[1] - a[1]) * (z[0] - a[0]) / (z[1] - a[1])
+                        })
+                        .count()
+                        % 2
+                        == 0
+            })
     }
 
     fn face_contains(&self, face: &Face, q: P2) -> bool {
@@ -1302,9 +1420,16 @@ mod tests {
         assert!(blank.leader_clear(&view(), &p, true));
         let blocked = proof(&ink(vec![
             vec![[0., -10.], [0., 10.]],
-            vec![[0.3, -10.], [0.3, 10.]],
+            vec![[0.3, -10.], [1.3, 10.]],
         ]));
         assert!(!blocked.leader_clear(&view(), &p, true));
+        // An outline parallel to the tip's own edge (a chamfer band around a hex's flats) must
+        // be crossed by any leader leaving the tip; crossing it squarely is forgiven.
+        let banded = proof(&ink(vec![
+            vec![[0., -10.], [0., 10.]],
+            vec![[1., -10.], [1., 10.]],
+        ]));
+        assert!(banded.leader_clear(&view(), &p, true));
     }
 
     #[test]
@@ -1415,11 +1540,20 @@ mod tests {
         // An edge through it, or within the half-millimetre gap of it.
         assert!(!proof(&ink(vec![vec![[0., -10.], [0., 10.]]])).blank(&v, label));
         assert!(!proof(&ink(vec![vec![[-10., 5.3], [10., 5.3]]])).blank(&v, label));
-        // A hole loop around it: the face's even/odd containment excludes the hole.
+        // A hole loop around it: the face's even/odd containment excludes the hole; a callout
+        // proof also takes the opening the face surrounds as blank paper (a label in a slot).
         let hole = vec![[-6., 0.], [6., 0.], [6., 8.], [-6., 8.], [-6., 0.]];
         let mut holed = ink(vec![hole]);
         holed.planes[0].edges.push(4);
         assert!(!proof(&holed).blank(&v, label));
+        let mut callout = proof(&holed);
+        callout.voids = true;
+        assert!(callout.blank(&v, label));
+        assert!(
+            !callout.blank(&v, [-3., 6., 3., 9.]),
+            "across the opening's edge"
+        );
+        assert!(!callout.blank(&v, [60., 2., 66., 5.]), "off the plate");
         // Off the plate entirely.
         assert!(!proof(&ink(vec![])).blank(&v, [60., 2., 66., 5.]));
         // No face square to the view proves nothing.

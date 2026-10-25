@@ -26,9 +26,36 @@ All notable changes to draftwright-rust are recorded here, in the style of
   unchanged; seven synthetic mfcadpp parts change paper or scale (four one step smaller on A4,
   three from A4 1:1 to A3 2:1), and NIST CTC-04 loses its two leader crossings and five
   extension lines through features.
+- **Only used datums are drawn by default (revising #141).** A declared datum's symbol is drawn
+  when a control frame cites it or dimensions measure from it (the planar datum selected as an
+  axis's origin, as for Specify ± mode origins). Any other declared datum is not drawn; it stays
+  in the plan as `not_drawable` and is reported as `datum_not_drawn` (info) (maintainer,
+  2026-10-25). `sheet/uncited_datums: true` draws every declared datum; `false` hides every
+  datum no frame cites, origins included. The layout's room for datum symbols now follows the
+  Spec's datum visibility, not only edited wording. Among the PMI fixtures only GRM-03 changes:
+  its cylindrical datum A, which nothing cites, is reported instead of drawn.
+- **More feature callouts inside the views, and radius leaders that point at the arc's middle.**
+  An automatic feature callout drawn outside its view moves inside when its whole label sits on
+  blank face or in an opening the part surrounds (a slot, the gap between lugs), its leader is
+  no longer and none of its findings grows (maintainer, 2026-10-25). A leader leaving its tip may
+  cross outlines parallel to the tip's own edge, as around a chamfered hex's flats, which any
+  route must cross; NIST CTC-01's HEX 100 A/F now sits on the plate beside the hex. Radius
+  leaders, slot ends included, prefer the middle quarter of the arc and within 7.5° of radial,
+  taking a longer clear route to get there: CTC-01's 4× R25 now meets its arc radially (its
+  radius_leader_not_radial finding goes) and 7× R50 points at the middle of a lug corner. The
+  pass runs on the selected drawing only; when the Spec omits items, the moves come from the same
+  request without them, so an omission moves nothing else. A radius route may not run into more
+  extension lines than the one drawn. Edits cost about 10% more instructions.
 
 ### Fixed
 
+- **Unclaimed faces follow quiddity's face accounting (#207).** A face quiddity accounts to any
+  record, evidence records such as `step_levels` included, is claimed, and its `body` faces are
+  credited once the overall sizes are stated; the envelope-plane stock rule now applies only to
+  analyses without that accounting. On NIST CTC-01 (AP242) the end blocks' inner walls, the notch
+  side walls and slot 1's end walls are no longer reported, while the envelope planes quiddity
+  leaves unexplained, the hex boss's top among them, now are (26 unclaimed faces become 27)
+  until quiddity-rust#100 supplies body evidence.
 - **Sheet choice.** A part whose views fit A3 at 1:1 is no longer offered A2 or larger by the
   paper search either, as the automatic planner already ruled (maintainer, 2026-10-15). A refused
   automatic drawing gets one smaller readable scale on its own paper before larger paper, and a

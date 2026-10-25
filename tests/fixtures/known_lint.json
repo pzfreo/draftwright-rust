@@ -403,9 +403,9 @@
     {
       "part": "ctc01",
       "code": "radius_leader_not_radial",
-      "count": 1,
+      "count": 0,
       "verdict": "rust-correct",
-      "reason": "Issues #145/#146: the drawn radius shaft violates the middle-arc/radial requirement, which accepts either side."
+      "reason": "Issues #145/#146 recorded one 4× R25 shaft off the middle-arc/radial requirement; a noncompliant radius leader now takes a longer compliant route (maintainer 2026-10-25), so 4× R25 meets its arc radially. Retained as a zero-count regression guard."
     },
     {
       "part": "ftc06",

@@ -195,6 +195,31 @@ fn selected_origins(a: &Analysis, s: &Spec) -> ([Option<(f64, String)>; 3], Vec<
     (selected, problems)
 }
 
+/// The source ids of the datums dimensions measure from: the planar datum selected for each axis
+/// that [`origins`] applies and the Spec's `origin` does not override.
+pub(crate) fn origin_datums(a: &Analysis, s: &Spec) -> BTreeSet<String> {
+    if !carries(a) && s.origin.is_empty() {
+        return BTreeSet::new();
+    }
+    let (selected, _) = selected_origins(a, s);
+    let Some(Reading::Read(r)) = &a.pmi else {
+        return BTreeSet::new();
+    };
+    selected
+        .iter()
+        .flatten()
+        .filter_map(|(_, name)| {
+            r.records
+                .iter()
+                .find(|d| {
+                    d.category == Category::Datum
+                        && *name == format!("datum {} ({})", d.label, d.source_id)
+                })
+                .map(|d| d.source_id.clone())
+        })
+        .collect()
+}
+
 pub(crate) fn origin_point(a: &Analysis, s: &Spec) -> [f64; 3] {
     let (selected, _) = selected_origins(a, s);
     std::array::from_fn(|k| selected[k].as_ref().map_or(a.envelope[0][k], |o| o.0))

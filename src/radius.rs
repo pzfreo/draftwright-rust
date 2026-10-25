@@ -186,6 +186,63 @@ impl Projected {
     pub fn accepts(&self, shaft: [P; 2]) -> bool {
         self.violation(shaft).is_none()
     }
+
+    /// Whether a compliant shaft is also well placed: its tip in the middle quarter of the
+    /// sweep (37.5–62.5%) and within 7.5 degrees of radial. The planner prefers such a route
+    /// to a merely compliant one (maintainer 2026-10-25: point at the arc's middle).
+    pub fn centred(&self, [tip, elbow]: [P; 2]) -> bool {
+        let middle = Span {
+            start: self.span.start + self.span.sweep * 0.375,
+            sweep: self.span.sweep * 0.25,
+        };
+        let u = self.radial_direction(tip);
+        let v = [elbow[0] - tip[0], elbow[1] - tip[1]];
+        let norm = u[0].hypot(u[1]) * v[0].hypot(v[1]);
+        self.accepts([tip, elbow])
+            && middle.contains(
+                (tip[1] - self.centre[1]).atan2(tip[0] - self.centre[0]),
+                TOLERANCE / self.radius.max(1e-9),
+            )
+            && (u[0] * v[0] + u[1] * v[1]).abs() >= 7.5f64.to_radians().cos() * norm - 1e-9
+    }
+}
+
+/// A profile feature's proven arcs seen end-on (an obround slot's ends), as radius evidence:
+/// sampled tips span the middle half of each sweep, as [`evidence`]'s do.
+pub(crate) fn profile(
+    a: &Analysis,
+    id: &str,
+    toward: [f64; 3],
+    page: impl Fn([f64; 3]) -> P,
+) -> Vec<Projected> {
+    a.profile_arcs
+        .get(id)
+        .into_iter()
+        .flatten()
+        .filter(|arc| {
+            let [u, v] = [arc.u, arc.v];
+            seen_end_on(
+                [
+                    u[1] * v[2] - u[2] * v[1],
+                    u[2] * v[0] - u[0] * v[2],
+                    u[0] * v[1] - u[1] * v[0],
+                ],
+                toward,
+            )
+        })
+        .map(|arc| {
+            let (centre, radius, span) = arc.projected(&page);
+            let tips = (4..=12)
+                .map(|i| page(arc.point(arc.start + arc.sweep * i as f64 / 16.0)))
+                .collect();
+            Projected {
+                centre,
+                radius,
+                span,
+                tips,
+            }
+        })
+        .collect()
 }
 
 /// Whether a view looking along *toward* sees an arc about *axis* end-on (the planner's arc

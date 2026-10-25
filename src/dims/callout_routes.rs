@@ -227,6 +227,249 @@ fn rehang(g: &mut gdt::PlannedGdt, next: &Placed) {
     p.label_box = next.label_box;
 }
 
+/// Feature callouts over blank face (maintainer 2026-10-25: more labels over the interior). Each
+/// automatic feature callout drawn outside its view takes the best interior route the
+/// settled-route sweep offers, when its whole label is on proven blank face, its leader is no
+/// longer and none of its findings grows, code by code. Linear dimensions stay outside.
+///
+/// *natural* is the same request finished without the Spec's omissions. When it shares this
+/// drawing's paper and view positions, its moves are copied for the items both draw and no other
+/// item moves, so omitting one item moves no other.
+pub(crate) fn prefer_interior(
+    analysis: &Analysis,
+    spec: &Spec,
+    plan: &mut Plan,
+    natural: Option<&Plan>,
+) {
+    if crate::nominal::comparison() {
+        return;
+    }
+    let cache = super::footprints::Cache::default();
+    if let Some(n) = natural.filter(|n| {
+        n.sheet.size == plan.sheet.size
+            && n.sheet.scale == plan.sheet.scale
+            && n.views.len() == plan.views.len()
+            && n.views
+                .iter()
+                .zip(&plan.views)
+                .all(|(a, b)| a.id == b.id && a.at == b.at)
+    }) {
+        let mut all = plan.dimensions.clone();
+        all.extend(plan.gdt.iter().filter_map(gdt::proxy));
+        let mut changed = BTreeSet::new();
+        let mut rechecked_codes = BTreeSet::new();
+        for i in 0..plan.dimensions.len() {
+            let d = &plan.dimensions[i];
+            let Some(q) = n.dimensions.iter().find(|q| {
+                q.id == d.id
+                    && q.region == Some(super::CandidateRegion::Interior)
+                    && q.basis.contains(interior::BASIS)
+            }) else {
+                continue;
+            };
+            if d.kind != "callout"
+                || d.region == Some(super::CandidateRegion::Interior)
+                || d.placed == q.placed
+                || spec
+                    .dimensions
+                    .get(&d.id)
+                    .is_some_and(|s| s.place.is_some())
+            {
+                continue;
+            }
+            let Some(sheet) = plan.views.iter().find(|v| v.id == d.view).and_then(|v| {
+                std::iter::once(&plan.sheet)
+                    .chain(&plan.sheets)
+                    .find(|s| s.number == v.sheet)
+            }) else {
+                continue;
+            };
+            rechecked_codes.extend(
+                placement::collisions_for(analysis, &all, sheet, &plan.views, &cache, &d.id)
+                    .into_iter()
+                    .map(|p| p.code),
+            );
+            all[i].placed.clone_from(&q.placed);
+            all[i].region = q.region;
+            let d = &mut plan.dimensions[i];
+            d.placed.clone_from(&q.placed);
+            d.region = q.region;
+            d.basis.clone_from(&q.basis);
+            if let Some(t) = n.callout_tips.get(&d.id) {
+                plan.callout_tips.insert(d.id.clone(), t.clone());
+            }
+            changed.insert(d.id.clone());
+        }
+        refresh(analysis, plan, &all, &cache, &changed, &rechecked_codes);
+        return;
+    }
+    let proofs = interior::callout_proofs(analysis, &plan.views);
+    let mut wants = super::wants(analysis).0;
+    let frames: BTreeMap<_, _> = plan
+        .views
+        .iter()
+        .filter_map(|v| {
+            let name = v.id.strip_prefix("v:")?;
+            super::NAMES
+                .contains(&name)
+                .then(|| (name, placement::Frame::new(analysis, v)))
+        })
+        .collect();
+    super::detail_routes(analysis, &mut wants, &plan.views);
+    super::route(&mut wants, &frames, analysis);
+    let fixed = furniture(plan);
+    let mut all = plan.dimensions.clone();
+    all.extend(plan.gdt.iter().filter_map(gdt::proxy));
+    let mut changed = BTreeSet::new();
+    let mut rechecked_codes = BTreeSet::new();
+    let length = |p: &Placed| {
+        p.lines
+            .iter()
+            .map(|[a, b]| (b[0] - a[0]).hypot(b[1] - a[1]))
+            .sum::<f64>()
+    };
+    // Repeat until nothing moves, so finishing a finished drawing changes nothing: a callout
+    // moved inside can free the room another one needs.
+    for _ in 0..4 {
+        let moved = changed.len();
+        for i in 0..plan.dimensions.len() {
+            let d = &all[i];
+            let Some(old) = d.placed.clone() else {
+                continue;
+            };
+            if d.kind != "callout"
+                || d.region == Some(super::CandidateRegion::Interior)
+                || spec
+                    .dimensions
+                    .get(&d.id)
+                    .is_some_and(|s| s.place.is_some())
+            {
+                continue;
+            }
+            let Some(view) = plan.views.iter().find(|v| v.id == d.view) else {
+                continue;
+            };
+            let (Some(frame), Some(proof)) = (
+                frames.get(view.id.trim_start_matches("v:")),
+                proofs.get(&view.id),
+            ) else {
+                continue;
+            };
+            if placement::boxes_overlap(old.label_box, frame.outline()) {
+                continue;
+            }
+            let Some(sheet) = std::iter::once(&plan.sheet)
+                .chain(&plan.sheets)
+                .find(|s| s.number == view.sheet)
+            else {
+                continue;
+            };
+            let Some(want) = wants.iter().find(|w| w.id == d.id) else {
+                continue;
+            };
+            let peers: Vec<_> = all
+                .iter()
+                .enumerate()
+                .filter(|(j, q)| {
+                    *j != i
+                        && plan
+                            .views
+                            .iter()
+                            .find(|v| v.id == q.view)
+                            .is_none_or(|v| v.sheet == sheet.number)
+                })
+                .map(|(_, q)| q.clone())
+                .chain(fixed.iter().cloned())
+                .collect();
+            let candidates = leaders::settled_routes(
+                analysis,
+                sheet,
+                &plan.views,
+                d,
+                Some(want),
+                &peers,
+                Some(proof.as_ref()),
+            );
+            let id = d.id.clone();
+            let found = placement::collisions_for(analysis, &all, sheet, &plan.views, &cache, &id);
+            let before = counts(&found);
+            for next in candidates.into_iter().take(40) {
+                if !placement::boxes_overlap(next.label_box, frame.outline())
+                    || !proof.annotation_clear(view, &next, true)
+                    || length(&next) > length(&old) + 1e-6
+                {
+                    continue;
+                }
+                all[i].placed = Some(next.clone());
+                let after = counts(&placement::collisions_for(
+                    analysis,
+                    &all,
+                    sheet,
+                    &plan.views,
+                    &cache,
+                    &id,
+                ));
+                if after
+                    .iter()
+                    .all(|(code, n)| before.get(code).is_some_and(|m| n <= m))
+                {
+                    rechecked_codes.extend(found.iter().map(|p| p.code.clone()));
+                    changed.insert(id.clone());
+                    let d = &mut plan.dimensions[i];
+                    d.placed = Some(next.clone());
+                    d.region = Some(super::CandidateRegion::Interior);
+                    if !d.basis.contains(interior::BASIS) {
+                        d.basis += interior::BASIS;
+                    }
+                    all[i].region = d.region;
+                    plan.callout_tips.insert(
+                        id.clone(),
+                        (
+                            d.view.clone(),
+                            [
+                                next.lines[0][0][0] - view.at[0],
+                                next.lines[0][0][1] - view.at[1],
+                            ],
+                        ),
+                    );
+                    break;
+                }
+                all[i].placed = Some(old.clone());
+            }
+        }
+        if changed.len() == moved {
+            break;
+        }
+    }
+    refresh(analysis, plan, &all, &cache, &changed, &rechecked_codes);
+}
+
+/// A moved callout's collision findings, measured again where it now stands.
+fn refresh(
+    analysis: &Analysis,
+    plan: &mut Plan,
+    all: &[PlannedDimension],
+    cache: &super::footprints::Cache,
+    changed: &BTreeSet<String>,
+    rechecked_codes: &BTreeSet<String>,
+) {
+    if changed.is_empty() {
+        return;
+    }
+    let checked: Vec<_> = std::iter::once(&plan.sheet)
+        .chain(&plan.sheets)
+        .flat_map(|s| placement::collisions_cached(analysis, all, s, &plan.views, cache))
+        .collect();
+    plan.problems.retain(|p| {
+        !p.subjects.iter().any(|s| changed.contains(s)) || !rechecked_codes.contains(&p.code)
+    });
+    plan.problems.extend(checked.into_iter().filter(|p| {
+        p.subjects.iter().any(|s| changed.contains(s)) && rechecked_codes.contains(&p.code)
+    }));
+    plan.sheet.fill = crate::sheet_fit::fill(analysis, plan);
+    plan.status = crate::completeness::status(&plan.problems);
+}
+
 pub(crate) fn finish(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
     if crate::nominal::comparison()
         || crate::planning::lookup::<bool>(analysis, "canonical-circular-recipes", &[])
