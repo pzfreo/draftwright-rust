@@ -146,15 +146,16 @@ fn the_service_answers_each_line() {
     );
     let fixed: Vec<draftwright::items::Op> =
         serde_json::from_value(problems[0]["fix"].clone()).unwrap();
-    // Compact dimension lanes keep A4 at 2:1 without the isometric (#163); the retained
-    // layout keeps that spacing.
-    assert_eq!(fixed.len(), 6);
+    // The retained layout restates the automatic paper and scale. With the 3 mm frame gutter
+    // (2026-10-25) compact lanes no longer hold A4 at 2:1 without the isometric (#163), so the
+    // drawing is A4 at 1:1 on normal lanes and no spacing op is needed.
+    assert_eq!(fixed.len(), 5);
+    assert!(fixed.iter().all(|op| op.path != "sheet/dimension_spacing"));
     for (path, value) in [
         ("sheet/keep_layout", json!(true)),
         ("sheet/size", json!("A4")),
-        ("sheet/scale", json!("2:1")),
+        ("sheet/scale", json!("1:1")),
         ("sheets/max", json!(1)),
-        ("sheet/dimension_spacing", json!("compact")),
     ] {
         assert_eq!(
             fixed.iter().find(|op| op.path == path).unwrap().value,

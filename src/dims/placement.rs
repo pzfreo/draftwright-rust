@@ -974,10 +974,13 @@ pub(super) fn fall_through(
             .iter()
             .position(|&i| !fits(i, key.1, lanes[i]))
             .unwrap_or(list.len());
-        while let Some(first) = list[..cut]
-            .iter()
-            .position(|&j| list[cut..].iter().any(|&i| baseline(i, j)))
-        {
+        // A member another item is merged into keeps the established fall-through: an item the
+        // spec brings back is drawn in its survivor's lane, where the span already was, and a
+        // whole baseline moving across would move the drawing around it (ARCH0003-2).
+        let carries = |j: usize| owner.contains(&Some(j));
+        while let Some(first) = list[..cut].iter().position(|&j| {
+            !carries(j) && list[cut..].iter().any(|&i| !carries(i) && baseline(i, j))
+        }) {
             cut = first;
         }
         let out: Vec<usize> = list[cut..].to_vec();

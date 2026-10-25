@@ -1111,11 +1111,12 @@ fn a_callout_that_does_not_fit_its_lane_goes_beside_its_view() {
 }
 
 /// What fits on neither side shares a lane already held (draftwright's lateral tier reuse): on
-/// ftc08 and ftc09 (Rust quiddity's recognition, the command line's default, through the
-/// recovery) the three slot locations that ran off the sheet, past every lane their strips hold
-/// (ftc08's plan left of the plan, ftc09's below the front), now chain with their own slot's
-/// length, end to end on its dimension line, as draftwright's ftc08 sheet stands each slot
-/// position in its slot length's column; nothing is off the sheet.
+/// ftc09 (Rust quiddity's recognition, the command line's default, through the recovery) the two
+/// slot locations that ran off the sheet, past every lane their strips hold (below the front),
+/// now chain with their own slot's length, end to end on its dimension line, as draftwright's
+/// sheets stand each slot position in its slot length's column; nothing is off the sheet.
+/// ftc08's slot 4 location (plan) was a third case until overflowing strips were packed before
+/// falling through (2026-10-25): its strip now holds it in a lane of its own, on the sheet.
 #[test]
 fn a_location_that_fits_on_neither_side_shares_a_held_lane() {
     let Some(dir) = corpus::dir() else {
@@ -1124,7 +1125,8 @@ fn a_location_that_fits_on_neither_side_shares_a_held_lane() {
     };
     for (file, slots) in [
         // Slot n in a view.
-        ("nist/nist_ftc_08_asme1_rc.stp", &["4@plan"][..]),
+        // Nothing off the sheet; no stranded slot location left to chain.
+        ("nist/nist_ftc_08_asme1_rc.stp", &[][..]),
         ("nist/nist_ftc_09_asme1_rd.stp", &["1@front", "3@front"][..]),
     ] {
         let plan = api::plan_from(
