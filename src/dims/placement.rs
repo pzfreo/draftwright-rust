@@ -863,9 +863,8 @@ fn opposite(side: Side) -> Side {
 /// (draftwright's fall-through, ISSUE-1215-e: a dimension its strip has no room for retries on the
 /// strip across the view). A strip holds its linear dimensions up to the first lane whose item
 /// does not fit the page ([`Page::fits`]: on the sheet, its label off the views and the title
-/// block, no line through the title block or another view), or to the innermost member of a
-/// baseline that item belongs to; those items and every one outside them move to the next free
-/// lanes of the opposite strip, an overall extent first (draftwright moves
+/// block, no line through the title block or another view); that item and every one outside it
+/// move to the next free lanes of the opposite strip, an overall extent first (draftwright moves
 /// only the extent), each that fits there taking the next lane; the extent then goes outside the
 /// rest where that still fits. One that fits on neither side shares a lane already held where it
 /// runs clear of that lane's items, and otherwise keeps its own lane, where the collision checks
@@ -905,31 +904,6 @@ pub(super) fn fall_through(
     // Each strip's overflow, and the lanes it keeps.
     let mut overflow: Vec<((&str, Side), Vec<usize>)> = Vec::new();
     let mut held: BTreeMap<(&str, Side), usize> = BTreeMap::new();
-    // Locations from one datum end are one baseline: it overflows whole or not at all, so a
-    // datum's ladder is never split across the view (maintainer 2026-10-25).
-    let baseline = |i: usize, j: usize| match (&items[i].shape, &items[j].shape) {
-        (
-            Shape::Linear {
-                a: ai,
-                b: bi,
-                axis: ki,
-                order: 1,
-                ..
-            },
-            Shape::Linear {
-                a: aj,
-                b: bj,
-                axis: kj,
-                order: 1,
-                ..
-            },
-        ) if ki == kj => {
-            let k = *ki;
-            ((ai[k].min(bi[k])) - aj[k].min(bj[k])).abs() < 1e-6
-                || (ai[k].max(bi[k]) - aj[k].max(bj[k])).abs() < 1e-6
-        }
-        _ => false,
-    };
     // A dimension's extent along its strip, padded by a millimetre, where it would be drawn.
     let reach = |i: usize, side: Side, lane: usize| {
         let view = views_of[i]?;
@@ -970,19 +944,13 @@ pub(super) fn fall_through(
             }
         }
         list.sort_by_key(|&i| lanes[i]);
-        let mut cut = list
+        let cut = list
             .iter()
             .position(|&i| !fits(i, key.1, lanes[i]))
             .unwrap_or(list.len());
         // A member another item is merged into keeps the established fall-through: an item the
         // spec brings back is drawn in its survivor's lane, where the span already was, and a
         // whole baseline moving across would move the drawing around it (ARCH0003-2).
-        let carries = |j: usize| owner.contains(&Some(j));
-        while let Some(first) = list[..cut].iter().position(|&j| {
-            !carries(j) && list[cut..].iter().any(|&i| !carries(i) && baseline(i, j))
-        }) {
-            cut = first;
-        }
         let out: Vec<usize> = list[cut..].to_vec();
         let lanes_held = list[..cut].iter().map(|&i| lanes[i] + 1).max();
         held.insert(*key, lanes_held.unwrap_or(0));
