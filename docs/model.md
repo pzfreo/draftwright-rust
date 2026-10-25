@@ -1699,9 +1699,13 @@ modifiers?, default, basis, placed}` (`surface_finish` added by F2, draftwright-
   the plan, its leader from the centre of its faces' box. Only the modifiers draftwright draws
   are drawn (all-around, all-over, the zone, the material condition); any other is a
   `pmi_not_lowered` error.
-- **A datum feature symbol** for every declared datum in the STEP or Spec, including
-  datums no control frame cites (for example Specify ± mode measurement origins). Set
-  `sheet/uncited_datums: false` to hide only uncited symbols; `true` (the default) draws them.
+- **A datum feature symbol** for every declared datum in the STEP or Spec that a control frame
+  cites or that dimensions measure from (the planar datum selected as each axis's origin, for
+  example Specify ± mode measurement origins). Any other declared datum is not drawn by default:
+  it stays in `plan().gdt` with `state: {"kind": "not_drawable", "reason_code":
+  "datum_not_drawn"}` and is reported as `datum_not_drawn` (info; maintainer 2026-10-25,
+  revising #141). Set `sheet/uncited_datums: true` to draw every declared datum, or `false` to
+  hide every datum no frame cites, measurement origins included, as the user's omission.
   Set `annotations/<id>/omit: true` to hide any individual datum, using its stable ID from
   `plan().gdt`. Hidden symbols remain there with `state: {"kind": "omitted_by_user"}`, source, faces,
   and an explanatory basis. `pmi().unresolved` explains the omission or attachment/placement

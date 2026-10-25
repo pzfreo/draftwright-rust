@@ -26,6 +26,14 @@ All notable changes to draftwright-rust are recorded here, in the style of
   unchanged; seven synthetic mfcadpp parts change paper or scale (four one step smaller on A4,
   three from A4 1:1 to A3 2:1), and NIST CTC-04 loses its two leader crossings and five
   extension lines through features.
+- **Only used datums are drawn by default (revising #141).** A declared datum's symbol is drawn
+  when a control frame cites it or dimensions measure from it (the planar datum selected as an
+  axis's origin, as for Specify ± mode origins). Any other declared datum is not drawn; it stays
+  in the plan as `not_drawable` and is reported as `datum_not_drawn` (info) (maintainer,
+  2026-10-25). `sheet/uncited_datums: true` draws every declared datum; `false` hides every
+  datum no frame cites, origins included. The layout's room for datum symbols now follows the
+  Spec's datum visibility, not only edited wording. Among the PMI fixtures only GRM-03 changes:
+  its cylindrical datum A, which nothing cites, is reported instead of drawn.
 
 ### Fixed
 

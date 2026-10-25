@@ -85,6 +85,7 @@ catalogue! {
     "cross_reference_missing" => Incomplete, Code, "A required cross-sheet or derived-view reference is absent.";
     "datum_leader_not_normal" => Readability, Code, "The datum leader does not leave its triangle square to the face.";
     "datum_leader_remote" => Readability, Code, "The datum symbol is too far from its referenced surface.";
+    "datum_not_drawn" => Advisory, Code, "A declared datum no frame cites and no dimension measures from is not drawn.";
     "datum_not_identified" => Incomplete, Code, "A referenced datum lacks its identifying symbol.";
     "datum_origin_unusable" => Advisory, Code, "The datum cannot define this origin; the documented fallback is used.";
     "datum_symbol_overlap" => Readability, Code, "Datum symbols overlap other annotations.";

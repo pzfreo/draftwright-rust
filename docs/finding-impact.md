@@ -81,6 +81,7 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `cross_reference_missing` | incomplete | A required cross-sheet or derived-view reference is absent. |
 | `datum_leader_not_normal` | readability | The datum leader does not leave its triangle square to the face. |
 | `datum_leader_remote` | readability | The datum symbol is too far from its referenced surface. |
+| `datum_not_drawn` | advisory | A declared datum no frame cites and no dimension measures from is not drawn. |
 | `datum_not_identified` | incomplete | A referenced datum lacks its identifying symbol. |
 | `datum_origin_unusable` | advisory | The datum cannot define this origin; the documented fallback is used. |
 | `datum_symbol_overlap` | readability | Datum symbols overlap other annotations. |

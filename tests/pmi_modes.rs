@@ -472,8 +472,26 @@ fn cylindrical_datum_draws_its_symbol_and_reports_the_measurement_origin_fallbac
             .iter()
             .any(|d| d.id.ends_with("location.length.x") && d.value == 95.)
     );
-    let datum = result.gdt.iter().find(|g| g.kind == "datum_feature" && g.label == "B").expect("a cylindrical datum remains author intent even when it cannot be a planar measurement origin");
+    // No frame cites it and no dimension measures from it: not drawn by default, and reported
+    // (maintainer 2026-10-25, revising #141); `sheet/uncited_datums: true` draws it.
+    let datum = result
+        .gdt
+        .iter()
+        .find(|g| g.kind == "datum_feature" && g.label == "B")
+        .expect(
+            "a cylindrical datum stays in the plan when it cannot be a planar measurement origin",
+        );
     assert_eq!(datum.faces, [12]);
+    assert!(datum.placed.is_none());
+    assert!(result.problems.iter().any(|p| p.code == "datum_not_drawn"));
+    let mut every = Spec::default();
+    every.sheet.uncited_datums = Some(true);
+    let drawn = plan(&a, &every);
+    let datum = drawn
+        .gdt
+        .iter()
+        .find(|g| g.kind == "datum_feature" && g.label == "B")
+        .unwrap();
     assert!(datum.placed.is_some());
 }
 #[test]

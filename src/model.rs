@@ -452,8 +452,9 @@ pub struct SheetSpec {
     /// Keep explicit paper, scale and count without automatic selection or refitting.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub keep_layout: Option<bool>,
-    /// Draw declared datums even when no tolerance frame cites them (default true).
-    /// False retains uncited symbols in the plan as explicit user omissions.
+    /// Declared datums no tolerance frame cites. Unset (the default), those no dimension measures
+    /// from either are not drawn, each reported as `datum_not_drawn` (info); true draws every
+    /// declared datum; false hides every uncited one as the user's omission.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub uncited_datums: Option<bool>,
     /// ISO 5457 grid zones and centring marks on every sheet (default true). False omits
@@ -4776,7 +4777,14 @@ fn plan_with_presentation(
     }
     crate::dims::check_known(analysis, spec)?;
     let mut demand = crate::demand::read(analysis);
-    if spec.annotations.values().any(|a| a.text.is_some()) {
+    // The analysis's demand assumes the default Spec; edited wording or datum visibility
+    // (`sheet/uncited_datums`, a datum's omit) changes which symbols need room.
+    if spec
+        .annotations
+        .values()
+        .any(|a| a.text.is_some() || a.omit)
+        || spec.sheet.uncited_datums.is_some()
+    {
         demand.gdt = [
             crate::dims::gdt::demand_with_spec(analysis, spec, &|_| true),
             crate::dims::gdt::demand_with_spec(analysis, spec, &|v| v != "side"),
