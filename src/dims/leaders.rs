@@ -2482,6 +2482,7 @@ pub(crate) fn settle_radius_leaders(
     let page = Page::new(analysis, sheet, views);
     let mut reports = BTreeMap::new();
     let incumbents = crate::placement_intent::held_dimensions(reference, views);
+    let proofs = std::cell::OnceCell::new();
     for i in 0..items.len() {
         let d = &items[i];
         if d.kind != "callout"
@@ -2492,12 +2493,11 @@ pub(crate) fn settle_radius_leaders(
         {
             continue;
         }
-        let fillet = d
-            .measurements
-            .iter()
-            .any(|m| m.parameter == "fillet.radius");
-        let parameter = if fillet {
+        let has = |p: &str| d.measurements.iter().any(|m| m.parameter == p);
+        let parameter = if has("fillet.radius") {
             "fillet.radius"
+        } else if has("slot_end_radius.radius") {
+            "slot_end_radius.radius"
         } else {
             "blend.radius"
         };
@@ -2519,7 +2519,12 @@ pub(crate) fn settle_radius_leaders(
         let frame = Frame::new(analysis, v);
         let mut arcs = Vec::new();
         for id in ids {
-            if let Ok(more) = crate::radius::projected(analysis, id, v.direction, |q| frame.page(q))
+            if parameter == "slot_end_radius.radius" {
+                arcs.extend(crate::radius::profile(analysis, id, v.direction, |q| {
+                    frame.page(q)
+                }));
+            } else if let Ok(more) =
+                crate::radius::projected(analysis, id, v.direction, |q| frame.page(q))
             {
                 arcs.extend(more);
             }
@@ -2529,9 +2534,10 @@ pub(crate) fn settle_radius_leaders(
         // otherwise retain a long shaft when the opposite side has clear paper.
         // Drawn lint audits retained routes without a duplicate plan problem.
         let compliant = arcs.iter().any(|a| a.accepts(shaft));
+        let centred = arcs.iter().any(|a| a.centred(shaft));
         if arcs.is_empty()
             || (reference.is_none()
-                && compliant
+                && centred
                 && length(&old.lines) <= MIN_LEADER + SHOULDER + 1e-6)
         {
             continue;
@@ -2558,7 +2564,10 @@ pub(crate) fn settle_radius_leaders(
             short_profile: false,
             inward: false,
             edge_attachment: true,
-            interior_proof: None,
+            interior_proof: proofs
+                .get_or_init(|| super::interior::proofs(analysis, views))
+                .get(&v.id)
+                .map(|p| (v, p.as_ref())),
             profile_proof: None,
             steer: std::cell::Cell::new(None),
             ink_min: ink.min,
@@ -2631,10 +2640,19 @@ pub(crate) fn settle_radius_leaders(
         if compliant && reference.is_some() {
             continue;
         }
-        let mut best: Option<Candidate> = None;
+        // Centred routes rank before merely compliant ones, then by score.
+        let mut best: Option<((bool, i64), Candidate)> = None;
         if let Some(before) = &before {
             let model_budget = model_crossings(&job, before);
-            let length_budget = length(&old.lines) + 2.0 + 1e-6;
+            // A centred route keeps within 2 mm of its length. Any other may be replaced by
+            // a clear better route up to the longest leader allowed: a compliant one by a
+            // centred one, a noncompliant one by any compliant one. Pointing radially at the
+            // arc's middle outranks a shorter shaft (maintainer 2026-10-25).
+            let length_budget = if centred {
+                length(&old.lines) + 2.0 + 1e-6
+            } else {
+                MAX_LEADER + SHOULDER
+            };
             for arc in &arcs {
                 for &tip in &arc.tips {
                     let u = arc.radial_direction(tip);
@@ -2652,9 +2670,13 @@ pub(crate) fn settle_radius_leaders(
                             let elbow = [tip[0] + reach * u[0], tip[1] + reach * u[1]];
                             // Every shoulder has this length. Reject over-budget reaches
                             // before measuring the much more expensive peer contacts.
-                            if reach + SHOULDER > length_budget || !arc.accepts([tip, elbow]) {
+                            if reach + SHOULDER > length_budget
+                                || !arc.accepts([tip, elbow])
+                                || (compliant && !centred && !arc.centred([tip, elbow]))
+                            {
                                 continue;
                             }
+                            let centred_c = arc.centred([tip, elbow]);
                             let right = elbow[0] >= tip[0];
                             let Some(mut c) = measure_bounds(&job, tip, elbow, right, &page) else {
                                 continue;
@@ -2662,8 +2684,10 @@ pub(crate) fn settle_radius_leaders(
                             // Unmeasured contact costs are nonnegative, so this lower bound
                             // cannot discard a candidate that would beat the current best.
                             if c.hard > before.hard
-                                || (compliant && c.score() >= before.score())
-                                || best.as_ref().is_some_and(|b| c.score() >= b.score())
+                                || (centred && c.score() >= before.score())
+                                || best
+                                    .as_ref()
+                                    .is_some_and(|(k, _)| (!centred_c, c.score()) >= *k)
                             {
                                 continue;
                             }
@@ -2675,8 +2699,10 @@ pub(crate) fn settle_radius_leaders(
                                 || c.text > before.text
                                 || c.feature_crossings > before.feature_crossings
                                 || c.beside > before.beside
-                                || (compliant && c.score() >= before.score())
-                                || best.as_ref().is_some_and(|b| c.score() >= b.score())
+                                || (centred && c.score() >= before.score())
+                                || best
+                                    .as_ref()
+                                    .is_some_and(|(k, _)| (!centred_c, c.score()) >= *k)
                                 || model_crossings(&job, &c) > model_budget
                                 || !page.fits(&c.placed(), view)
                                 || !radius_contacts(&c.placed(), others.iter().copied())
@@ -2684,8 +2710,11 @@ pub(crate) fn settle_radius_leaders(
                             {
                                 continue;
                             }
-                            if best.as_ref().is_none_or(|b| c.score() < b.score()) {
-                                best = Some(c);
+                            if best
+                                .as_ref()
+                                .is_none_or(|(k, _)| (!centred_c, c.score()) < *k)
+                            {
+                                best = Some(((!centred_c, c.score()), c));
                             }
                         }
                     }
@@ -2693,14 +2722,21 @@ pub(crate) fn settle_radius_leaders(
             }
         }
         let id = d.id.clone();
-        if let Some(c) = best {
+        if let Some((_, c)) = best {
             let route =
                 route_reports_named(&id, &d.label, view, footprint.solids(), [c.tip, c.elbow]);
             items[i].placed = Some(c.placed());
-            // These candidates use the exterior inventory. An interior proof no longer
-            // describes the moved label and must not exempt it from final collisions.
-            items[i].region = None;
-            items[i].basis = items[i].basis.replace(super::interior::BASIS, "");
+            // A label inside the view was proven on blank face or in an opening by the job's
+            // interior proof; any other moved label leaves an earlier proof behind.
+            if boxes_overlap(c.label_box, job.outline) {
+                items[i].region = Some(super::CandidateRegion::Interior);
+                if !items[i].basis.contains(super::interior::BASIS) {
+                    items[i].basis += super::interior::BASIS;
+                }
+            } else {
+                items[i].region = None;
+                items[i].basis = items[i].basis.replace(super::interior::BASIS, "");
+            }
             reports.insert(id, route);
         }
     }
@@ -6948,9 +6984,19 @@ fn interior_routes(job: &Job, tip: P2, page: &Page) -> Vec<Candidate> {
     if job.interior_proof.is_none() {
         return Vec::new();
     }
-    sweep(job, tip)
-        .into_iter()
-        .chain(inward_rays(job, tip))
+    // The current tip first, then the feature's other sites: a label inside the view may be
+    // clear only from another point on the same edge (a hex flat beside its apex).
+    let mut tips = vec![tip];
+    for &(site, ..) in &job.sites {
+        if tips
+            .iter()
+            .all(|t: &P2| (t[0] - site[0]).hypot(t[1] - site[1]) > 0.5)
+        {
+            tips.push(site);
+        }
+    }
+    tips.into_iter()
+        .flat_map(|tip| sweep(job, tip).into_iter().chain(inward_rays(job, tip)))
         .filter_map(|(tip, elbow, right)| {
             let c = measure_bounds(job, tip, elbow, right, page)?;
             (boxes_overlap(c.label_box, job.outline) && c.hard == 0).then_some(c)
@@ -6973,6 +7019,21 @@ fn radius_route_evidence(
         "fillet.radius"
     } else if d.measurements.iter().any(|m| m.parameter == "blend.radius") {
         "blend.radius"
+    } else if d
+        .measurements
+        .iter()
+        .any(|m| m.parameter == "slot_end_radius.radius")
+    {
+        let frame = Frame::new(analysis, view);
+        return Some(
+            d.measurements
+                .iter()
+                .filter(|m| m.parameter == "slot_end_radius.radius")
+                .flat_map(|m| {
+                    crate::radius::profile(analysis, &m.feature, view.direction, |p| frame.page(p))
+                })
+                .collect(),
+        );
     } else {
         return None;
     };
@@ -7125,6 +7186,31 @@ pub(super) fn settled_routes(
         .filter(|c| !boxes_overlap(c.label_box, job.outline) && c.hard == 0)
         .collect();
     candidates.extend(interior_routes(&job, shaft[0], &page));
+    // A radius may also be read from inside its arc, the shaft running toward the centre (a
+    // slot's end from within the slot): the label then sits in the opening the arc bounds.
+    if job.interior_proof.is_some() {
+        for arc in radius.iter().flatten() {
+            for &tip in &arc.tips {
+                let u = arc.radial_direction(tip);
+                let n = u[0].hypot(u[1]);
+                if n <= 1e-12 {
+                    continue;
+                }
+                let u = [u[0] / n, u[1] / n];
+                for reach in SWEEP_REACH.into_iter().take_while(|d| *d < 2.0 * n) {
+                    let elbow = [tip[0] + reach * u[0], tip[1] + reach * u[1]];
+                    for right in [elbow[0] >= tip[0] - 1e-9, elbow[0] <= tip[0] + 1e-9] {
+                        if let Some(c) = measure_bounds(&job, tip, elbow, right, &page)
+                            && boxes_overlap(c.label_box, job.outline)
+                            && c.hard == 0
+                        {
+                            candidates.push(c);
+                        }
+                    }
+                }
+            }
+        }
+    }
     // Radius evidence is independent of the old router's sites. A cheaper or
     // crossing-free route may not violate the shared #153 drawing rule.
     candidates.retain(|c| {
@@ -7149,10 +7235,10 @@ pub(super) fn settled_routes(
     candidates.retain_mut(|c| {
         measure_fixed(c, &job, &fixed);
         c.measure_features(&job);
-        let interior = boxes_overlap(c.label_box, job.outline);
-        // An interior route is admitted only with every fixed annotation gap clear.
-        // Exterior shafts may cross their own outline on the way out, as the
-        // original sweep does. Preserve hidden-edge budgets independently;
+        // An interior route meets the exterior routes' budgets: its label on proven blank face
+        // (`measure_at_bounds`), no text, clearance or furniture contact, and its crossings
+        // scored like theirs. Exterior shafts may cross their own outline on the way out, as
+        // the original sweep does. Preserve hidden-edge budgets independently;
         // counting every visible chord as a veto loses clear outward routes.
         let extensions = fixed.extension_index.contacts(&c.segments(), c.label_box);
         c.hard == 0
@@ -7163,12 +7249,20 @@ pub(super) fn settled_routes(
             && c.furniture == 0
             && c.beside == 0
             && c.grazing == 0
-            && (!interior || c.clear())
             && resolved
                 .as_ref()
                 .is_none_or(|r| r.hidden.route_crossings(c.segments()) <= hidden)
     });
-    candidates.sort_by_key(|c| (c.score(), boxes_overlap(c.label_box, job.outline)));
+    // A radius reads best at its arc's middle, radially: centred routes rank first.
+    candidates.sort_by_key(|c| {
+        (
+            radius
+                .as_ref()
+                .is_some_and(|arcs| !arcs.iter().any(|a| a.centred([c.tip, c.elbow]))),
+            c.score(),
+            boxes_overlap(c.label_box, job.outline),
+        )
+    });
     candidates.dedup_by(|a, b| a.label_box == b.label_box && a.tip == b.tip);
     candidates.into_iter().map(|c| c.placed()).collect()
 }

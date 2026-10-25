@@ -3671,6 +3671,7 @@ fn plan_recovered_inner(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invali
             let effective = crate::spec_gdt::effective(analysis, &plan.spec)?;
             // Repair only the selected drawing. Candidate paper/scale trials keep their
             // established costs, so a clearer route cannot force a larger sheet.
+            crate::dims::callout_routes::prefer_interior(effective.as_ref(), spec, &mut plan);
             crate::dims::callout_routes::finish(effective.as_ref(), spec, &mut plan);
             crate::dims::pmi_policy::audit(effective.as_ref(), &plan.spec.clone(), &mut plan);
             if crate::dims::pmi_policy::carries(effective.as_ref()) || !spec.origin.is_empty() {
