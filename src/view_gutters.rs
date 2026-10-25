@@ -517,15 +517,17 @@ fn translations(
         for i in 0..n {
             for j in 0..i {
                 if plan.views[i].sheet == plan.views[j].sheet {
+                    // A nanometre of play: exact opposite limits can sum below zero in
+                    // floating point, which the solver reads as an infeasible cycle.
                     edges.push(Edge {
                         from: i,
                         to: j,
-                        limit: d[j] - d[i],
+                        limit: d[j] - d[i] + 1e-9,
                     });
                     edges.push(Edge {
                         from: j,
                         to: i,
-                        limit: d[i] - d[j],
+                        limit: d[i] - d[j] + 1e-9,
                     });
                 }
             }

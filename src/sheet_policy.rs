@@ -1912,12 +1912,13 @@ mod tests {
             scale: 1.0,
             aligned: true,
         };
-        // Even at the smallest readable scale the fixed band exceeds A4's 277 mm.
+        // Even at the smallest readable scale the fixed band exceeds A4's 271 mm (277 mm inside
+        // the frame, less the 3 mm frame gutter on each side).
         assert_eq!(estimate.scale("A4", 1, 0.5), None);
         assert_eq!(
             estimate.ruled_out("A4", 1, 0.5),
             "ruled out: view v:front with its annotation bands needs at least 330 × 55 mm at 1:2; \
-             A4 drawable area is 277 × 190 mm; 1:2 is the smallest readable scale"
+             A4 drawable area is 271 × 184 mm; 1:2 is the smallest readable scale"
         );
         // A floor above every standard scale has no smallest readable scale to cite.
         assert!(
@@ -1939,8 +1940,9 @@ mod tests {
             scale: 1.0,
             aligned: true,
         };
-        assert_eq!(at_limit(277.0).scale("A4", 1, 1.0), Some(1.0));
-        assert_eq!(at_limit(277.01).scale("A4", 1, 1.0), None);
+        // A4's drawable width inside the 3 mm frame gutter.
+        assert_eq!(at_limit(271.0).scale("A4", 1, 1.0), Some(1.0));
+        assert_eq!(at_limit(271.01).scale("A4", 1, 1.0), None);
         // mfcadpp holdout 317's aligned front and side estimate is within 5% of A4's drawable
         // width at 1:2, and that full trial is the winner. (mfcadpp 10163 was this case until
         // quiddity-rust 0.2.0 read one fewer fillet and it moved off the limit.)
