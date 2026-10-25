@@ -627,6 +627,36 @@ fn finish_choice(mut plan: Plan, spec: &Spec, candidates: Vec<Candidate>, reason
     plan
 }
 
+/// A usable preference candidate does not clear a shortfall the automatic search found: when
+/// no standard sheet had a legible scale and the candidate is still below the opening
+/// legibility floor, it says so, as the baseline did.
+fn illegible_shortfall(analysis: &Analysis, spec: &Spec, baseline: &Plan, plan: &mut Plan) {
+    let legible =
+        sheet_fit::min_legible_scale(analysis).max(crate::sheets::floor(spec).unwrap_or(0.));
+    let exhausted = |p: &Plan| {
+        p.problems
+            .iter()
+            .any(|q| q.code == "layout_recovery_exhausted" && q.severity == "warning")
+    };
+    if !exhausted(baseline) || exhausted(plan) || plan.sheet.scale_factor + 1e-9 >= legible {
+        return;
+    }
+    plan.problems.push(model::Problem {
+        id: "p:layout_recovery_exhausted:sheet".into(),
+        code: "layout_recovery_exhausted".into(),
+        severity: "warning".into(),
+        message: format!(
+            "{} at {} is below {}, the opening legibility floor; no standard sheet and legible scale yields a valid complete drawing, so this usable drawing and its findings are kept.",
+            plan.sheet.size,
+            plan.sheet.scale,
+            model::scale_name(legible)
+        ),
+        subjects: vec!["sheet".into()],
+        ..Default::default()
+    });
+    plan.status = crate::completeness::status(&plan.problems);
+}
+
 pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     if automatic(spec) && crate::placement_intent::has_pins(spec) {
         return pinned(analysis, spec);
@@ -857,7 +887,8 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
                 break;
             }
         }
-        if let Some(plan) = chosen {
+        if let Some(mut plan) = chosen {
+            illegible_shortfall(fit, spec, &baseline, &mut plan);
             let reason = format!(
                 "{size}: usable at {} ({} sheet(s)){}; nothing clipped, readable scale, no unreadable ink or required losses",
                 plan.sheet.scale,
@@ -1091,6 +1122,10 @@ fn replay_pins(
     } else if raw.sheet.size == canonical.sheet.size
         && raw.sheet.scale == canonical.sheet.scale
         && raw.sheets.len() == canonical.sheets.len()
+        && raw.views.len() == canonical.views.len()
+        && raw.views.iter().zip(&canonical.views).all(|(a, b)| {
+            a.id == b.id && (0..2).all(|k| (a.at[k] - b.at[k]).abs() < 1e-6)
+        })
     {
         model::plan_automatic(analysis, spec)?
     } else {
