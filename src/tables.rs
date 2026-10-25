@@ -23,7 +23,7 @@ use serde_json::Value;
 
 use crate::dims::PlannedDimension;
 use crate::items::State;
-use crate::layout::{self, Corner, MARGIN, Rect};
+use crate::layout::{self, Corner, FRAME, Rect};
 use crate::model::{Analysis, Invalid, PlannedSheet, PlannedView, Problem};
 
 /// The text height and the padding around it, mm (draftwright's `_FONT_SIZE` and the draft
@@ -226,7 +226,7 @@ pub(crate) fn place(
 ) -> Option<[f64; 2]> {
     let [pw, ph] = sheet.page;
     // Ruled furniture must keep its visible stroke inside the drawable frame.
-    let edge = MARGIN + frame_clearance();
+    let edge = FRAME + frame_clearance();
     let region = [edge, edge, pw - edge, ph - edge];
     layout::fit_auxiliary_box(size, region, obstacles, corner, PAD)
 }

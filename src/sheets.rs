@@ -165,6 +165,18 @@ fn groups(spec: &Spec) -> Vec<Vec<String>> {
 }
 
 pub(crate) fn validate(spec: &Spec) -> Result<(), Invalid> {
+    if spec
+        .sheet
+        .frame_gutter
+        .is_some_and(|g| !(g.is_finite() && (0.0..=20.0).contains(&g)))
+    {
+        return Err(Invalid {
+            message: "sheet.frame_gutter must be a number of millimetres from 0 to 20.".into(),
+            choices: vec!["0".into(), "5".into()],
+            path: Some("sheet/frame_gutter".into()),
+            also: Vec::new(),
+        });
+    }
     if spec.sheets.is_none()
         && spec.views.values().all(|v| v.sheet.is_none())
         && spec.tables.iter().all(|t| t.sheet.is_none())
@@ -1135,8 +1147,8 @@ fn pack_with_overflow(
                 ) {
                     let top = views
                         .last()
-                        .map_or(sheet.page[1] - layout::MARGIN, |v| v.area[1] - 10.);
-                    let delta = [layout::MARGIN - view.area[0], top - view.area[3]];
+                        .map_or(sheet.page[1] - layout::margin(), |v| v.area[1] - 10.);
+                    let delta = [layout::margin() - view.area[0], top - view.area[3]];
                     shift(&mut view, delta);
                     views.push(view);
                 }
@@ -1460,10 +1472,10 @@ fn separate_views_inner(
     occupied.extend(crate::sheet_fit::furniture_footprints(analysis, &furniture));
     occupied.push(plan.sheet.title_block);
     let region = [
-        layout::MARGIN + 2.,
-        layout::MARGIN + 2.,
-        w - layout::MARGIN - 2.,
-        h - layout::MARGIN - 2.,
+        layout::margin() + 2.,
+        layout::margin() + 2.,
+        w - layout::margin() - 2.,
+        h - layout::margin() - 2.,
     ];
     let mut pages = vec![occupied];
     let principal = |id: &str| ["v:front", "v:plan", "v:side"].contains(&id);
@@ -1877,10 +1889,10 @@ fn reference_position(
     }
     let [w, h] = local.sheet.page;
     let limits = [
-        layout::MARGIN + 1. - laid.min[0],
-        layout::MARGIN + 1. - laid.min[1],
-        w - layout::MARGIN - 1. - laid.max[0],
-        h - layout::MARGIN - 1. - laid.max[1],
+        layout::margin() + 1. - laid.min[0],
+        layout::margin() + 1. - laid.min[1],
+        w - layout::margin() - 1. - laid.max[0],
+        h - layout::margin() - 1. - laid.max[1],
     ];
     let mut xs: Vec<_> = anchors
         .iter()
@@ -2104,10 +2116,10 @@ fn check_with_search(plan: &Plan, blocked: bool) -> Vec<Problem> {
                 }),
         );
         for (i, (id, b)) in bounds.iter().enumerate() {
-            if b[0] < layout::MARGIN
-                || b[1] < layout::MARGIN
-                || b[2] > sheet.page[0] - layout::MARGIN
-                || b[3] > sheet.page[1] - layout::MARGIN
+            if b[0] < layout::margin()
+                || b[1] < layout::margin()
+                || b[2] > sheet.page[0] - layout::margin()
+                || b[3] > sheet.page[1] - layout::margin()
             {
                 out.push(problem(
                     "annotation_off_sheet",

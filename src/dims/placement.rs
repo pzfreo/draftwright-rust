@@ -10,7 +10,7 @@ use super::{
     ARROW, ARROW_HALF, CAP, GAP, LIFT, OVERSHOOT, P2, P3, Placed, PlannedDimension, Shape, TEXT,
     TOKEN_GAP, Want, first_line, font, key, lane_pitch,
 };
-use crate::layout::{Lanes, MARGIN};
+use crate::layout::{Lanes, margin};
 use crate::model::{Analysis, PlannedSheet, PlannedView, Problem};
 use crate::output::{STRAY_TEXT, label_gap, linear_ink, shared_dimension_line};
 use crate::text::{Font, Segment};
@@ -4008,7 +4008,7 @@ fn inside(p: P2, b: [f64; 4]) -> bool {
 /// The sheet's drawing area, inside its margin.
 fn drawable(sheet: &PlannedSheet) -> [f64; 4] {
     let [w, h] = sheet.page;
-    [MARGIN, MARGIN, w - MARGIN, h - MARGIN]
+    [margin(), margin(), w - margin(), h - margin()]
 }
 
 /// Each view's drawn box on the page: a principal view's projected envelope, the isometric's

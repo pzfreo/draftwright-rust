@@ -471,7 +471,7 @@ pub(crate) fn views(
                 && let Some(c) = canonical
             {
                 let a = views[i].area;
-                let margin = crate::layout::MARGIN;
+                let margin = crate::layout::FRAME;
                 // A settled automatic iso carries its ink band, not the old empty
                 // fitting rectangle. Offer the remaining paper on the authored side
                 // before resolving obstacles; the pinned gap still locates that region.
@@ -597,7 +597,7 @@ pub(crate) fn views(
             .iter()
             .filter(|v| group.contains(v.id.trim_start_matches("v:")))
             .collect();
-        let margin = crate::layout::MARGIN;
+        let margin = crate::layout::FRAME;
         let mut delta = [0.0; 2];
         for k in 0..2 {
             let lo = members
@@ -690,7 +690,7 @@ pub(crate) fn views(
             }
         }
     }
-    let margin = crate::layout::MARGIN;
+    let margin = crate::layout::FRAME;
     // A constrained principal arrangement may consume the orientation budget.
     // Prefer the sheet scale whenever it fits; keep the existing five-percent
     // snapping rule and honour an authored isometric scale exactly.

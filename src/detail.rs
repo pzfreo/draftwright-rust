@@ -969,10 +969,10 @@ pub(crate) fn marker(
                 p[0] + glyph.max[0] + 1.0,
                 p[1] + glyph.max[1] + 1.0,
             ];
-            b[0] >= crate::layout::MARGIN
-                && b[1] >= crate::layout::MARGIN
-                && b[2] <= page[0] - crate::layout::MARGIN
-                && b[3] <= page[1] - crate::layout::MARGIN
+            b[0] >= crate::layout::margin()
+                && b[1] >= crate::layout::margin()
+                && b[2] <= page[0] - crate::layout::margin()
+                && b[3] <= page[1] - crate::layout::margin()
                 && obstacles
                     .iter()
                     .all(|o| b[2] <= o[0] || b[0] >= o[2] || b[3] <= o[1] || b[1] >= o[3])

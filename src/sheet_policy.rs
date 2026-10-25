@@ -129,10 +129,10 @@ fn failures(analysis: &Analysis, plan: &Plan, floor: f64) -> BTreeSet<(String, V
             .find(|s| s.number == view.sheet)
             .unwrap_or(&plan.sheet)
             .page;
-        if bounds[0] < layout::MARGIN + stroke
-            || bounds[1] < layout::MARGIN + stroke
-            || bounds[2] > page[0] - layout::MARGIN - stroke
-            || bounds[3] > page[1] - layout::MARGIN - stroke
+        if bounds[0] < layout::margin() + stroke
+            || bounds[1] < layout::margin() + stroke
+            || bounds[2] > page[0] - layout::margin() - stroke
+            || bounds[3] > page[1] - layout::margin() - stroke
         {
             failures.insert(("annotation_off_sheet".into(), vec![view.id.clone()]));
         }
@@ -241,7 +241,7 @@ impl Estimate {
     fn shortfall(&self, size: &str, max: usize, scale: f64) -> Option<String> {
         // Invariant: Candidates select paper names from the fixed PAGES table.
         let (_, w, h) = layout::PAGES.iter().find(|p| p.0 == size).unwrap();
-        let available = [w - 2.0 * layout::MARGIN, h - 2.0 * layout::MARGIN];
+        let available = [w - 2.0 * layout::margin(), h - 2.0 * layout::margin()];
         let at = model::scale_name(scale);
         let frame = format!(
             "{size} drawable area is {:.0} × {:.0} mm",
@@ -913,10 +913,10 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
 fn compact_may_help(analysis: &Analysis, plan: &Plan) -> bool {
     let page = plan.sheet.page;
     let frame = [
-        layout::MARGIN,
-        layout::MARGIN,
-        page[0] - layout::MARGIN,
-        page[1] - layout::MARGIN,
+        layout::margin(),
+        layout::margin(),
+        page[0] - layout::margin(),
+        page[1] - layout::margin(),
     ];
     if !sheet_fit::inside_frames(analysis, plan) {
         let outlines = sheet_fit::footprints(analysis, plan);
@@ -2653,7 +2653,7 @@ mod tests {
         let mut p = model::plan_automatic(&a, &Spec::default()).unwrap();
         let original = failures(&a, &p, 0.1);
         let first = sheet_fit::footprints(&a, &p)[0];
-        p.views[0].at[0] += layout::MARGIN - first[0];
+        p.views[0].at[0] += layout::margin() - first[0];
         let changed = failures(&a, &p, 0.1);
         assert!(
             changed

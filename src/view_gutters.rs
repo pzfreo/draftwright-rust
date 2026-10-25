@@ -1,6 +1,6 @@
 //! Spend spare paper on blank view gutters, only after sheet/scale recovery and allocation.
 //! All packers (including relative placements, details and measured refits) meet here.
-use crate::layout::{MARGIN, Rect};
+use crate::layout::{Rect, margin};
 use crate::model::{Analysis, Plan};
 use crate::placement_intent::{move_box, move_point};
 
@@ -336,7 +336,7 @@ fn translations(
             .expect("view sheet");
         // Principal bands already contain blank annotation padding. The iso band
         // is measured ink, so keep its caption one mm inside the drawn frame.
-        let inset = MARGIN + if v.id == "v:iso" { 1.0 } else { 0.0 };
+        let inset = margin() + if v.id == "v:iso" { 1.0 } else { 0.0 };
         for k in 0..2 {
             hard[k].push(Edge {
                 from: i,

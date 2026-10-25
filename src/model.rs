@@ -22,7 +22,7 @@ use sha2::{Digest, Sha256};
 use crate::bridge::{Feature, Recognition};
 use crate::dims::{Omitted, PlannedDimension};
 use crate::items::State as ItemState;
-use crate::layout::{self, Corner, Fallback, MARGIN, Principals, Request};
+use crate::layout::{self, Corner, FRAME, Fallback, Principals, Request, margin};
 use crate::notes::{NoteSpec, NotesBlock, PlannedNote};
 use crate::output::{
     Annotation, Claim, Curve, Drawing, Drawn, DrawnField, DrawnView, HAlign, Item, Kind, Layer,
@@ -506,6 +506,11 @@ pub struct SheetSpec {
     /// that fallback and `compact` uses compact lanes directly.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dimension_spacing: Option<DimensionSpacing>,
+    /// Clear space between the frame and any view or annotation ink, mm, from 0 to 20: unset
+    /// is 5; 0 lets the drawing run to the frame. The title block, zones, centring marks and
+    /// frame-corner tables stay on the frame.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub frame_gutter: Option<f64>,
     #[serde(skip_serializing_if = "BTreeMap::is_empty")]
     pub title: BTreeMap<String, String>,
     /// Legacy spelling of `fit_deviations`; explicit values remain supported.
@@ -1881,10 +1886,10 @@ pub(crate) fn drawn_sheets_fit(analysis: &Analysis, plan: &Plan) -> bool {
 
 fn drawn_items_fit(analysis: &Analysis, p: &Plan) -> bool {
     let inside = |b: [f64; 4]| {
-        b[0] >= layout::MARGIN - 1e-6
-            && b[1] >= layout::MARGIN - 1e-6
-            && b[2] <= p.sheet.page[0] - layout::MARGIN + 1e-6
-            && b[3] <= p.sheet.page[1] - layout::MARGIN + 1e-6
+        b[0] >= layout::margin() - 1e-6
+            && b[1] >= layout::margin() - 1e-6
+            && b[2] <= p.sheet.page[0] - layout::margin() + 1e-6
+            && b[3] <= p.sheet.page[1] - layout::margin() + 1e-6
     };
     let mut title = p.sheet.title_block;
     title[3] = title_block::top(title);
@@ -2135,7 +2140,7 @@ pub(crate) fn fits_a3_at_full_size(analysis: &Analysis, first: &Plan) -> bool {
         .filter(|v| v.id == "v:plan" || v.id == "v:front")
         .map(|v| size(v)[1] + 2.0 * layout::dim_pad())
         .sum();
-    row <= w - 2.0 * layout::MARGIN && column <= h - 2.0 * layout::MARGIN
+    row <= w - 2.0 * layout::margin() && column <= h - 2.0 * layout::margin()
 }
 
 pub(crate) fn established_key(spec: &Spec) -> Vec<u8> {
@@ -2968,8 +2973,8 @@ fn recover_candidates(
                         // Invariant: Planned cameras come from the fixed views or checked section/detail cameras, with nonparallel axes.
                         let view = View::new(v.direction, v.up).expect("planned view");
                         let (size, _) = extent(analysis, &view);
-                        size[0] * scale > w - 2.0 * layout::MARGIN
-                            || size[1] * scale > h - 2.0 * layout::MARGIN
+                        size[0] * scale > w - 2.0 * layout::margin()
+                            || size[1] * scale > h - 2.0 * layout::margin()
                     })
                 {
                     tried.push(format!(
@@ -3489,6 +3494,7 @@ pub(crate) fn pin_base(spec: &Spec) -> Spec {
     base.sheet.preferred_max_size = spec.sheet.preferred_max_size.clone();
     base.sheet.preferred_max_sheets = spec.sheet.preferred_max_sheets;
     base.sheet.dimension_spacing = spec.sheet.dimension_spacing;
+    base.sheet.frame_gutter = spec.sheet.frame_gutter;
     base.sheet.projection = spec.sheet.projection.clone();
     base.sheet.fit_deviations = spec.sheet.fit_deviations;
     base.sheet.references = spec.sheet.references;
@@ -3518,8 +3524,13 @@ pub(crate) fn pin_base(spec: &Spec) -> Spec {
 /// caller (the library's [`crate::api`], so the command line, the JSON-lines service and MCP)
 /// is given. A plan that cannot be made is refused as [`plan`] refuses it.
 pub fn plan_recovered(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
-    let plan = plan_recovered_once(analysis, spec)?;
-    manufacturing_fallback(analysis, spec, plan, |s| plan_recovered_once(analysis, s))
+    layout::with_gutter(
+        spec.sheet.frame_gutter.unwrap_or(layout::FRAME_GUTTER),
+        || {
+            let plan = plan_recovered_once(analysis, spec)?;
+            manufacturing_fallback(analysis, spec, plan, |s| plan_recovered_once(analysis, s))
+        },
+    )
 }
 
 /// draftwright's fallback for a manufacturing requirements table with no place on the finished
@@ -4217,8 +4228,13 @@ fn gdt_misplaced(plan: &Plan) -> (usize, usize) {
 /// drawing's findings. That recovery is [`recover`], applied by [`plan_recovered`], never here:
 /// its tries are plans made by this function (ISSUE-1299-a).
 pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
-    let plan = plan_once(analysis, spec)?;
-    manufacturing_fallback(analysis, spec, plan, |s| plan_once(analysis, s))
+    layout::with_gutter(
+        spec.sheet.frame_gutter.unwrap_or(layout::FRAME_GUTTER),
+        || {
+            let plan = plan_once(analysis, spec)?;
+            manufacturing_fallback(analysis, spec, plan, |s| plan_once(analysis, s))
+        },
+    )
 }
 
 fn plan_once(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
@@ -5566,8 +5582,8 @@ fn plan_with_presentation(
     {
         v.scale = base.scale;
         let outside = (0..2).any(|k| {
-            v.at[k] + v.scale * analysis.iso_bounds[k] < MARGIN
-                || v.at[k] + v.scale * analysis.iso_bounds[k + 2] > sheet.page[k] - MARGIN
+            v.at[k] + v.scale * analysis.iso_bounds[k] < margin()
+                || v.at[k] + v.scale * analysis.iso_bounds[k + 2] > sheet.page[k] - margin()
         });
         // Bare pins retain their canonical frame. Holding an automatic scale must not leave
         // its newly packed centre outside the page; in that case retain the proven frame too.
@@ -7380,10 +7396,10 @@ pub(crate) fn line_work_problems(sheet: &PlannedSheet, views: &[PlannedView]) ->
         for w in v.line_work.iter().filter(|w| w.kind != "cutting_plane") {
             if w.curves.iter().any(|c| {
                 let b = c.bbox();
-                b[0] < MARGIN - 1e-9
-                    || b[1] < MARGIN - 1e-9
-                    || b[2] > width - MARGIN + 1e-9
-                    || b[3] > height - MARGIN + 1e-9
+                b[0] < margin() - 1e-9
+                    || b[1] < margin() - 1e-9
+                    || b[2] > width - margin() + 1e-9
+                    || b[3] > height - margin() + 1e-9
             }) {
                 problems.push(Problem {
                     id: format!("p:annotation_off_sheet:{}", w.id),
@@ -7689,6 +7705,7 @@ pub fn edit(spec: &Spec, ops: &serde_json::Value) -> Result<Spec, Invalid> {
                         | "sheets/max"
                         | "sheets/smallest_scale"
                         | "sheet/dimension_spacing"
+                        | "sheet/frame_gutter"
                 )
             )
         });
@@ -8587,10 +8604,10 @@ fn render_annotations_with_cuts(
                 crate::detail::marker(analysis, d, source, &plan.views, plan.sheet.page, &avoid);
             let [pw, ph] = plan.sheet.page;
             let drawable = [
-                layout::MARGIN,
-                layout::MARGIN,
-                pw - layout::MARGIN,
-                ph - layout::MARGIN,
+                layout::margin(),
+                layout::margin(),
+                pw - layout::margin(),
+                ph - layout::margin(),
             ];
             let curves = crate::detail::clip(circle, drawable)
                 .into_iter()
@@ -8756,8 +8773,8 @@ fn render_annotations_with_cuts(
             .collect::<Vec<_>>()
     };
     let part_layer = &mut layers[0].items;
-    part_layer.extend(rect(MARGIN, MARGIN, w - MARGIN, h - MARGIN));
-    sheet.drawable = Some([MARGIN, MARGIN, w - MARGIN, h - MARGIN]);
+    part_layer.extend(rect(FRAME, FRAME, w - FRAME, h - FRAME));
+    sheet.drawable = Some([FRAME, FRAME, w - FRAME, h - FRAME]);
     // The block is the grid's four rows at the bottom of the box the layout reserves for it.
     let block = plan.sheet.title_block;
     let [tx0, ty0, tx1, _] = block;
@@ -8765,7 +8782,7 @@ fn render_annotations_with_cuts(
     // drawn once.
     let on_frame = |e: &Item| match e {
         Item::Edge(Curve::Line(a, b)) => [0, 1].into_iter().any(|k| {
-            [MARGIN, [w, h][k] - MARGIN]
+            [FRAME, [w, h][k] - FRAME]
                 .iter()
                 .any(|f| (a[k] - f).abs() < 1e-9 && (b[k] - f).abs() < 1e-9)
         }),
@@ -8896,7 +8913,7 @@ fn render_annotations_with_cuts(
         for n in 0..grid.columns {
             let x = (f64::from(n) + 0.5) * w / f64::from(grid.columns);
             let value = (n + 1).to_string();
-            for y in [MARGIN / 2., h - MARGIN / 2.] {
+            for y in [FRAME / 2., h - FRAME / 2.] {
                 label(
                     font.text(&value, 3.),
                     [x, y],
@@ -8906,7 +8923,7 @@ fn render_annotations_with_cuts(
             }
             if n > 0 {
                 let x = f64::from(n) * w / f64::from(grid.columns);
-                for (a, b) in [(0., MARGIN), (h - MARGIN, h)] {
+                for (a, b) in [(0., FRAME), (h - FRAME, h)] {
                     dims.push(Item::Edge(Curve::Line([x, a], [x, b])));
                 }
             }
@@ -8914,7 +8931,7 @@ fn render_annotations_with_cuts(
         for n in 0..grid.rows {
             let y = h - (f64::from(n) + 0.5) * h / f64::from(grid.rows);
             let value = (b"ABCDEFGHJKLMNPQRSTUVWXYZ"[n as usize] as char).to_string();
-            for x in [MARGIN / 2., w - MARGIN / 2.] {
+            for x in [FRAME / 2., w - FRAME / 2.] {
                 label(
                     font.text(&value, 3.),
                     [x, y],
@@ -8924,7 +8941,7 @@ fn render_annotations_with_cuts(
             }
             if n > 0 {
                 let y = h - f64::from(n) * h / f64::from(grid.rows);
-                for (a, b) in [(0., MARGIN), (w - MARGIN, w)] {
+                for (a, b) in [(0., FRAME), (w - FRAME, w)] {
                     dims.push(Item::Edge(Curve::Line([a, y], [b, y])));
                 }
             }
@@ -9643,13 +9660,13 @@ fn render_annotations_with_cuts(
                     o[0] < b[2] + pad && b[0] < o[2] + pad && o[1] < b[3] + pad && b[1] < o[3] + pad
                 })
         };
-        let reach = MARGIN + CENTRING_INSET;
+        let reach = FRAME + CENTRING_INSET;
         let (cx, cy) = (0.5 * w, 0.5 * h);
         let marks = [
-            ([cx, 0.], [cx, MARGIN], [cx, reach]),
-            ([cx, h], [cx, h - MARGIN], [cx, h - reach]),
-            ([0., cy], [MARGIN, cy], [reach, cy]),
-            ([w, cy], [w - MARGIN, cy], [w - reach, cy]),
+            ([cx, 0.], [cx, FRAME], [cx, reach]),
+            ([cx, h], [cx, h - FRAME], [cx, h - reach]),
+            ([0., cy], [FRAME, cy], [reach, cy]),
+            ([w, cy], [w - FRAME, cy], [w - reach, cy]),
         ];
         let items = marks
             .into_iter()
@@ -9769,13 +9786,16 @@ pub fn nts_caption_at(
 ) -> [f64; 2] {
     let font = crate::section::FONT_SIZE;
     let [w, h] = size;
-    let natural = [centre_x, (iso[1] - 2.0 * font).max(MARGIN + font)];
+    let natural = [centre_x, (iso[1] - 2.0 * font).max(margin() + font)];
     let candidates = [
         natural,
-        [centre_x, (iso[1] - 3.0 * font - h).max(MARGIN + font)],
+        [centre_x, (iso[1] - 3.0 * font - h).max(margin() + font)],
         [iso[0] - font - w / 2.0, natural[1]],
         [iso[2] + font + w / 2.0, natural[1]],
-        [centre_x, (iso[3] + 2.0 * font).min(page[1] - MARGIN - font)],
+        [
+            centre_x,
+            (iso[3] + 2.0 * font).min(page[1] - margin() - font),
+        ],
     ];
     let clear = |c: [f64; 2], pad: f64| {
         let b = [
@@ -9784,7 +9804,11 @@ pub fn nts_caption_at(
             c[0] + w / 2.0,
             c[1] + h / 2.0,
         ];
-        if b[0] < MARGIN || b[1] < MARGIN || b[2] > page[0] - MARGIN || b[3] > page[1] - MARGIN {
+        if b[0] < margin()
+            || b[1] < margin()
+            || b[2] > page[0] - margin()
+            || b[3] > page[1] - margin()
+        {
             return false;
         }
         let k = [b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad];

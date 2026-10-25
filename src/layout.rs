@@ -13,8 +13,41 @@
 
 /// Page mm. The sheet edge margin, the title block's inset (flush with the frame at its right
 /// and bottom edges, ISO 7200) and height, the annotation text height and its padding.
-pub const MARGIN: f64 = 10.0;
-pub const TB_CLEAR: f64 = MARGIN;
+/// The frame's inset from the trimmed sheet edge (ISO 5457): the frame, title block, zones,
+/// centring marks and frame-corner tables are placed against it.
+pub const FRAME: f64 = 10.0;
+/// The default clear gutter between the frame and any view or annotation ink
+/// (`sheet/frame_gutter`, maintainer 2026-10-25).
+pub const FRAME_GUTTER: f64 = 5.0;
+
+thread_local! {
+    static GUTTER: std::cell::Cell<f64> = const { std::cell::Cell::new(FRAME_GUTTER) };
+}
+
+/// The current plan's frame gutter, mm.
+pub fn gutter() -> f64 {
+    GUTTER.get()
+}
+
+/// Views and annotation ink keep this far inside the trimmed sheet edge: the frame plus the
+/// current plan's gutter ([`with_gutter`]).
+pub fn margin() -> f64 {
+    FRAME + gutter()
+}
+
+/// Run *run* with frame gutter *gutter*. Planning memos are partitioned by it
+/// ([`crate::planning`]).
+pub(crate) fn with_gutter<T>(gutter: f64, run: impl FnOnce() -> T) -> T {
+    struct Restore(f64);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            GUTTER.set(self.0);
+        }
+    }
+    let _restore = Restore(GUTTER.replace(gutter));
+    run()
+}
+pub const TB_CLEAR: f64 = FRAME;
 pub const TB_H: f64 = 40.0;
 const FONT_SIZE: f64 = 3.0;
 const PAD: f64 = 2.0;
@@ -691,7 +724,7 @@ impl Request {
             section_row_fixed: false,
             table_sizes: Vec::new(),
             required_tables: Vec::new(),
-            margins: Margins::uniform(MARGIN),
+            margins: Margins::uniform(FRAME),
             title_block_margins: None,
             views,
             include_iso,
@@ -705,7 +738,7 @@ impl Request {
         self.title_block_margins.unwrap_or(Margins {
             right: TB_CLEAR,
             bottom: TB_CLEAR,
-            ..Margins::uniform(MARGIN)
+            ..Margins::uniform(FRAME)
         })
     }
 }
@@ -2172,10 +2205,10 @@ pub fn plan_sheet(
     // Auxiliary pages get a composition of their own, with equal cells above the title
     // block. Centre complete ink/caption blocks in those cells, clear of the frame.
     let region = [
-        MARGIN + GAP,
+        margin() + GAP,
         sheet.title_block[3] + GAP,
-        sheet.page[0] - MARGIN - GAP,
-        sheet.page[1] - MARGIN - GAP,
+        sheet.page[0] - margin() - GAP,
+        sheet.page[1] - margin() - GAP,
     ];
     for rows in 1..=blocks.len() {
         let columns = blocks.len().div_ceil(rows);
@@ -2216,23 +2249,23 @@ pub fn plan_sheet(
     }
     let mut occupied = tables.to_vec();
     occupied.push(sheet.title_block);
-    let mut x = MARGIN;
-    let mut top = sheet.page[1] - MARGIN;
+    let mut x = margin();
+    let mut top = sheet.page[1] - margin();
     let mut row_height: f64 = 0.0;
     for view in blocks {
         let w = view.area[2] - view.area[0];
         let h = view.area[3] - view.area[1];
-        if w > sheet.page[0] - 2.0 * MARGIN || h > sheet.page[1] - 2.0 * MARGIN {
+        if w > sheet.page[0] - 2.0 * margin() || h > sheet.page[1] - 2.0 * margin() {
             return false;
         }
         loop {
-            if x + w > sheet.page[0] - MARGIN + 1e-9 {
+            if x + w > sheet.page[0] - margin() + 1e-9 {
                 top -= row_height.max(h) + GAP;
                 row_height = 0.;
-                x = MARGIN;
+                x = margin();
             }
             let area = [x, top - h, x + w, top];
-            if area[1] < MARGIN - 1e-9 {
+            if area[1] < margin() - 1e-9 {
                 return false;
             }
             if let Some(b) = occupied.iter().find(|b| crate::sheets::overlap(area, **b)) {
