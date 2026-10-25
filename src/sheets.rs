@@ -2116,11 +2116,13 @@ fn check_with_search(plan: &Plan, blocked: bool) -> Vec<Problem> {
                 }),
         );
         for (i, (id, b)) in bounds.iter().enumerate() {
-            if b[0] < layout::margin()
-                || b[1] < layout::margin()
-                || b[2] > sheet.page[0] - layout::margin()
-                || b[3] > sheet.page[1] - layout::margin()
-            {
+            // Views keep the frame gutter; tables stand against the frame.
+            let m = if i < views.len() {
+                layout::margin()
+            } else {
+                layout::FRAME
+            };
+            if b[0] < m || b[1] < m || b[2] > sheet.page[0] - m || b[3] > sheet.page[1] - m {
                 out.push(problem(
                     "annotation_off_sheet",
                     "error",
