@@ -724,7 +724,8 @@ impl Request {
             section_row_fixed: false,
             table_sizes: Vec::new(),
             required_tables: Vec::new(),
-            margins: Margins::uniform(FRAME),
+            // Views keep the frame gutter; the title block's margins stay on the frame.
+            margins: Margins::uniform(margin()),
             title_block_margins: None,
             views,
             include_iso,

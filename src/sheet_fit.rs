@@ -356,6 +356,46 @@ fn footprints_with_notes(
     out
 }
 
+/// Footprints that stand against the frame rather than inside the frame gutter: tables, hole
+/// tables, the radius table, notes blocks, sheet requirements beside the title block, and page
+/// furniture. Each is the same rectangle [`footprints`] reports.
+pub(crate) fn framed_footprints(analysis: &Analysis, plan: &Plan) -> Vec<Rect> {
+    let mut out: Vec<Rect> = plan
+        .tables
+        .iter()
+        .filter_map(|t| t.placed.as_ref().map(|p| p.cells))
+        .chain(
+            plan.hole_table
+                .iter()
+                .chain(&plan.hole_tables)
+                .flat_map(|t| {
+                    t.blocks
+                        .iter()
+                        .filter_map(|b| b.placed.as_ref().map(|p| p.cells))
+                }),
+        )
+        .chain(
+            plan.radius_table
+                .iter()
+                .filter_map(|t| t.table.placed.as_ref().map(|p| p.cells)),
+        )
+        .chain(
+            plan.notes_block
+                .iter()
+                .chain(&plan.radius_notes_block)
+                .map(|n| n.cells),
+        )
+        .collect();
+    for p in plan.requirements.iter().filter_map(|r| r.placed.as_ref()) {
+        let mut b = p.label_box;
+        include(&mut b, [p.glyph[0], p.glyph[1]]);
+        include(&mut b, [p.glyph[2], p.glyph[3]]);
+        out.push(b);
+    }
+    out.extend(furniture_footprints(analysis, plan));
+    out
+}
+
 /// Ink owned by the selected views, without page furniture.
 /// Per-view hole schedules count here, for clipping, but not in [`footprints`]: the
 /// planner's own fit and fill measures keep their established inputs (and cost).

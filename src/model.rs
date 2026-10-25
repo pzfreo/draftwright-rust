@@ -1891,11 +1891,25 @@ fn drawn_items_fit(analysis: &Analysis, p: &Plan) -> bool {
             && b[2] <= p.sheet.page[0] - layout::margin() + 1e-6
             && b[3] <= p.sheet.page[1] - layout::margin() + 1e-6
     };
+    // Tables, notes and furniture stand against the frame; the rest keeps the frame gutter.
+    let framed = crate::sheet_fit::framed_footprints(analysis, p);
+    let on_frame = |b: [f64; 4]| {
+        b[0] >= layout::FRAME - 1e-6
+            && b[1] >= layout::FRAME - 1e-6
+            && b[2] <= p.sheet.page[0] - layout::FRAME + 1e-6
+            && b[3] <= p.sheet.page[1] - layout::FRAME + 1e-6
+    };
     let mut title = p.sheet.title_block;
     title[3] = title_block::top(title);
     crate::sheet_fit::footprints(analysis, p)
         .into_iter()
-        .all(inside)
+        .all(|b| {
+            if framed.contains(&b) {
+                on_frame(b)
+            } else {
+                inside(b)
+            }
+        })
         && crate::sheet_fit::furniture_footprints(analysis, p)
             .into_iter()
             .all(|b| !rect_overlap(b, title))
