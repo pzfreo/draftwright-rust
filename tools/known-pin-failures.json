@@ -5,7 +5,7 @@
     {
       "cell": "1-8",
       "part": "string_post",
-      "reason": "The generated relation aligns section A-A's top with the front view's, putting it on the title block on main too (view_on_title_block 1 before and after #205); the 3 mm frame gutter shifts its hole centreline onto the title block's scale note (label_centerline_overlap 0 -> 1). Pin replay does not repair a pinned view onto furniture."
+      "reason": "The generated relation aligns section A-A's top with the front view's, putting it on the title block on main too (view_on_title_block 1 before and after #205); the 3 mm frame gutter shifts its hole centreline onto the title block's scale note (label_centerline_overlap 0 -> 1). Pin replay does not repair a pinned view onto furniture. Tracked in #206."
     }
   ]
 }
