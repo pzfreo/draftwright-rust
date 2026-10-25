@@ -119,8 +119,20 @@ fn ctc01_consumes_bevel_faces_and_sizes_both_notches_without_duplicate_c50() {
             assert!(seen.insert((&m.feature, &m.parameter)), "duplicate {m:?}");
         }
     }
+    // Without the oriented chamfers, in the features and in quiddity's face accounting.
     let mut without = a.clone();
+    let bevels: Vec<usize> = without
+        .features
+        .iter()
+        .filter(|f| f.kind == "oriented_chamfer")
+        .flat_map(|f| f.faces.clone())
+        .collect();
     without.features.retain(|f| f.kind != "oriented_chamfer");
+    if let Some(groups) = &mut without.face_accounting {
+        for f in bevels {
+            groups[f] = model::FaceGroup::Unexplained;
+        }
+    }
     assert!(
         p.completeness.claimed_faces
             >= model::plan(&without, &Spec::default())

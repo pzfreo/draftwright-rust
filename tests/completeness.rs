@@ -550,3 +550,36 @@ fn hole_pattern_interval_and_group_counts_must_match_physical_members() {
             .any(|r| r.parameter == "grouping.count")
     }));
 }
+
+/// #207: claims follow quiddity's face accounting. On NIST CTC-01 its `step_levels` evidence
+/// accounts the end blocks' inner walls, the notch side walls and slot 1's end walls as feature
+/// faces; the envelope planes it leaves unexplained (the hex boss's top among them) are no longer
+/// credited as stock.
+#[test]
+fn quiddity_face_accounting_decides_which_faces_are_claimed() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
+    let (_, a) = model::analyse_native(
+        &root.join("tests/fixtures/pmi/step/nist_ctc_01_asme1_ap242-e1.stp.gz"),
+    )
+    .unwrap();
+    assert!(a.face_accounting.is_some());
+    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let unclaimed: Vec<String> = p
+        .problems
+        .iter()
+        .filter(|q| q.code == "unclaimed_geometry")
+        .flat_map(|q| q.subjects.clone())
+        .collect();
+    for f in [8, 20, 28, 31, 35, 37, 41, 44, 82, 86] {
+        assert!(
+            !unclaimed.contains(&format!("face:{f}")),
+            "face {f} is a step_levels face: {unclaimed:?}"
+        );
+    }
+    for f in [4, 6, 22, 24, 26, 46, 47, 49, 54, 55, 104] {
+        assert!(
+            unclaimed.contains(&format!("face:{f}")),
+            "face {f} is unexplained by quiddity: {unclaimed:?}"
+        );
+    }
+}

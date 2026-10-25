@@ -1431,8 +1431,12 @@ every member's own location along that axis (`over_dimensioned_pattern`, ADR4-U1
 The Plan also carries `status` (`clear` or `needs_attention`) and `completeness`:
 `claimed_faces`, `faces` and `unplanned_features`. Face claims are the distinct valid
 face indices on Analysis features, measured against `binding.face_count`; they describe
-this Analysis's recognition inventory, not recognition recall. Optional `stock_faces` records principal boundary plane face IDs. On a single solid,
-those faces receive credit when printed measurements prove all overall extents;
+this Analysis's recognition inventory, not recognition recall. When the recognition carries
+quiddity's `face_accounting` (Analysis `face_accounting`, by file face index; #207), a face it
+accounts to any record, evidence records such as `step_levels` included, is claimed, and on a
+single solid its `body` faces receive credit when printed measurements prove all overall
+extents; `refused` and `unexplained` faces stay unclaimed. Without that accounting, optional
+`stock_faces` records principal boundary plane face IDs, credited on the same condition;
 unrecognised interior/curved faces can still be unclaimed. Older analyses default
 that evidence to empty; a six-face rectangular box can be proved from its profiles. An informational, advisory `unclaimed_geometry` finding names both counts and asks for review,
 without inventing missed features. A recognised feature with no drawn measurement is

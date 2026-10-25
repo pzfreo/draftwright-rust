@@ -86,6 +86,19 @@ pub struct FilePart {
     pub instances: usize,
 }
 
+/// The group quiddity accounts a face to (`face_accounting` in its recognition document).
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(rename_all = "snake_case")]
+pub enum FaceGroup {
+    /// A recognised feature's face, evidence records included.
+    Feature,
+    /// Part body: stock walls, plate edges and the like.
+    Body,
+    /// Named by a refused projection only.
+    Refused,
+    Unexplained,
+}
+
 /// What the part is: regenerable from its STEP file, never edited.
 #[derive(Clone, Debug, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
@@ -104,9 +117,14 @@ pub struct Analysis {
     /// Absent in older analyses; several solids make completeness findings informational.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub solid_count: Option<usize>,
-    /// Principal outer stock faces, credited only when the overall sizes are stated.
+    /// Principal outer stock faces, credited only when the overall sizes are stated and
+    /// [`Analysis::face_accounting`] is absent.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub stock_faces: Vec<usize>,
+    /// quiddity's account of every face, by file face index (#207); absent for analyses whose
+    /// recognition carries none.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub face_accounting: Option<Vec<FaceGroup>>,
     /// Where the features came from; absent when none were recognised.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub recognition: Option<Recognition>,
@@ -1325,6 +1343,7 @@ fn analyse_step_input(
         source_stem: chosen.map(|_| stem),
         envelope: [b.min, b.max],
         solid_count: Some(part.solids.len()),
+        face_accounting: None,
         stock_faces: (0..part.faces.len())
             .filter(|&f| {
                 if !matches!(
@@ -1525,6 +1544,22 @@ pub fn recognise_document(
         records: Some(n),
     }));
     analysis.unrecognised = unrecognised;
+    analysis.face_accounting = doc
+        .face_accounting
+        .as_ref()
+        .filter(|groups| groups.len() == part.faces.len())
+        .map(|groups| {
+            use quiddity::recognition::FaceAccounting as A;
+            groups
+                .iter()
+                .map(|g| match g {
+                    A::Feature { .. } => FaceGroup::Feature,
+                    A::Body { .. } => FaceGroup::Body,
+                    A::Refused { .. } => FaceGroup::Refused,
+                    A::Unexplained => FaceGroup::Unexplained,
+                })
+                .collect()
+        });
     analysis.recognition = Some(Recognition {
         recogniser: read.recogniser,
         frame: native::IDENTITY,

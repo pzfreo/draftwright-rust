@@ -98,7 +98,9 @@ fn the_spindles_unclaimed_faces_are_its_subjects() {
     assert_eq!(p.severity, "info");
     assert_eq!(serde_json::to_value(p).unwrap()["impact"], "advisory");
     let unclaimed = plan.completeness.faces - plan.completeness.claimed_faces;
-    assert_eq!(unclaimed, 3);
+    // #207: claims follow quiddity's face accounting, which accounts no body faces yet; the
+    // envelope plane it leaves unexplained is reported with the rest.
+    assert_eq!(unclaimed, 4);
     assert_eq!(p.subjects.len(), unclaimed, "{:?}", p.subjects);
     for s in &p.subjects {
         let face: usize = s
