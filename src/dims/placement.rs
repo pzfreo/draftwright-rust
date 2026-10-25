@@ -10,7 +10,7 @@ use super::{
     ARROW, ARROW_HALF, CAP, GAP, LIFT, OVERSHOOT, P2, P3, Placed, PlannedDimension, Shape, TEXT,
     TOKEN_GAP, Want, first_line, font, key, lane_pitch,
 };
-use crate::layout::{Lanes, margin};
+use crate::layout::{FRAME, Lanes, margin};
 use crate::model::{Analysis, PlannedSheet, PlannedView, Problem};
 use crate::output::{STRAY_TEXT, label_gap, linear_ink, shared_dimension_line};
 use crate::text::{Font, Segment};
@@ -4923,9 +4923,16 @@ fn collisions_impl(
             .iter()
             .chain(&p.arrows)
             .flat_map(|s| s.iter().copied());
-        if !inside([lb[0], lb[1]], drawable)
-            || !inside([lb[2], lb[3]], drawable)
-            || ends.clone().any(|e| !inside(e, drawable))
+        // A table stands against the frame; annotations keep the frame gutter.
+        let area = if d.id.starts_with("t:") {
+            let [w, h] = sheet.page;
+            [FRAME, FRAME, w - FRAME, h - FRAME]
+        } else {
+            drawable
+        };
+        if !inside([lb[0], lb[1]], area)
+            || !inside([lb[2], lb[3]], area)
+            || ends.clone().any(|e| !inside(e, area))
         {
             problem!(
                 "annotation_off_sheet",
