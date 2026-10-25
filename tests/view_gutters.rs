@@ -250,7 +250,9 @@ fn mixed_view_and_item_pins_keep_settled_peers_in_the_guttered_frame() {
 #[test]
 fn omitted_references_leave_the_isometric_caption_clear_of_projection_bands() {
     let Some(corpus) = corpus::dir() else { return };
-    let (_, analysis) = model::analyse_native(&corpus.join("mfcadpp/10047.step")).unwrap();
+    // 10020: 10047 was this case until the 3 mm frame gutter (2026-10-25) left its isometric
+    // at the sheet scale, with no caption.
+    let (_, analysis) = model::analyse_native(&corpus.join("mfcadpp/10020.step")).unwrap();
     for references in [false, true] {
         for gutter in [0, 25] {
             let spec = serde_json::from_value(json!({
@@ -275,7 +277,7 @@ fn omitted_references_leave_the_isometric_caption_clear_of_projection_bands() {
             }
             assert_eq!(
                 p.dimensions.iter().filter(|d| d.reference).count(),
-                if references { 5 } else { 0 }
+                if references { 4 } else { 0 }
             );
         }
     }

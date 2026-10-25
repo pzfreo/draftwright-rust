@@ -55,33 +55,43 @@ fn a_valid_candidate_crossing_two_views_is_rejected_even_when_the_planner_return
     // Replay the same real unsafe proposal for every arrangement request. This
     // exercises the recovery veto even after the ordinary planner repairs the
     // historical drawing. No production path selects a fixture or a part name.
-    let plan = crate::planning::with(&analysis, || {
-        for arrangement in [
-            None,
-            Some("columns"),
-            Some("stacked-iso"),
-            Some("staggered-side"),
-        ] {
-            let analysis_key: [u8; 32] =
-                Sha256::digest(serde_json::to_vec(&analysis).unwrap()).into();
-            // Native recovery prepares its established-route policy before the
-            // first candidate; inject the same unsafe drawing on either side of
-            // that preparation, under the planner's complete exact input key.
-            for established in [false, true] {
-                let mut policy = crate::planning::policy_key(&analysis);
-                policy.1 = established;
-                let key =
-                    serde_json::to_vec(&(analysis_key, policy, &named, true, arrangement, false))
-                        .unwrap();
-                crate::planning::store(
-                    &analysis,
-                    "candidate",
-                    key,
-                    Ok::<Plan, Invalid>(unsafe_try.clone()),
-                );
+    // The recorded proposals were planned against the frame, before the 3 mm frame gutter
+    // (2026-10-25): judge them as they were drawn, so the veto still meets a valid candidate.
+    let plan = crate::layout::with_gutter(0.0, || {
+        crate::planning::with(&analysis, || {
+            for arrangement in [
+                None,
+                Some("columns"),
+                Some("stacked-iso"),
+                Some("staggered-side"),
+            ] {
+                let analysis_key: [u8; 32] =
+                    Sha256::digest(serde_json::to_vec(&analysis).unwrap()).into();
+                // Native recovery prepares its established-route policy before the
+                // first candidate; inject the same unsafe drawing on either side of
+                // that preparation, under the planner's complete exact input key.
+                for established in [false, true] {
+                    let mut policy = crate::planning::policy_key(&analysis);
+                    policy.1 = established;
+                    let key = serde_json::to_vec(&(
+                        analysis_key,
+                        policy,
+                        &named,
+                        true,
+                        arrangement,
+                        false,
+                    ))
+                    .unwrap();
+                    crate::planning::store(
+                        &analysis,
+                        "candidate",
+                        key,
+                        Ok::<Plan, Invalid>(unsafe_try.clone()),
+                    );
+                }
             }
-        }
-        recover_uncached(&analysis, &Spec::default(), first).unwrap()
+            recover_uncached(&analysis, &Spec::default(), first).unwrap()
+        })
     });
     assert_eq!(over_views(&plan), 0);
     assert_ne!(
@@ -256,15 +266,17 @@ fn clear_fixed_sheet_finish_preserves_inventory_and_passes_fresh_audit() {
         assert!(std::env::var_os("DRAFTWRIGHT_CORPUS_REQUIRED").is_none_or(|v| v != "1"));
         return;
     };
-    for (file, scale) in [
-        ("cadgenbench_inputs/cgb241.step", "1:10"),
-        ("mfcadpp/10163.step", "1:2"),
+    // cgb241 on A3: its A4 1:10 fixed-pair trial no longer settles clear inside the 3 mm frame
+    // gutter (2026-10-25).
+    for (file, size, scale) in [
+        ("cadgenbench_inputs/cgb241.step", "A3", "1:10"),
+        ("mfcadpp/10163.step", "A4", "1:2"),
     ] {
         let (_, a) = analyse_native(&dir.join(file)).unwrap();
         crate::planning::with(&a, || {
             plan_automatic(&a, &Spec::default()).unwrap();
             let mut spec: Spec =
-                serde_json::from_value(serde_json::json!({"sheet":{"size":"A4","scale":scale}}))
+                serde_json::from_value(serde_json::json!({"sheet":{"size":size,"scale":scale}}))
                     .unwrap();
             let factor = layout::SCALES
                 .into_iter()

@@ -129,10 +129,10 @@ fn failures(analysis: &Analysis, plan: &Plan, floor: f64) -> BTreeSet<(String, V
             .find(|s| s.number == view.sheet)
             .unwrap_or(&plan.sheet)
             .page;
-        if bounds[0] < layout::MARGIN + stroke
-            || bounds[1] < layout::MARGIN + stroke
-            || bounds[2] > page[0] - layout::MARGIN - stroke
-            || bounds[3] > page[1] - layout::MARGIN - stroke
+        if bounds[0] < layout::margin() + stroke
+            || bounds[1] < layout::margin() + stroke
+            || bounds[2] > page[0] - layout::margin() - stroke
+            || bounds[3] > page[1] - layout::margin() - stroke
         {
             failures.insert(("annotation_off_sheet".into(), vec![view.id.clone()]));
         }
@@ -241,7 +241,7 @@ impl Estimate {
     fn shortfall(&self, size: &str, max: usize, scale: f64) -> Option<String> {
         // Invariant: Candidates select paper names from the fixed PAGES table.
         let (_, w, h) = layout::PAGES.iter().find(|p| p.0 == size).unwrap();
-        let available = [w - 2.0 * layout::MARGIN, h - 2.0 * layout::MARGIN];
+        let available = [w - 2.0 * layout::margin(), h - 2.0 * layout::margin()];
         let at = model::scale_name(scale);
         let frame = format!(
             "{size} drawable area is {:.0} × {:.0} mm",
@@ -627,6 +627,36 @@ fn finish_choice(mut plan: Plan, spec: &Spec, candidates: Vec<Candidate>, reason
     plan
 }
 
+/// A usable preference candidate does not clear a shortfall the automatic search found: when
+/// no standard sheet had a legible scale and the candidate is still below the opening
+/// legibility floor, it says so, as the baseline did.
+fn illegible_shortfall(analysis: &Analysis, spec: &Spec, baseline: &Plan, plan: &mut Plan) {
+    let legible =
+        sheet_fit::min_legible_scale(analysis).max(crate::sheets::floor(spec).unwrap_or(0.));
+    let exhausted = |p: &Plan| {
+        p.problems
+            .iter()
+            .any(|q| q.code == "layout_recovery_exhausted" && q.severity == "warning")
+    };
+    if !exhausted(baseline) || exhausted(plan) || plan.sheet.scale_factor + 1e-9 >= legible {
+        return;
+    }
+    plan.problems.push(model::Problem {
+        id: "p:layout_recovery_exhausted:sheet".into(),
+        code: "layout_recovery_exhausted".into(),
+        severity: "warning".into(),
+        message: format!(
+            "{} at {} is below {}, the opening legibility floor; no standard sheet and legible scale yields a valid complete drawing, so this usable drawing and its findings are kept.",
+            plan.sheet.size,
+            plan.sheet.scale,
+            model::scale_name(legible)
+        ),
+        subjects: vec!["sheet".into()],
+        ..Default::default()
+    });
+    plan.status = crate::completeness::status(&plan.problems);
+}
+
 pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     if automatic(spec) && crate::placement_intent::has_pins(spec) {
         return pinned(analysis, spec);
@@ -857,7 +887,8 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
                 break;
             }
         }
-        if let Some(plan) = chosen {
+        if let Some(mut plan) = chosen {
+            illegible_shortfall(fit, spec, &baseline, &mut plan);
             let reason = format!(
                 "{size}: usable at {} ({} sheet(s)){}; nothing clipped, readable scale, no unreadable ink or required losses",
                 plan.sheet.scale,
@@ -913,10 +944,10 @@ pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> 
 fn compact_may_help(analysis: &Analysis, plan: &Plan) -> bool {
     let page = plan.sheet.page;
     let frame = [
-        layout::MARGIN,
-        layout::MARGIN,
-        page[0] - layout::MARGIN,
-        page[1] - layout::MARGIN,
+        layout::margin(),
+        layout::margin(),
+        page[0] - layout::margin(),
+        page[1] - layout::margin(),
     ];
     if !sheet_fit::inside_frames(analysis, plan) {
         let outlines = sheet_fit::footprints(analysis, plan);
@@ -1091,6 +1122,12 @@ fn replay_pins(
     } else if raw.sheet.size == canonical.sheet.size
         && raw.sheet.scale == canonical.sheet.scale
         && raw.sheets.len() == canonical.sheets.len()
+        && raw.views.len() == canonical.views.len()
+        && raw
+            .views
+            .iter()
+            .zip(&canonical.views)
+            .all(|(a, b)| a.id == b.id && (0..2).all(|k| (a.at[k] - b.at[k]).abs() < 1e-6))
     {
         model::plan_automatic(analysis, spec)?
     } else {
@@ -1425,13 +1462,11 @@ mod tests {
     #[test]
     fn a_local_fix_retains_the_compact_fallback() {
         // A part whose finished drawing takes the automatic compact fallback. (mfcadpp/1013 no
-        // longer does once its obround pocket callout aims at a straight wall.)
-        let a = model::analyse_native(
-            &Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("tests/fixtures/recognition/issues/pocket_z.step"),
-        )
-        .unwrap()
-        .1;
+        // longer does once its obround pocket callout aims at a straight wall, nor the pocket_z
+        // fixture with the 3 mm frame gutter, 2026-10-25.)
+        let Some(a) = corpus("mfcadpp_holdout/119.step") else {
+            return;
+        };
         let before = model::plan_recovered(&a, &Spec::default()).unwrap();
         assert_eq!(
             before.sheet.dimension_spacing,
@@ -1912,12 +1947,13 @@ mod tests {
             scale: 1.0,
             aligned: true,
         };
-        // Even at the smallest readable scale the fixed band exceeds A4's 277 mm.
+        // Even at the smallest readable scale the fixed band exceeds A4's 271 mm (277 mm inside
+        // the frame, less the 3 mm frame gutter on each side).
         assert_eq!(estimate.scale("A4", 1, 0.5), None);
         assert_eq!(
             estimate.ruled_out("A4", 1, 0.5),
             "ruled out: view v:front with its annotation bands needs at least 330 × 55 mm at 1:2; \
-             A4 drawable area is 277 × 190 mm; 1:2 is the smallest readable scale"
+             A4 drawable area is 271 × 184 mm; 1:2 is the smallest readable scale"
         );
         // A floor above every standard scale has no smallest readable scale to cite.
         assert!(
@@ -1939,8 +1975,9 @@ mod tests {
             scale: 1.0,
             aligned: true,
         };
-        assert_eq!(at_limit(277.0).scale("A4", 1, 1.0), Some(1.0));
-        assert_eq!(at_limit(277.01).scale("A4", 1, 1.0), None);
+        // A4's drawable width inside the 3 mm frame gutter.
+        assert_eq!(at_limit(271.0).scale("A4", 1, 1.0), Some(1.0));
+        assert_eq!(at_limit(271.01).scale("A4", 1, 1.0), None);
         // mfcadpp holdout 317's aligned front and side estimate is within 5% of A4's drawable
         // width at 1:2, and that full trial is the winner. (mfcadpp 10163 was this case until
         // quiddity-rust 0.2.0 read one fewer fillet and it moved off the limit.)
@@ -2653,7 +2690,7 @@ mod tests {
         let mut p = model::plan_automatic(&a, &Spec::default()).unwrap();
         let original = failures(&a, &p, 0.1);
         let first = sheet_fit::footprints(&a, &p)[0];
-        p.views[0].at[0] += layout::MARGIN - first[0];
+        p.views[0].at[0] += layout::margin() - first[0];
         let changed = failures(&a, &p, 0.1);
         assert!(
             changed

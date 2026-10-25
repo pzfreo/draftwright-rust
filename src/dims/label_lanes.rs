@@ -1306,7 +1306,11 @@ mod tests {
             "no along-span alternative is clear"
         );
         let mut items = original.clone();
-        settle_inventory(&analysis, &spec, &sheet, &[], &mut items, &fixed);
+        // The synthetic ink starts on the frame line: hold this lane rule apart from the frame
+        // gutter (2026-10-25), which would otherwise put it outside the drawable area.
+        crate::layout::with_gutter(0.0, || {
+            settle_inventory(&analysis, &spec, &sheet, &[], &mut items, &fixed)
+        });
         let c = items[0].placed.as_ref().unwrap();
         // The next lane clears the short leader; the farther peer is untouched.
         assert_eq!(c.arrows[0][0][1], 37.0);
@@ -1322,11 +1326,15 @@ mod tests {
         assert_eq!(items[1], original[1]);
         assert!(contacts(c, &fixed[0]) == 0 && contacts(c, &items[1]) == 0);
         let settled = items.clone();
-        settle_inventory(&analysis, &spec, &sheet, &[], &mut items, &fixed);
+        crate::layout::with_gutter(0.0, || {
+            settle_inventory(&analysis, &spec, &sheet, &[], &mut items, &fixed)
+        });
         assert_eq!(items, settled);
         let mut occupied = original.clone();
         occupied[1].placed = Some(promote(occupied[1].placed.as_ref().unwrap(), -lane_pitch()));
-        settle_inventory(&analysis, &spec, &sheet, &[], &mut occupied, &fixed);
+        crate::layout::with_gutter(0.0, || {
+            settle_inventory(&analysis, &spec, &sheet, &[], &mut occupied, &fixed)
+        });
         assert_eq!(
             occupied[0].placed.as_ref().unwrap().arrows[0][0][1],
             44.0,
@@ -1339,7 +1347,9 @@ mod tests {
         obstacle.label_box = [27.0, 35.0, 33.0, 41.0];
         obstacle.label_at = [27.0, 35.0];
         let mut trapped = original.clone();
-        settle_inventory(&analysis, &spec, &sheet, &[], &mut trapped, &blocked);
+        crate::layout::with_gutter(0.0, || {
+            settle_inventory(&analysis, &spec, &sheet, &[], &mut trapped, &blocked)
+        });
         assert_eq!(
             trapped, original,
             "retain collision rather than skip occupied lanes"
@@ -1357,7 +1367,9 @@ mod tests {
         for point in &mut corridor[0].placed.as_mut().unwrap().lines[0] {
             point[0] = 39.0;
         }
-        settle_inventory(&analysis, &spec, &sheet, &[], &mut sliding, &corridor);
+        crate::layout::with_gutter(0.0, || {
+            settle_inventory(&analysis, &spec, &sheet, &[], &mut sliding, &corridor)
+        });
         let b = sliding[0].placed.as_ref().unwrap().label_box;
         assert!(
             b[0] - 39.0 >= 1.0 - 1e-6 || 39.0 - b[2] >= 1.0 - 1e-6,

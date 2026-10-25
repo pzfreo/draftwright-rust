@@ -75,7 +75,9 @@ fn crosses(b: [f64; 4], [p, q]: [[f64; 2]; 2]) -> bool {
 
 #[test]
 fn an_isometric_drawn_off_the_sheet_scale_is_captioned() {
-    for name in ["plate.step", "turned.step", "boss_circle.step"] {
+    // prismatic (reduced): turned.step's isometric is drawn at the sheet scale since the 3 mm
+    // frame gutter (2026-10-25).
+    for name in ["plate.step", "prismatic.step", "boss_circle.step"] {
         let (plan, drawing) = draw(name);
         assert!(
             (iso_ratio(&plan) - 1.0).abs() > 1e-6,
@@ -117,17 +119,11 @@ fn an_isometric_drawn_off_the_sheet_scale_is_captioned() {
 
 #[test]
 fn an_isometric_at_the_sheet_scale_has_no_caption() {
-    // Fitted by a measured refit to within 5 % of the sheet scale: kept at it, uncaptioned.
-    // Hold the original A3 normalization fixture; paper preference is tested separately.
-    let spec = model::Spec {
-        sheet: serde_json::from_value(serde_json::json!({"size":"A3"})).unwrap(),
-        sheets: Some(draftwright::sheets::SheetsSpec {
-            max: Some(1),
-            ..Default::default()
-        }),
-        ..Default::default()
-    };
-    let (plan, drawing) = draw_spec("issue_1247_angled_blind_step.step", &spec);
+    // An isometric fitted at the sheet scale is uncaptioned. mounting_plate on its automatic
+    // sheet: issue_1247's A3 normalization moved to 1:1 with the 3 mm frame gutter
+    // (2026-10-25), where its isometric is enlarged and captioned.
+    let spec = model::Spec::default();
+    let (plan, drawing) = draw_spec("mounting_plate.step", &spec);
     assert_eq!(iso_ratio(&plan), 1.0);
     assert!(caption(&drawing).is_none());
     assert!(!drawing.text.iter().any(|t| t.text == NTS_CAPTION));

@@ -1,5 +1,5 @@
 //! Finished-item footprints for sheet choice; reserved layout bands are never fill.
-use crate::layout::{MARGIN, Rect};
+use crate::layout::{Rect, margin};
 use crate::model::{Analysis, Plan};
 
 /// Maintainer's initial target (2026-10-12), as a share of usable paper.
@@ -356,6 +356,46 @@ fn footprints_with_notes(
     out
 }
 
+/// Footprints that stand against the frame rather than inside the frame gutter: tables, hole
+/// tables, the radius table, notes blocks, sheet requirements beside the title block, and page
+/// furniture. Each is the same rectangle [`footprints`] reports.
+pub(crate) fn framed_footprints(analysis: &Analysis, plan: &Plan) -> Vec<Rect> {
+    let mut out: Vec<Rect> = plan
+        .tables
+        .iter()
+        .filter_map(|t| t.placed.as_ref().map(|p| p.cells))
+        .chain(
+            plan.hole_table
+                .iter()
+                .chain(&plan.hole_tables)
+                .flat_map(|t| {
+                    t.blocks
+                        .iter()
+                        .filter_map(|b| b.placed.as_ref().map(|p| p.cells))
+                }),
+        )
+        .chain(
+            plan.radius_table
+                .iter()
+                .filter_map(|t| t.table.placed.as_ref().map(|p| p.cells)),
+        )
+        .chain(
+            plan.notes_block
+                .iter()
+                .chain(&plan.radius_notes_block)
+                .map(|n| n.cells),
+        )
+        .collect();
+    for p in plan.requirements.iter().filter_map(|r| r.placed.as_ref()) {
+        let mut b = p.label_box;
+        include(&mut b, [p.glyph[0], p.glyph[1]]);
+        include(&mut b, [p.glyph[2], p.glyph[3]]);
+        out.push(b);
+    }
+    out.extend(furniture_footprints(analysis, plan));
+    out
+}
+
 /// Ink owned by the selected views, without page furniture.
 /// Per-view hole schedules count here, for clipping, but not in [`footprints`]: the
 /// planner's own fit and fill measures keep their established inputs (and cost).
@@ -398,21 +438,58 @@ pub(crate) fn inside_frames(analysis: &Analysis, plan: &Plan) -> bool {
                 local.radius_table = None;
                 local.requirements.clear();
             }
-            let mut ink = view_ink(analysis, &local);
-            ink.extend(
+            // Frame furniture and frame-corner tables sit against the frame; views and
+            // annotation ink keep the gutter inside it ([`crate::layout::margin`]).
+            let mut framed = furniture_footprints(analysis, &local);
+            framed.extend(local.hole_tables.iter().flat_map(|t| {
+                t.blocks
+                    .iter()
+                    .filter_map(|b| b.placed.as_ref().map(|p| p.cells))
+            }));
+            // Tables stand in frame corners too.
+            let tables: Vec<Rect> = local
+                .tables
+                .iter()
+                .filter_map(|t| t.placed.as_ref().map(|p| p.cells))
+                .chain(local.hole_table.iter().flat_map(|t| {
+                    t.blocks
+                        .iter()
+                        .filter_map(|b| b.placed.as_ref().map(|p| p.cells))
+                }))
+                .collect();
+            // So do the sheet requirements set beside the title block.
+            let requirements: Vec<Rect> = local
+                .requirements
+                .iter()
+                .filter_map(|r| r.placed.as_ref())
+                .map(|p| {
+                    let mut b = p.label_box;
+                    include(&mut b, [p.glyph[0], p.glyph[1]]);
+                    include(&mut b, [p.glyph[2], p.glyph[3]]);
+                    b
+                })
+                .collect();
+            framed.extend(tables.iter().chain(&requirements).copied());
+            let mut ink = footprints_with_notes(analysis, &local, false, false);
+            ink.retain(|b| !tables.contains(b) && !requirements.contains(b));
+            ink.extend(local.captions.iter().map(|c| c.ink));
+            for v in &local.views {
+                ink.extend(v.line_work.iter().flat_map(|w| &w.curves).map(|c| c.bbox()));
+            }
+            // Notes blocks stand in a frame corner, as tables do.
+            framed.extend(
                 local
                     .notes_block
                     .iter()
                     .chain(&local.radius_notes_block)
                     .map(|n| n.cells),
             );
-            ink.extend(
+            framed.extend(
                 local
                     .radius_table
                     .iter()
                     .filter_map(|t| t.table.placed.as_ref().map(|p| p.cells)),
             );
-            ink.extend(furniture_footprints(analysis, &local));
             ink.extend(crate::iso_caption::section_text_obstacles(
                 analysis,
                 sheet,
@@ -473,20 +550,27 @@ pub(crate) fn inside_frames(analysis: &Analysis, plan: &Plan) -> bool {
                     ]);
                 }
             }
-            ink.into_iter().enumerate().all(|(i, b)| {
-                // View outlines keep their whole stroke inside the frame. Thinner ink
-                // (a witness or centre line, a crop edge) may end on the frame line itself:
-                // its stroke stays under the frame's own, so nothing is clipped.
-                let stroke = if i < local.views.len() {
-                    crate::output::layer_styles()[0].1.width / 2.0
-                } else {
-                    0.0
-                };
-                b[0] >= MARGIN + stroke - 1e-6
-                    && b[1] >= MARGIN + stroke - 1e-6
-                    && b[2] <= sheet.page[0] - MARGIN - stroke + 1e-6
-                    && b[3] <= sheet.page[1] - MARGIN - stroke + 1e-6
-            })
+            let on_frame = |b: &Rect| {
+                b[0] >= crate::layout::FRAME - 1e-6
+                    && b[1] >= crate::layout::FRAME - 1e-6
+                    && b[2] <= sheet.page[0] - crate::layout::FRAME + 1e-6
+                    && b[3] <= sheet.page[1] - crate::layout::FRAME + 1e-6
+            };
+            framed.iter().all(on_frame)
+                && ink.into_iter().enumerate().all(|(i, b)| {
+                    // View outlines keep their whole stroke inside the frame. Thinner ink
+                    // (a witness or centre line, a crop edge) may end on the frame line itself:
+                    // its stroke stays under the frame's own, so nothing is clipped.
+                    let stroke = if i < local.views.len() {
+                        crate::output::layer_styles()[0].1.width / 2.0
+                    } else {
+                        0.0
+                    };
+                    b[0] >= margin() + stroke - 1e-6
+                        && b[1] >= margin() + stroke - 1e-6
+                        && b[2] <= sheet.page[0] - margin() - stroke + 1e-6
+                        && b[3] <= sheet.page[1] - margin() - stroke + 1e-6
+                })
         })
 }
 
@@ -522,10 +606,10 @@ fn fill_boxes(plan: &Plan, boxes: Vec<Rect>) -> f64 {
         .into_iter()
         .map(|b| {
             [
-                (b[0] - FILL_CLEARANCE).max(MARGIN),
-                (b[1] - FILL_CLEARANCE).max(MARGIN),
-                (b[2] + FILL_CLEARANCE).min(w - MARGIN),
-                (b[3] + FILL_CLEARANCE).min(h - MARGIN),
+                (b[0] - FILL_CLEARANCE).max(margin()),
+                (b[1] - FILL_CLEARANCE).max(margin()),
+                (b[2] + FILL_CLEARANCE).min(w - margin()),
+                (b[3] + FILL_CLEARANCE).min(h - margin()),
             ]
         })
         .filter(|b| b[0] < b[2] && b[1] < b[3])
@@ -543,7 +627,7 @@ fn fill_boxes(plan: &Plan, boxes: Vec<Rect>) -> f64 {
         .filter(|b| b[0] < b[2] && b[1] < b[3])
         .collect();
     (union_area(&boxes) - union_area(&in_title))
-        / ((w - 2.0 * MARGIN) * (h - 2.0 * MARGIN) - (tb[2] - tb[0]) * (tb[3] - tb[1]))
+        / ((w - 2.0 * margin()) * (h - 2.0 * margin()) - (tb[2] - tb[0]) * (tb[3] - tb[1]))
 }
 
 /// Bounded measured correction: trim only empty off-paper reservation, then adjust a free row.
@@ -635,7 +719,12 @@ fn correct_sections(analysis: &Analysis, plan: &mut Plan) {
     }
 
     let [w, h] = plan.sheet.page;
-    let drawable = [MARGIN + 2., MARGIN + 2., w - MARGIN - 2., h - MARGIN - 2.];
+    let drawable = [
+        margin() + 2.,
+        margin() + 2.,
+        w - margin() - 2.,
+        h - margin() - 2.,
+    ];
     let mut obstacles = vec![plan.sheet.title_block];
     let mut candidate = plan.clone();
     for (i, v) in candidate
@@ -752,15 +841,16 @@ pub(crate) fn correct_estimate(analysis: &Analysis, plan: &mut Plan) {
         && plan.gdt.is_empty()
     {
         let [w, h] = plan.sheet.page;
-        let inside =
-            |b: &Rect| b[0] >= MARGIN && b[1] >= MARGIN && b[2] <= w - MARGIN && b[3] <= h - MARGIN;
+        let inside = |b: &Rect| {
+            b[0] >= margin() && b[1] >= margin() && b[2] <= w - margin() && b[3] <= h - margin()
+        };
         if footprints(analysis, plan).iter().all(inside) {
             for v in plan.views.iter_mut().filter(|v| v.cut.is_some()) {
                 let b = [
-                    v.area[0].max(MARGIN),
-                    v.area[1].max(MARGIN),
-                    v.area[2].min(w - MARGIN),
-                    v.area[3].min(h - MARGIN),
+                    v.area[0].max(margin()),
+                    v.area[1].max(margin()),
+                    v.area[2].min(w - margin()),
+                    v.area[3].min(h - margin()),
                 ];
                 if b[0] < b[2] && b[1] < b[3] {
                     v.area = b;
@@ -850,7 +940,7 @@ pub(crate) fn correct_estimate(analysis: &Analysis, plan: &mut Plan) {
         .map(|(_, b)| b[3])
         .chain(angular.iter().map(|b| b[3]))
         .fold(f64::NEG_INFINITY, f64::max);
-    let lift = plan.sheet.page[1] - MARGIN - 2.0 - top;
+    let lift = plan.sheet.page[1] - margin() - 2.0 - top;
     if lift <= 0.0 {
         return;
     }
@@ -896,8 +986,11 @@ pub(crate) fn correct_estimate(analysis: &Analysis, plan: &mut Plan) {
         return;
     }
     let [w, h] = plan.sheet.page;
-    let rect =
-        crate::layout::largest_empty_rect([MARGIN, MARGIN, w - MARGIN, h - MARGIN], &groups, size);
+    let rect = crate::layout::largest_empty_rect(
+        [margin(), margin(), w - margin(), h - margin()],
+        &groups,
+        size,
+    );
     let fit = ((rect[2] - rect[0]) / size[0]).min((rect[3] - rect[1]) / size[1]);
     let sheet_scale = plan.sheet.scale_factor;
     let scale = crate::layout::keep_sheet_scale((0.9 * fit).min(1.3 * sheet_scale), sheet_scale);
@@ -1020,7 +1113,7 @@ fn pack_reserved(
         .map(|(i, _)| groups[i][1])
         .fold(groups[root][1], f64::min);
     // Packing settled blocks retains the same readable paper to the border as a shelf.
-    let common = [MARGIN + 2.0 - left, MARGIN + 2.0 - row_bottom];
+    let common = [margin() + 2.0 - left, margin() + 2.0 - row_bottom];
     for i in &column {
         shifts[*i] = common;
     }
@@ -1071,10 +1164,10 @@ fn pack_reserved(
     }
     let [w, h] = p.sheet.page;
     if boxes.iter().any(|b| {
-        b[0] < MARGIN - 1e-6
-            || b[1] < MARGIN - 1e-6
-            || b[2] > w - MARGIN + 1e-6
-            || b[3] > h - MARGIN + 1e-6
+        b[0] < margin() - 1e-6
+            || b[1] < margin() - 1e-6
+            || b[2] > w - margin() + 1e-6
+            || b[3] > h - margin() + 1e-6
     }) {
         return None;
     }
@@ -1163,7 +1256,7 @@ fn pack_reserved(
             return None;
         }
         let rect = crate::layout::largest_empty_rect(
-            [MARGIN, MARGIN, w - MARGIN, h - MARGIN],
+            [margin(), margin(), w - margin(), h - margin()],
             &boxes,
             size,
         );
@@ -1494,18 +1587,18 @@ fn reserve_bounds(
             area[2].max(b[2] + 0.5),
             area[3].max(b[3] + 0.5),
         ];
-        if b[0] < MARGIN - 1e-6
-            || b[1] < MARGIN - 1e-6
-            || b[2] > sheet.page[0] - MARGIN + 1e-6
-            || b[3] > sheet.page[1] - MARGIN + 1e-6
+        if b[0] < margin() - 1e-6
+            || b[1] < margin() - 1e-6
+            || b[2] > sheet.page[0] - margin() + 1e-6
+            || b[3] > sheet.page[1] - margin() + 1e-6
             || overlap(candidate, sheet.title_block)
         {
             continue;
         }
-        candidate[0] = candidate[0].max(MARGIN);
-        candidate[1] = candidate[1].max(MARGIN);
-        candidate[2] = candidate[2].min(sheet.page[0] - MARGIN);
-        candidate[3] = candidate[3].min(sheet.page[1] - MARGIN);
+        candidate[0] = candidate[0].max(margin());
+        candidate[1] = candidate[1].max(margin());
+        candidate[2] = candidate[2].min(sheet.page[0] - margin());
+        candidate[3] = candidate[3].min(sheet.page[1] - margin());
         let mut areas: Vec<_> = views.iter().map(|v| v.area).collect();
         let mut clear = true;
         for j in 0..views.len() {
@@ -1781,7 +1874,7 @@ pub(crate) fn reserve_linear_corridors(
                 .map(|&i| plan.views[i].area[k] + shifts[i][k])
                 .fold(f64::INFINITY, f64::min)
         });
-        let lift = lower.map(|v| (MARGIN - v).max(0.0));
+        let lift = lower.map(|v| (margin() - v).max(0.0));
         for &i in &group {
             for k in 0..2 {
                 shifts[i][k] += lift[k];
@@ -1804,7 +1897,7 @@ pub(crate) fn reserve_linear_corridors(
             .fold(0.0, f64::max);
         if raise > 0.0
             && group.iter().all(|&i| {
-                plan.views[i].area[3] + shifts[i][1] + raise <= plan.sheet.page[1] - MARGIN
+                plan.views[i].area[3] + shifts[i][1] + raise <= plan.sheet.page[1] - margin()
             })
         {
             for &i in &group {
@@ -1970,7 +2063,7 @@ pub(crate) fn reserve_linear_corridors(
             if size.iter().all(|v| *v > 0.0) {
                 let [w, h] = plan.sheet.page;
                 let rect = crate::layout::largest_empty_rect(
-                    [MARGIN, MARGIN, w - MARGIN, h - MARGIN],
+                    [margin(), margin(), w - margin(), h - margin()],
                     &obstacles,
                     size,
                 );
@@ -1994,10 +2087,10 @@ pub(crate) fn reserve_linear_corridors(
     }
     let [w, h] = plan.sheet.page;
     let too_large = plan.views.iter().filter(|v| v.id != "v:iso").any(|v| {
-        v.area[0] < MARGIN - 1e-6
-            || v.area[1] < MARGIN - 1e-6
-            || v.area[2] > w - MARGIN + 1e-6
-            || v.area[3] > h - MARGIN + 1e-6
+        v.area[0] < margin() - 1e-6
+            || v.area[1] < margin() - 1e-6
+            || v.area[2] > w - margin() + 1e-6
+            || v.area[3] > h - margin() + 1e-6
     });
     if too_large && !plan.problems.iter().any(|p| p.code == "page_fit_uncertain") {
         plan.problems.push(crate::model::Problem {id:"p:page_fit_uncertain:linear_corridors".into(),code:"page_fit_uncertain".into(),severity:"warning".into(),message:"The composed linear corridors do not fit the drawing area; choose a larger sheet or a smaller scale.".into(),subjects:vec!["sheet".into()],..Default::default()});

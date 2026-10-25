@@ -1346,7 +1346,7 @@ fn place_balloons(
     }
     let r = RADIUS;
     let [pw, ph] = plan.sheet.page;
-    let m = crate::layout::MARGIN;
+    let m = crate::layout::FRAME;
     let drawable = [m, m, pw - m, ph - m];
     // The halo draftwright reserves for a table's ring, else the nearest standoff.
     let extent = if perimeter {
@@ -2552,7 +2552,7 @@ pub(crate) fn install(analysis: &Analysis, plan: &mut Plan, selection: &Selectio
     // Keep the caption's normal lower band clear as well as the projected ink.
     let caption = 3.0 * crate::section::FONT_SIZE;
     let target = [size[0], size[1] + caption];
-    let margin = crate::layout::MARGIN + crate::layout::PREFERRED_BLOCK_GUTTER;
+    let margin = crate::layout::FRAME + crate::layout::PREFERRED_BLOCK_GUTTER;
     let region = [
         margin,
         margin,
@@ -2854,10 +2854,10 @@ fn install_at(analysis: &Analysis, plan: &mut Plan, selection: &Selection) -> bo
                 && lines.all_clear(padded, |l| !crosses(l, padded))
                 && leaders.iter().all(|l| !crosses(*l, padded))
                 && fixed.iter().all(|q| !overlap(padded, *q))
-                && padded[0] >= crate::layout::MARGIN
-                && padded[1] >= crate::layout::MARGIN
-                && padded[2] <= plan.sheet.page[0] - crate::layout::MARGIN
-                && padded[3] <= plan.sheet.page[1] - crate::layout::MARGIN
+                && padded[0] >= crate::layout::FRAME
+                && padded[1] >= crate::layout::FRAME
+                && padded[2] <= plan.sheet.page[0] - crate::layout::FRAME
+                && padded[3] <= plan.sheet.page[1] - crate::layout::FRAME
                 && read.values().all(|other| {
                     if other
                         .principal
@@ -3018,10 +3018,10 @@ fn install_at(analysis: &Analysis, plan: &mut Plan, selection: &Selection) -> bo
                 origin[1] + distance * angle.sin(),
             ];
             let bounds = [at[0] - 2.0, at[1] - 2.0, at[0] + 12.0, at[1] + 12.0];
-            if bounds[0] >= crate::layout::MARGIN
-                && bounds[1] >= crate::layout::MARGIN
-                && bounds[2] <= plan.sheet.page[0] - crate::layout::MARGIN
-                && bounds[3] <= plan.sheet.page[1] - crate::layout::MARGIN
+            if bounds[0] >= crate::layout::FRAME
+                && bounds[1] >= crate::layout::FRAME
+                && bounds[2] <= plan.sheet.page[0] - crate::layout::FRAME
+                && bounds[3] <= plan.sheet.page[1] - crate::layout::FRAME
                 && labels
                     .iter()
                     .chain(fixed_obstacles(analysis, plan, view, Some(&t)).iter())

@@ -10,7 +10,7 @@ use super::{
     ARROW, ARROW_HALF, CAP, GAP, LIFT, OVERSHOOT, P2, P3, Placed, PlannedDimension, Shape, TEXT,
     TOKEN_GAP, Want, first_line, font, key, lane_pitch,
 };
-use crate::layout::{Lanes, MARGIN};
+use crate::layout::{FRAME, Lanes, margin};
 use crate::model::{Analysis, PlannedSheet, PlannedView, Problem};
 use crate::output::{STRAY_TEXT, label_gap, linear_ink, shared_dimension_line};
 use crate::text::{Font, Segment};
@@ -904,12 +904,53 @@ pub(super) fn fall_through(
     // Each strip's overflow, and the lanes it keeps.
     let mut overflow: Vec<((&str, Side), Vec<usize>)> = Vec::new();
     let mut held: BTreeMap<(&str, Side), usize> = BTreeMap::new();
+    // A dimension's extent along its strip, padded by a millimetre, where it would be drawn.
+    let reach = |i: usize, side: Side, lane: usize| {
+        let view = views_of[i]?;
+        let p = place(&frames[view], &items[i], side, lane)?;
+        let k = usize::from(p.rotation != 0.0);
+        let tips = p.arrows.iter().map(|a| a[0][k]);
+        let lo = tips.clone().fold(p.label_box[k], f64::min);
+        let hi = tips.fold(p.label_box[k + 2], f64::max);
+        Some((lo - 1.0, hi + 1.0))
+    };
     for (key, list) in &mut strips {
+        list.sort_by_key(|&i| lanes[i]);
+        // A strip that would overflow is first packed: in lane order each dimension takes the
+        // innermost lane outside everything it overlaps, sharing one with what it does not. The
+        // strip keeps that packing where every item then fits, rather than sending items across
+        // the view that a closed-up strip holds ([`super::compact_inventory`]).
+        if list.iter().any(|&i| !fits(i, key.1, lanes[i])) {
+            let spans: Vec<_> = list.iter().map(|&i| reach(i, key.1, lanes[i])).collect();
+            let mut packed = vec![0usize; list.len()];
+            for n in 0..list.len() {
+                packed[n] = (0..n)
+                    .filter(|&m| match (spans[m], spans[n]) {
+                        (Some((lo, hi)), Some((a, b))) => hi > a && b > lo,
+                        _ => true,
+                    })
+                    .map(|m| packed[m] + 1)
+                    .max()
+                    .unwrap_or(0);
+            }
+            if list
+                .iter()
+                .zip(&packed)
+                .all(|(&i, &lane)| fits(i, key.1, lane))
+            {
+                for (&i, &lane) in list.iter().zip(&packed) {
+                    lanes[i] = lane;
+                }
+            }
+        }
         list.sort_by_key(|&i| lanes[i]);
         let cut = list
             .iter()
             .position(|&i| !fits(i, key.1, lanes[i]))
             .unwrap_or(list.len());
+        // A member another item is merged into keeps the established fall-through: an item the
+        // spec brings back is drawn in its survivor's lane, where the span already was, and a
+        // whole baseline moving across would move the drawing around it (ARCH0003-2).
         let out: Vec<usize> = list[cut..].to_vec();
         let lanes_held = list[..cut].iter().map(|&i| lanes[i] + 1).max();
         held.insert(*key, lanes_held.unwrap_or(0));
@@ -4008,7 +4049,7 @@ fn inside(p: P2, b: [f64; 4]) -> bool {
 /// The sheet's drawing area, inside its margin.
 fn drawable(sheet: &PlannedSheet) -> [f64; 4] {
     let [w, h] = sheet.page;
-    [MARGIN, MARGIN, w - MARGIN, h - MARGIN]
+    [margin(), margin(), w - margin(), h - margin()]
 }
 
 /// Each view's drawn box on the page: a principal view's projected envelope, the isometric's
@@ -4850,9 +4891,16 @@ fn collisions_impl(
             .iter()
             .chain(&p.arrows)
             .flat_map(|s| s.iter().copied());
-        if !inside([lb[0], lb[1]], drawable)
-            || !inside([lb[2], lb[3]], drawable)
-            || ends.clone().any(|e| !inside(e, drawable))
+        // A table stands against the frame; annotations keep the frame gutter.
+        let area = if d.id.starts_with("t:") {
+            let [w, h] = sheet.page;
+            [FRAME, FRAME, w - FRAME, h - FRAME]
+        } else {
+            drawable
+        };
+        if !inside([lb[0], lb[1]], area)
+            || !inside([lb[2], lb[3]], area)
+            || ends.clone().any(|e| !inside(e, area))
         {
             problem!(
                 "annotation_off_sheet",

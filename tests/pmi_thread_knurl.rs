@@ -897,8 +897,11 @@ fn spec_can_switch_thread_and_knurl_ink_independently_without_losing_requirement
         (false, true, automatic.len() - 2),
         (true, true, automatic.len()),
     ] {
+        // Hold the automatic paper and scale: depiction ink scales with the view, and with the
+        // 3 mm frame gutter (2026-10-25) dropping the depictions lets A4 at 1:1 fit.
         let s: Spec = serde_json::from_value(serde_json::json!({
-            "sheet":{"thread_depiction":false,"knurl_depiction":false},
+            "sheet":{"thread_depiction":false,"knurl_depiction":false,
+                     "size":auto.sheet.size,"scale":auto.sheet.scale},
             "views":{"front":{"thread_depiction":thread,"knurl_depiction":knurl}}
         }))
         .unwrap();

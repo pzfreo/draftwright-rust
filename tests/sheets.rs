@@ -701,7 +701,7 @@ fn r5_narrow_section_blocks_reserve_caption_and_reference_width() {
         let half = font.advance(&text, draftwright::dims::TEXT) / 2.;
         assert!(section.area[0] + draftwright::tables::PAD <= section.at[0] - half);
         assert!(section.area[2] - draftwright::tables::PAD >= section.at[0] + half);
-        assert!(section.at[0] - half >= draftwright::layout::MARGIN);
+        assert!(section.at[0] - half >= draftwright::layout::margin());
     }
     assert!(
         !draftwright::sheets::check(&p)

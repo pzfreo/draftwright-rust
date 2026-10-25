@@ -874,7 +874,7 @@ pub(crate) fn trim(views: &mut [PlannedView], dimensions: &[PlannedDimension]) {
 /// *page* stops on the frame line, keeping at least [`MIN_OVERRUN`] past its feature. The
 /// overrun beyond a feature carries no information; the frame clips nothing else.
 pub(crate) fn trim_to_frame(views: &mut [PlannedView], page: [f64; 2]) {
-    let (m, far) = (crate::layout::MARGIN, 1e6);
+    let (m, far) = (crate::layout::FRAME, 1e6);
     let outside = [
         [-far, -far, m, far],
         [-far, -far, far, m],

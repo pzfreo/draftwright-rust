@@ -245,27 +245,40 @@ pub(crate) fn enabled(analysis: &Analysis) -> bool {
     })
 }
 
-/// Compact dimension spacing ([`crate::dims::compact`]) changes placements, so it keys every
-/// planning memo: normal-spacing keys are unchanged and compact ones are kept apart.
+/// Compact dimension spacing ([`crate::dims::compact`]) and a non-default frame gutter
+/// ([`crate::layout::gutter`]) change placements, so they key every planning memo: default
+/// keys are unchanged and the others are kept apart.
 fn spaced(mut key: Vec<u8>) -> Vec<u8> {
     if crate::dims::compact() {
         // 0xFF never occurs in the UTF-8 JSON keys, and closes any raw byte key.
         key.extend_from_slice(b"\xffcompact-spacing");
     }
+    let gutter = crate::layout::gutter();
+    if gutter != crate::layout::FRAME_GUTTER {
+        key.extend_from_slice(b"\xffframe-gutter");
+        key.extend_from_slice(&gutter.to_bits().to_le_bytes());
+    }
     key
 }
 
-/// A cross-call digest key for a placement result, kept apart under compact spacing. Geometric
-/// caches (projections, wrapped label text) do not use it and stay shared.
+/// A cross-call digest key for a placement result, kept apart under compact spacing or a
+/// non-default frame gutter. Geometric caches (projections, wrapped label text) do not use it
+/// and stay shared.
 pub(crate) fn spaced_digest(key: &[u8; 32]) -> [u8; 32] {
-    if crate::dims::compact() {
-        let mut hasher = Sha256::new();
-        hasher.update(key);
-        hasher.update(b"compact-spacing");
-        hasher.finalize().into()
-    } else {
-        *key
+    let gutter = crate::layout::gutter();
+    if !crate::dims::compact() && gutter == crate::layout::FRAME_GUTTER {
+        return *key;
     }
+    let mut hasher = Sha256::new();
+    hasher.update(key);
+    if crate::dims::compact() {
+        hasher.update(b"compact-spacing");
+    }
+    if gutter != crate::layout::FRAME_GUTTER {
+        hasher.update(b"frame-gutter");
+        hasher.update(gutter.to_bits().to_le_bytes());
+    }
+    hasher.finalize().into()
 }
 
 /// Placement policies held in the planning scope are inputs to exact result caches too.

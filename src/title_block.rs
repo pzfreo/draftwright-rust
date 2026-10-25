@@ -14,7 +14,7 @@ use std::sync::OnceLock;
 
 use serde::{Deserialize, Serialize};
 
-use crate::layout::MARGIN;
+use crate::layout::FRAME;
 use crate::model::{Invalid, Problem};
 use crate::output::Curve;
 use crate::text::{Font, Laid, P, Segment};
@@ -537,8 +537,7 @@ pub fn problems(cells: &[TitleCell], page: [f64; 2]) -> Vec<Problem> {
         }
         let (cx, cy) = (0.5 * (x0 + x1), 0.5 * (y0 + y1));
         let (lo, hi) = ([cx - w / 2.0, cy - h / 2.0], [cx + w / 2.0, cy + h / 2.0]);
-        if lo[0] < MARGIN || lo[1] < MARGIN || hi[0] > page[0] - MARGIN || hi[1] > page[1] - MARGIN
-        {
+        if lo[0] < FRAME || lo[1] < FRAME || hi[0] > page[0] - FRAME || hi[1] > page[1] - FRAME {
             out.push(Problem {
                 id: format!("p:annotation_off_sheet:{subject}"),
                 code: "annotation_off_sheet".into(),

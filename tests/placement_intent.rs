@@ -279,11 +279,15 @@ fn unchanged_view_pins_at_the_margin_are_not_off_sheet() {
             json!({"relative_to":"front","side":"above","gap":gap,"align":"middle","pinned":true}),
         );
         let pinned = model::plan_recovered(&a, &s).unwrap();
-        assert_eq!(
-            geometry(&base, "v:plan"),
-            geometry(&pinned, "v:plan"),
-            "{name}"
-        );
+        // The pin holds the view's position, scale and orientation. Its reserved area is what
+        // the unpinned neighbours leave (the side view re-spaces freely once the plan is
+        // fixed), as in seeded_edits_on_slice_parts_preserve_pinned_geometry.
+        let held = |p: &model::Plan| {
+            let mut g = geometry(p, "v:plan");
+            g.as_object_mut().unwrap().remove("area");
+            g
+        };
+        assert_eq!(held(&base), held(&pinned), "{name}");
         assert!(
             !pinned
                 .problems

@@ -593,14 +593,15 @@ fn composed_corridors_clear_a_previously_overlapping_off_part_fixture() {
     let before = over(&first);
     let plan = model::recover(&analysis, &Spec::default(), first).unwrap();
     assert!(over(&plan) <= before);
-    assert_eq!(sheet(&plan), ("A4", "1:1"), "{}", plan.sheet.basis);
+    // With the 3 mm frame gutter (2026-10-25) the A4 1:1 try keeps one hard layout finding,
+    // so A3 at 1:1 (valid and complete) is chosen; formerly A4 at 1:1.
+    assert_eq!(sheet(&plan), ("A3", "1:1"), "{}", plan.sheet.basis);
     let gate = sheet_rule::tried(&plan.sheet.basis)
         .into_iter()
         .find(|t| t.size == "A4" && t.scale == "1:1")
         .expect("A4 at 1:1 is tried");
-    // The whole corridor now clears both foreign views and fits physically,
-    // making the formerly gated proposal a valid complete candidate.
-    assert!(gate.valid && gate.over == 0, "{}", plan.sheet.basis);
+    // The whole corridor still clears both foreign views.
+    assert!(gate.over == 0, "{}", plan.sheet.basis);
     assert!(
         !plan
             .problems

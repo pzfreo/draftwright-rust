@@ -590,7 +590,8 @@ fn every_number_on_the_sheet_carries_a_claim() {
                 && (1..=grid.columns).contains(&n)
             {
                 let [w, h] = plan.sheet.page;
-                let margin = draftwright::layout::MARGIN;
+                // Zone numbers sit in the margin outside the frame.
+                let margin = draftwright::layout::FRAME;
                 let centre = (f64::from(n) - 0.5) * w / f64::from(grid.columns);
                 if (x - centre).abs() < 1e-9
                     && ((y - margin / 2.).abs() < 1e-9 || (y - (h - margin / 2.)).abs() < 1e-9)
