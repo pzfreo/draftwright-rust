@@ -1425,13 +1425,11 @@ mod tests {
     #[test]
     fn a_local_fix_retains_the_compact_fallback() {
         // A part whose finished drawing takes the automatic compact fallback. (mfcadpp/1013 no
-        // longer does once its obround pocket callout aims at a straight wall.)
-        let a = model::analyse_native(
-            &Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("tests/fixtures/recognition/issues/pocket_z.step"),
-        )
-        .unwrap()
-        .1;
+        // longer does once its obround pocket callout aims at a straight wall, nor the pocket_z
+        // fixture with the 3 mm frame gutter, 2026-10-25.)
+        let Some(a) = corpus("mfcadpp_holdout/119.step") else {
+            return;
+        };
         let before = model::plan_recovered(&a, &Spec::default()).unwrap();
         assert_eq!(
             before.sheet.dimension_spacing,

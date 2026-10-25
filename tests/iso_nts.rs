@@ -119,11 +119,11 @@ fn an_isometric_drawn_off_the_sheet_scale_is_captioned() {
 
 #[test]
 fn an_isometric_at_the_sheet_scale_has_no_caption() {
-    // Fitted by a measured refit to within 5 % of the sheet scale: kept at it, uncaptioned.
-    // The automatic sheet (A4 1:2). The A3 normalization this held moved to 1:1 with the 3 mm
-    // frame gutter (2026-10-25), where the isometric is enlarged and captioned.
+    // An isometric fitted at the sheet scale is uncaptioned. mounting_plate on its automatic
+    // sheet: issue_1247's A3 normalization moved to 1:1 with the 3 mm frame gutter
+    // (2026-10-25), where its isometric is enlarged and captioned.
     let spec = model::Spec::default();
-    let (plan, drawing) = draw_spec("issue_1247_angled_blind_step.step", &spec);
+    let (plan, drawing) = draw_spec("mounting_plate.step", &spec);
     assert_eq!(iso_ratio(&plan), 1.0);
     assert!(caption(&drawing).is_none());
     assert!(!drawing.text.iter().any(|t| t.text == NTS_CAPTION));
