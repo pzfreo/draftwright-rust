@@ -281,10 +281,11 @@ fn one_feature_problem_query_returns_all_member_fixes() {
         .iter()
         .filter(|p| !added.iter().any(|q| q["id"] == p["id"]))
         .collect();
-    // The new local pitch fix also clears both slot crossings, and with lanes compacted
-    // the 100 slot length's second extension line no longer crosses the ⌀35 hole. Other
-    // records can refresh their scoped alternatives without becoming new physical findings.
-    assert_eq!(gone.len(), 7);
+    // The new local pitch fix also clears both slot crossings. (With lanes compacted the fixes
+    // also took the 100 slot length's extension off the ⌀35 hole; in the 3 mm frame gutter's
+    // layout, 2026-10-25, that crossing stays.) Other records can refresh their scoped
+    // alternatives without becoming new physical findings.
+    assert_eq!(gone.len(), 6);
     for p in &problems {
         assert!(gone.iter().any(|resolved| resolved["id"] == p["id"]));
     }
