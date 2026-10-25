@@ -26,6 +26,20 @@ All notable changes to draftwright-rust are recorded here, in the style of
   unchanged; seven synthetic mfcadpp parts change paper or scale (four one step smaller on A4,
   three from A4 1:1 to A3 2:1), and NIST CTC-04 loses its two leader crossings and five
   extension lines through features.
+- **More feature callouts inside the views, and radius leaders that point at the arc's middle.**
+  An automatic feature callout drawn outside its view moves inside when its whole label sits on
+  blank face or in an opening the part surrounds (a slot, the gap between lugs), its leader is
+  no longer and none of its findings grows (maintainer, 2026-10-25). A leader leaving its tip may
+  cross outlines parallel to the tip's own edge, as around a chamfered hex's flats, which any
+  route must cross; NIST CTC-01's HEX 100 A/F now sits on the plate beside the hex. Radius
+  leaders, slot ends included, prefer the middle quarter of the arc and within 7.5° of radial,
+  taking a longer clear route to get there: CTC-01's 4× R25 now meets its arc radially (its
+  radius_leader_not_radial finding goes) and 7× R50 points at the middle of a lug corner. The
+  pass runs on the selected drawing only; when the Spec omits items, the moves come from the same
+  request without them, so an omission moves nothing else. On the 100-part corpus 99 parts keep
+  every finding count; cgb245's 2× R3 slot leader now points radially at its arc and crosses a
+  neighbouring slot's extension lines (one advisory crossing). Edits cost about 10% more
+  instructions.
 
 ### Fixed
 
