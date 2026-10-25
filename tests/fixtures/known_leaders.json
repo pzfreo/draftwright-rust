@@ -18,14 +18,7 @@
   "callout": "d:f:hole:3/bore.diameter",
   "crossing": "line:d:f:slot:3/slot_length.length",
   "verdict": "equivalent",
-  "reason": "The 3 mm frame gutter and interior callout routing move this leader off the y location d:f:hole:1/location.length.y it crossed before; it now crosses one extension line of the neighbouring slot's length instead. One advisory extension-line crossing for another."
- },
- {
-  "part": "cgb245 (native)",
-  "callout": "d:f:slot:2/slot_end_radius.radius",
-  "crossing": "line:d:f:slot:3/slot_width.length",
-  "verdict": "rust-correct",
-  "reason": "Slot end radii now follow the radius leader rule (middle of the arc, within 15 degrees of radial; maintainer 2026-10-25). The 2× R3 shaft, which met its end near the tangent point, now points radially at the arc and crosses the neighbouring slot's width extension lines on the way out. A leader may cross extension lines (advisory); pointing at the correct spot outranks it."
+  "reason": "Interior callout routing moves this leader off the y location d:f:hole:1/location.length.y it crossed before; it now crosses one extension line of the neighbouring slot's length instead. One advisory extension-line crossing for another."
  },
  {
   "part": "ctc04 (native)",

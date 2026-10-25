@@ -2644,6 +2644,8 @@ pub(crate) fn settle_radius_leaders(
         let mut best: Option<((bool, i64), Candidate)> = None;
         if let Some(before) = &before {
             let model_budget = model_crossings(&job, before);
+            // A new route may not run into more extension lines than the drawn one.
+            let old_extensions = fixed.extension_index.contacts(&old.lines, old.label_box);
             // A centred route keeps within 2 mm of its length. Any other may be replaced by
             // a clear better route up to the longest leader allowed: a compliant one by a
             // centred one, a noncompliant one by any compliant one. Pointing radially at the
@@ -2705,6 +2707,11 @@ pub(crate) fn settle_radius_leaders(
                                     .as_ref()
                                     .is_some_and(|(k, _)| (!centred_c, c.score()) >= *k)
                                 || model_crossings(&job, &c) > model_budget
+                                || {
+                                    let e =
+                                        fixed.extension_index.contacts(&c.segments(), c.label_box);
+                                    e.0 > old_extensions.0 || e.1 > old_extensions.1
+                                }
                                 || !page.fits(&c.placed(), view)
                                 || !radius_contacts(&c.placed(), others.iter().copied())
                                     .is_subset(&prior_contacts)
@@ -7020,21 +7027,6 @@ fn radius_route_evidence(
         "fillet.radius"
     } else if d.measurements.iter().any(|m| m.parameter == "blend.radius") {
         "blend.radius"
-    } else if d
-        .measurements
-        .iter()
-        .any(|m| m.parameter == "slot_end_radius.radius")
-    {
-        let frame = Frame::new(analysis, view);
-        return Some(
-            d.measurements
-                .iter()
-                .filter(|m| m.parameter == "slot_end_radius.radius")
-                .flat_map(|m| {
-                    crate::radius::profile(analysis, &m.feature, view.direction, |p| frame.page(p))
-                })
-                .collect(),
-        );
     } else {
         return None;
     };

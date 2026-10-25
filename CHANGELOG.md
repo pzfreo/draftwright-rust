@@ -36,10 +36,8 @@ All notable changes to draftwright-rust are recorded here, in the style of
   taking a longer clear route to get there: CTC-01's 4× R25 now meets its arc radially (its
   radius_leader_not_radial finding goes) and 7× R50 points at the middle of a lug corner. The
   pass runs on the selected drawing only; when the Spec omits items, the moves come from the same
-  request without them, so an omission moves nothing else. On the 100-part corpus 99 parts keep
-  every finding count; cgb245's 2× R3 slot leader now points radially at its arc and crosses a
-  neighbouring slot's extension lines (one advisory crossing). Edits cost about 10% more
-  instructions.
+  request without them, so an omission moves nothing else. A radius route may not run into more
+  extension lines than the one drawn. Edits cost about 10% more instructions.
 
 ### Fixed
 
