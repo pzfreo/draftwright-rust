@@ -7,8 +7,11 @@ use crate::placement_intent::{move_box, move_point};
 // About eight annotation capitals: ample separation on sparse sheets while the
 // projections still read as one set. Tight sheets share less, down to zero.
 pub(crate) const PREFERRED: f64 = 25.0;
-/// Spare paper also moves views away from the frame, beyond the frame gutter every drawing
-/// keeps ([`crate::layout::FRAME_GUTTER`]), up to this much more (maintainer 2026-10-25).
+/// Spare paper also moves views away from the frame (maintainer 2026-10-25): after the gaps
+/// between views have their share, the whole composition on each sheet moves as one block so
+/// each band keeps up to this much more than the frame gutter every drawing keeps
+/// ([`crate::layout::FRAME_GUTTER`]). Moving rigidly keeps an edit between views from moving
+/// the composition.
 pub(crate) const FRAME_SPACE: f64 = 10.0;
 
 fn include(a: &mut Rect, b: Rect) {
@@ -239,6 +242,7 @@ fn translations(
     let n = bounds.len();
     let mut hard = [Vec::new(), Vec::new()];
     let mut soft = [Vec::new(), Vec::new()];
+    let mut frame_soft = [Vec::new(), Vec::new()];
     let equality = |edges: &mut Vec<Edge>, i, j| {
         edges.extend([
             Edge {
@@ -357,8 +361,8 @@ fn translations(
                 limit: high,
             });
             // The frame is a neighbour too: spare paper opens its gaps as it does a pair's.
-            soft[k].push((i, n, low, edge));
-            soft[k].push((n, i, high, edge));
+            frame_soft[k].push((i, n, low, edge));
+            frame_soft[k].push((n, i, high, edge));
         }
         let mut obstacles = vec![sheet.title_block];
         obstacles.extend(crate::sheet_fit::furniture_bounds(analysis, sheet, &[]));
@@ -448,12 +452,13 @@ fn translations(
             soft[k].push((from, to, gap, preferred));
         }
     }
-    let mut result = vec![[0.0; 2]; n];
-    for k in 0..2 {
-        let mut edges = hard[k].clone();
-        // Start at the known feasible composition and spend slack on each pair.
-        // A constrained pair never prevents another pair from getting room.
-        for &(from, to, gap, _) in &soft[k] {
+    // Spend slack on *soft* gaps over *base* constraints: start from the known feasible
+    // composition, share tight slack before improving individual gaps (no early gap may consume
+    // all the paper and leave another touching), then improve each in turn.
+    let spend = |base: Vec<Edge>, soft: &[(usize, usize, f64, f64)]| -> Option<Vec<Edge>> {
+        let mut edges = base;
+        let first = edges.len();
+        for &(from, to, gap, _) in soft {
             edges.push(Edge {
                 from,
                 to,
@@ -461,10 +466,8 @@ fn translations(
             });
         }
         solve(n + 1, &edges)?;
-        // Share tight slack before improving individual pairs: no early pair may
-        // consume all the paper and leave another automatic pair touching.
         let set_common = |edges: &mut [Edge], fraction: f64| {
-            for (edge, &(_, _, gap, wanted)) in edges[hard[k].len()..].iter_mut().zip(&soft[k]) {
+            for (edge, &(_, _, gap, wanted)) in edges[first..].iter_mut().zip(soft) {
                 let floor = gap.min(0.0);
                 edge.limit = gap - (floor + fraction * (wanted - floor));
             }
@@ -483,8 +486,8 @@ fn translations(
             }
             set_common(&mut edges, lo);
         }
-        for slot in hard[k].len()..edges.len() {
-            let (_, _, gap, wanted) = soft[k][slot - hard[k].len()];
+        for slot in first..edges.len() {
+            let (_, _, gap, wanted) = soft[slot - first];
             let target = gap - wanted;
             let old = edges[slot].limit;
             edges[slot].limit = target;
@@ -502,6 +505,32 @@ fn translations(
                 edges[slot].limit = hi;
             }
         }
+        Some(edges)
+    };
+    let mut result = vec![[0.0; 2]; n];
+    for k in 0..2 {
+        // The views' gaps first, as they were; the frame's gaps only from the paper left over,
+        // so a label that changes a gap between views does not move the composition.
+        let mut edges = spend(hard[k].clone(), &soft[k])?;
+        // The composition then moves as one block on each sheet, away from the frame.
+        let d = solve(n + 1, &edges)?;
+        for i in 0..n {
+            for j in 0..i {
+                if plan.views[i].sheet == plan.views[j].sheet {
+                    edges.push(Edge {
+                        from: i,
+                        to: j,
+                        limit: d[j] - d[i],
+                    });
+                    edges.push(Edge {
+                        from: j,
+                        to: i,
+                        limit: d[i] - d[j],
+                    });
+                }
+            }
+        }
+        let edges = spend(edges, &frame_soft[k])?;
         let d = solve(n + 1, &edges)?;
         for i in 0..n {
             result[i][k] = d[i];
