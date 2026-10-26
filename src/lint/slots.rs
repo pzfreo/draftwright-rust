@@ -356,9 +356,66 @@ pub fn pattern_wanted<'a>(
     Ok(out)
 }
 
+/// One span, one dimension (ARCH0009-6, `dims::holes::consolidate`): the planner draws one
+/// position line for lone slots whose low ends lie the same distance from the part's box on the
+/// same axis (within 1e-6 mm, its `SAME_SPAN`), seen through the same axis (its same view); the
+/// survivor claims only its own slot, and the others are omitted as conveyed by it. Each mark
+/// claiming one of those slots' `location_slot.length` also claims the others', so the drawn line
+/// states them all; its text is still judged against each slot's value.
+fn shared_locations(analysis: &Analysis, marks: &[Mark]) -> Vec<Mark> {
+    const PARAMETER: &str = "location_slot.length";
+    let (_, lone) = split(analysis);
+    let at: Vec<(&str, (&str, f64), usize)> = lone
+        .iter()
+        .filter_map(|f| {
+            Some((
+                f.id.as_str(),
+                location(analysis, f).ok()?,
+                outline(analysis, f).ok()?.deep,
+            ))
+        })
+        .collect();
+    if at.len() < 2 {
+        return marks.to_vec();
+    }
+    marks
+        .iter()
+        .map(|m| {
+            let mut m = m.clone();
+            let shared: Vec<&str> = m
+                .claims
+                .iter()
+                .filter(|c| c.parameter == PARAMETER)
+                .filter_map(|c| at.iter().find(|(id, ..)| *id == c.feature))
+                .flat_map(|(id, (axis, d), deep)| {
+                    at.iter()
+                        .filter(move |(o, (k, e), s)| {
+                            o != id && k == axis && s == deep && (e - d).abs() <= 1e-6
+                        })
+                        .map(|(o, ..)| *o)
+                })
+                .collect();
+            for id in shared {
+                if !m
+                    .claims
+                    .iter()
+                    .any(|c| c.feature == id && c.parameter == PARAMETER)
+                {
+                    m.claims.push(crate::output::Claim {
+                        feature: id.into(),
+                        parameter: PARAMETER.into(),
+                    });
+                }
+            }
+            m
+        })
+        .collect()
+}
+
 /// The slot coverage findings: the lone slots' requirements, each slot pattern's, and each slot
 /// pattern whose requirements cannot be read as one requirement that cannot be checked.
 pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
+    let shared = shared_locations(analysis, marks);
     let frame = frame(analysis);
     let noun = |f: &Feature| {
         let p = &f.parameters;
@@ -377,7 +434,7 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     let mut issues = parameters::coverage(
         "slot",
         &wanted(analysis),
-        marks,
+        &shared,
         noun,
         "a linear dimension or radius callout, in the view that sees the slot's outline",
     );
@@ -473,7 +530,12 @@ mod tests {
     /// end's offset from the box along the long axis.
     #[test]
     fn a_lone_slot_states_its_width_length_location_and_proven_end_radius() {
-        let mut a = part(&[("slot", &[0], slot(Some(3.0))), ("slot", &[1], slot(None))]);
+        // The second slot is cgb245's other one, at the far end: the first's location does not
+        // state it (one span, one dimension shares only a coincident end).
+        let mut far = slot(None);
+        far["lo"] = json!(95.96);
+        far["hi"] = json!(110.93);
+        let mut a = part(&[("slot", &[0], slot(Some(3.0))), ("slot", &[1], far)]);
         a.recognition = Some(
             serde_json::from_value(json!({
                 "recogniser": "test",
@@ -578,6 +640,57 @@ mod tests {
         };
         assert!(unverified("95.965").is_empty());
         assert_eq!(unverified("95.960"), ["slot_requirement_unverifiable"]);
+    }
+
+    /// #228, nema17-bracket's slots 1 and 3: two lone slots whose low ends lie 10 from the part's
+    /// x face, both seen along z, are located by one dimension (ARCH0009-6) that claims only the
+    /// first; it states the second's location too. A slot whose low end is elsewhere, or one cut
+    /// through y (another view), is not stated by it, nor is a line whose text misstates the span.
+    #[test]
+    fn one_position_line_states_every_slot_on_its_span() {
+        let slot = |lo: f64, wide: &str, w: f64, d: [f64; 2]| {
+            json!({ "width": 4.5, "length": 7.5, "end_radius": 2.25, "long_axis": "x",
+                    "width_axis": wide, "lo": lo, "hi": lo + 7.5, "w_center": w,
+                    "d_lo": d[0], "d_hi": d[1] })
+        };
+        let a = part(&[
+            ("slot", &[0], slot(10.0, "y", 20.0, [0.0, 10.0])),
+            ("slot", &[1], slot(10.0, "y", 60.0, [0.0, 10.0])),
+            ("slot", &[2], slot(12.0, "y", 80.0, [0.0, 10.0])),
+            ("slot", &[3], slot(10.0, "z", 5.0, [40.0, 50.0])),
+        ]);
+        let missing = |text: &str| -> Vec<String> {
+            let marks = [Mark {
+                name: "m:f:slot:1:location_slot.length".into(),
+                view: Some("v:plan".into()),
+                text: text.into(),
+                claims: vec![Claim {
+                    feature: "f:slot:1".into(),
+                    parameter: "location_slot.length".into(),
+                }],
+            }];
+            coverage(&a, &marks)
+                .into_iter()
+                .filter(|i| i.requirements[0].parameter == "location_slot.length")
+                .map(|i| format!("{} {}", i.code, i.subjects[0]))
+                .collect()
+        };
+        assert_eq!(
+            missing("10"),
+            [
+                "slot_requirement_missing f:slot:3",
+                "slot_requirement_missing f:slot:4"
+            ]
+        );
+        assert_eq!(
+            missing("11"),
+            [
+                "slot_requirement_unverifiable f:slot:1",
+                "slot_requirement_unverifiable f:slot:2",
+                "slot_requirement_missing f:slot:3",
+                "slot_requirement_missing f:slot:4"
+            ]
+        );
     }
 
     /// LINT-slot_coverage-slot_pattern: a linear array of three obround slots has its member's
