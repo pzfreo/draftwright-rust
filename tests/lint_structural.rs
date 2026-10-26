@@ -698,7 +698,7 @@ fn a_title_field_fits_its_cell() {
         found[0].message,
         "Title-block field 'title' overflows its cell: text 105.00 × 2.20 mm, cell 105.00 × 8.00 \
          mm. Use a concise field value and retain the full information in a notes block; text has \
-         not been shortened or shrunk."
+         not been shortened."
     );
 }
 

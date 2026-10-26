@@ -806,18 +806,21 @@ fn titled(name: &str, title: serde_json::Value) -> (Plan, Drawing) {
     (plan, drawing)
 }
 
-/// ISSUE-1536-a: a title-block value wider than its cell is reported, and kept whole. An
-/// 86-character title on plate is wider than its cell: the plan carries one
+/// ISSUE-1536-a: a title-block value wider than its cell is reported, and kept whole. A
+/// 143-character title on plate is wider than its cell even drawn at the smallest height
+/// (#221): the plan carries one
 /// `title_field_overflow` warning for the title's cell, with the full value, and the drawing
 /// carries the value whole. (Every field and multi-line heights: `tests/title_block.rs`.)
 #[test]
 fn a_title_block_value_that_overflows_is_reported() {
-    let long =
-        "FRAME FOR THE ENGINEERING REVIEW GROUP, PRELIMINARY MACHINING ISSUE, SHEET ONE OF ONE";
+    let long = "FRAME FOR THE ENGINEERING REVIEW GROUP, PRELIMINARY MACHINING ISSUE, SHEET ONE OF \
+                ONE, FOR APPROVAL BY THE MANUFACTURING ENGINEERING DEPARTMENT";
     let (plan, drawing) = titled("plate", json!({ "title": long }));
     let cell = plan.sheet.title_cells.iter().find(|c| c.field == "title");
-    let [x0, _, x1, _] = cell.unwrap().cell;
-    let [width, _] = title_block::measure(long);
+    let c = cell.unwrap().cell;
+    let [x0, _, x1, _] = c;
+    let laid = title_block::lay(long, title_block::value_size(long, c));
+    let width = laid.max[0] - laid.min[0];
     assert!(
         width > x1 - x0,
         "the fixture's title must overflow its cell"

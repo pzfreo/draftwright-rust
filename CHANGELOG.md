@@ -34,6 +34,15 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Fixed
 
+- **Small parts no longer go to A3 over a leader the finished drawing would not have (#221).**
+  A paper trial skipped the finishing route pass whenever its reported findings were clear, but
+  the paper policy also measures leaders on extension lines from the ink, so a contact that pass
+  clears refused A4. The pass now runs while such a contact remains. bearing-608zz and
+  hex-standoff-m3 (dw-examples) are drawn on A4 at 2:1 instead of A3 at 5:1, and GRM-03 on A4 at
+  5:1 instead of A3 at 10:1, each with no contact. A title-block value too long for its cell at
+  3 mm is drawn smaller, down to 1.8 mm (ISO 3098's smallest height), so a long drawing number
+  fits A4's cell instead of overflowing it and asking for A3; only a value that does not fit even
+  then is reported as `title_field_overflow`.
 - **Coincident copies of a body no longer multiply every count (#212).** A STEP holding the same
   solid several times on top of itself (a FreeCAD export of a body and its `Pad`) was drawn
   whole, each feature once per copy: dw-examples' gantry plate printed "24× ⌀5.1 THRU" for 12

@@ -1610,6 +1610,10 @@ mod tests {
                 crate::dims::leader_on_extension(&p.dimensions).is_empty(),
                 "{file}"
             );
+            // #221: GRM-03's A4 trial is finished free of its contact, so A4 is kept.
+            if p.sheet.size == "A4" {
+                continue;
+            }
             assert!(
                 p.sheet_candidates
                     .iter()
@@ -2035,15 +2039,15 @@ mod tests {
 
     #[test]
     fn a_routing_refusal_without_space_drops_does_not_repeat_the_scale() {
-        // GRM-03's unclipped A4 trial gains only a leader/extension contact: a
-        // smaller scale would repeat the same routing, so it is not tried.
+        // GRM-03's unclipped A4 trial gained only a leader/extension contact, which its
+        // finishing pass now clears (#221): it is usable at its first scale, with no retry.
         let Some(a) = corpus("gramel/GRM-03_thumbwheel_drive_screw.step") else {
             return;
         };
         let p = model::plan_recovered(&a, &Spec::default()).unwrap();
         let a4 = &p.sheet_candidates[0];
         assert_eq!((a4.size.as_str(), a4.max), ("A4", 1));
-        assert!(a4.outcome.contains("leader_on_extension"), "{}", a4.outcome);
+        assert!(a4.outcome.contains("usable"), "{}", a4.outcome);
         assert_eq!(a4.scales.len(), 1, "{}", p.sheet.basis);
         // 10255's A4 trial runs off the sheet: lack of room earns one smaller scale.
         let Some(a) = corpus("mfcadpp/10255.step") else {

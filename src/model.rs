@@ -7420,6 +7420,9 @@ fn settle_finished_nominals(
         && !crate::dims::recheck_cached(analysis, plan, &cache)
             .iter()
             .any(crate::sheet_policy::layout_problem)
+        // The paper policy also measures leader/extension contacts from final ink (#221):
+        // a trial that kept one would be refused for a contact the full pass can clear.
+        && crate::dims::leader_on_extension(&plan.dimensions).is_empty()
     {
         return;
     }
@@ -9214,14 +9217,10 @@ fn render_annotations_with_cuts(
         label(laid, at, dims, None);
         if let Some(v) = &c.value {
             let centre = [0.5 * (x0 + x1), 0.5 * (y0 + y1)];
-            let run = (v.as_str(), title_block::FONT, title_block::TEXT);
+            let size = title_block::value_size(v, c.cell);
+            let run = (v.as_str(), title_block::FONT, size);
             let from = dims.len();
-            let at = label(
-                title_block::lay(v, title_block::TEXT),
-                centre,
-                dims,
-                Some(run),
-            );
+            let at = label(title_block::lay(v, size), centre, dims, Some(run));
             for r in &plan.requirements {
                 if r.carrier == "title_block" && c.field == "general_tolerance" {
                     stated.entry(r.id.clone()).or_default().extend(at);

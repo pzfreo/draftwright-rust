@@ -86,7 +86,7 @@ fn every_sheet_has_its_title_block() {
     }
     let cells = title_block::cells(
         [167., 10., 287., 50.],
-        &std::collections::BTreeMap::from([("sheet".into(), "100/120".into())]),
+        &std::collections::BTreeMap::from([("sheet".into(), "1000/1200".into())]),
         "A4",
     );
     assert_eq!(
@@ -96,7 +96,7 @@ fn every_sheet_has_its_title_block() {
             .unwrap()
             .value
             .as_deref(),
-        Some("100/120")
+        Some("1000/1200")
     );
     assert!(
         title_block::problems(&cells, [297., 210.])

@@ -6,8 +6,10 @@
 //! (`TB_H`, 40 mm, as draftwright's `_TB_H`); draftwright draws the same 32 mm block in the same
 //! 40 mm reservation and puts the scale note in the band above it, as here. Each value is drawn
 //! centred in its cell in IBM Plex Sans Condensed at 3 mm (ARCH0006-1: the condensed face for the
-//! title block), each cell's label at its lower left at 1.5 mm. A value whose ink is wider or
-//! taller than its cell is reported (`title_field_overflow`, ISSUE-1536-a) and drawn whole.
+//! title block), each cell's label at its lower left at 1.5 mm. A value too wide or tall for its
+//! cell at 3 mm is drawn smaller, down to 1.8 mm, so a long field fits rather than asking for
+//! larger paper (#221); one that still does not fit is reported (`title_field_overflow`,
+//! ISSUE-1536-a) and drawn whole.
 
 use std::collections::BTreeMap;
 use std::sync::OnceLock;
@@ -97,6 +99,9 @@ pub const ROW_H: f64 = 8.0;
 pub const TEXT: f64 = 3.0;
 pub const LABEL_TEXT: f64 = 1.5;
 pub const LABEL_PAD: f64 = 0.8;
+/// The smallest height a value is drawn at to fit its cell: ISO 3098-0's smallest nominal
+/// height (#221).
+pub const MIN_TEXT: f64 = 1.8;
 const FURNITURE_GAP: f64 = 3.0;
 const PROJECTION_BAND_W: f64 = 16.0;
 pub const PROJECTION_LINE: f64 = 0.15;
@@ -260,6 +265,19 @@ pub fn lay(value: &str, size: f64) -> Laid {
 pub fn measure(value: &str) -> [f64; 2] {
     let laid = lay(value, TEXT);
     [laid.max[0] - laid.min[0], laid.max[1] - laid.min[1]]
+}
+
+/// The height *value* is drawn at in *cell* (`[x0, y0, x1, y1]`): [`TEXT`] when it fits, or
+/// smaller so its ink fits the cell clear of the cell's lines by the labels' inset, but never
+/// below [`MIN_TEXT`]. Ink scales with its height.
+pub fn value_size(value: &str, cell: [f64; 4]) -> f64 {
+    let [w, h] = measure(value);
+    let (cw, ch) = (cell[2] - cell[0], cell[3] - cell[1]);
+    if w <= cw + 1e-9 && h <= ch + 1e-9 {
+        return TEXT;
+    }
+    let room = ((cw - 2.0 * LABEL_PAD) / w).min((ch - 2.0 * LABEL_PAD) / h);
+    (TEXT * room).clamp(MIN_TEXT, TEXT)
 }
 
 /// The cells in *block* (the layout's reservation, `[x0, y0, x1, y1]`), with the values from
@@ -496,8 +514,9 @@ fn source(field: &str) -> String {
 
 /// One `title_field_overflow` warning for each cell whose value's ink is wider or taller than
 /// the cell (draftwright's `_lint_title_fields`, there a lint warning, here a plan problem), and
-/// an `annotation_off_sheet` error for each value whose ink leaves the sheet's drawing area.
-/// Each carries the full value, which is drawn whole: nothing is shortened or shrunk.
+/// an `annotation_off_sheet` error for each value whose ink leaves the sheet's drawing area,
+/// each measured at the value's [`value_size`]. Each carries the full value, which is drawn
+/// whole: nothing is shortened.
 pub fn problems(cells: &[TitleCell], page: [f64; 2]) -> Vec<Problem> {
     let mut out = Vec::new();
     for c in cells {
@@ -516,7 +535,8 @@ pub fn problems(cells: &[TitleCell], page: [f64; 2]) -> Vec<Problem> {
             });
         }
         let Some(v) = &c.value else { continue };
-        let [w, h] = measure(v);
+        let laid = lay(v, value_size(v, c.cell));
+        let [w, h] = [laid.max[0] - laid.min[0], laid.max[1] - laid.min[1]];
         let [x0, y0, x1, y1] = c.cell;
         let (cw, ch) = (x1 - x0, y1 - y0);
         let subject = format!("title_block/{}", c.field);
@@ -526,7 +546,7 @@ pub fn problems(cells: &[TitleCell], page: [f64; 2]) -> Vec<Problem> {
                 code: "title_field_overflow".into(),
                 severity: "warning".into(),
                 message: format!(
-                    "Title-block field '{}' overflows its cell: text {w:.2} × {h:.2} mm, cell {cw:.2} × {ch:.2} mm. The value, {v:?}, is drawn whole, not shortened or shrunk; give {} a concise value.",
+                    "Title-block field '{}' overflows its cell: text {w:.2} × {h:.2} mm, cell {cw:.2} × {ch:.2} mm. The value, {v:?}, is drawn whole at {MIN_TEXT} mm, the smallest text height, not shortened; give {} a concise value.",
                     c.field,
                     source(&c.field)
                 ),
