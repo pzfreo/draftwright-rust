@@ -60,6 +60,21 @@ All notable changes to draftwright-rust are recorded here, in the style of
   `0`, unsigned (`⌀6.35 +0.0762 0`, ISO 129-1, STC-07 and STC-09); and a common label that states
   a radius without its value (`2X R`, `4X R`: ASME's full radius) is not drawn but reported as
   `pmi_not_lowered` (a warning).
+- **Round parts no longer state one size several times (#220).** Three or more separate lands
+  of a turned part's largest diameter are stated by its overall diameter, which claims each:
+  lm8uu prints ø15 once, not four times. Equal grooves on one profile are one counted callout
+  (`2× 1.2 WIDE × ø13.4`), and equal bosses that are bands of the profile one diameter
+  (`2× ø11.2`). A groove's width and a turned `C` chamfer's leg are support-plane intervals, so a
+  chain of lands and grooves, or a cylinder between two end chamfers, closes with the overall
+  length and its longest member is reference: omitted by default, in parentheses with
+  `sheet/references` (lm10uu's 19.4, 608zz's 6.5). A boss filling the part's box across its axis
+  states the overall width and depth (608zz, hirth-joint, FTC-11's `ø63 ±0.5 AVG`, no `63` beside
+  it; cgb203's ø360), unless a flat face lies on that side of the box, and a short disc on z
+  drops the side view that repeated its front, as a turned part does (`views/side` keeps it).
+  A file of several solids drawn as one, where one solid fills the box, now has its chains walked
+  on that solid (the analysis records its faces as `body_faces`): lm8uu's 15.2 is reference, and
+  gt2-pulley's band lengths are conveyed by its baseline as on a single solid. Chains are still
+  never walked from one solid to another.
 
 ## 0.1.0 (2026-10-25)
 

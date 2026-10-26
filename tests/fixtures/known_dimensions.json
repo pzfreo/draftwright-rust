@@ -1567,7 +1567,7 @@
     "label": "ø130.9",
     "count": 3,
     "verdict": "rust-correct",
-    "reason": "Faithful nominal display intentionally replaces Python one-decimal rounding; exact model hundredths/thousandths are retained up to three places. Existing ownership and view differences remain independently listed (docs/drawn-values-2026-10-18.md)."
+    "reason": "rust-correct by #220 (maintainer's issue, 2026-10): the three ø130.94 lands are separate bands of the part's largest diameter, so the port's d:envelope/od.diameter claims all three (f:turned_step step.diameter) and states the size once; draftwright repeats it per land beside its overall diameter. Before #220 this differed only by Python's one-decimal rounding (docs/drawn-values-2026-10-18.md)."
   },
   {
     "part": "connector109",
@@ -1666,16 +1666,6 @@
     "view": "front",
     "label": "ø103.12",
     "count": 1,
-    "verdict": "rust-correct",
-    "reason": "Faithful nominal display intentionally replaces Python one-decimal rounding; exact model hundredths/thousandths are retained up to three places. Existing ownership and view differences remain independently listed (docs/drawn-values-2026-10-18.md)."
-  },
-  {
-    "part": "connector109",
-    "side": "rust",
-    "family": "turned_step",
-    "view": "front",
-    "label": "ø130.94",
-    "count": 3,
     "verdict": "rust-correct",
     "reason": "Faithful nominal display intentionally replaces Python one-decimal rounding; exact model hundredths/thousandths are retained up to three places. Existing ownership and view differences remain independently listed (docs/drawn-values-2026-10-18.md)."
   },
@@ -3158,5 +3148,25 @@
     "count": 1,
     "verdict": "equivalent",
     "reason": "The same callout words and measurements now wrap at the requested 48 mm font-measured width. Geometry and coverage remain checked; see docs/thread-callouts.md."
+  },
+  {
+    "part": "connector109",
+    "side": "python",
+    "family": "groove",
+    "view": "front",
+    "label": "6 WIDE × ø122",
+    "count": 2,
+    "verdict": "rust-correct",
+    "reason": "rust-correct by #220 (maintainer's issue, 2026-10): connector109's two 6 wide grooves on one turned profile have one width and floor diameter, so the port calls them out once and counts them (2× 6 WIDE × ø122, claiming both grooves' groove.length and groove.diameter, a leader site at each), as equal turned chamfers are; draftwright calls each out on its own. Each groove's axial position is stated by the step chain either way."
+  },
+  {
+    "part": "connector109",
+    "side": "rust",
+    "family": "groove",
+    "view": "front",
+    "label": "2× 6 WIDE × ø122",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "rust-correct by #220 (maintainer's issue, 2026-10): connector109's two 6 wide grooves on one turned profile have one width and floor diameter, so the port calls them out once and counts them (2× 6 WIDE × ø122, claiming both grooves' groove.length and groove.diameter, a leader site at each), as equal turned chamfers are; draftwright calls each out on its own. Each groove's axial position is stated by the step chain either way."
   }
 ]

@@ -107,6 +107,29 @@ pub(crate) fn slot_walls(a: &Analysis, feature: &str) -> Option<(Span, f64)> {
     ))
 }
 
+/// Whether support-plane chains can be walked at all: on one solid, or on several when one of
+/// them fills the part's box ([`Analysis::body_faces`], #220). Separate solids are not connected
+/// material, so no chain is walked from one to another.
+pub(crate) fn walkable(a: &Analysis) -> bool {
+    !a.solid_count.is_some_and(|n| n > 1) || a.body_faces.is_some()
+}
+
+/// Whether a chain may pass through *feature*'s planes: on one solid, any; on several, the box and
+/// the features wholly on the solid that fills it.
+pub(crate) fn walked(a: &Analysis, feature: &str) -> bool {
+    if !a.solid_count.is_some_and(|n| n > 1) {
+        return true;
+    }
+    let Some(body) = &a.body_faces else {
+        return false;
+    };
+    feature == "envelope"
+        || a.features
+            .iter()
+            .find(|f| f.id == feature)
+            .is_some_and(|f| !f.faces.is_empty() && f.faces.iter().all(|x| body.contains(x)))
+}
+
 pub(crate) fn span(a: &Analysis, feature: &str, parameter: &str) -> Option<Span> {
     if feature == "envelope" {
         let k = super::envelope::PARAMETERS
@@ -143,6 +166,29 @@ pub(crate) fn span(a: &Analysis, feature: &str, parameter: &str) -> Option<Span>
     if f.kind == "turned_step" && parameter == "step.length" && coaxial(a) {
         let b = super::turned::band(&frame(a), f).ok()?;
         return Some(Span::new(b.axis, b.lo, b.hi));
+    }
+    // A groove's width runs between its flanks along its axis, so a chain of lands and grooves
+    // that reaches both ends closes with the overall length (#220).
+    if f.kind == "groove" && parameter == "groove.length" && coaxial(a) {
+        let k = principal(super::parameters::direction(
+            &frame(a),
+            f.parameters.get("axis"),
+        )?)?;
+        let at = to_part(&frame(a), point(f.parameters.get("at"))?);
+        let half = f.parameters.get("width")?.as_f64()? / 2.;
+        return Some(Span::new(k, at[k] - half, at[k] + half));
+    }
+    // A turned chamfer with equal legs (`C0.25`) runs its leg along its axis, centred on its
+    // bevel: with the overall length it closes the cylinder between two end chamfers (#220).
+    if f.kind == "chamfer" && parameter == "chamfer.length" {
+        let p = &f.parameters;
+        let (leg1, leg2) = (p.get("leg1")?.as_f64()?, p.get("leg2")?.as_f64()?);
+        if p.get("turned").and_then(|t| t.as_bool()) != Some(true) || (leg1 - leg2).abs() > 1e-6 {
+            return None;
+        }
+        let k = principal(super::parameters::direction(&frame(a), p.get("axis"))?)?;
+        let at = to_part(&frame(a), point(p.get("at"))?);
+        return Some(Span::new(k, at[k] - leg1 / 2., at[k] + leg1 / 2.));
     }
     if f.kind == "hole" && parameter == "bore.depth" {
         return hole_depth_span(a, f);
@@ -377,7 +423,7 @@ pub fn coverage(a: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     } else {
         marks
     };
-    if a.solid_count.is_some_and(|n| n > 1) {
+    if !walkable(a) {
         return Vec::new();
     }
     let mut edges: Vec<(Span, usize)> = Vec::new();
@@ -496,7 +542,7 @@ pub(crate) fn stated<'c>(
 ) -> Vec<Span> {
     let mut own: Vec<Span> = Vec::new();
     let text = repeated(text).unwrap_or(text);
-    for (feature, parameter) in claims {
+    for (feature, parameter) in claims.into_iter().filter(|(f, _)| walked(a, f)) {
         let found: Vec<Span> = match span(a, feature, parameter) {
             Some(s) => vec![s],
             None => (0..3)
@@ -547,9 +593,7 @@ pub fn determined(a: &Analysis, marks: &[Mark], issues: &mut Vec<LintIssue>) {
         "polygonal_boss_requirement_missing",
         "through_step_requirement_missing",
     ];
-    if a.solid_count.is_some_and(|n| n > 1)
-        || !issues.iter().any(|i| CODES.contains(&i.code.as_str()))
-    {
+    if !walkable(a) || !issues.iter().any(|i| CODES.contains(&i.code.as_str())) {
         return;
     }
     let edges: Vec<(Span, usize)> = marks
@@ -566,6 +610,7 @@ pub fn determined(a: &Analysis, marks: &[Mark], issues: &mut Vec<LintIssue>) {
         };
         !(CODES.contains(&i.code.as_str())
             && i.annotation.is_none()
+            && walked(a, &r.feature)
             && span(a, &r.feature, &r.parameter).is_some_and(|s| path(&edges, s).is_some()))
     });
 }
@@ -597,6 +642,28 @@ pub(crate) fn external_span(a: &Analysis, id: &str, parameter: &str, k: usize) -
             b.on[k] - b.diameter / 2.,
             b.on[k] + b.diameter / 2.,
         ));
+    }
+    // A boss as wide as the part every way across its axis (a disc, a flange) states those
+    // overall extents with its diameter (#220). A boss that reaches the box only one way (a lug
+    // as deep as its plate) or not at all supplies no plane here, nor where a flat face lies on
+    // that side of the box (a square plate under a boss as wide): the flat is the extent.
+    if f.kind == "boss" && parameter == "boss.diameter" {
+        let axis = principal(super::parameters::direction(
+            &frame(a),
+            f.parameters.get("axis"),
+        )?)?;
+        let at = to_part(&frame(a), point(f.parameters.get("location"))?);
+        let d = f.parameters.get("diameter")?.as_f64()?;
+        let across = |j: usize| Span::new(j, at[j] - d / 2., at[j] + d / 2.);
+        let whole = (0..3)
+            .filter(|&i| i != axis)
+            .all(|i| across(i).same(Span::new(i, a.envelope[0][i], a.envelope[1][i])));
+        let flat = a
+            .principal_profiles
+            .iter()
+            .flat_map(|s| &s.faces)
+            .any(|p| p.axis == k);
+        return (whole && k != axis && !flat).then(|| across(k));
     }
     if f.kind == "flat" && parameter == "flat.length" {
         let g = super::flats::groups(a)
@@ -632,4 +699,83 @@ pub(crate) fn coaxial(a: &Analysis) -> bool {
             c.axis == b.axis && (0..3).all(|k| k == b.axis || (c.on[k] - b.on[k]).abs() <= 1e-3)
         })
     })
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::{Value, json};
+
+    /// A 22 × 22 × 7 part (608zz's box) with *features*, each `(kind, record)`.
+    fn part(features: &[(&str, Value)]) -> Analysis {
+        let features: Vec<Value> = features
+            .iter()
+            .enumerate()
+            .map(|(i, (kind, r))| {
+                json!({
+                    "id": format!("f:{kind}:{}", i + 1), "kind": kind, "faces": [i],
+                    "parameters": r,
+                    "fingerprint": { "version": "test", "family": "test", "subtype": "test",
+                                     "sizes": {}, "position": [0.0, 0.0, 0.0],
+                                     "neighbourhood": [] },
+                })
+            })
+            .collect();
+        serde_json::from_value(json!({
+            "schema": "draftwright.analysis/2",
+            "binding": { "source_sha256": "", "part": "test", "face_count": 9, "loader": "test" },
+            "envelope": [[-11.0, -11.0, -3.5], [11.0, 11.0, 3.5]],
+            "features": features,
+            "iso_bounds": [0.0, 0.0, 0.0, 0.0],
+        }))
+        .unwrap()
+    }
+
+    /// #220: a turned `C0.25` runs its leg along its axis, centred on its bevel; unequal legs or
+    /// an unturned edge break no plane. A boss as wide as the box every way across its axis states
+    /// those extents; a smaller boss, one off centre that reaches only one pair of faces, or the
+    /// boss's own axis, gives none; nor does it where a flat face lies on that side of the box.
+    #[test]
+    fn a_turned_chamfer_and_a_whole_boss_supply_their_planes() {
+        let chamfer = |leg2: f64, turned: bool| {
+            json!({ "angle": 45.0, "at": [-10.875, 0.0, 3.375], "axis": "z", "leg1": 0.25,
+                    "leg2": leg2, "turned": turned })
+        };
+        let boss = |d: f64| {
+            json!({ "axis": [0.0, 0.0, 1.0], "diameter": d, "height": 6.5,
+                    "location": [0.0, 0.0, 3.25] })
+        };
+        let a = part(&[
+            ("chamfer", chamfer(0.25, true)),
+            ("chamfer", chamfer(0.3, true)),
+            ("chamfer", chamfer(0.25, false)),
+            ("boss", boss(22.0)),
+            ("boss", boss(12.0)),
+            (
+                "boss",
+                json!({ "axis": [0.0, 0.0, 1.0], "diameter": 22.0, "height": 6.5,
+                        "location": [0.0, 5.0, 3.25] }),
+            ),
+        ]);
+        let s = span(&a, "f:chamfer:1", "chamfer.length").unwrap();
+        assert!(s.same(Span::new(2, 3.25, 3.5)), "{s:?}");
+        assert!(span(&a, "f:chamfer:2", "chamfer.length").is_none());
+        assert!(span(&a, "f:chamfer:3", "chamfer.length").is_none());
+        for k in [0, 1] {
+            let s = external_span(&a, "f:boss:4", "boss.diameter", k).unwrap();
+            assert!(s.same(Span::new(k, -11.0, 11.0)), "{s:?}");
+            assert!(external_span(&a, "f:boss:5", "boss.diameter", k).is_none());
+            assert!(external_span(&a, "f:boss:6", "boss.diameter", k).is_none());
+        }
+        assert!(external_span(&a, "f:boss:4", "boss.diameter", 2).is_none());
+        // A square plate under it: its flats at x = ±11 are the width, not the boss.
+        let mut a = a;
+        a.principal_profiles = serde_json::from_value(json!([{
+            "bounds": [[-11.0, -11.0, -3.5], [11.0, 11.0, 3.5]],
+            "faces": [{ "axis": 0, "at": 11.0, "inner": [], "outer_edges": 4, "outer_arcs": [] }],
+        }]))
+        .unwrap();
+        assert!(external_span(&a, "f:boss:4", "boss.diameter", 0).is_none());
+        assert!(external_span(&a, "f:boss:4", "boss.diameter", 1).is_some());
+    }
 }
