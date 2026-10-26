@@ -191,7 +191,8 @@ fn sample(e: &haecceity::brep::Edge) -> Vec<[f64; 3]> {
 }
 
 /// The part's edge evidence. Deterministic: edges and faces in the part's own order. Only the
-/// [`drawn_faces`](crate::quiddity_evidence::drawn_faces) and their edges are ink; any other edge keeps its index with no samples.
+/// [`drawn_faces`](crate::quiddity_evidence::drawn_faces) and their edges are ink; any other
+/// edge keeps its index with no samples.
 pub(super) fn evidence(part: &Part) -> EdgeInk {
     use haecceity::geom::Surface;
     let drawn = crate::quiddity_evidence::drawn_faces(part);
