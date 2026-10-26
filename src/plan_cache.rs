@@ -97,13 +97,21 @@ pub fn analysed_in<E>(
     )?;
     match computed {
         Some(part) => Ok((part, analysis)),
-        None => match model::step_bytes(&bytes)
-            .ok()
-            .and_then(|b| crate::haecceity::read_step(&b).ok())
-        {
-            Some(part) => Ok((part, analysis)),
-            None => (compute.take().unwrap())(),
-        },
+        // The part the Analysis was read from: one part alone when every body coincided with
+        // it (#212).
+        None => {
+            match model::step_bytes(&bytes)
+                .ok()
+                .and_then(|b| match analysis.binding.part_index {
+                    None => crate::haecceity::read_step(&b).ok(),
+                    Some(k) => crate::haecceity::step::StepFile::read(&b)
+                        .and_then(|file| file.part(k))
+                        .ok(),
+                }) {
+                Some(part) => Ok((part, analysis)),
+                None => (compute.take().unwrap())(),
+            }
+        }
     }
 }
 

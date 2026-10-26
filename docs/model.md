@@ -124,7 +124,13 @@ edited.
   material are dropped, not refused (`pmi.drawn` = K), and a material it states fills the title
   block. With no part chosen an assembly is read whole, as before (D4): the Analysis lists the
   file's parts in `parts` (only when there are two or more) and `plan` warns
-  `assembly_drawn_whole`, naming the parts and how to choose one. An Analysis made from one
+  `assembly_drawn_whole`, naming the parts and how to choose one. Bodies that lie on top of an
+  earlier one (#212: their faces pair off with the same surface type and box, to a micron, as
+  placed) are listed in the Analysis's `coincident`. When every body of an assembly coincides
+  with the first, that part is read alone as `--part K` reads it (`binding.part_index` is K), so
+  no feature is counted once per copy, and `plan` reports `coincident_bodies` (info); otherwise
+  the file is still drawn whole and `coincident_bodies` warns that the copies' features are
+  counted again. An Analysis made from one
   part is re-read from that part when passed back (`--analysis`), and a `part` beside it must be
   the same. An index the file does not have is refused (`invalid`), naming the parts. Nested
   sub-assemblies are flattened to their leaf parts; a sub-assembly is not selectable (D2).

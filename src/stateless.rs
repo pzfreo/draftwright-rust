@@ -261,7 +261,8 @@ impl Cache {
                     "cached Analysis differs from the registered STEP or engine; remove analysis.json and register again",
                 ));
             }
-            let part = match registration.part {
+            // A part chosen, or the one part every body coincided with (#212).
+            let part = match registration.part.or(analysis.binding.part_index) {
                 None => crate::haecceity::read_step(&source),
                 Some(k) => crate::haecceity::step::StepFile::read(&source).and_then(|file| {
                     if k < file.parts.len() {

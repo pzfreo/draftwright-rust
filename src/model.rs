@@ -198,6 +198,24 @@ pub struct Analysis {
     /// as one, and the plan warns (`assembly_drawn_whole`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub parts: Vec<FilePart>,
+    /// The file's bodies that coincide with an earlier one (#212), when no part was chosen:
+    /// when every body of an assembly coincides with the first, that part is read alone
+    /// (`binding.part_index`) and these are not drawn; otherwise the file is drawn whole, these
+    /// with it. The plan reports them (`coincident_bodies`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub coincident: Vec<CoincidentBody>,
+}
+
+/// A placed body of a STEP file that coincides with an earlier one ([`coincident_bodies`]).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct CoincidentBody {
+    /// Its part's index in `parts`, the part's name, and which of its placements it is.
+    pub part: usize,
+    pub name: String,
+    pub placement: usize,
+    /// The part of the earlier body it coincides with.
+    pub of: usize,
 }
 
 /// A family of features the recogniser did not give the Analysis (quiddity's family name).
@@ -1154,6 +1172,62 @@ fn file_parts(defs: &[haecceity::step::PartDefinition]) -> Vec<FilePart> {
         .collect()
 }
 
+/// The placed bodies of the whole-file *part* (read from the file whose parts are *defs*) that
+/// coincide with an earlier one, each with the part of the first body of its group. Two bodies
+/// coincide when their faces pair off with the same surface type and the same box, to a micron,
+/// as the file places them (no transform between them is sought): two solids exported on top of
+/// each other (#212), which drawn together count every feature once per body. Face boxes are
+/// already read and stand for the faces' geometry well enough here: a hole, slot or edge break
+/// moved, added or removed changes a face's box or the count.
+fn coincident_bodies(part: &Part, defs: &[haecceity::step::PartDefinition]) -> Vec<CoincidentBody> {
+    let placed: usize = defs.iter().map(|d| d.placements.len()).sum();
+    if placed < 2 {
+        return Vec::new();
+    }
+    let mut instance_faces: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
+    for f in 0..part.faces.len() {
+        if let Some(s) = part.face_source(f) {
+            instance_faces.entry(s.instance).or_default().push(f);
+        }
+    }
+    let micron = |x: f64| (x * 1e3).round() as i64;
+    // Each distinct body's faces (surface type and box, sorted), with its part.
+    type Faces = Vec<(u8, [i64; 6])>;
+    let mut groups: Vec<(Faces, usize)> = Vec::new();
+    let mut found = Vec::new();
+    for (k, d) in defs.iter().enumerate() {
+        for (placement, p) in d.placements.iter().enumerate() {
+            let mut faces: Faces = p
+                .instances
+                .iter()
+                .flat_map(|i| instance_faces.get(i).into_iter().flatten())
+                .map(|&f| {
+                    let b = part.face_bounds(f);
+                    let (lo, hi) = (b.min.map(micron), b.max.map(micron));
+                    (
+                        part.faces[f].surface.kind() as u8,
+                        [lo[0], lo[1], lo[2], hi[0], hi[1], hi[2]],
+                    )
+                })
+                .collect();
+            if faces.is_empty() {
+                continue;
+            }
+            faces.sort_unstable();
+            match groups.iter().find(|(g, _)| *g == faces) {
+                Some(&(_, of)) => found.push(CoincidentBody {
+                    part: k,
+                    name: d.name.clone(),
+                    placement,
+                    of,
+                }),
+                None => groups.push((faces, k)),
+            }
+        }
+    }
+    found
+}
+
 /// `0: plate, 1: pin`: an assembly's parts as a message names them.
 pub fn part_list(parts: &[FilePart]) -> String {
     parts
@@ -1287,13 +1361,37 @@ fn analyse_step_input(
     // is given these rather than reading them again). A gzipped file's name is its STEP name
     // with `.gz` after it, so `part.step.gz` and `part.stp.gz` are named as `part.step` is.
     let mut chosen = chosen;
+    let mut coincident = Vec::new();
     let (part, defs, part_name) = match chosen {
-        None => (
-            haecceity::read_step(bytes).map_err(|e| step_refused(name, e))?,
-            haecceity::step::read_part_definitions(bytes)
-                .map_err(|e| format!("cannot read the parts: {e}")),
-            stem.clone(),
-        ),
+        None => {
+            let part = haecceity::read_step(bytes).map_err(|e| step_refused(name, e))?;
+            let defs = haecceity::step::read_part_definitions(bytes)
+                .map_err(|e| format!("cannot read the parts: {e}"));
+            if let Ok(defs) = &defs {
+                coincident = coincident_bodies(&part, defs);
+            }
+            let placed = defs.as_ref().map_or(0, |defs| {
+                defs.iter().map(|d| d.placements.len()).sum::<usize>()
+            });
+            match coincident.first() {
+                // Every body of an assembly coincides with part *k*'s first: *k* alone is drawn,
+                // as `--part k` draws it, so no feature is counted once per copy (#212). A file
+                // of one part placed on itself is still read whole: its part 0 is the file.
+                Some(c)
+                    if coincident.len() + 1 == placed
+                        && defs.as_ref().is_ok_and(|d| d.len() > 1) =>
+                {
+                    let k = c.of;
+                    let file = haecceity::step::StepFile::read(bytes)
+                        .map_err(|e| step_refused(name, e))?;
+                    chosen = Some(k);
+                    let part = file.part(k).map_err(|e| step_refused(name, e))?;
+                    let name = file.parts[k].name.clone();
+                    (part, Ok(file.parts), name)
+                }
+                _ => (part, defs, stem.clone()),
+            }
+        }
         Some(k) => {
             let file = haecceity::step::StepFile::read(bytes).map_err(|e| step_refused(name, e))?;
             if k == 0 && file.parts.len() == 1 {
@@ -1386,6 +1484,7 @@ fn analyse_step_input(
             Ok(defs) if defs.len() > 1 => file_parts(defs),
             _ => Vec::new(),
         },
+        coincident,
     };
     let (_, toward, up) = VIEWS[3];
     // Invariant: Planned cameras come from the fixed views or checked section/detail cameras, with nonparallel axes.
@@ -4712,6 +4811,51 @@ fn plan_with_presentation(
             ),
             subjects: Vec::new(),
             refs: analysis.parts.iter().map(|p| p.name.clone()).collect(),
+            ..Default::default()
+        });
+    }
+    // Bodies on top of another (#212): dropped when the part they copy was drawn alone in
+    // their place; otherwise drawn with it, so each of their features is counted again.
+    if !analysis.coincident.is_empty() {
+        let bodies = analysis
+            .coincident
+            .iter()
+            .map(|c| {
+                let placed = analysis.parts.get(c.part).is_some_and(|p| p.instances > 1);
+                if placed {
+                    format!("{}: {} (placement {})", c.part, c.name, c.placement + 1)
+                } else {
+                    format!("{}: {}", c.part, c.name)
+                }
+            })
+            .collect::<Vec<_>>()
+            .join(", ");
+        let file = analysis
+            .source_stem
+            .as_ref()
+            .unwrap_or(&analysis.binding.part);
+        let (severity, message) = match analysis.binding.part_index {
+            Some(k) => (
+                "info",
+                format!(
+                    "Every body of {file} coincides with part {k} ({}), which is drawn alone: the copies ({bodies}) are not drawn, so their features are not counted again. --part K on the command line, or \"part\": K in a request, draws part K instead.",
+                    analysis.binding.part
+                ),
+            ),
+            None => (
+                "warning",
+                format!(
+                    "{file} has bodies that coincide with another ({bodies}); the file is drawn whole, so their features are counted once per copy. To draw one part alone, choose it by its index: --part K on the command line, or \"part\": K in a request."
+                ),
+            ),
+        };
+        problems.push(Problem {
+            id: "p:coincident_bodies:part".into(),
+            code: "coincident_bodies".into(),
+            severity: severity.into(),
+            message,
+            subjects: Vec::new(),
+            refs: analysis.coincident.iter().map(|c| c.name.clone()).collect(),
             ..Default::default()
         });
     }

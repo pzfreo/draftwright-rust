@@ -80,6 +80,7 @@ catalogue! {
     "circular_channel_requirement_unverifiable" => Incomplete, Requirement, "The drawing does not prove this required feature parameter.";
     "claimed_value_absent" => Incomplete, Code, "The drawn evidence does not correctly state the required source information.";
     "closed_dimension_chain" => Advisory, Code, "A closed chain is redundant dimension information.";
+    "coincident_bodies" => Advisory, Code, "The file holds bodies that coincide with another; one of each is drawn when every body does.";
     "correlated_set_conflict" => Decision, Code, "The authored choice splits a set that must be kept together.";
     "correlated_set_whole" => Advisory, Code, "A correlated dimension set was kept together.";
     "cross_reference_missing" => Incomplete, Code, "A required cross-sheet or derived-view reference is absent.";

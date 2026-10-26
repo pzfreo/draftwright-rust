@@ -76,6 +76,7 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `circular_channel_requirement_unverifiable` | incomplete | The drawing does not prove this required feature parameter. |
 | `claimed_value_absent` | incomplete | The drawn evidence does not correctly state the required source information. |
 | `closed_dimension_chain` | advisory | A closed chain is redundant dimension information. |
+| `coincident_bodies` | advisory | The file holds bodies that coincide with another; one of each is drawn when every body does. |
 | `correlated_set_conflict` | decision | The authored choice splits a set that must be kept together. |
 | `correlated_set_whole` | advisory | A correlated dimension set was kept together. |
 | `cross_reference_missing` | incomplete | A required cross-sheet or derived-view reference is absent. |
