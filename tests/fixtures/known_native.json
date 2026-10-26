@@ -1713,16 +1713,6 @@
     "set": "corpus",
     "part": "ctc01",
     "subject": "f:polygonal_boss:1",
-    "field": "faces",
-    "python": "[61, 62, 63, 64, 65, 66, 67]",
-    "rust": "[61, 62, 63, 64, 65, 66]",
-    "verdict": "rust-wrong",
-    "evidence": "Python's bridge gives the boss its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones (its flats). The other face, 67, is the plane z = 50 capping the hexagonal boss (base 0, top 50 along z) at its free end (haecceity's face bounds, checked). The document drops the context, as for bosses and holes, so the native feature lacks a face that belongs to it and its fingerprint's neighbourhood changes with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
-  },
-  {
-    "set": "corpus",
-    "part": "ctc01",
-    "subject": "f:polygonal_boss:1",
     "field": "parameters.named_dimensions",
     "python": "{\"axial_length\":50.0,\"height_above_base\":50.0}",
     "rust": "-",
@@ -1818,16 +1808,6 @@
     "rust": "-",
     "verdict": "equivalent",
     "evidence": "Python's document enrichment restates the plate's thickness, 50.0: hi - lo of its own record, within its 1e-3 rounding (checked for every plate of every compared recognition). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). lint/channels.rs reads the plate's lo and hi, not the named size."
-  },
-  {
-    "set": "sheets",
-    "part": "ctc01",
-    "subject": "f:polygonal_boss:1",
-    "field": "faces",
-    "python": "[61, 62, 63, 64, 65, 66, 67]",
-    "rust": "[61, 62, 63, 64, 65, 66]",
-    "verdict": "rust-wrong",
-    "evidence": "Python's bridge gives the boss its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones (its flats). The other face, 67, is the plane z = 50 capping the hexagonal boss (base 0, top 50 along z) at its free end (haecceity's face bounds, checked). The document drops the context, as for bosses and holes, so the native feature lacks a face that belongs to it and its fingerprint's neighbourhood changes with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
   },
   {
     "set": "sheets",
@@ -1943,16 +1923,6 @@
     "set": "dims",
     "part": "ftc07",
     "subject": "f:polygonal_boss:1",
-    "field": "faces",
-    "python": "[235, 236, 257, 258, 259]",
-    "rust": "[235, 257, 258, 259]",
-    "verdict": "rust-wrong",
-    "evidence": "Python's bridge gives the boss its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones (its flats). The other face, 236, is a square plane at y = -123.19 capping the square boss at its free end (haecceity's face bounds, checked). The document drops the context, as for bosses and holes, so the native feature lacks a face that belongs to it and its fingerprint's neighbourhood changes with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
-  },
-  {
-    "set": "dims",
-    "part": "ftc07",
-    "subject": "f:polygonal_boss:1",
     "field": "parameters.flat_centres",
     "python": "[[-120.650473,-121.919276,93.958132],[-133.327473,-121.919276,81.280132],[-120.650473,-121.919276,68.602132],[-107.972473,-121.919276,81.280132]]",
     "rust": "[[-133.328,-121.919,81.28],[-120.65,-121.919,68.602],[-107.972,-121.919,81.28],[-120.65,-121.919,93.958]]",
@@ -1978,16 +1948,6 @@
     "rust": "-",
     "verdict": "equivalent",
     "evidence": "Python's document enrichment restates the boss's height: axial_length and height_above_base are both top - base (2.54) of its own record (checked for every polygonal boss in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). dims/bosses.rs and lint/polygonal.rs read base and top."
-  },
-  {
-    "set": "dims",
-    "part": "ftc07",
-    "subject": "f:polygonal_boss:2",
-    "field": "faces",
-    "python": "[237, 238, 239, 260, 261]",
-    "rust": "[237, 239, 260, 261]",
-    "verdict": "rust-wrong",
-    "evidence": "Python's bridge gives the boss its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones (its flats). The other face, 238, is a square plane at y = -123.19 capping the square boss at its free end (haecceity's face bounds, checked). The document drops the context, as for bosses and holes, so the native feature lacks a face that belongs to it and its fingerprint's neighbourhood changes with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
   },
   {
     "set": "dims",
@@ -2023,16 +1983,6 @@
     "set": "dims",
     "part": "ftc07",
     "subject": "f:polygonal_boss:3",
-    "field": "faces",
-    "python": "[240, 262, 263, 264, 265]",
-    "rust": "[240, 262, 263, 264]",
-    "verdict": "rust-wrong",
-    "evidence": "Python's bridge gives the boss its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones (its flats). The other face, 265, is a square plane at y = -123.19 capping the square boss at its free end (haecceity's face bounds, checked). The document drops the context, as for bosses and holes, so the native feature lacks a face that belongs to it and its fingerprint's neighbourhood changes with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
-  },
-  {
-    "set": "dims",
-    "part": "ftc07",
-    "subject": "f:polygonal_boss:3",
     "field": "parameters.flat_centres",
     "python": "[[120.649527,-121.919276,-68.601868],[107.972527,-121.919276,-81.279868],[120.649527,-121.919276,-93.957868],[133.327527,-121.919276,-81.279868]]",
     "rust": "[[107.972,-121.919,-81.28],[120.65,-121.919,-93.958],[133.328,-121.919,-81.28],[120.65,-121.919,-68.602]]",
@@ -2058,16 +2008,6 @@
     "rust": "-",
     "verdict": "equivalent",
     "evidence": "Python's document enrichment restates the boss's height: axial_length and height_above_base are both top - base (2.54) of its own record (checked for every polygonal boss in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). dims/bosses.rs and lint/polygonal.rs read base and top."
-  },
-  {
-    "set": "dims",
-    "part": "ftc07",
-    "subject": "f:polygonal_boss:4",
-    "field": "faces",
-    "python": "[241, 242, 254, 255, 256]",
-    "rust": "[241, 254, 255, 256]",
-    "verdict": "rust-wrong",
-    "evidence": "Python's bridge gives the boss its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones (its flats). The other face, 242, is a square plane at y = -123.19 capping the square boss at its free end (haecceity's face bounds, checked). The document drops the context, as for bosses and holes, so the native feature lacks a face that belongs to it and its fingerprint's neighbourhood changes with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
   },
   {
     "set": "dims",
@@ -2903,26 +2843,6 @@
     "set": "golden",
     "part": "oriented_slots",
     "subject": "f:oriented_slot:1",
-    "field": "faces",
-    "python": "[6, 7, 8, 9]",
-    "rust": "[6, 9]",
-    "verdict": "rust-wrong",
-    "evidence": "quiddity-rust 0.2.0 recognises golden's 30-degree slots with its plain slot recogniser in a turned frame (#81) and publishes them as slots (#92), whose defining faces are the two walls; Python's oriented slot claims the walls and both end faces. The ends stay unclaimed by the slot."
-  },
-  {
-    "set": "golden",
-    "part": "oriented_slots",
-    "subject": "f:oriented_slot:1",
-    "field": "parameters.body_key",
-    "python": "[-60.0,-45.0,-5.0,60.0,45.0,5.0,103680.0,26736.0]",
-    "rust": "{\"area\":26736.0,\"axes\":[\"z\",[-0.5,0.866025,0.0],[-0.866025,-0.5,0.0]],\"bounds\":[[-5.0,5.0],[-68.971143,68.971143],[-74.461524,74.461524]],\"origin\":[0.0,0.0,0.0],\"volume\":103680.0}",
-    "verdict": "equivalent",
-    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
-  },
-  {
-    "set": "golden",
-    "part": "oriented_slots",
-    "subject": "f:oriented_slot:1",
     "field": "parameters.corner_radius",
     "python": "-",
     "rust": "null",
@@ -2955,9 +2875,9 @@
     "subject": "f:oriented_slot:1",
     "field": "parameters.depth_axis",
     "python": "-",
-    "rust": "\"z\"",
+    "rust": "[0.0,0.0,1.0]",
     "verdict": "equivalent",
-    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision. quiddity-rust 0.2.1 (#91) sets the part's roll from its own outline, so golden's slots are measured in the plate's file axes: origin at the slot, w_center 0, extents ±12."
   },
   {
     "set": "golden",
@@ -2975,9 +2895,9 @@
     "subject": "f:oriented_slot:1",
     "field": "parameters.hi",
     "python": "-",
-    "rust": "37.980762",
+    "rust": "12.000008",
     "verdict": "equivalent",
-    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision. quiddity-rust 0.2.1 (#91) sets the part's roll from its own outline, so golden's slots are measured in the plate's file axes: origin at the slot, w_center 0, extents ±12."
   },
   {
     "set": "golden",
@@ -2985,9 +2905,9 @@
     "subject": "f:oriented_slot:1",
     "field": "parameters.lo",
     "python": "-",
-    "rust": "13.980762",
+    "rust": "-12.000008",
     "verdict": "equivalent",
-    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision. quiddity-rust 0.2.1 (#91) sets the part's roll from its own outline, so golden's slots are measured in the plate's file axes: origin at the slot, w_center 0, extents ±12."
   },
   {
     "set": "golden",
@@ -3005,19 +2925,9 @@
     "subject": "f:oriented_slot:1",
     "field": "parameters.origin",
     "python": "-",
-    "rust": "[0.0,0.0,0.0]",
+    "rust": "[-30.0,0.0,0.0]",
     "verdict": "equivalent",
-    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
-  },
-  {
-    "set": "golden",
-    "part": "oriented_slots",
-    "subject": "f:oriented_slot:1",
-    "field": "parameters.source",
-    "python": "{\"ends\":{\"high_capped\":false,\"high_gradient\":[0.0,0.0],\"low_capped\":false,\"low_gradient\":[0.0,0.0]},\"frame\":{\"origin\":[-30.0,0.0,0.0],\"run\":[0.0,0.0,1.0],\"u\":[0.0,1.0,0.0],\"v\":[-1.0,0.0,0.0]},\"run_interval\":[-5.0,5.0],\"section\":{\"boundary\":[{\"bulge\":0.0,\"point\":[-8.5981,8.8923]},{\"bulge\":0.0,\"point\":[3.4019,-11.8923]},{\"bulge\":0.0,\"point\":[8.5981,-8.8923]},{\"bulge\":0.0,\"point\":[-3.4019,11.8923]}]}}",
-    "rust": "-",
-    "verdict": "equivalent",
-    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision. quiddity-rust 0.2.1 (#91) sets the part's roll from its own outline, so golden's slots are measured in the plate's file axes: origin at the slot, w_center 0, extents ±12."
   },
   {
     "set": "golden",
@@ -3025,9 +2935,9 @@
     "subject": "f:oriented_slot:1",
     "field": "parameters.w_center",
     "python": "-",
-    "rust": "15.0",
+    "rust": "0.0",
     "verdict": "equivalent",
-    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision. quiddity-rust 0.2.1 (#91) sets the part's roll from its own outline, so golden's slots are measured in the plate's file axes: origin at the slot, w_center 0, extents ±12."
   },
   {
     "set": "golden",
@@ -3035,39 +2945,9 @@
     "subject": "f:oriented_slot:1",
     "field": "parameters.width_axis",
     "python": "-",
-    "rust": "[-0.5,0.866025,0.0]",
+    "rust": "[-0.499997,0.866027,0.0]",
     "verdict": "equivalent",
-    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
-  },
-  {
-    "set": "golden",
-    "part": "oriented_slots",
-    "subject": "f:oriented_slot:1",
-    "field": "parameters.width_direction",
-    "python": "[-0.499997,0.866027,0.0]",
-    "rust": "[-0.5,0.866025,0.0]",
-    "verdict": "equivalent",
-    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
-  },
-  {
-    "set": "golden",
-    "part": "oriented_slots",
-    "subject": "f:oriented_slot:2",
-    "field": "faces",
-    "python": "[10, 11, 12, 13]",
-    "rust": "[10, 13]",
-    "verdict": "rust-wrong",
-    "evidence": "quiddity-rust 0.2.0 recognises golden's 30-degree slots with its plain slot recogniser in a turned frame (#81) and publishes them as slots (#92), whose defining faces are the two walls; Python's oriented slot claims the walls and both end faces. The ends stay unclaimed by the slot."
-  },
-  {
-    "set": "golden",
-    "part": "oriented_slots",
-    "subject": "f:oriented_slot:2",
-    "field": "parameters.body_key",
-    "python": "[-60.0,-45.0,-5.0,60.0,45.0,5.0,103680.0,26736.0]",
-    "rust": "{\"area\":26736.0,\"axes\":[\"z\",[-0.5,0.866025,0.0],[-0.866025,-0.5,0.0]],\"bounds\":[[-5.0,5.0],[-68.971143,68.971143],[-74.461524,74.461524]],\"origin\":[0.0,0.0,0.0],\"volume\":103680.0}",
-    "verdict": "equivalent",
-    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision. quiddity-rust 0.2.1 (#91) sets the part's roll from its own outline, so golden's slots are measured in the plate's file axes: origin at the slot, w_center 0, extents ±12."
   },
   {
     "set": "golden",
@@ -3105,9 +2985,9 @@
     "subject": "f:oriented_slot:2",
     "field": "parameters.depth_axis",
     "python": "-",
-    "rust": "\"z\"",
+    "rust": "[0.0,0.0,1.0]",
     "verdict": "equivalent",
-    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision. quiddity-rust 0.2.1 (#91) sets the part's roll from its own outline, so golden's slots are measured in the plate's file axes: origin at the slot, w_center 0, extents ±12."
   },
   {
     "set": "golden",
@@ -3125,9 +3005,9 @@
     "subject": "f:oriented_slot:2",
     "field": "parameters.hi",
     "python": "-",
-    "rust": "12.0",
+    "rust": "12.000008",
     "verdict": "equivalent",
-    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision. quiddity-rust 0.2.1 (#91) sets the part's roll from its own outline, so golden's slots are measured in the plate's file axes: origin at the slot, w_center 0, extents ±12."
   },
   {
     "set": "golden",
@@ -3135,9 +3015,9 @@
     "subject": "f:oriented_slot:2",
     "field": "parameters.lo",
     "python": "-",
-    "rust": "-12.0",
+    "rust": "-12.000008",
     "verdict": "equivalent",
-    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision. quiddity-rust 0.2.1 (#91) sets the part's roll from its own outline, so golden's slots are measured in the plate's file axes: origin at the slot, w_center 0, extents ±12."
   },
   {
     "set": "golden",
@@ -3156,16 +3036,6 @@
     "field": "parameters.origin",
     "python": "-",
     "rust": "[0.0,0.0,0.0]",
-    "verdict": "equivalent",
-    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
-  },
-  {
-    "set": "golden",
-    "part": "oriented_slots",
-    "subject": "f:oriented_slot:2",
-    "field": "parameters.source",
-    "python": "{\"ends\":{\"high_capped\":false,\"high_gradient\":[0.0,0.0],\"low_capped\":false,\"low_gradient\":[0.0,0.0]},\"frame\":{\"origin\":[0.0,0.0,0.0],\"run\":[0.0,0.0,1.0],\"u\":[0.0,1.0,0.0],\"v\":[-1.0,0.0,0.0]},\"run_interval\":[-5.0,5.0],\"section\":{\"boundary\":[{\"bulge\":0.0,\"point\":[-8.5981,8.8923]},{\"bulge\":0.0,\"point\":[3.4019,-11.8923]},{\"bulge\":0.0,\"point\":[8.5981,-8.8923]},{\"bulge\":0.0,\"point\":[-3.4019,11.8923]}]}}",
-    "rust": "-",
     "verdict": "equivalent",
     "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
   },
@@ -3185,39 +3055,9 @@
     "subject": "f:oriented_slot:2",
     "field": "parameters.width_axis",
     "python": "-",
-    "rust": "[-0.5,0.866025,0.0]",
+    "rust": "[-0.499997,0.866027,0.0]",
     "verdict": "equivalent",
-    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
-  },
-  {
-    "set": "golden",
-    "part": "oriented_slots",
-    "subject": "f:oriented_slot:2",
-    "field": "parameters.width_direction",
-    "python": "[-0.499997,0.866027,0.0]",
-    "rust": "[-0.5,0.866025,0.0]",
-    "verdict": "equivalent",
-    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
-  },
-  {
-    "set": "golden",
-    "part": "oriented_slots",
-    "subject": "f:oriented_slot:3",
-    "field": "faces",
-    "python": "[14, 15, 16, 17]",
-    "rust": "[14, 16]",
-    "verdict": "rust-wrong",
-    "evidence": "quiddity-rust 0.2.0 recognises golden's 30-degree slots with its plain slot recogniser in a turned frame (#81) and publishes them as slots (#92), whose defining faces are the two walls; Python's oriented slot claims the walls and both end faces. The ends stay unclaimed by the slot."
-  },
-  {
-    "set": "golden",
-    "part": "oriented_slots",
-    "subject": "f:oriented_slot:3",
-    "field": "parameters.body_key",
-    "python": "[-60.0,-45.0,-5.0,60.0,45.0,5.0,103680.0,26736.0]",
-    "rust": "{\"area\":26736.0,\"axes\":[\"z\",[-0.5,0.866025,0.0],[-0.866025,-0.5,0.0]],\"bounds\":[[-5.0,5.0],[-68.971143,68.971143],[-74.461524,74.461524]],\"origin\":[0.0,0.0,0.0],\"volume\":103680.0}",
-    "verdict": "equivalent",
-    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision. quiddity-rust 0.2.1 (#91) sets the part's roll from its own outline, so golden's slots are measured in the plate's file axes: origin at the slot, w_center 0, extents ±12."
   },
   {
     "set": "golden",
@@ -3255,9 +3095,9 @@
     "subject": "f:oriented_slot:3",
     "field": "parameters.depth_axis",
     "python": "-",
-    "rust": "\"z\"",
+    "rust": "[0.0,0.0,1.0]",
     "verdict": "equivalent",
-    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision. quiddity-rust 0.2.1 (#91) sets the part's roll from its own outline, so golden's slots are measured in the plate's file axes: origin at the slot, w_center 0, extents ±12."
   },
   {
     "set": "golden",
@@ -3275,9 +3115,9 @@
     "subject": "f:oriented_slot:3",
     "field": "parameters.hi",
     "python": "-",
-    "rust": "-13.980762",
+    "rust": "12.000008",
     "verdict": "equivalent",
-    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision. quiddity-rust 0.2.1 (#91) sets the part's roll from its own outline, so golden's slots are measured in the plate's file axes: origin at the slot, w_center 0, extents ±12."
   },
   {
     "set": "golden",
@@ -3285,9 +3125,9 @@
     "subject": "f:oriented_slot:3",
     "field": "parameters.lo",
     "python": "-",
-    "rust": "-37.980762",
+    "rust": "-12.000008",
     "verdict": "equivalent",
-    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision. quiddity-rust 0.2.1 (#91) sets the part's roll from its own outline, so golden's slots are measured in the plate's file axes: origin at the slot, w_center 0, extents ±12."
   },
   {
     "set": "golden",
@@ -3305,19 +3145,9 @@
     "subject": "f:oriented_slot:3",
     "field": "parameters.origin",
     "python": "-",
-    "rust": "[0.0,0.0,0.0]",
+    "rust": "[30.0,0.0,0.0]",
     "verdict": "equivalent",
-    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
-  },
-  {
-    "set": "golden",
-    "part": "oriented_slots",
-    "subject": "f:oriented_slot:3",
-    "field": "parameters.source",
-    "python": "{\"ends\":{\"high_capped\":false,\"high_gradient\":[0.0,0.0],\"low_capped\":false,\"low_gradient\":[0.0,0.0]},\"frame\":{\"origin\":[30.0,0.0,0.0],\"run\":[0.0,0.0,1.0],\"u\":[0.0,1.0,0.0],\"v\":[-1.0,0.0,0.0]},\"run_interval\":[-5.0,5.0],\"section\":{\"boundary\":[{\"bulge\":0.0,\"point\":[-8.5981,8.8923]},{\"bulge\":0.0,\"point\":[3.4019,-11.8923]},{\"bulge\":0.0,\"point\":[8.5981,-8.8923]},{\"bulge\":0.0,\"point\":[-3.4019,11.8923]}]}}",
-    "rust": "-",
-    "verdict": "equivalent",
-    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision. quiddity-rust 0.2.1 (#91) sets the part's roll from its own outline, so golden's slots are measured in the plate's file axes: origin at the slot, w_center 0, extents ±12."
   },
   {
     "set": "golden",
@@ -3325,9 +3155,9 @@
     "subject": "f:oriented_slot:3",
     "field": "parameters.w_center",
     "python": "-",
-    "rust": "-15.0",
+    "rust": "0.0",
     "verdict": "equivalent",
-    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision. quiddity-rust 0.2.1 (#91) sets the part's roll from its own outline, so golden's slots are measured in the plate's file axes: origin at the slot, w_center 0, extents ±12."
   },
   {
     "set": "golden",
@@ -3335,19 +3165,9 @@
     "subject": "f:oriented_slot:3",
     "field": "parameters.width_axis",
     "python": "-",
-    "rust": "[-0.5,0.866025,0.0]",
+    "rust": "[-0.499997,0.866027,0.0]",
     "verdict": "equivalent",
-    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
-  },
-  {
-    "set": "golden",
-    "part": "oriented_slots",
-    "subject": "f:oriented_slot:3",
-    "field": "parameters.width_direction",
-    "python": "[-0.499997,0.866027,0.0]",
-    "rust": "[-0.5,0.866025,0.0]",
-    "verdict": "equivalent",
-    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+    "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision. quiddity-rust 0.2.1 (#91) sets the part's roll from its own outline, so golden's slots are measured in the plate's file axes: origin at the slot, w_center 0, extents ±12."
   },
   {
     "set": "golden",

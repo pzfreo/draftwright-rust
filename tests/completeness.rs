@@ -583,10 +583,12 @@ fn quiddity_face_accounting_decides_which_faces_are_claimed() {
             "face {f} is quiddity's body evidence: {unclaimed:?}"
         );
     }
+    // quiddity-rust 0.2.1 explains CTC-01's last faces: notch walls 33 and 39
+    // (rectangular_through_notches) and boss cap 104 (polygonal_bosses).
     for f in [33, 39, 104] {
         assert!(
-            unclaimed.contains(&format!("face:{f}")),
-            "face {f} is unexplained by quiddity: {unclaimed:?}"
+            !unclaimed.contains(&format!("face:{f}")),
+            "face {f} is explained by quiddity: {unclaimed:?}"
         );
     }
 }

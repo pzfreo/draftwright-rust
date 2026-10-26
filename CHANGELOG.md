@@ -23,6 +23,11 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Changed
 
+- On quiddity-rust **v0.2.1-alpha.1**. The reader accepts its new `rectangular_through_notches`
+  family (not drawn yet, like `v_channels`), so CTC-01's two V-slot notches and their rounded
+  channels are reported as unrecognised features instead of 3 unclaimed faces. Golden's
+  30-degree slots are recognised in the plate's file axes and claim all four walls, as Python
+  quiddity does. The 30-part quality table and the random-pin cells are unchanged.
 - **A Spec tolerance writes a zero deviation as `0`, unsigned** (ISO 129-1), as imported and
   generated bands already do: `+0 -0.1` prints `0 -0.1`, not `+0.0 -0.1`.
 - On quiddity-rust **v0.2.0**. Its face accounting (blended box corners, plate edges, stock

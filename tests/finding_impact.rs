@@ -420,8 +420,11 @@ fn ctc01_counts_gaps_and_repeated_causes_without_hiding_findings() {
         // leader that breaks the middle-arc/radial rule takes a longer compliant route, so 4× R25
         // now meets its arc radially (no radius_leader_not_radial). Advisory: no
         // annotation_leader_crossing on the 350 line. #226: four labels with line-work closer
-        // than 0.5 mm are label_crowded notices: advisory (11, 3) -> (15, 4).
-        [(6, 2), (1, 1), (1, 1), (15, 4)],
+        // than 0.5 mm are label_crowded notices: advisory (11, 3) -> (15, 4). quiddity-rust
+        // 0.2.1 recognises the two V-slot notches and their rounded channels, which draftwright
+        // does not draw yet, so they are reported as features_not_recognised: incomplete
+        // (6, 2) -> (7, 3); their faces are no longer unclaimed_geometry: advisory -> (14, 3).
+        [(7, 3), (1, 1), (1, 1), (14, 3)],
     );
 }
 #[test]
