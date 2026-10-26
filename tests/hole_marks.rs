@@ -195,3 +195,61 @@ fn frames_citing_undrawn_datums_are_said() {
         .collect();
     assert_eq!(lacking, ["datum J"]);
 }
+
+/// Where a datum's place on its hole's mark runs past the view's reserved area into vacant
+/// paper, that area grows to hold it: both of CTC-01's hole datums and CTC-02's datum F attach in
+/// the plan view, each with no finding of its own, and the grown area stays clear of every
+/// other view's.
+#[test]
+fn hole_datums_attach_where_their_view_area_can_grow() {
+    for (part, datums) in [
+        (
+            "nist_ctc_01_asme1_ap242-e1.stp.gz",
+            &["pmi:datum.datum:f75,76:t=C", "pmi:datum.datum:f89,90:t=B"][..],
+        ),
+        (
+            "nist_ctc_02_asme1_ap242-e2.stp.gz",
+            &["pmi:datum.datum:f620,621:t=F"][..],
+        ),
+    ] {
+        let a = nist(part);
+        let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+        let view = plan.views.iter().find(|v| v.id == "v:plan").unwrap();
+        for id in datums {
+            let datum = plan.gdt.iter().find(|g| g.id == *id).unwrap();
+            assert_eq!(datum.view, "v:plan", "{part} {id}");
+            assert!(
+                datum.basis.contains("end-on"),
+                "{part} {id}: {}",
+                datum.basis
+            );
+            let p = datum.placed.as_ref().unwrap();
+            let a = view.area;
+            for q in p.lines.iter().flatten().chain(p.fills.iter().flatten()) {
+                assert!(
+                    a[0] <= q[0] && q[0] <= a[2] && a[1] <= q[1] && q[1] <= a[3],
+                    "{part} {id}: {q:?} outside {a:?}"
+                );
+            }
+            let own: Vec<_> = plan
+                .problems
+                .iter()
+                .filter(|p| p.subjects.iter().any(|s| s == id))
+                .filter(|p| p.code.starts_with("annotation_") || p.code.contains("through"))
+                .collect();
+            assert!(own.is_empty(), "{part} {id}: {own:#?}");
+        }
+        for other in plan
+            .views
+            .iter()
+            .filter(|v| v.id != view.id && v.sheet == view.sheet)
+        {
+            let (a, b) = (view.area, other.area);
+            assert!(
+                !(a[0] < b[2] && b[0] < a[2] && a[1] < b[3] && b[1] < a[3]),
+                "{part}: the plan's area {a:?} overlaps {}'s {b:?}",
+                other.id
+            );
+        }
+    }
+}

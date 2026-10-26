@@ -41,6 +41,18 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Fixed
 
+- **Hole datums and frames attach where their place runs into vacant paper (#224).** A view's
+  reserved area, tightened to the settled ink, refused a place just past it even with empty
+  paper beyond, so on NIST CTC-01 datum B stayed edge-on in the front view (its ⌀35 callout's
+  other side is blocked by the 4× R25 leader), and on CTC-02 datum F stayed there with a leader
+  crossing seven dimensions and two holes. That area now grows to hold an attached datum or
+  frame where it stays inside the margins, off the title block and clear of every other view's
+  area. CTC-01's B and C now both stand beneath their callouts in the plan view; CTC-02's F
+  stands beneath its B2 tag and J beside D3, mirroring H (9 fewer findings); CTC-04's datum B
+  leaves its leader across seven dimensions; STC-09's ⟂ and two position frames stack over their
+  holes' `3× ⌀7.137` callout (net 103 fewer findings; two touching frames in the stack now
+  `label_crowded`). A pinned drawing replays the frames as they were before attaching, so a bare
+  pin still holds the attached ink (`src/dims/hole_marks.rs`).
 - **A thread recognition refused is no longer drawn as a counterbore (#218).** quiddity refuses
   dw-examples' T8 flange nut thread (`inconsistent_diameters`) yet also reported a hole on its
   flanks, printed `⌀6.5 THRU ⌴ ⌀8.3 ↧ 14.8` in a 15 mm part. No hole, nor its pattern, is now

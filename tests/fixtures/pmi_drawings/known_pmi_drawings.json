@@ -1295,7 +1295,37 @@
    ]
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright's drawing: 'C' (datum ref, front view); the port's: 'C' (datum ref, plan view). Datum C is one hole's bore, a feature of size: draftwright draws its symbol edge-on in the front view, on the bore's silhouette, which is hidden there. Since #224 the port attaches it to the hole's mark (its size callout or hole table tag) in the plan view, which sees the bore end-on, as ASME Y14.5 and ISO 5459 place a feature of size's datum symbol on its size dimension; a view or side in annotations/<id>/place keeps draftwright's attachment. Datum B, the other bottom hole's bore, stays on its silhouette in the front view, as draftwright draws it: with the `4× R25` callout's leader beside B's `⌀35` callout, above it has no clear place and beneath it is past the plan's area (until the backlog-1 and backlog-2 stacks met, B attached and C did not)."
+  "evidence": "draftwright's drawing: 'C' (datum ref, front view); the port's: 'C' (datum ref, plan view). Datum C is one hole's bore, a feature of size: draftwright draws its symbol edge-on in the front view, on the bore's silhouette, which is hidden there. Since #224 the port attaches it to the hole's mark (its size callout or hole table tag) in the plan view, which sees the bore end-on, as ASME Y14.5 and ISO 5459 place a feature of size's datum symbol on its size dimension; a view or side in annotations/<id>/place keeps draftwright's attachment. Datum B, the other bottom hole's bore, attaches beneath its own `⌀35` callout the same way, the plan's area growing into the vacant paper above the front view to hold it."
+ },
+ {
+  "file": "nist_ctc_01_asme1_ap242-e1.stp",
+  "record": "datum:0:1:4:3",
+  "port": "datum:#35",
+  "field": "drawing",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "datum_ref",
+     "rides_on": null,
+     "text": "B",
+     "view": "front"
+    }
+   ]
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "datum_ref",
+     "rides_on": null,
+     "text": "B",
+     "view": "plan"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: 'B' (datum ref, front view); the port's: 'B' (datum ref, plan view). Datum B is one hole's bore, a feature of size: draftwright draws its symbol edge-on in the front view, on the bore's silhouette, which is hidden there. Since #224 the port attaches it to the hole's mark (its size callout or hole table tag) in the plan view, which sees the bore end-on, as ASME Y14.5 and ISO 5459 place a feature of size's datum symbol on its size dimension; a view or side in annotations/<id>/place keeps draftwright's attachment. Above its `⌀35` callout the `4× R25` callout's leader leaves no clear place; beneath it is past the plan's reserved area, which since this change grows into the vacant paper above the front view to hold it (before, B stayed on its silhouette)."
  },
  {
   "file": "nist_ctc_01_merge.step",
@@ -3384,6 +3414,66 @@
   "rust": null,
   "verdict": "rust-correct",
   "evidence": "known_pmi.json (record, rust-correct): draftwright keeps an XCAF occurrence of datum C that it could not project onto the datum's Part 21 definition (datum #127 has 0 related DATUM_FEATUREs), beside its record for the datum; the port reads one record per datum from Part 21: datum:#127 (part 0) is paired with another of draftwright's records for it. On the drawing: draftwright's is not drawn, refused (pmi_not_extracted, pmi_not_lowered); the port has no such record, so neither draws nor reports it."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:33",
+  "port": "datum:#78",
+  "field": "drawing",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "datum_ref",
+     "rides_on": null,
+     "text": "J",
+     "view": "front"
+    }
+   ]
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "datum_ref",
+     "rides_on": null,
+     "text": "J",
+     "view": "plan"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: 'J' (datum ref, front view); the port's: 'J' (datum ref, plan view). Datum J is one hole's bore, a feature of size: draftwright draws its symbol edge-on in the front view, on the bore's silhouette, which is hidden there. Since #224 the port attaches it to the hole's mark (its size callout or hole table tag) in the plan view, which sees the bore end-on, as ASME Y14.5 and ISO 5459 place a feature of size's datum symbol on its size dimension; a view or side in annotations/<id>/place keeps draftwright's attachment. It stands left of its hole's D3 tag, mirroring H on D4, the plan's area growing into vacant paper to hold it; its edge-on symbol left of the front view goes."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:45",
+  "port": "datum:#76",
+  "field": "drawing",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "datum_ref",
+     "rides_on": null,
+     "text": "F",
+     "view": "front"
+    }
+   ]
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "datum_ref",
+     "rides_on": null,
+     "text": "F",
+     "view": "plan"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: 'F' (datum ref, front view); the port's: 'F' (datum ref, plan view). Datum F is one hole's bore, a feature of size: draftwright draws its symbol edge-on in the front view, on the bore's silhouette, which is hidden there. Since #224 the port attaches it to the hole's mark (its size callout or hole table tag) in the plan view, which sees the bore end-on, as ASME Y14.5 and ISO 5459 place a feature of size's datum symbol on its size dimension; a view or side in annotations/<id>/place keeps draftwright's attachment. It stands beneath its hole's B2 tag, past the plan's area as the plan's 340 width dimension sits above the view; that area now grows into the vacant paper above the front view to hold it, and the front view's edge-on symbol, whose leader crossed seven dimensions and two holes, goes."
  },
  {
   "file": "nist_ftc_07_asme1_ap242-e2.stp",

@@ -19,8 +19,9 @@
 //!
 //! Each takes a place only when it is clear of every other item, other views and sheet
 //! furniture, on blank paper of its own view, with no finding of its own; otherwise it stays
-//! where lowering put it. A frame with an all-around or all-over mark keeps its leader (the mark
-//! sits at its bend). One the Spec places in a view or side (`annotations/<id>/place`) is the
+//! where lowering put it. A place past its view's reserved area alone grows that area, where the
+//! grown area stays clear of the margins, the title block and every other view's. A frame with
+//! an all-around or all-over mark keeps its leader (the mark sits at its bend). One the Spec places in a view or side (`annotations/<id>/place`) is the
 //! Spec's, so placing it keeps it on its surface or leader; a bare pin holds the attached ink.
 
 use std::collections::{BTreeMap, BTreeSet};
@@ -227,14 +228,34 @@ pub(crate) fn attach(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
                 trial.view.clone_from(&view.id);
                 trial.placed = Some(next.clone());
                 all[i] = gdt::proxy(&trial).expect("just placed");
-                if placement::collisions_for(analysis, &all, sheet, &plan.views, &cache, &id)
-                    .is_empty()
-                {
-                    chosen = Some((side, next));
+                let problems =
+                    placement::collisions_for(analysis, &all, sheet, &plan.views, &cache, &id);
+                if problems.is_empty() {
+                    chosen = Some((side, next, None));
                     break;
                 }
+                // Past its view's reserved area alone: that area grows to hold it where the
+                // sheet has vacant paper, and nothing else may change.
+                if problems.iter().all(|p| p.code == "annotation_outside_area")
+                    && let Some(area) =
+                        super::ink_box(&all[i]).and_then(|ink| grown(view, ink, sheet, &plan.views))
+                {
+                    let mut views = plan.views.clone();
+                    // Invariant: `view` is one of the plan's views.
+                    let vi = views
+                        .iter()
+                        .position(|v| v.id == view.id)
+                        .expect("its view");
+                    views[vi].area = area;
+                    if placement::collisions_for(analysis, &all, sheet, &views, &cache, &id)
+                        .is_empty()
+                    {
+                        chosen = Some((side, next, Some((vi, area))));
+                        break;
+                    }
+                }
             }
-            let Some((side, next)) = chosen else {
+            let Some((side, next, area)) = chosen else {
                 continue;
             };
             rechecked_codes.extend(before.into_iter().map(|p| p.code));
@@ -263,6 +284,9 @@ pub(crate) fn attach(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
                 )
             };
             changed.insert(id);
+            if let Some((vi, area)) = area {
+                plan.views[vi].area = area;
+            }
         }
     }
     if changed.is_empty() {
@@ -497,6 +521,35 @@ fn along(mark: &Mark, side: &str) -> Vec<f64> {
         .iter()
         .map(|f| middle + f * reach)
         .collect()
+}
+
+/// The reserved area of *view* grown to hold *ink* with the half-millimetre band
+/// [`crate::sheet_fit`] reserves around ink, when the grown area stays inside the drawing margins,
+/// off the title block and clear of every other view's area on its sheet; else none.
+fn grown(
+    view: &crate::model::PlannedView,
+    ink: [f64; 4],
+    sheet: &crate::model::PlannedSheet,
+    views: &[crate::model::PlannedView],
+) -> Option<[f64; 4]> {
+    let a = view.area;
+    let next = [
+        a[0].min(ink[0] - 0.5),
+        a[1].min(ink[1] - 0.5),
+        a[2].max(ink[2] + 0.5),
+        a[3].max(ink[3] + 0.5),
+    ];
+    let m = crate::layout::margin();
+    let inside = next[0] >= m - 1e-6
+        && next[1] >= m - 1e-6
+        && next[2] <= sheet.page[0] - m + 1e-6
+        && next[3] <= sheet.page[1] - m + 1e-6;
+    let vacant = !placement::boxes_overlap(next, sheet.title_block)
+        && views
+            .iter()
+            .filter(|v| v.id != view.id && v.sheet == view.sheet)
+            .all(|v| !placement::boxes_overlap(next, v.area));
+    (inside && vacant).then_some(next)
 }
 
 /// Whether glyph *next* keeps the 1 mm text gap from every item but those it is *attached* to
