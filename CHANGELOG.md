@@ -19,6 +19,15 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Fixed
 
+- **Coincident copies of a body no longer multiply every count (#212).** A STEP holding the same
+  solid several times on top of itself (a FreeCAD export of a body and its `Pad`) was drawn
+  whole, each feature once per copy: dw-examples' gantry plate printed "24× ⌀5.1 THRU" for 12
+  holes and went to A1 5:1. When every body of an assembly coincides with the first (the same
+  faces, each of the same surface type and box, as placed), that part is drawn alone, as
+  `--part K` draws it: the gantry plate is A3 2:1 with its 12 holes, and the V-slot profile's
+  one hole is no longer "3× ⌀4.2 THRU". The copies are reported as `coincident_bodies` (info);
+  where only some bodies coincide the file is drawn whole as before, and `coincident_bodies`
+  warns that their features are counted again.
 - **PMI from inch-authored files prints as millimetres an mm sheet can state (#214).** A length is
   converted from its stated digits less the writer's float noise (at most six decimals in its own
   unit, more for a larger unit such as the metre, the product to three more), so NIST STC-08's

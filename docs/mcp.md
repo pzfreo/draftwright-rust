@@ -55,7 +55,8 @@ Use different drawing references for independent branches/tasks.
 index of one part of an assembly, as `parts` lists it, drawn alone in its own frame with its PMI
 only. A part registered alone has its own key, `<STEP SHA-256>_p<part>-<engine SHA-256>`; a
 `part_ref` already names its part, so `part` beside one is refused. Without `part` an assembly
-is drawn whole and its plan warns `assembly_drawn_whole`. `serve` offers the tool as
+is drawn whole and its plan warns `assembly_drawn_whole`, unless every body coincides with
+one part's, which is then drawn alone (`coincident_bodies`). `serve` offers the tool as
 `mcp_parts`, and its batch operations (`analyse`, `plan`, `render`, `review`, `open`) take the
 same `part`, with a `parts` operation; the compatibility `draftwright-mcp` server has a `parts`
 tool and a `part` argument too (docs/model.md, "Assemblies: one chosen part").

@@ -194,6 +194,160 @@ fn no_part_draws_the_whole_assembly_and_warns_naming_the_parts() {
     assert_eq!(warned[0]["severity"], "warning");
     assert!(message.contains("0: plate, 1: pin"), "{message}");
     assert!(message.contains("--part"), "{message}");
+    // The pins are placed apart, so nothing coincides (#212).
+    assert!(a.get("coincident").is_none(), "{a}");
+    assert!(problems(&plan, "coincident_bodies").is_empty());
+}
+
+/// The V-slot profile with three coincident copies (#212), unpacked.
+fn vslot() -> String {
+    let mut bytes = Vec::new();
+    flate2::read::GzDecoder::new(std::fs::File::open(fixture("vslot-20x20-100.step.gz")).unwrap())
+        .read_to_end(&mut bytes)
+        .unwrap();
+    let path = scratch("vslot-20x20-100.step");
+    std::fs::write(&path, bytes).unwrap();
+    path.display().to_string()
+}
+
+/// The quantity a label states (`8× C2.661` is 8, `⌀4.2 THRU` is 1), by the label's text after
+/// it.
+fn quantities(plan: &Value) -> std::collections::BTreeMap<String, u32> {
+    plan["dimensions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|d| d["label"].as_str())
+        .filter(|l| l.contains('⌀') || l.contains(" C"))
+        .map(|l| match l.split_once("× ") {
+            Some((n, rest)) => (rest.to_string(), n.parse().unwrap()),
+            None => (l.to_string(), 1),
+        })
+        .collect()
+}
+
+#[test]
+fn coincident_bodies_are_drawn_once_as_the_part_alone() {
+    let step = vslot();
+    let (code, whole) = run(&["plan", &step]);
+    assert_eq!(code, Some(0), "{whole}");
+    let (code, alone) = run(&["plan", &step, "--part", "0"]);
+    assert_eq!(code, Some(0), "{alone}");
+    // One hole and eight of each chamfer, as part 0 alone has them, not once per copy.
+    let counted = quantities(&whole);
+    assert_eq!(counted.get("⌀4.2 THRU"), Some(&1), "{counted:?}");
+    assert_eq!(counted.get("C2.661"), Some(&8), "{counted:?}");
+    assert_eq!(counted, quantities(&alone));
+    assert_eq!(whole["sheet"]["size"], alone["sheet"]["size"]);
+    assert_eq!(whole["sheet"]["scale"], alone["sheet"]["scale"]);
+    // The copies are reported, not warned as an assembly drawn whole.
+    assert!(problems(&whole, "assembly_drawn_whole").is_empty());
+    let reported = problems(&whole, "coincident_bodies");
+    assert_eq!(reported.len(), 1, "{}", whole["problems"]);
+    assert_eq!(reported[0]["severity"], "info");
+    let message = reported[0]["message"].as_str().unwrap();
+    assert!(
+        message.contains("0: V-Slot-20x20-100mm (placement 1), 1: Pad"),
+        "{message}"
+    );
+    assert!(message.contains("--part"), "{message}");
+    assert!(problems(&alone, "coincident_bodies").is_empty());
+
+    // The Analysis is part 0's, and names the copies.
+    let (code, a) = run(&["analyse", &step]);
+    assert_eq!(code, Some(0), "{a}");
+    assert_eq!(a["binding"]["part_index"], 0);
+    assert_eq!(a["binding"]["face_count"], 55);
+    assert_eq!(
+        a["coincident"],
+        json!([
+            { "part": 0, "name": "V-Slot-20x20-100mm", "placement": 1, "of": 0 },
+            { "part": 1, "name": "Pad", "placement": 0, "of": 0 },
+        ])
+    );
+    // Passed back, it is read from part 0 again.
+    let analysis = scratch("vslot_analysis.json");
+    std::fs::write(&analysis, a.to_string()).unwrap();
+    let (code, plan) = run(&["plan", &step, "--analysis", analysis.to_str().unwrap()]);
+    assert_eq!(code, Some(0), "{plan}");
+    assert_eq!(quantities(&plan), counted);
+
+    // An Analysis drawn whole with its copies (as one with distinct parts beside them would be)
+    // warns that their features are counted again.
+    let mut drawn_whole = a.clone();
+    drawn_whole["binding"]
+        .as_object_mut()
+        .unwrap()
+        .remove("part_index");
+    std::fs::write(&analysis, drawn_whole.to_string()).unwrap();
+    let (code, plan) = run(&["plan", "--analysis", analysis.to_str().unwrap()]);
+    assert_eq!(code, Some(0), "{plan}");
+    let warned = problems(&plan, "coincident_bodies");
+    assert_eq!(warned.len(), 1, "{}", plan["problems"]);
+    assert_eq!(warned[0]["severity"], "warning");
+    let message = warned[0]["message"].as_str().unwrap();
+    assert!(message.contains("counted once per copy"), "{message}");
+}
+
+#[test]
+fn coincident_bodies_are_read_alone_again_from_the_caches() {
+    let step = vslot();
+    // The plan cache's Analysis, read on a hit with the part it was made from: drawn as when
+    // it was made, not with the copies on top.
+    let cache = scratch("vslot_plan_cache");
+    let _ = std::fs::remove_dir_all(&cache);
+    let render = |name: &str| {
+        let out = scratch(name);
+        let status = Command::new(env!("CARGO_BIN_EXE_draftwright"))
+            .args([
+                "render",
+                &step,
+                "-o",
+                out.to_str().unwrap(),
+                "--formats",
+                "svg",
+            ])
+            .env("DRAFTWRIGHT_PLAN_CACHE", &cache)
+            .output()
+            .unwrap()
+            .status;
+        assert!(status.success());
+        std::fs::read(out.with_extension("svg")).unwrap()
+    };
+    assert!(
+        render("vslot_made") == render("vslot_hit"),
+        "a plan cache hit draws another part"
+    );
+    // A registered part_ref's cached Analysis, by a second service: the same PDF.
+    let cache = scratch("vslot_service_cache");
+    let _ = std::fs::remove_dir_all(&cache);
+    let registered = serve_in(
+        &cache,
+        &[json!({ "id": 1, "op": "mcp_inspect_part", "arguments": { "step": step } })],
+    );
+    assert_eq!(
+        registered[0]["result"]["face_count"], 55,
+        "{}",
+        registered[0]
+    );
+    let part_ref = registered[0]["result"]["part_ref"].clone();
+    let pdf = |reply: &Value| reply["result"]["bytes"].as_u64().unwrap();
+    let render_pdf =
+        json!({ "id": 2, "op": "mcp_render_pdf", "arguments": { "part_ref": part_ref } });
+    // Its projections dropped, so the part is projected again from the file.
+    for entry in std::fs::read_dir(cache.join("parts")).unwrap() {
+        std::fs::remove_file(entry.unwrap().path().join("projections.json")).ok();
+    }
+    let made = serve_in(&cache, std::slice::from_ref(&render_pdf));
+    std::fs::remove_dir_all(&cache).ok();
+    let fresh = serve_in(
+        &cache,
+        &[
+            json!({ "id": 1, "op": "mcp_inspect_part", "arguments": { "step": step } }),
+            render_pdf.clone(),
+        ],
+    );
+    assert_eq!(pdf(&made[0]), pdf(&fresh[1]), "{} {}", made[0], fresh[1]);
 }
 
 #[test]
@@ -215,9 +369,14 @@ fn a_file_of_one_part_carries_no_part_fields() {
 
 /// The replies to *lines*, sent to one `draftwright serve` until its stdin closes.
 fn serve(lines: &[Value]) -> Vec<Value> {
+    serve_in(&scratch("cache"), lines)
+}
+
+/// [`serve`], with its cache in *cache*.
+fn serve_in(cache: &Path, lines: &[Value]) -> Vec<Value> {
     let mut child = Command::new(env!("CARGO_BIN_EXE_draftwright"))
         .arg("serve")
-        .env("DRAFTWRIGHT_CACHE", scratch("cache"))
+        .env("DRAFTWRIGHT_CACHE", cache)
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .spawn()
