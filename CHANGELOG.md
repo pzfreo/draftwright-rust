@@ -23,6 +23,9 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Changed
 
+- **A Spec tolerance writes a zero deviation as `0`, unsigned** (ISO 129-1), as imported and
+  generated bands already do: `+0 -0.1` prints `0 -0.1`, not `+0.0 -0.1`.
+
 - On quiddity-rust **v0.2.0**. Its face accounting (blended box corners, plate edges, stock
   walls, drill-point tips, slot end walls) raises claimed faces on 65 corpus parts: CTC-01 AP242
   goes from 27 unclaimed faces to 3, and the claim losses listed for 0.1.0 are recovered. Newly
