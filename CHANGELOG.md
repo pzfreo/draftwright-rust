@@ -68,12 +68,20 @@ All notable changes to draftwright-rust are recorded here, in the style of
   the least radius that carries both arrowheads and keeps the label inside the sector, clear of
   both extension lines, and it prefers a place whose label is 0.5 mm clear of other ink
   (`label_crowded`), taking a crowded one only when no other is clear (`src/dims/angular.rs`).
-  The triangle fixture's "45°" arc goes from 18 mm to 8 mm, and it and the trapezoid fixture
-  now state their 63.435° corners; hex-standoff-m3's "6× 120°" moves in from 14 mm to 12 mm.
-  vslot-2020x50 states three corners instead of one ("45°" at 11 mm, two "135°" at 4 and 6 mm);
-  its callouts route around them, leaving "8× C2.661" and "⌀4.2 THRU" crowded (two notices).
-  10046 states one more corner, and CTC-03, FTC-08, 10049 and cgb207's angles move a little.
-  PMI and notch angles keep their radii. Planning vslot-2020x50 costs 1.4× the instructions.
+  Its arrowheads never lie across another item's line, and its ink keeps out of the span that
+  an off-span linear label settles back into. The triangle fixture's "45°" arc goes from 18 mm
+  to 8 mm, and it and the trapezoid fixture now state their 63.435° corners; hex-standoff-m3's
+  "6× 120°" moves in from 14 mm to 12 mm. vslot-2020x50's "45°" keeps its corner and moves in
+  from 18 mm to 10 mm, and a "135°" (6 mm) is added; its arc and witness line cross the lower
+  lip, as the "45°"'s witness line already did. The "135°" takes the left-hand place "8× C2.661"
+  had, so that callout moves up beside "⌀4.2 THRU" and the two are crowded (two notices).
+  10046 states one more corner and moves its other two nearer their corners. 10049 states its
+  109.428° corner (r 15 mm) instead of its 160.572° (r 13 mm). CTC-03, FTC-08 and cgb207's
+  angles move by under 1 mm. PMI and notch angles keep the wider radius: the recess callouts do
+  not yet route around a notch arc brought in, and 10020's 21° notch then went from A4 1:1 to
+  A3 2:1. Placing a profile angle now passes over items whose ink is far from a candidate, so
+  planning costs about what it did or less: against main, 0.42× the instructions on
+  vslot-2020x50, 0.91× on 10046, 0.83× on FTC-08, and 1.09× on 10049.
 - **Angular dimensions are drawn with an unbroken dimension arc (#227).** The arc was broken
   around an inline label, and at the smallest radius that left room for the arrowheads all that
   showed of it was the two arrowheads (dw-examples' hex-standoff-m3 "6× 120°" and
