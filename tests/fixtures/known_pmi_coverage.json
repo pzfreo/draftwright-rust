@@ -9903,19 +9903,19 @@
   "code": "pmi_not_lowered",
   "file": "nist_stc_09_asme1_ap242-e4.stp",
   "python": null,
-  "rust": "error",
+  "rust": "warning",
   "source": "dimension:#10483",
   "verdict": "rust-correct",
-  "evidence": "The port refuses this value-less common label (pmi_not_lowered, a warning): `R` without a value is ASME Y14.5's full radius, set by the dimensions of the faces it joins, which an ISO 129-1 sheet does not print; the drawn faces and their dimensions state it (#214)."
+  "evidence": "The port refuses this value-less common label (pmi_not_lowered, a warning): `R` without a value is ASME Y14.5's full radius, set by the dimensions of the faces it joins, which an ISO 129-1 sheet does not print; its faces' dimensions should state it (#214)."
  },
  {
   "code": "pmi_not_lowered",
   "file": "nist_stc_09_asme1_ap242-e4.stp",
   "python": null,
-  "rust": "error",
+  "rust": "warning",
   "source": "dimension:#10504",
   "verdict": "rust-correct",
-  "evidence": "The port refuses this value-less common label (pmi_not_lowered, a warning): `R` without a value is ASME Y14.5's full radius, set by the dimensions of the faces it joins, which an ISO 129-1 sheet does not print; the drawn faces and their dimensions state it (#214)."
+  "evidence": "The port refuses this value-less common label (pmi_not_lowered, a warning): `R` without a value is ASME Y14.5's full radius, set by the dimensions of the faces it joins, which an ISO 129-1 sheet does not print; its faces' dimensions should state it (#214)."
  },
  {
   "code": "pmi_not_extracted",

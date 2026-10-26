@@ -2947,12 +2947,13 @@ fn dimension_features(d: &Dimension) -> Vec<FeatureId> {
 }
 
 /// A value in mm, or degrees for an angle. A length is converted from its stated digits less a
-/// CAD writer's float noise (#214): at most six decimals in its own unit (`0.01500000000006` INCH
-/// is 0.015 in), the product rounded to three decimals more, which keeps a conversion from inch,
-/// foot, cm, m or µm exact (0.015 in is 0.381 mm, 0.016 in 0.4064 mm).
+/// CAD writer's float noise (#214): at most six decimals in its own unit, one more per power of
+/// ten the unit exceeds a mm by (`0.01500000000006` INCH is 0.015 in; 0.0000025 m keeps its
+/// 2.5 µm), the product rounded to three decimals more, which keeps a conversion from inch, foot,
+/// cm, m or µm exact (0.015 in is 0.381 mm, 0.016 in 0.4064 mm).
 fn measure(v: &Value) -> f64 {
     match &v.quantity {
-        Quantity::Length(l) => in_mm(l, l.value.stated_places().unwrap_or(6).min(6)),
+        Quantity::Length(l) => in_mm(l, l.value.stated_places().unwrap_or(usize::MAX)),
         Quantity::Angle(a) => match a.unit {
             AngleUnit::Degree => a.value.to_f64(),
             _ => a.rad().to_degrees(),
@@ -2962,24 +2963,26 @@ fn measure(v: &Value) -> f64 {
 
 /// A length as the mm sheet prints it (#214): rounded first to the places its precision
 /// qualifier states, in its own unit (`0.4999784176` INCH to three places is 0.500 in, 12.7 mm),
-/// else as [`measure`] converts it.
+/// else as [`measure`] converts it. An unqualified value keeps the digits [`measure`] keeps, so an
+/// inexact one prints them all (`0.4999784176` INCH unqualified is 12.69945136).
 fn qualified(v: &Value) -> f64 {
     match (&v.quantity, v.decimal_places) {
-        (Quantity::Length(l), Some(places)) => in_mm(l, usize::from(places).min(6)),
+        (Quantity::Length(l), Some(places)) => in_mm(l, usize::from(places)),
         _ => measure(v),
     }
 }
 
-/// *l* in mm: its value rounded to *places* in its own unit, the product to three more.
+/// *l* in mm: its value rounded to *places* in its own unit, capped as [`measure`] caps it, the
+/// product to three more.
 fn in_mm(l: &pmi::Length, places: usize) -> f64 {
+    let mm = l.unit.millimetres();
+    let cap = 6 + mm.log10().round().max(0.0) as usize;
+    let places = places.min(cap);
     let round = |x: f64, p: usize| {
         let k = 10f64.powi(i32::try_from(p).unwrap_or(9));
         (x * k).round() / k
     };
-    round(
-        round(l.value.to_f64(), places) * l.unit.millimetres(),
-        places + 3,
-    )
+    round(round(l.value.to_f64(), places) * mm, places + 3)
 }
 
 /// draftwright's kind and XCAF's type number for a size (`_DIM_TYPE`, 14–27).
@@ -3899,6 +3902,15 @@ mod tests {
         assert_eq!(fmt_magnitude(inch("12.00"), None), "304.8");
         let mm = Value::length(pmi::Decimal::parse("0.3").unwrap(), LengthUnit::Millimetre);
         assert_eq!(measure(&mm), 0.3);
+        // A metre's six decimals are a µm: its places go to nine, keeping 2.5 µm.
+        let metre = |text: &str| {
+            measure(&Value::length(
+                pmi::Decimal::parse(text).unwrap(),
+                LengthUnit::Metre,
+            ))
+        };
+        assert_eq!(fmt_magnitude(metre("0.0000025"), None), "0.0025");
+        assert_eq!(fmt_magnitude(metre("2.5E-6"), None), "0.0025");
     }
 
     #[test]

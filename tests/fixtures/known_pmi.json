@@ -4617,9 +4617,9 @@
     "port": "dimension:#9501",
     "python": 12.699451807039999,
     "record": "dimension:0:1:4:13",
-    "rust": 12.6994412,
+    "rust": 12.69945136,
     "verdict": "rust-correct",
-    "evidence": "draftwright states '12.699451807039999'; the port states '12.6994412'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+    "evidence": "draftwright states '12.699451807039999'; the port states '12.69945136'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
   },
   {
     "field": "label",
@@ -4637,9 +4637,9 @@
     "port": "dimension:#9588",
     "python": 12.699451807039999,
     "record": "dimension:0:1:4:14",
-    "rust": 12.6994412,
+    "rust": 12.69945136,
     "verdict": "rust-correct",
-    "evidence": "draftwright states '12.699451807039999'; the port states '12.6994412'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+    "evidence": "draftwright states '12.699451807039999'; the port states '12.69945136'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
   },
   {
     "field": "label",

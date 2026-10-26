@@ -6545,7 +6545,7 @@
    "outcome": "refused"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright's drawing: not drawn, dropped (plan_incomplete, pmi_dropped: m_gdt0 not placed, no legible room in any front strip or sheet fallback); the port's: 'refused' (pmi_not_lowered, front view). A common label: both lower it to the front view (its faces' longest extent is x or z, which tie at 25.4 mm; both map to the front); draftwright then finds no room and drops it, the port places it with its leader as it places frames (crate::dims::gdt, Policy B: what it meets is reported, never dropped). Drawing it is rust-correct by the maintainer's directive of 2026-10-09 (escalate, never lose a requirement). The port refuses this value-less common label (pmi_not_lowered, a warning): `R` without a value is ASME Y14.5's full radius, set by the dimensions of the faces it joins, which an ISO 129-1 sheet does not print; the drawn faces and their dimensions state it (#214)."
+  "evidence": "draftwright's drawing: not drawn, dropped (plan_incomplete, pmi_dropped: m_gdt0 not placed, no legible room in any front strip or sheet fallback); the port's: 'refused' (pmi_not_lowered, front view). A common label: both lower it to the front view (its faces' longest extent is x or z, which tie at 25.4 mm; both map to the front); draftwright then finds no room and drops it. The port refuses this value-less common label (pmi_not_lowered, a warning): `R` without a value is ASME Y14.5's full radius, set by the dimensions of the faces it joins, which an ISO 129-1 sheet does not print; its faces' dimensions should state it (#214)."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
@@ -9370,6 +9370,6 @@
    "outcome": "refused"
   },
   "verdict": "rust-correct",
-  "evidence": "The port refuses this value-less common label (pmi_not_lowered, a warning): `R` without a value is ASME Y14.5's full radius, set by the dimensions of the faces it joins, which an ISO 129-1 sheet does not print; the drawn faces and their dimensions state it (#214)."
+  "evidence": "The port refuses this value-less common label (pmi_not_lowered, a warning): `R` without a value is ASME Y14.5's full radius, set by the dimensions of the faces it joins, which an ISO 129-1 sheet does not print; its faces' dimensions should state it (#214)."
  }
 ]

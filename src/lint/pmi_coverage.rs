@@ -227,24 +227,26 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
         {
             continue;
         }
+        let refused = why_not
+            .iter()
+            .find(|p| p.refs.first().is_some_and(|s| s == id));
         let reason = match dimension(r) {
             Err(why) if r.category == Category::Dimension && r.kind != "common_label" => why,
-            _ => why_not
-                .iter()
-                .find(|p| p.refs.first().is_some_and(|s| s == id))
-                .map_or_else(
-                    || {
-                        if r.blockers.is_empty() {
-                            "it is not lowered to a drawing item".to_string()
-                        } else {
-                            r.blockers.join("; ")
-                        }
-                    },
-                    |p| p.message.clone(),
-                ),
+            _ => refused.map_or_else(
+                || {
+                    if r.blockers.is_empty() {
+                        "it is not lowered to a drawing item".to_string()
+                    } else {
+                        r.blockers.join("; ")
+                    }
+                },
+                |p| p.message.clone(),
+            ),
         };
-        let severity = if r.category == Category::ManufacturingRequirement
-            && !MANUFACTURING.contains(&r.kind.as_str())
+        // A common label the plan refuses as a warning (a value-less radius, #214) stays one.
+        let severity = if (r.category == Category::ManufacturingRequirement
+            && !MANUFACTURING.contains(&r.kind.as_str()))
+            || (r.kind == "common_label" && refused.is_some_and(|p| p.severity == "warning"))
         {
             Severity::Warning
         } else {

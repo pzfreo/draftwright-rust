@@ -408,7 +408,7 @@ fn labelled(
 }
 
 /// Why a common label that states a radius without its value (`4X R`) is not drawn (#214).
-const VALUELESS_RADIUS: &str = "it states a radius without its value (ASME Y14.5's full radius, set by the dimensions of the faces it joins), which ISO 129-1 does not; the drawn faces and their dimensions state it";
+const VALUELESS_RADIUS: &str = "it states a radius without its value (ASME Y14.5's full radius, set by the dimensions of the faces it joins), which an ISO 129-1 sheet does not print; its faces' dimensions should state it";
 
 /// A surface or common label as a leadered text label (`build_pmi_features`' label branch), or
 /// why it is not one: its reading's or attachment's blockers, no text, no proven site, or a
@@ -418,7 +418,13 @@ fn label(r: &Record, centre: [f64; 3]) -> Result<Lowered, Vec<String>> {
     if r.label.trim().is_empty() {
         reasons.push("the label has no text".into());
     }
-    if r.kind == "common_label" && r.label.split_whitespace().any(|t| t == "R") {
+    let tokens: Vec<&str> = r.label.split_whitespace().collect();
+    if r.kind == "common_label"
+        && tokens
+            .iter()
+            .enumerate()
+            .any(|(i, t)| *t == "R" && tokens.get(i + 1).is_none_or(|n| n.parse::<f64>().is_err()))
+    {
         reasons.push(VALUELESS_RADIUS.into());
     }
     let g = r.geometry.as_ref();
