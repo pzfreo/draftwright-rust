@@ -159,7 +159,8 @@ fn stc09_slot_length_stays_beside_its_peer_and_gdt_corridors() {
             .all(|[a, b]| (a[1] - b[1]).abs() < 60.0),
         "the size must not gain witnesses running across the location tower"
     );
-    assert_eq!(p.gdt.len(), 28);
+    // The value-less `2X R` and `4X R` common labels are refused (#214).
+    assert_eq!(p.gdt.len(), 26);
     // The 63.5 location sat clear outside its arrow; a move may not butt its text against
     // the perpendicularity frame's leader (x = 154.40 against a box from 154.44).
     assert_eq!(

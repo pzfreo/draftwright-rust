@@ -553,8 +553,9 @@ fn hole_pattern_interval_and_group_counts_must_match_physical_members() {
 
 /// #207: claims follow quiddity's face accounting. On NIST CTC-01 its `step_levels` evidence
 /// accounts the end blocks' inner walls, the notch side walls and slot 1's end walls as feature
-/// faces; the envelope planes it leaves unexplained (the hex boss's top among them) are no longer
-/// credited as stock.
+/// faces, and its body evidence (quiddity-rust#100) the envelope planes once the overall sizes
+/// are stated. Only what it leaves unexplained is reported: the notch walls and the hex boss's
+/// top, which is not stock.
 #[test]
 fn quiddity_face_accounting_decides_which_faces_are_claimed() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR"));
@@ -576,7 +577,13 @@ fn quiddity_face_accounting_decides_which_faces_are_claimed() {
             "face {f} is a step_levels face: {unclaimed:?}"
         );
     }
-    for f in [4, 6, 22, 24, 26, 46, 47, 49, 54, 55, 104] {
+    for f in [4, 6, 22, 24, 26, 46, 47, 49, 54, 55] {
+        assert!(
+            !unclaimed.contains(&format!("face:{f}")),
+            "face {f} is quiddity's body evidence: {unclaimed:?}"
+        );
+    }
+    for f in [33, 39, 104] {
         assert!(
             unclaimed.contains(&format!("face:{f}")),
             "face {f} is unexplained by quiddity: {unclaimed:?}"

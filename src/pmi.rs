@@ -2946,15 +2946,43 @@ fn dimension_features(d: &Dimension) -> Vec<FeatureId> {
     }
 }
 
-/// A value in mm, or degrees for an angle.
+/// A value in mm, or degrees for an angle. A length is converted from its stated digits less a
+/// CAD writer's float noise (#214): at most six decimals in its own unit, one more per power of
+/// ten the unit exceeds a mm by (`0.01500000000006` INCH is 0.015 in; 0.0000025 m keeps its
+/// 2.5 µm), the product rounded to three decimals more, which keeps a conversion from inch, foot,
+/// cm, m or µm exact (0.015 in is 0.381 mm, 0.016 in 0.4064 mm).
 fn measure(v: &Value) -> f64 {
     match &v.quantity {
-        Quantity::Length(l) => l.mm(),
+        Quantity::Length(l) => in_mm(l, l.value.stated_places().unwrap_or(usize::MAX)),
         Quantity::Angle(a) => match a.unit {
             AngleUnit::Degree => a.value.to_f64(),
             _ => a.rad().to_degrees(),
         },
     }
+}
+
+/// A length as the mm sheet prints it (#214): rounded first to the places its precision
+/// qualifier states, in its own unit (`0.4999784176` INCH to three places is 0.500 in, 12.7 mm),
+/// else as [`measure`] converts it. An unqualified value keeps the digits [`measure`] keeps, so an
+/// inexact one prints them all (`0.4999784176` INCH unqualified is 12.69945136).
+fn qualified(v: &Value) -> f64 {
+    match (&v.quantity, v.decimal_places) {
+        (Quantity::Length(l), Some(places)) => in_mm(l, usize::from(places)),
+        _ => measure(v),
+    }
+}
+
+/// *l* in mm: its value rounded to *places* in its own unit, capped as [`measure`] caps it, the
+/// product to three more.
+fn in_mm(l: &pmi::Length, places: usize) -> f64 {
+    let mm = l.unit.millimetres();
+    let cap = 6 + mm.log10().round().max(0.0) as usize;
+    let places = places.min(cap);
+    let round = |x: f64, p: usize| {
+        let k = 10f64.powi(i32::try_from(p).unwrap_or(9));
+        (x * k).round() / k
+    };
+    round(round(l.value.to_f64(), places) * mm, places + 3)
 }
 
 /// draftwright's kind and XCAF's type number for a size (`_DIM_TYPE`, 14–27).
@@ -3584,11 +3612,10 @@ pub(crate) fn dominant(b: [f64; 6]) -> &'static str {
     if best.1.abs() > 1e-6 { best.0 } else { "?" }
 }
 
-/// The label draftwright writes for a dimension (`pmi._dimension_label`): in the file's own
-/// length unit with its stated decimal places and the unit's name, for a diameter, thickness or
-/// linear distance stated in a conversion-based unit (draftwright's `DimensionDisplayFact`);
-/// otherwise from the values in mm (degrees), with draftwright's number formatting. A deviation
-/// keeps its sign.
+/// The label draftwright writes for a dimension (`pmi._dimension_label`), from the values in mm
+/// (degrees) with draftwright's number formatting. draftwright prints a diameter, thickness or
+/// linear distance stated in a conversion-based unit in that unit (`0.25 ±0.01 INCH`); the port
+/// does not, as the sheet is in mm (#214). A deviation keeps its sign.
 fn dimension_label(r: &Record, d: &Dimension) -> String {
     let Some(value) = r.value else {
         return String::new();
@@ -3598,61 +3625,25 @@ fn dimension_label(r: &Record, d: &Dimension) -> String {
         "radius" => "R",
         _ => "",
     };
-    let displayed = matches!(
-        &d.kind,
-        DimensionKind::Size {
-            kind: SizeKind::Diameter | SizeKind::Thickness,
-            angle: None,
-            ..
-        } | DimensionKind::Location {
-            kind: LocationKind::LinearDistance,
-            angle: None,
-            ..
-        }
-    );
-    let authored = d.nominal.as_ref().and_then(|n| match &n.quantity {
-        Quantity::Length(l) => unit_name(&l.unit).map(|name| (n, l, name)),
-        Quantity::Angle(_) => None,
-    });
-    if displayed && let Some((nominal, length, name)) = authored {
-        let per = length.unit.millimetres();
-        let in_unit = |v: &Value| measure(v) / per;
-        let value_decimals = nominal.decimal_places.map(usize::from);
-        let tolerances = |a: &Value, b: &Value| {
-            let set: BTreeSet<u8> = [a.decimal_places, b.decimal_places]
-                .into_iter()
-                .flatten()
-                .collect();
-            if set.len() == 1 {
-                set.first().map(|&d| usize::from(d))
-            } else {
-                None
-            }
-        };
-        let base = match &d.tolerance {
+    // The sheet is in mm (#214): a dimension authored in another unit prints its exact conversion
+    // at its qualified precision ([`qualified`]), which three places would round (0.3125 in is
+    // 7.9375 mm), never its own unit.
+    if let Some(nominal) = &d.nominal
+        && matches!(&nominal.quantity, Quantity::Length(l) if l.unit != LengthUnit::Millimetre)
+    {
+        let mm = |v: &Value| fmt_magnitude(qualified(v), None);
+        return match &d.tolerance {
             DimTolerance::Limits(b)
             | DimTolerance::Fit {
                 limits: Some(b), ..
-            } => {
-                let places = tolerances(b.lower(), b.upper()).or(value_decimals);
-                format!(
-                    "{prefix}{} - {prefix}{}",
-                    fmt_magnitude(in_unit(b.lower()), places),
-                    fmt_magnitude(in_unit(b.upper()), places)
-                )
-            }
+            } => format!("{prefix}{} - {prefix}{}", mm(b.lower()), mm(b.upper())),
             DimTolerance::Deviations(b) => format!(
                 "{prefix}{}{}",
-                fmt(length.value.to_f64(), value_decimals),
-                deviations(
-                    in_unit(b.upper()),
-                    in_unit(b.lower()),
-                    tolerances(b.upper(), b.lower())
-                )
+                mm(nominal),
+                deviations(qualified(b.upper()), qualified(b.lower()), None)
             ),
-            _ => format!("{prefix}{}", fmt(length.value.to_f64(), value_decimals)),
+            _ => format!("{prefix}{}", mm(nominal)),
         };
-        return format!("{base} {name}");
     }
     match (r.lower_bound, r.upper_bound, r.upper_tol, r.lower_tol) {
         (Some(lo), Some(hi), _, _) => format!(
@@ -3664,21 +3655,6 @@ fn dimension_label(r: &Record, d: &Dimension) -> String {
             format!("{prefix}{}{}", fmt(value, None), deviations(up, lo, None))
         }
         _ => format!("{prefix}{}", fmt(value, None)),
-    }
-}
-
-/// The name draftwright appends for a conversion-based length unit (its `unit_name`, the
-/// `conversion_based_unit`'s name, which the NIST files spell in capitals); `None` for an SI
-/// unit, which draftwright labels in mm without a name.
-fn unit_name(u: &LengthUnit) -> Option<String> {
-    match u {
-        LengthUnit::Inch => Some("INCH".into()),
-        LengthUnit::Foot => Some("FOOT".into()),
-        LengthUnit::Other { name, .. } => Some(name.clone()),
-        LengthUnit::Millimetre
-        | LengthUnit::Micrometre
-        | LengthUnit::Centimetre
-        | LengthUnit::Metre => None,
     }
 }
 
@@ -3908,6 +3884,33 @@ mod tests {
         assert_eq!(fmt_g3(100.0), "100");
         assert_eq!(fmt_g3(1234.0), "1.23e+03");
         assert_eq!(fmt_g3(0.00001), "1e-05");
+    }
+
+    #[test]
+    fn converted_lengths_drop_the_writers_float_noise() {
+        let inch = |text: &str| {
+            measure(&Value::length(
+                pmi::Decimal::parse(text).unwrap(),
+                LengthUnit::Inch,
+            ))
+        };
+        // nist_stc_08 states its frames' magnitudes with noise: 0.01500000000006 in (#214).
+        assert_eq!(fmt_magnitude(inch("0.01500000000006"), None), "0.381");
+        assert_eq!(fmt_magnitude(inch("0.06000000000024"), None), "1.524");
+        assert_eq!(fmt_magnitude(inch("0.016"), None), "0.4064");
+        assert_eq!(fmt_magnitude(inch("0.0001"), None), "0.00254");
+        assert_eq!(fmt_magnitude(inch("12.00"), None), "304.8");
+        let mm = Value::length(pmi::Decimal::parse("0.3").unwrap(), LengthUnit::Millimetre);
+        assert_eq!(measure(&mm), 0.3);
+        // A metre's six decimals are a µm: its places go to nine, keeping 2.5 µm.
+        let metre = |text: &str| {
+            measure(&Value::length(
+                pmi::Decimal::parse(text).unwrap(),
+                LengthUnit::Metre,
+            ))
+        };
+        assert_eq!(fmt_magnitude(metre("0.0000025"), None), "0.0025");
+        assert_eq!(fmt_magnitude(metre("2.5E-6"), None), "0.0025");
     }
 
     #[test]

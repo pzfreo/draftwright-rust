@@ -6,6 +6,28 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### Changed
+
+- On quiddity-rust **v0.2.0**. Its face accounting (blended box corners, plate edges, stock
+  walls, drill-point tips, slot end walls) raises claimed faces on 65 corpus parts: CTC-01 AP242
+  goes from 27 unclaimed faces to 3, and the claim losses listed for 0.1.0 are recovered. Newly
+  recognised steps change the layout of 10033 (now A3 2:1, with one leader crossing a dimension
+  line), 10127 and holdout 119. FTC-10 rb gains 3 and FTC-07 AP242 2 extension lines through
+  features, and the FTC-10 AP242 drawing one leader through text. The three new families
+  (annular grooves, V channels, semicircular blind slots) are read but not yet drawn; they are
+  reported as `features_not_recognised`.
+
+### Fixed
+
+- **PMI from inch-authored files prints as millimetres an mm sheet can state (#214).** A length is
+  converted from its stated digits less the writer's float noise (at most six decimals in its own
+  unit, more for a larger unit such as the metre, the product to three more), so NIST STC-08's
+  frames print `1.524` and `0.381`, not `1.524000000006`; a PMI dimension authored in inches
+  prints its exact conversion (`6.35 ±0.254`, not `0.25 ±0.01 INCH`, STC-09); a zero deviation is
+  `0`, unsigned (`⌀6.35 +0.0762 0`, ISO 129-1, STC-07 and STC-09); and a common label that states
+  a radius without its value (`2X R`, `4X R`: ASME's full radius) is not drawn but reported as
+  `pmi_not_lowered` (a warning).
+
 ## 0.1.0 (2026-10-25)
 
 The first release without an alpha tag. It is still on quiddity-rust **v0.2.0-alpha.2**, as in

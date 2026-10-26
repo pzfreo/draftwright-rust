@@ -369,3 +369,65 @@ fn a_turned_part_keeps_the_view_its_pmi_is_drawn_in() {
     let flatness = plan.gdt.iter().find(|g| g.cells[0] == "⏥").unwrap();
     assert!(codes(&plan, &flatness.id).contains(&"pmi_not_drawn"));
 }
+
+/// #214: what the plan prints from inch-authored PMI is millimetres an mm sheet can state: no
+/// `INCH`, no float noise from a conversion (`1.524000000006`), no signed zero deviation
+/// (`-0.0`, ISO 129-1 writes `0`), and no common label that states a radius without its value
+/// (`4X R`), which is refused with its reason.
+#[test]
+fn inch_authored_pmi_prints_as_millimetres() {
+    let mut stems: Vec<String> = std::fs::read_dir(root().join("tests/fixtures/pmi/step"))
+        .unwrap()
+        .map(|e| e.unwrap().file_name().to_string_lossy().into_owned())
+        .filter(|n| n.starts_with("nist_") && n.contains("_asme1_"))
+        .map(|n| n.split('.').next().unwrap().to_string())
+        .collect();
+    stems.sort();
+    assert!(stems.iter().any(|s| s.starts_with("nist_stc_09")));
+    for stem in &stems {
+        let (_, a) = analysed(stem);
+        let plan = cache::default_plan(&a, false);
+        let labels = plan
+            .dimensions
+            .iter()
+            .map(|d| (d.id.as_str(), d.label.clone()))
+            .chain(plan.gdt.iter().map(|g| (g.id.as_str(), g.cells.join(" "))));
+        for (id, label) in labels {
+            for token in label.split_whitespace() {
+                assert_ne!(token, "INCH", "{stem} {id}: {label:?}");
+                let digits = token.trim_start_matches(|c: char| !c.is_ascii_digit());
+                let number: String = digits
+                    .chars()
+                    .take_while(|c| c.is_ascii_digit() || *c == '.')
+                    .collect();
+                let decimals = number.split_once('.').map_or(0, |(_, f)| f.len());
+                assert!(decimals <= 5, "{stem} {id}: {label:?}");
+                let zero = token
+                    .strip_prefix(['+', '-'])
+                    .is_some_and(|t| !t.is_empty() && t.chars().all(|c| c == '0' || c == '.'));
+                assert!(!zero, "{stem} {id}: {label:?}");
+                if id.contains("common_label") {
+                    assert_ne!(token, "R", "{stem} {id}: {label:?}");
+                }
+            }
+        }
+    }
+    let (_, a) = analysed("nist_stc_09_asme1_ap242-e4");
+    let plan = cache::default_plan(&a, false);
+    let linear: Vec<&str> = plan
+        .dimensions
+        .iter()
+        .filter(|d| d.id.starts_with("d:pmi:dimension.linear:"))
+        .map(|d| d.label.as_str())
+        .collect();
+    for want in ["6.35 ±0.254", "9.525 ±0.2032", "3.556 ±0.2032"] {
+        assert!(linear.contains(&want), "{want}: {linear:?}");
+    }
+    let refused: Vec<_> = plan
+        .problems
+        .iter()
+        .filter(|p| p.code == "pmi_not_lowered" && p.message.contains("radius without its value"))
+        .collect();
+    assert_eq!(refused.len(), 2, "2X R and 4X R");
+    assert!(refused.iter().all(|p| p.severity == "warning"));
+}
