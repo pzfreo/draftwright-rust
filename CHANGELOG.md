@@ -23,6 +23,16 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Changed
 
+- **quiddity's annular grooves, V channels and semicircular blind slots are read and drawn
+  (#233),** no longer reported as `features_not_recognised`. A semicircular blind slot is called
+  out as a round-bottom open slot (`ROUND-BOTTOM OPEN SLOT W × L × D DEEP`) and located across
+  its width by its centre line. A V channel states `A° V × D DEEP` and its trough's location,
+  and an annular groove `⌀OD × ⌀ID ↧ D` and its centre's, unless the profile V-notch on its
+  flanks, or the hole and boss on its walls, already state it, as on CTC-01, holdout 408 and 419
+  and all 21 corpus grooves. 10092 moves from A4 1:1 to A3 2:1, holdout 196 from A3 2:1 to A3
+  1:1 and 483 from A4 2:1 to 1:1; 10098 loses its 78.046° profile angle to its V channel's
+  locations. Rectangular through notches (CTC-01's two) stay unrecognised: drawn, they cost
+  CTC-01 its 1:5 scale or add leader crossings. The quality parts are otherwise unchanged.
 - On quiddity-rust **v0.2.1-alpha.1**. The reader accepts its new `rectangular_through_notches`
   family (not drawn yet, like `v_channels`), so CTC-01's two V-slot notches and their rounded
   channels are reported as unrecognised features instead of 3 unclaimed faces. Golden's

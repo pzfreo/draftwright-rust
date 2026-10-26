@@ -233,6 +233,10 @@ pub fn report(analysis: &Analysis, plan: &mut Plan) {
             if stated.contains(f.id.as_str()) || crate::dims::undrafted(f) {
                 return false;
             }
+            let by = crate::dims::stated_by(analysis, f);
+            if !by.is_empty() && by.iter().all(|o| stated.contains(o.as_str())) {
+                return false;
+            }
             if f.kind == "boss"
                 && crate::lint::bosses::groove_floor(analysis, f)
                 && analysis.features.iter().any(|g| {

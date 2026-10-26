@@ -1,5 +1,18 @@
 //! A V is specified by included angle, theoretical sharp depth, and mouth position.
-use super::{AXES, Context, Measurement, Planner, Problem, Shape, Want, end_on, fmt, want_id};
+//!
+//! quiddity's V channels (`VChannel`, #233) are the same requirement as a feature. One whose
+//! flanks a profile V-notch here already names is stated by that notch. Otherwise it is
+//! called out in the view along its run, `A° V × D DEEP` (the included angle and the depth to
+//! the sharp or virtual trough, which fix its width), with a leader to a flank, and its trough
+//! is located from the part's box on that view's axes, except along a principal opening, where
+//! the mouth's face and the depth fix it. A rounded trough's radius is its blend's. A channel
+//! whose run is along no axis of the part is reported (`feature_not_dimensioned`).
+use super::grooves::{not_dimensioned, size};
+use super::{
+    AXES, Context, Measurement, P3, Planner, Problem, Shape, Want, end_on, fmt, point, want_id,
+};
+use crate::bridge::Feature;
+use crate::bridge::holes::{dir_to_part, principal};
 
 /// Profile requirements belong to the part envelope; the support stamp distinguishes
 /// physical corners without pretending that the provider published a notch feature.
@@ -16,10 +29,129 @@ pub(super) fn id(feature: &str, parameter: &str) -> String {
     want_id("envelope", &format!("{role}.{support}"))
 }
 
-pub(super) const PLANNER: Planner = Planner { kinds: &[], wants };
+pub(super) const PLANNER: Planner = Planner {
+    kinds: &["v_channel"],
+    wants,
+};
+
+/// The profile V-notch, by ID, whose flanks include V channel *f*'s: it states the channel.
+pub(super) fn owner(notches: &[crate::lint::notch_evidence::Notch], f: &Feature) -> Option<String> {
+    notches
+        .iter()
+        .find(|n| f.faces.iter().all(|i| n.faces.contains(i)))
+        .map(|n| n.id.clone())
+}
+
+/// A V channel's callout and trough locations, none when a profile V-notch on its flanks states
+/// it, or why it cannot be stated.
+fn channel(
+    cx: &Context,
+    f: &Feature,
+    notches: &[crate::lint::notch_evidence::Notch],
+) -> Result<Vec<Want>, String> {
+    if owner(notches, f).is_some() {
+        return Ok(Vec::new());
+    }
+    let p = &f.parameters;
+    let angle = size(f, "included_angle_degrees")?;
+    let depth = size(f, "depth")?;
+    let width = size(f, "width")?;
+    let dir = |name: &str| -> Result<P3, String> {
+        let d = point(p.get(name)).ok_or_else(|| format!("its record gives no {name}"))?;
+        Ok(dir_to_part(&cx.frame.0, d))
+    };
+    let (axis, opening) = (dir("axis")?, dir("opening")?);
+    let k = principal(axis)
+        .ok_or("its run is not along x, y or z, so no standard view shows its section")?;
+    let at = cx
+        .frame
+        .point(point(p.get("at")).ok_or("its record gives no at")?);
+    let across = [
+        axis[1] * opening[2] - axis[2] * opening[1],
+        axis[2] * opening[0] - axis[0] * opening[2],
+        axis[0] * opening[1] - axis[1] * opening[0],
+    ];
+    // A point three quarters up a flank, clear of a rounded trough.
+    let flank =
+        std::array::from_fn(|j| at[j] + 0.75 * (opening[j] * depth + across[j] * 0.5 * width));
+    let view = end_on(k);
+    let m = |parameter: &str, value: f64| Measurement {
+        feature: f.id.clone(),
+        parameter: parameter.into(),
+        value,
+    };
+    let mut out = vec![Want {
+        id: want_id(&f.id, "v_channel.angle"),
+        views: vec![view],
+        value: angle,
+        terms: vec![
+            format!("{}°", fmt(angle)),
+            "V".into(),
+            "×".into(),
+            fmt(depth),
+            "DEEP".into(),
+        ],
+        measurements: vec![
+            m("v_channel.angle", angle),
+            m("v_channel_depth.length", depth),
+        ],
+        turning: None,
+        basis: "a V channel's included angle and depth to its theoretical sharp trough, which fix its width, are called out together, in the view along its run".into(),
+        shape: Shape::Callout {
+            sites: vec![(flank, 0.0)],
+            arcs: Vec::new(),
+        },
+    }];
+    let lo = cx.analysis.envelope[0];
+    let fixed = principal(opening);
+    for j in (0..3).filter(|&j| j != k && Some(j) != fixed) {
+        let value = at[j] - lo[j];
+        if value.abs() < 1e-6 {
+            continue;
+        }
+        let parameter = format!("location.length.{}", AXES[j]);
+        let mut a = at;
+        a[j] = lo[j];
+        out.push(Want {
+            id: want_id(&f.id, &parameter),
+            views: vec![view],
+            value,
+            terms: vec![fmt(value)],
+            measurements: vec![m(&parameter, value)],
+            turning: None,
+            basis: format!(
+                "a V channel's trough located in {} from the part's {} face, in the view along its run",
+                AXES[j],
+                ["left", "front", "bottom"][j]
+            ),
+            shape: Shape::Linear {
+                a,
+                b: at,
+                axis: j,
+                a_edge: true,
+                b_edge: false,
+                order: 1,
+            },
+        });
+    }
+    Ok(out)
+}
+
 fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     let mut out = Vec::new();
+    let mut problems = Vec::new();
     let notches = crate::notches::requirements(cx.analysis);
+    for f in cx
+        .analysis
+        .features
+        .iter()
+        .filter(|f| f.kind == "v_channel")
+    {
+        match channel(cx, f, &notches) {
+            Ok(ws) => out.extend(ws),
+            Err(why) => problems.push(not_dimensioned(f, &why)),
+        }
+    }
     // Keep the existing front corridor when it also carries GD&T. Splitting
     // these stations across views removes a front tier and can displace a
     // control frame into a datum's otherwise clear compact route.
@@ -106,7 +238,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     // A bevel is an edge treatment: its C/size-and-angle callout offsets the drawn
     // supports. Its provider corner is the midpoint of a run, not a design datum;
     // do not invent a station requirement there. Explicit schemes can still name it.
-    (out, vec![])
+    (out, problems)
 }
 
 /// Only bounded profile angles yield to their source PMI, retaining its tolerance

@@ -1680,6 +1680,14 @@ fn the_reader_checks_each_familys_fields() {
     })
     .unwrap();
     assert!(!n.features.iter().any(|f| f.kind == "groove"));
+    // #233's families are checked as the others are: a fillet's record is no V channel.
+    let e = read(&|d| {
+        d.records[fillet].family = "v_channels".into();
+        d.records[fillet].record_type = "VChannel".into();
+    })
+    .unwrap_err();
+    assert!(e.contains("(VChannel)"), "{e}");
+    assert!(e.contains("the v_channels are not read"), "{e}");
     // Faces must be strictly ascending: a face named twice is refused, for every family.
     let e = read(&|d| d.records[fillet].faces = vec![1, 1]).unwrap_err();
     assert!(e.contains("has no ascending faces"), "{e}");

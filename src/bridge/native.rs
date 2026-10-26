@@ -154,7 +154,7 @@ pub const FAMILIES: &[(&str, &[&str])] = &[
 
 /// The families consumed here, including evidence and refusals. Oriented slot patterns are
 /// checked and not kept (see the module docs). Threads are retained pending depiction.
-pub const READ: [&str; 33] = [
+pub const READ: [&str; 36] = [
     "holes",
     "hole_patterns",
     "fillets",
@@ -164,6 +164,7 @@ pub const READ: [&str; 33] = [
     "bosses",
     "turned_steps",
     "grooves",
+    "annular_grooves",
     "flats",
     "angled_steps",
     "paired_ramp_steps",
@@ -173,6 +174,8 @@ pub const READ: [&str; 33] = [
     "blends",
     "slots",
     "slot_patterns",
+    "semicircular_blind_slots",
+    "v_channels",
     "polygonal_bosses",
     "polygonal_stock",
     "double_d_bores",
@@ -383,6 +386,38 @@ pub const FIELDS: &[(&str, &[(&str, Field)])] = &[
             ("diameter", Field::Number),
             ("at", Field::Point),
             ("profile", Field::ObjectOrNull),
+        ],
+    ),
+    (
+        "AnnularGroove",
+        &[
+            ("axis", Field::Point),
+            ("floor_center", Field::Point),
+            ("inner_radius", Field::Number),
+            ("outer_radius", Field::Number),
+            ("depth", Field::Number),
+        ],
+    ),
+    (
+        "SemicircularBlindSlot",
+        &[
+            ("axis", Field::Point),
+            ("opening", Field::Point),
+            ("at", Field::Point),
+            ("length", Field::Number),
+            ("radius", Field::Number),
+            ("straight_height", Field::Number),
+        ],
+    ),
+    (
+        "VChannel",
+        &[
+            ("axis", Field::Point),
+            ("opening", Field::Point),
+            ("at", Field::Point),
+            ("width", Field::Number),
+            ("depth", Field::Number),
+            ("included_angle_degrees", Field::Number),
         ],
     ),
     (

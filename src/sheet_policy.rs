@@ -1441,12 +1441,13 @@ mod tests {
 
     #[test]
     fn compact_spacing_is_tried_before_larger_paper() {
-        let Some(crowded) = corpus("mfcadpp/1013.step") else {
+        let Some(crowded) = corpus("mfcadpp_holdout/119.step") else {
             return;
         };
         let paper = |p: &Plan| layout::PAGES.iter().position(|q| q.0 == p.sheet.size);
         let compact = |p: &Plan| p.sheet.dimension_spacing == model::DimensionSpacing::Compact;
-        // Normal lanes need A3 for this part; compact lanes keep it on A4.
+        // Normal lanes need A3 for this part; compact lanes keep it on A4. (1013 was the witness
+        // until its semicircular blind slot was drawn (#233); normal lanes now fit it on A4.)
         let auto = select(&crowded, &Spec::default()).unwrap();
         let normal = select(&crowded, &spaced(Some("normal"), json!({}))).unwrap();
         assert!(compact(&auto) && !compact(&normal));
