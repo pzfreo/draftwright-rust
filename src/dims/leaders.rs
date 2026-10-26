@@ -107,6 +107,7 @@ const LIMIT_SLACK: f64 = 1e-6;
 fn too_long(length: f64) -> bool {
     length > MAX_LEADER + LIMIT_SLACK
 }
+
 /// The least angle a leader to a turned step's silhouette makes with it, degrees: closer to
 /// parallel, it reads as lying on the part's edge (ISO 128-22 has leaders meet the outline at an
 /// angle; it states no figure).
@@ -7995,8 +7996,33 @@ mod tests {
                     assert!(!too_long(length), "direction {j}: {length}");
                 }
             }
+            // The route's report measures the leader itself: an elbow a few last bits further
+            // out still meets the limit.
+            let mut far = elbow;
+            for _ in 0..4 {
+                far = [
+                    if u[0] < 0.0 {
+                        far[0].next_down()
+                    } else {
+                        far[0].next_up()
+                    },
+                    if u[1] < 0.0 {
+                        far[1].next_down()
+                    } else {
+                        far[1].next_up()
+                    },
+                ];
+                let problems = route_reports_named("a", "a", "front", &[], [tip, far]);
+                assert!(
+                    problems.iter().all(|p| p.code != "annotation_leader_long"),
+                    "direction {j}"
+                );
+            }
         }
         assert!(too_long(MAX_LEADER + 1e-3));
+        let over = [tip[0] + MAX_LEADER + 1e-3, tip[1]];
+        let problems = route_reports_named("a", "a", "front", &[], [tip, over]);
+        assert!(problems.iter().any(|p| p.code == "annotation_leader_long"));
     }
 
     fn cand(tip: P2, elbow: P2, cost: i64) -> Candidate {
