@@ -6,6 +6,16 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### Changed
+
+- On quiddity-rust **v0.2.0**. Its face accounting (blended box corners, plate edges, stock
+  walls, drill-point tips, slot end walls) raises claimed faces on 65 corpus parts: CTC-01 AP242
+  goes from 27 unclaimed faces to 3, and the claim losses listed for 0.1.0 are recovered. Newly
+  recognised steps change the layout of 10033 (now A3 2:1), 10127 and holdout 119. FTC-10 rb
+  gains 3 and FTC-07 AP242 2 extension lines through features. The three new families
+  (annular grooves, V channels, semicircular blind slots) are read but not yet drawn; they are
+  reported as `features_not_recognised`.
+
 ## 0.1.0 (2026-10-25)
 
 The first release without an alpha tag. It is still on quiddity-rust **v0.2.0-alpha.2**, as in

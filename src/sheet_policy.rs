@@ -1464,8 +1464,9 @@ mod tests {
     fn a_local_fix_retains_the_compact_fallback() {
         // A part whose finished drawing takes the automatic compact fallback. (mfcadpp/1013 no
         // longer does once its obround pocket callout aims at a straight wall, nor the pocket_z
-        // fixture with the 3 mm frame gutter, 2026-10-25.)
-        let Some(a) = corpus("mfcadpp_holdout/119.step") else {
+        // fixture with the 3 mm frame gutter, 2026-10-25, nor mfcadpp_holdout/119 once quiddity
+        // recognises its paired-ramp step, 2026-10-26.)
+        let Some(a) = corpus("mfcadpp_holdout/275.step") else {
             return;
         };
         let before = model::plan_recovered(&a, &Spec::default()).unwrap();
@@ -2087,8 +2088,9 @@ mod tests {
     fn bounded_trials_keep_clean_reductions_and_reject_new_ink() {
         for (file, size, scale) in [
             ("mfcadpp/10020.step", "A4", "1:1"),
-            // Without the fillet quiddity 0.2.0 no longer reads, A4 is clean at 1:1.
-            ("mfcadpp/10033.step", "A4", "1:1"),
+            // Its paired-ramp step's angle, recognised since quiddity main after 0.2.0-alpha.2,
+            // conflicts with an annotation on A4 at 1:1; A3 at 2:1 is clean.
+            ("mfcadpp/10033.step", "A3", "2:1"),
             ("mfcadpp/10163.step", "A4", "1:1"),
             // Usable on preferred A3, as on main: nothing clipped and nothing lost.
             ("cadgenbench_inputs/cgb245.step", "A3", "1:5"),
