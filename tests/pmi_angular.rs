@@ -124,8 +124,8 @@ fn ctc_01s_sides_are_draftwrights() {
 }
 
 /// The ink: extension lines along the sides' projected traces from just past each witness, an
-/// arc about the projected vertex spanning the 60° between them, arrowheads at its ends on the
-/// sides, and the label `60 ±0.5` on the bisector at the arc.
+/// unbroken arc about the projected vertex spanning the 60° between them, arrowheads at its ends
+/// on the sides, and the label `60 ±0.5` on the bisector just outside the arc (ISO 129-1, #227).
 #[test]
 fn ctc_01s_angle_is_drawn_true_in_the_plan() {
     let (part, a) = analysed("drawn", "nist_ctc_01_asme1_ap242-e1.stp");
@@ -214,7 +214,7 @@ fn ctc_01s_angle_is_drawn_true_in_the_plan() {
         .fold(0.0, f64::max);
     assert!(max_extension > radius, "extension lines run past the arc");
     // It spans the 60° between the rays (the plan's scale is uniform, so the page angle is the
-    // true one), broken around the label at the bisector.
+    // true one), unbroken: each chord starts where the one before it ends (#227).
     let angle_of = |q: [f64; 2]| {
         let o = sub(q, vertex);
         o[1].atan2(o[0])
@@ -242,10 +242,12 @@ fn ctc_01s_angle_is_drawn_true_in_the_plan() {
         (lo + 30.0).abs() < 1e-9 && (hi - 30.0).abs() < 1e-9,
         "{lo} {hi}"
     );
-    assert!(
-        offsets.iter().all(|t| t.abs() > 1.0),
-        "the arc is broken at the label"
-    );
+    for pair in p.lines[2..].windows(2) {
+        assert!(
+            len(sub(pair[0][1], pair[1][0])) <= 1e-9,
+            "the arc is unbroken"
+        );
+    }
 
     // An arrowhead at each end of the arc, its tip on a side.
     assert_eq!(p.arrows.len(), 2);
@@ -255,14 +257,21 @@ fn ctc_01s_angle_is_drawn_true_in_the_plan() {
         assert!((len(sub(*tip, *tail)) - draftwright::dims::ARROW).abs() < 0.01);
     }
 
-    // The label centred on the bisector, at the arc.
+    // The label centred on the bisector, outside the arc and clear of it.
     let b = p.label_box;
     let centre = [0.5 * (b[0] + b[2]), 0.5 * (b[1] + b[3])];
     assert!(
         (angle_of(centre) - bisector).abs() < 1e-6,
         "on the bisector"
     );
-    assert!((len(sub(centre, vertex)) - radius).abs() < 1e-6);
+    assert!(len(sub(centre, vertex)) > radius, "outside the arc");
+    assert!(
+        p.lines[2..]
+            .iter()
+            .flat_map(|l| [l[0], l[1]])
+            .all(|q| q[0] < b[0] || q[0] > b[2] || q[1] < b[1] || q[1] > b[3]),
+        "the label is clear of the arc"
+    );
 
     // Rendered: its text and its claim.
     let font = draftwright::text::Font::open(

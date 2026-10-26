@@ -56,6 +56,17 @@ All notable changes to draftwright-rust are recorded here, in the style of
   a groove callout ending where the 19.4 step's extension line leaves the outline even after
   the finishing pass (the leader placer finds no other route), and gt2-pulley, whose extra side
   view, kept only for a radial hole, needs 303 mm across.
+- **Angular dimensions are drawn with an unbroken dimension arc (#227).** The arc was broken
+  around an inline label, and at the smallest radius that left room for the arrowheads all that
+  showed of it was the two arrowheads (dw-examples' hex-standoff-m3 "6× 120°" and
+  vslot-2020x50 "45°"). Per ISO 129-1 the arc now runs unbroken about the vertex from one
+  extension line to the other, an arrowhead at each end, with the label just outside it
+  (`src/dims/angular.rs`). Where the first radius is clear the label keeps the inline label's
+  place and the arc moves inside it, so the ink reaches no further. Where the unbroken arc
+  meets something the break used to skip, the angle takes a later place: CTC-01's "60°" and
+  CTC-03's "2× 135°" step out 1–2 mm, and FTC-08 rc's "8× 135°" goes to another of its
+  corners, its arc across a slot outline. The vslot "45°" still sits away from its corner,
+  its diagonal extension line across the "10" extension line; that part of #227 stays open.
 - **Coincident copies of a body no longer multiply every count (#212).** A STEP holding the same
   solid several times on top of itself (a FreeCAD export of a body and its `Pad`) was drawn
   whole, each feature once per copy: dw-examples' gantry plate printed "24× ⌀5.1 THRU" for 12
