@@ -72,6 +72,7 @@ mod holes;
 pub(crate) mod interior;
 mod label_lanes;
 mod modelled_threads;
+pub(crate) use modelled_threads::possible_threads;
 mod wording;
 pub(crate) use pmi_dimensions::basic as is_basic;
 pub(crate) mod callout_routes;

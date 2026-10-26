@@ -71,6 +71,12 @@ owns the callout: no second inferred callout is added. `ignore` uses recognition
 alone. Existing tapped-hole and Spec-authored thread callouts keep their ordinary
 PMI policy and source values.
 
+When recognition refuses a modelled thread (`ModelledThreadRefusal`), no hole or
+counterbore is built from the faces it names: their cylinders measure flanks, not
+a bore. The plan reports warning `modelled_thread_refused` with the refusal's
+reason and faces, and the modelled edges stay drawn. To state the thread, declare
+the feature in `feature_declarations` and author its `thread` designation.
+
 Sources: [ISO 6410-1:1993](https://cdn.standards.iteh.ai/samples/12750/07f99becf07a454ab9fece84a0dce861/ISO-6410-1-1993.pdf),
 [ISO 261:1998](https://cdn.standards.iteh.ai/samples/4165/ec50482690954e82931c52fdce3bc8bb/ISO-261-1998.pdf).
 
