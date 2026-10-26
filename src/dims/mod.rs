@@ -223,7 +223,11 @@ fn chosen_views(
                 )
             } else {
                 (
-                    "left out as the turned part's repeated profile",
+                    if idle_dropped() == Some(v) {
+                        "left out as adding only its outline"
+                    } else {
+                        "left out as the turned part's repeated profile"
+                    },
                     format!(
                         "Keep the view (set views/{v} to {{}}) or remove the dimension's view."
                     ),
@@ -747,7 +751,7 @@ pub(crate) fn has_new_native_recess_dimensions(analysis: &Analysis) -> bool {
 }
 
 pub(crate) fn has_recess_dimensions(analysis: &Analysis) -> bool {
-    let (canonical, established, comparison, _, _) = crate::planning::policy_key(analysis);
+    let (canonical, established, comparison, ..) = crate::planning::policy_key(analysis);
     crate::planning::memo(
         analysis,
         "recess-presence",
@@ -1087,7 +1091,7 @@ pub(crate) fn inspection_datum(a: &Analysis) -> Option<(usize, f64)> {
 }
 
 pub(crate) fn detail_levels(a: &Analysis) -> Vec<(String, f64)> {
-    let (canonical, established, comparison, _, _) = crate::planning::policy_key(a);
+    let (canonical, established, comparison, ..) = crate::planning::policy_key(a);
     crate::planning::memo(
         a,
         "detail-linear-levels",
@@ -1287,10 +1291,10 @@ pub(crate) fn reduction_preserves_requirements(
 }
 
 /// The principal view a part that is not turned leaves out because it adds nothing (#222): the
-/// plan or side view that no dimension is routed to with every view shown, so that all it would
-/// show is its outline (often a strip of hidden lines), unless it is a prism's profile
-/// ([`prism_axis`]) or looks along a cylinder (the only view showing it round). At most one is
-/// left out, the plan first, and never the front. The spec keeps it by naming it
+/// plan or side view on which the drawing with every view shown places no dimension, so that
+/// all it would show is its outline (often a strip of hidden lines), unless it is a prism's
+/// profile ([`prism_axis`]) or looks along a cylinder (the only view showing it round). At most
+/// one is left out, the plan first, and never the front. The spec keeps it by naming it
 /// (`views/<name>`), as for a turned part's dropped view; one it omits, refers a dimension,
 /// annotation or view to, or that carries PMI or section A–A's cutting plane is kept. None for
 /// a turned part ([`crate::demand::turned_views`], whose shape this returns: the kept views,
@@ -1300,31 +1304,107 @@ pub(crate) fn idle_view(
     spec: &Spec,
     demand: &crate::demand::Demand,
 ) -> Option<([&'static str; 2], &'static str, String)> {
-    let [allowed, plan_kept, side_kept] = idle_spec(spec);
+    let [allowed, ..] = idle_spec(spec);
     if crate::demand::turned_views(demand).is_some() || !allowed {
         return None;
     }
-    let reduction = |v: &'static str, why: String| {
-        let other = if v == "plan" { "side" } else { "plan" };
-        (["front", other], v, why)
+    let v = match IDLE_VIEW.get() {
+        Some(given) => given?,
+        None => idle_decision(analysis, spec).dropped?,
     };
-    if let Some(given) = IDLE_VIEW.get() {
-        return given.map(|v| reduction(v, format!("the {v} view adds nothing to the drawing")));
+    let other = if v == "plan" { "side" } else { "plan" };
+    Some((
+        ["front", other],
+        v,
+        format!(
+            "no dimension needs the {v} view (the front and {other} views carry them all) and it would add only its outline (naming views/{v} keeps it)"
+        ),
+    ))
+}
+
+/// [`idle_view`]'s decision for an Analysis and spec, and the paper the drawing with every view
+/// shown takes at its first choice (the size's place in [`crate::layout::PAGES`] and the sheet
+/// count), which leaving the view out must not exceed ([`crate::sheet_policy`]).
+#[derive(Clone, Copy, Default)]
+pub(crate) struct IdleDecision {
+    pub dropped: Option<&'static str>,
+    pub paper: Option<(usize, usize)>,
+}
+
+/// Decide [`idle_view`] from the drawing itself (review of #222): the candidate view is left
+/// out only when the planner's first drawing with it shown (the spec naming it, before the
+/// sheet recovery) places no dimension on it, after every routing preference and added
+/// statement such as a profile angle. That drawing is planned in its own scope, so it leaves
+/// nothing behind for the drawing being made.
+pub(crate) fn idle_decision(analysis: &Analysis, spec: &Spec) -> IdleDecision {
+    let Some(v) = idle_candidate(analysis, spec) else {
+        return IdleDecision::default();
+    };
+    let mut named = spec.clone();
+    named.sheet.size = None;
+    named.sheet.scale = None;
+    named.sheet.dimension_spacing = None;
+    named.views.insert(v.into(), Default::default());
+    // Omitting or pinning an item never changes the views: decide on the drawing without them.
+    for d in named.dimensions.values_mut() {
+        d.omit = false;
+        d.place = None;
+    }
+    for a in named.annotations.values_mut() {
+        a.place = None;
+    }
+    // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
+    let key = serde_json::to_vec(&named).expect("planning inputs serialize");
+    crate::planning::memo(analysis, "idle-view", key, || {
+        let shown = crate::planning::isolated(analysis, || {
+            with_compact(false, || {
+                crate::model::plan_escalated(analysis, &crate::model::migrate(&named, analysis)?)
+            })
+        });
+        let Ok(shown) = shown else {
+            return IdleDecision::default();
+        };
+        let page = crate::layout::PAGES
+            .iter()
+            .position(|p| p.0 == shown.sheet.size)
+            .unwrap_or(usize::MAX);
+        IdleDecision {
+            dropped: (!shown.dimensions.iter().any(|d| d.view == format!("v:{v}"))).then_some(v),
+            paper: Some((page, 1 + shown.sheets.len())),
+        }
+    })
+}
+
+/// Run *run* with [`idle_view`] decided once for *spec*, so every plan it makes, the
+/// established reference among them, leaves out the same view. Already decided: unchanged.
+pub(crate) fn idle_decided<T>(analysis: &Analysis, spec: &Spec, run: impl FnOnce() -> T) -> T {
+    if IDLE_VIEW.get().is_some() {
+        return run();
+    }
+    with_idle_view(idle_decision(analysis, spec).dropped, run)
+}
+
+/// The view [`idle_view`] has been decided to leave out in the plan being made, if any.
+pub(crate) fn idle_dropped() -> Option<&'static str> {
+    IDLE_VIEW.get().flatten()
+}
+
+/// [`idle_view`]'s decision as given for the plan being made: None when not yet decided.
+pub(crate) fn idle_given() -> Option<Option<&'static str>> {
+    IDLE_VIEW.get()
+}
+
+/// The view [`idle_decision`] tries: the first of plan and side that carries no PMI, section
+/// A–A's cutting plane or anything the spec refers to it, and is neither a prism's profile nor
+/// a view along a cylinder.
+fn idle_candidate(analysis: &Analysis, spec: &Spec) -> Option<&'static str> {
+    let [allowed, plan_kept, side_kept] = idle_spec(spec);
+    let demand = crate::demand::read(analysis);
+    if crate::demand::turned_views(&demand).is_some() || !allowed {
+        return None;
     }
     let referred = |v: &str| if v == "plan" { plan_kept } else { side_kept };
     let pmi = crate::pmi_lowering::views(analysis);
-    let (wants, _, _) = pmi_policy::wants(analysis, spec);
-    // Whether any is routed to *v* with every principal view shown ([`route`]'s first choice).
-    // One the spec omits still counts, so omitting a dimension never changes the views.
-    let routed = |v: &str| {
-        wants.iter().any(|w| {
-            w.views
-                .iter()
-                .copied()
-                .find(|k| NAMES.contains(k) && carries(w, k))
-                == Some(v)
-        })
-    };
     let axis = prism_axis(analysis);
     let round = |v: &str| {
         analysis.edge_ink.as_ref().is_some_and(|ink| {
@@ -1334,25 +1414,13 @@ pub(crate) fn idle_view(
                 .any(|c| (0..3).any(|k| (c.axis[k].abs() - 1.0).abs() < 1e-6 && end_on(k) == v))
         })
     };
-    ["plan", "side"]
-        .into_iter()
-        .find(|v| {
-            !pmi.contains(v)
-                && !(demand.section.is_some() && *v == "plan")
-                && !referred(v)
-                && !routed(v)
-                && axis.is_none_or(|k| end_on(k) != *v)
-                && !round(v)
-        })
-        .map(|v| {
-            let other = if v == "plan" { "side" } else { "plan" };
-            reduction(
-                v,
-                format!(
-                    "no dimension needs the {v} view (the front and {other} views carry them all) and it would add only its outline (naming views/{v} keeps it)"
-                ),
-            )
-        })
+    ["plan", "side"].into_iter().find(|v| {
+        !pmi.contains(v)
+            && !(demand.section.is_some() && *v == "plan")
+            && !referred(v)
+            && axis.is_none_or(|k| end_on(k) != *v)
+            && !round(v)
+    })
 }
 
 /// What [`idle_view`] reads from the spec: whether it may leave a view out at all (no principal
@@ -2066,7 +2134,7 @@ pub(crate) fn authored_placement_clear(spec: &Spec, dims: &[PlannedDimension]) -
 /// A slot chain must have room for its arrows and its own text between its ends.
 /// New recess annotations reserve extra paper rather than reducing these existing chains.
 pub(crate) fn recess_chain_scale(analysis: &Analysis) -> f64 {
-    let (canonical, established, comparison, _, _) = crate::planning::policy_key(analysis);
+    let (canonical, established, comparison, ..) = crate::planning::policy_key(analysis);
     crate::planning::memo(
         analysis,
         "recess-readable-scale",
@@ -3982,10 +4050,18 @@ fn plan_inventory_ordered(
             ));
         }
         if !dropped.is_empty() {
-            why.push(format!(
-                "the {} view is left out as the turned part's repeated profile",
-                named(&dropped)
-            ));
+            why.push(if dropped.iter().all(|v| idle_dropped() == Some(*v)) {
+                format!(
+                    "the {} view is left out as adding only its outline (set views/{} to {{}} to keep it)",
+                    named(&dropped),
+                    dropped[0]
+                )
+            } else {
+                format!(
+                    "the {} view is left out as the turned part's repeated profile",
+                    named(&dropped)
+                )
+            });
         }
         if !along.is_empty() {
             why.push(format!(

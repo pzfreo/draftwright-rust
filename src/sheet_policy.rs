@@ -657,7 +657,53 @@ fn illegible_shortfall(analysis: &Analysis, spec: &Spec, baseline: &Plan, plan: 
     plan.status = crate::completeness::status(&plan.problems);
 }
 
+/// [`select_once`], with an idle view left out (#222) only when that keeps the drawing on
+/// paper no larger than the drawing with it shown takes at its first choice: otherwise, when
+/// keeping the view reaches smaller paper, the view is kept. The plan keeps the caller's spec,
+/// so planning it again reaches the same drawing.
 pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
+    crate::dims::idle_decided(analysis, spec, || {
+        let plan = select_once(analysis, spec)?;
+        let decision = crate::dims::idle_decision(analysis, spec);
+        let paper = |p: &Plan| {
+            (
+                layout::PAGES
+                    .iter()
+                    .position(|g| g.0 == p.sheet.size)
+                    .unwrap_or(usize::MAX),
+                1 + p.sheets.len(),
+            )
+        };
+        let (Some(v), Some(shown)) = (decision.dropped, decision.paper) else {
+            return Ok(plan);
+        };
+        let escalated = |p: &Plan| {
+            let (page, count) = paper(p);
+            page > shown.0 || count > shown.1
+        };
+        if !automatic(spec)
+            || plan.views.iter().any(|w| w.id == format!("v:{v}"))
+            || !escalated(&plan)
+        {
+            return Ok(plan);
+        }
+        let mut named = spec.clone();
+        named.views.insert(v.into(), Default::default());
+        match crate::dims::with_idle_view(None, || select_once(analysis, &named)) {
+            Ok(mut kept) if paper(&kept) < paper(&plan) => {
+                kept.spec = plan.spec.clone();
+                kept.sheet.basis += &format!(
+                    "; the {v} view, which no dimension needs, is kept: leaving it out took {} at {}",
+                    plan.sheet.size, plan.sheet.scale
+                );
+                Ok(kept)
+            }
+            _ => Ok(plan),
+        }
+    })
+}
+
+fn select_once(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     if automatic(spec) && crate::placement_intent::has_pins(spec) {
         return pinned(analysis, spec);
     }

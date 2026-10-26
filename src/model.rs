@@ -3984,20 +3984,23 @@ pub(crate) fn plan_automatic(analysis: &Analysis, spec: &Spec) -> Result<Plan, I
     ))
     // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
     .expect("planning inputs serialize");
-    crate::dims::spaced(spec, || {
-        // A finished plan reused from a retained session scope skips the policies its
-        // planning activated in this scope (the established route policy and its witness
-        // and interior statement sets), which the session clears on every invocation.
-        // Activate them again, exactly as the planning that produced it did, so later
-        // planning in this invocation does not depend on whether this plan was reused.
-        if spec.sheet.scale.is_none()
-            && crate::planning::lookup::<Result<Plan, Invalid>>(analysis, "finished-plan", &key)
-                .is_some()
-        {
-            activate_established(analysis, spec)?;
-        }
-        crate::planning::memo(analysis, "finished-plan", key, || {
-            plan_automatic_uncached(analysis, spec)
+    // Every plan made for this spec leaves out the same idle view (#222).
+    crate::dims::idle_decided(analysis, spec, || {
+        crate::dims::spaced(spec, || {
+            // A finished plan reused from a retained session scope skips the policies its
+            // planning activated in this scope (the established route policy and its witness
+            // and interior statement sets), which the session clears on every invocation.
+            // Activate them again, exactly as the planning that produced it did, so later
+            // planning in this invocation does not depend on whether this plan was reused.
+            if spec.sheet.scale.is_none()
+                && crate::planning::lookup::<Result<Plan, Invalid>>(analysis, "finished-plan", &key)
+                    .is_some()
+            {
+                activate_established(analysis, spec)?;
+            }
+            crate::planning::memo(analysis, "finished-plan", key, || {
+                plan_automatic_uncached(analysis, spec)
+            })
         })
     })
 }
@@ -4077,6 +4080,7 @@ fn plan_automatic_uncached(analysis: &Analysis, spec: &Spec) -> Result<Plan, Inv
                 &base,
                 crate::nominal::comparison(),
                 crate::planning::nominals_deferred(),
+                crate::dims::idle_given(),
             ))
             // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
             .expect("canonical label inputs serialize"),
@@ -4584,7 +4588,9 @@ fn plan_inner(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     }
     crate::planning::with(analysis, || {
         crate::dims::spaced(spec, || {
-            let mut plan = plan_with(analysis, spec, false, false, None, false, false)?;
+            let mut plan = crate::dims::idle_decided(analysis, spec, || {
+                plan_with(analysis, spec, false, false, None, false, false)
+            })?;
             finish_nominal_plan(analysis, spec, &mut plan);
             let natural =
                 natural_spec(spec).and_then(|full| crate::model::plan(analysis, &full).ok());
@@ -7496,6 +7502,7 @@ pub(crate) fn radius_edit_reference(
         crate::planning::is_fixed_pair(),
         crate::planning::nominals_deferred(),
         recovered,
+        crate::dims::idle_given(),
     ))
     .expect("radius reference inputs serialize");
     crate::planning::memo(analysis, "radius-edit-reference", key.clone(), || {

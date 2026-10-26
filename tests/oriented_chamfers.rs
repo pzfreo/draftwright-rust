@@ -460,11 +460,7 @@ fn bevel_run_midpoints_do_not_invent_locations_or_force_sheet_enlargement() {
                 .count(),
             count
         );
-        // 1007's plan view, which no dimension needs, is named so that it is kept: without it
-        // (#222) the paper policy enlarges the drawing for reasons of its own.
-        let spec: Spec =
-            serde_json::from_value(serde_json::json!({"views": {"plan": {}}})).unwrap();
-        let p = model::plan_recovered(&a, &spec).unwrap();
+        let p = model::plan_recovered(&a, &Spec::default()).unwrap();
         assert_eq!(p.dimensions.iter().filter(|d| d.label == label).count(), 1);
         assert!(
             !p.dimensions
