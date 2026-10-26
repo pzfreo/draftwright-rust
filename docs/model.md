@@ -1909,14 +1909,14 @@ its arc; `src/pmi_lowering.rs`'s `dimension_geometry`, draftwright's `_proved_pl
 `_cylindrical_references`). **The rule** (draftwright's): a requirement on a quantity a recognised
 feature's dimension already states annotates that dimension, which states it once: a bore whose
 cylinders are a hole callout's holes (axis lines, axis, diameter) gives the callout its band
-(`6× ⌀10 +0.09 -0.0 THRU`; symmetric limits as `±`, asymmetric ones as limits, a band wholly above
+(`6× ⌀10 +0.09 0 THRU`, a zero deviation unsigned; symmetric limits as `±`, asymmetric ones as limits, a band wholly above
 or below the nominal with its signs), and a callout whose holes carry different requirements is
 split by requirement (a bolt circle is not: reported); an external cylinder gives its band to the
 turned step, boss or turned part whose diameter it is; a plain diameter or step length is stated
 by its owner. Otherwise it **stands beside** them, an ordinary planned dimension `d:pmi:<identity>/
 <kind>[.basic]` (a length along x, y or z in draftwright's view; a diameter or radius by a
 leader where it is seen end-on), its label the record's, a basic one boxed (its label box widened
-to take the frame). Every item that states a PMI dimension claims it (a measurement of feature
+to take the frame; a label authored in inches is printed in mm, its exact conversion at its authored precision, #214). Every item that states a PMI dimension claims it (a measurement of feature
 `pmi:<identity>`, its record's item ID); a spec's own tolerance or fit on that size (a hole's or a boss's) wins
 (`pmi_not_lowered`; when the spec's is withheld, the label states neither and the report says
 so), and an omitted item's PMI is `pmi_not_drawn`. Not drawn, with the reason: reading blockers, faces in

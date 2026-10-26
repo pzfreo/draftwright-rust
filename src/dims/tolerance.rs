@@ -693,15 +693,23 @@ pub(super) fn authored(spec: &Spec, w: &Want) -> Option<(&'static str, bool)> {
 /// imported requirement on a recognised feature's size (`_fmt_tolerance`): `±T` when they are
 /// opposite, else `+U -L`, each with its authored digits and at least the drawn precision. A band
 /// wholly above or below the nominal keeps its signs (`-0.014 -0.039`, ISO 129-1), which
-/// draftwright's unsigned deviations cannot state.
+/// draftwright's unsigned deviations cannot state. A zero deviation is `0`, unsigned
+/// (`+0.0762 0`, ISO 129-1; #214), where draftwright prints `-0.0`.
 pub(super) fn band(upper: f64, lower: f64) -> String {
     let m = |v: f64| printed(&format!("{}", v.abs()));
+    let signed = |v: f64, sign: char| {
+        if v == 0.0 {
+            "0".to_string()
+        } else {
+            format!("{sign}{}", m(v))
+        }
+    };
     if upper > 0.0 && upper == -lower {
         format!("±{}", m(upper))
     } else {
         let up = if upper < 0.0 { '-' } else { '+' };
         let down = if lower > 0.0 { '+' } else { '-' };
-        format!("{up}{} {down}{}", m(upper), m(lower))
+        format!("{} {}", signed(upper, up), signed(lower, down))
     }
 }
 
@@ -774,8 +782,8 @@ mod tests {
     #[test]
     fn imported_bands_print_as_draftwright_prints_them() {
         assert_eq!(band(0.2, -0.2), "±0.2");
-        assert_eq!(band(0.09, 0.0), "+0.09 -0.0");
-        assert_eq!(band(0.0, -0.2), "+0.0 -0.2");
+        assert_eq!(band(0.09, 0.0), "+0.09 0");
+        assert_eq!(band(0.0, -0.2), "0 -0.2");
         assert_eq!(band(0.0762, -0.0254), "+0.0762 -0.0254");
         assert_eq!(band(1.0, -1.0), "±1.0");
         assert_eq!(band(-0.014, -0.039), "-0.014 -0.039");

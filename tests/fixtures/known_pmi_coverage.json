@@ -9900,6 +9900,24 @@
   "evidence": "As known_pmi_lowering.json's 'lowered' difference for geometric_tolerance:0:1:4:46 (port geometric_tolerance:#9439): draftwright draws the frame without the datum modifiers or common-datum grouping it does not read, changing the datum reference frame; the port reports it (pmi_not_lowered: datum compartment modifiers are not carried.). port: \"PMI geometric_tolerance:#9439 (position 0.635) is not drawn: datum compartment modifiers are not carried.\""
  },
  {
+  "code": "pmi_not_lowered",
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "python": null,
+  "rust": "error",
+  "source": "dimension:#10483",
+  "verdict": "rust-correct",
+  "evidence": "The port refuses this value-less common label (pmi_not_lowered, a warning): `R` without a value is ASME Y14.5's full radius, set by the dimensions of the faces it joins, which an ISO 129-1 sheet does not print; the drawn faces and their dimensions state it (#214)."
+ },
+ {
+  "code": "pmi_not_lowered",
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "python": null,
+  "rust": "error",
+  "source": "dimension:#10504",
+  "verdict": "rust-correct",
+  "evidence": "The port refuses this value-less common label (pmi_not_lowered, a warning): `R` without a value is ASME Y14.5's full radius, set by the dimensions of the faces it joins, which an ISO 129-1 sheet does not print; the drawn faces and their dimensions state it (#214)."
+ },
+ {
   "code": "pmi_not_extracted",
   "file": "nist_stc_10_asme1_ap242-e2.stp",
   "python": null,

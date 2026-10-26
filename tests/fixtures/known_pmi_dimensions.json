@@ -11,11 +11,11 @@
    "outcome": "refused"
   },
   "rust": {
-   "detail": "⌀6 +0.0 -0.008",
+   "detail": "⌀6 0 -0.008",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright does not draw it (pmi_not_rendered: AP242 source dimension:0:1:4:1 reached typed drafting IR but produced no annotation). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '⌀6 +0.0 -0.008'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here."
+  "evidence": "draftwright does not draw it (pmi_not_rendered: AP242 source dimension:0:1:4:1 reached typed drafting IR but produced no annotation). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '⌀6 0 -0.008'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
  },
  {
   "file": "bracket_positions.step",
@@ -276,11 +276,11 @@
    "outcome": "dropped"
   },
   "rust": {
-   "detail": "0.30 ±0.02 INCH",
+   "detail": "7.62 ±0.508",
    "outcome": "standalone"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright found no room and dropped this source requirement (plan_incomplete: the automatically planned sheet drops 23 required annotation outcome(s) (hole_pattern_dim_dropped, location_ref_dropped, plate_thickness_dropped, pmi_dropped); pmi_dropped: PMI '0.30 ±0.02 INCH' not placed (no room beside the side)); the port places it with the other planned dimensions, any collision reported against its ID."
+  "evidence": "draftwright found no room and dropped this source requirement (plan_incomplete: the automatically planned sheet drops 23 required annotation outcome(s) (hole_pattern_dim_dropped, location_ref_dropped, plate_thickness_dropped, pmi_dropped); pmi_dropped: PMI '0.30 ±0.02 INCH' not placed (no room beside the side)); the port places it with the other planned dimensions, any collision reported against its ID. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
  },
  {
   "file": "nist_ftc_10_asme1_ap242-e2.stp",
@@ -459,11 +459,11 @@
    "outcome": "dropped"
   },
   "rust": {
-   "detail": "12.00 ±0.01 INCH",
+   "detail": "304.8 ±0.254",
    "outcome": "standalone"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright found no room and dropped this source requirement (plan_incomplete: the automatically planned sheet drops 19 required annotation outcome(s) (hole_pattern_dim_dropped, location_ref_dropped, off_axis_location_dropped, plate_thickness_dropped, pmi_dropped); pmi_dropped: PMI '12.00 ±0.01 INCH' not placed (no room beside the side)); the port places it with the other planned dimensions, any collision reported against its ID."
+  "evidence": "draftwright found no room and dropped this source requirement (plan_incomplete: the automatically planned sheet drops 19 required annotation outcome(s) (hole_pattern_dim_dropped, location_ref_dropped, off_axis_location_dropped, plate_thickness_dropped, pmi_dropped); pmi_dropped: PMI '12.00 ±0.01 INCH' not placed (no room beside the side)); the port places it with the other planned dimensions, any collision reported against its ID. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
  },
  {
   "file": "nist_stc_06_asme1_ap242-e3.stp",
@@ -494,11 +494,11 @@
    "outcome": "dropped"
   },
   "rust": {
-   "detail": "0.375 ±0.008 INCH",
+   "detail": "9.525 ±0.2032",
    "outcome": "standalone"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright found no room and dropped this source requirement (plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped); pmi_dropped: PMI '0.375 ±0.008 INCH' not placed (no room beside the front)); the port places it with the other planned dimensions, any collision reported against its ID."
+  "evidence": "draftwright found no room and dropped this source requirement (plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped); pmi_dropped: PMI '0.375 ±0.008 INCH' not placed (no room beside the front)); the port places it with the other planned dimensions, any collision reported against its ID. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
@@ -578,11 +578,11 @@
    "outcome": "dropped"
   },
   "rust": {
-   "detail": "0.25 ±0.01 INCH",
+   "detail": "6.35 ±0.254",
    "outcome": "standalone"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright found no room and dropped this source requirement (plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped); pmi_dropped: PMI '0.25 ±0.01 INCH' not placed (no room beside the front)); the port places it with the other planned dimensions, any collision reported against its ID."
+  "evidence": "draftwright found no room and dropped this source requirement (plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped); pmi_dropped: PMI '0.25 ±0.01 INCH' not placed (no room beside the front)); the port places it with the other planned dimensions, any collision reported against its ID. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
@@ -642,11 +642,11 @@
    "outcome": "dropped"
   },
   "rust": {
-   "detail": "3× ⌀6.35 +0.0762 -0.0 THRU",
+   "detail": "3× ⌀6.35 +0.0762 0 THRU",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright found no room and dropped this source requirement (callout_dropped: hole callout ø6.3 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)); the port places it with the other planned dimensions, any collision reported against its ID. haecceity now models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17), so the reading no longer refuses it; its faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record: draftwright's XCAF support names one member, NIST's expected PMI states the pattern count). Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
+  "evidence": "draftwright found no room and dropped this source requirement (callout_dropped: hole callout ø6.3 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)); the port places it with the other planned dimensions, any collision reported against its ID. haecceity now models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17), so the reading no longer refuses it; its faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record: draftwright's XCAF support names one member, NIST's expected PMI states the pattern count). Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18). The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
@@ -654,9 +654,9 @@
   "port": "dimension:#9889",
   "field": "label",
   "python": "⌀6.3 +0.0762 -0.0 THRU",
-  "rust": "3× ⌀6.35 +0.0762 -0.0 THRU",
+  "rust": "3× ⌀6.35 +0.0762 0 THRU",
   "verdict": "rust-correct",
-  "evidence": "Both give the AP242 tolerance to the hole callout; haecceity now models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17), so the reading no longer refuses it; its faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record: draftwright's XCAF support names one member, NIST's expected PMI states the pattern count), and the port's callout counts the holes the requirement applies to, draftwright's names one. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
+  "evidence": "Both give the AP242 tolerance to the hole callout; haecceity now models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17), so the reading no longer refuses it; its faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record: draftwright's XCAF support names one member, NIST's expected PMI states the pattern count), and the port's callout counts the holes the requirement applies to, draftwright's names one. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18). The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
@@ -994,11 +994,11 @@
    "outcome": "standalone"
   },
   "rust": {
-   "detail": "0.30 ±0.02 INCH",
+   "detail": "7.62 ±0.508",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "One span, one dimension for PMI (share_pmi, ARCH0009-6; the maintainer's request of 2026-10-11 to stop repeated dimensions): this record states the same span (same view, same axis, ends within 1e-6 mm) with the same label as another of the part's PMI dimensions, a basic location stated once per hole of a row or column, so the port draws that span once and the survivor claims this record; draftwright draws every record standalone, repeating the dimension."
+  "evidence": "One span, one dimension for PMI (share_pmi, ARCH0009-6; the maintainer's request of 2026-10-11 to stop repeated dimensions): this record states the same span (same view, same axis, ends within 1e-6 mm) with the same label as another of the part's PMI dimensions, a basic location stated once per hole of a row or column, so the port draws that span once and the survivor claims this record; draftwright draws every record standalone, repeating the dimension. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
  },
  {
   "field": "label",
@@ -1006,9 +1006,9 @@
   "port": "dimension:#1330",
   "python": "6× ⌀6.6 +0.09 -0.0 THRU (2×3)",
   "record": "dimension:0:1:4:3",
-  "rust": "6× ⌀6.6 +0.09 -0.0 THRU\n(2×3)",
+  "rust": "6× ⌀6.6 +0.09 0 THRU (2×3)",
   "verdict": "equivalent",
-  "evidence": "Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
+  "evidence": "Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
  },
  {
   "field": "label",
@@ -1016,9 +1016,9 @@
   "port": "dimension:#15130",
   "python": "4× ⌀6.3 +0.0762 -0.0 ↧ 7.6",
   "record": "dimension:0:1:4:85",
-  "rust": "4× ⌀6.35 +0.0762 -0.0 ↧\n7.62 (2×2)",
+  "rust": "4× ⌀6.35 +0.0762 0 ↧ 7.62\n(2×2)",
   "verdict": "equivalent",
-  "evidence": "Both give the AP242 tolerance to the same four-hole callout; the port recognises the holes as a 2×2 grid and names the arrangement '(2×2)', draftwright calls them out as a plain count group. The tolerance text agrees. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
+  "evidence": "Both give the AP242 tolerance to the same four-hole callout; the port recognises the holes as a 2×2 grid and names the arrangement '(2×2)', draftwright calls them out as a plain count group. The tolerance text agrees. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18). The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
  },
  {
   "field": "label",
@@ -1026,9 +1026,9 @@
   "port": "dimension:#15238",
   "python": "4× ⌀6.3 +0.0762 -0.0 ↧ 7.6",
   "record": "dimension:0:1:4:87",
-  "rust": "4× ⌀6.35 +0.0762 -0.0 ↧\n7.62 (2×2)",
+  "rust": "4× ⌀6.35 +0.0762 0 ↧ 7.62\n(2×2)",
   "verdict": "equivalent",
-  "evidence": "Both give the AP242 tolerance to the same four-hole callout; the port recognises the holes as a 2×2 grid and names the arrangement '(2×2)', draftwright calls them out as a plain count group. The tolerance text agrees. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
+  "evidence": "Both give the AP242 tolerance to the same four-hole callout; the port recognises the holes as a 2×2 grid and names the arrangement '(2×2)', draftwright calls them out as a plain count group. The tolerance text agrees. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18). The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
  },
  {
   "field": "label",
@@ -1036,9 +1036,9 @@
   "port": "dimension:#15344",
   "python": "4× ⌀6.3 +0.0762 -0.0 ↧ 7.6",
   "record": "dimension:0:1:4:89",
-  "rust": "4× ⌀6.35 +0.0762 -0.0 ↧\n7.62 (2×2)",
+  "rust": "4× ⌀6.35 +0.0762 0 ↧ 7.62\n(2×2)",
   "verdict": "equivalent",
-  "evidence": "Both give the AP242 tolerance to the same four-hole callout; the port recognises the holes as a 2×2 grid and names the arrangement '(2×2)', draftwright calls them out as a plain count group. The tolerance text agrees. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
+  "evidence": "Both give the AP242 tolerance to the same four-hole callout; the port recognises the holes as a 2×2 grid and names the arrangement '(2×2)', draftwright calls them out as a plain count group. The tolerance text agrees. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18). The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
  },
  {
   "field": "label",
@@ -1228,6 +1228,26 @@
   "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.281 ±0.008 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀7.1 ±0.2032 THRU ⌴ ⌀10.2 ↧ 7.9'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
  },
  {
+  "field": "label",
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "port": "dimension:#9501",
+  "python": "0.500 ±0.008 INCH",
+  "record": "dimension:0:1:4:13",
+  "rust": "12.7 ±0.2032",
+  "verdict": "rust-correct",
+  "evidence": "draftwright states '0.500 ±0.008 INCH'; the port states '12.7 ±0.2032'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+ },
+ {
+  "field": "label",
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "port": "dimension:#9588",
+  "python": "0.500 ±0.008 INCH",
+  "record": "dimension:0:1:4:14",
+  "rust": "12.7 ±0.2032",
+  "verdict": "rust-correct",
+  "evidence": "draftwright states '0.500 ±0.008 INCH'; the port states '12.7 ±0.2032'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+ },
+ {
   "field": "outcome",
   "file": "nist_stc_10_asme1_ap242-e2.stp",
   "port": "dimension:#295",
@@ -1287,11 +1307,11 @@
   },
   "record": "dimension:0:1:4:1",
   "rust": {
-   "detail": "⌀62 +0.03 -0.0 THRU ⌴SF\n⌀70 ↧ 10",
+   "detail": "⌀62 +0.03 0 THRU ⌴SF ⌀70\n↧ 10",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright found no owner and drew it standalone ('⌀62 +0.03/0') beside the callout that already states that hole's size. The port's cylinders match the callout's holes (axis lines, axis, diameter), so by draftwright's rule the callout takes the band and states the size once: '⌀62 +0.03 -0.0 THRU ⌴SF ⌀70 ↧ 10'. Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
+  "evidence": "draftwright found no owner and drew it standalone ('⌀62 +0.03/0') beside the callout that already states that hole's size. The port's cylinders match the callout's holes (axis lines, axis, diameter), so by draftwright's rule the callout takes the band and states the size once: '⌀62 +0.03 0 THRU ⌴SF ⌀70 ↧ 10'. Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
  },
  {
   "field": "label",
@@ -1299,9 +1319,9 @@
   "port": "dimension:#6360",
   "python": "6× ⌀10 +0.09 -0.0 THRU EQ SP ON ⌀90 BC",
   "record": "dimension:0:1:4:2",
-  "rust": "6× ⌀10 +0.09 -0.0 THRU EQ\nSP ON ⌀90 BC",
+  "rust": "6× ⌀10 +0.09 0 THRU EQ SP\nON ⌀90 BC",
   "verdict": "equivalent",
-  "evidence": "Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
+  "evidence": "Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
  },
  {
   "field": "label",
@@ -1358,5 +1378,65 @@
   "rust": "⌀19.05 ±0.2032 THRU",
   "verdict": "rust-correct",
   "evidence": "Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
+ },
+ {
+  "field": "label",
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "port": "dimension:#10167",
+  "python": "0.140 ±0.008 INCH",
+  "record": "dimension:0:1:4:103",
+  "rust": "3.556 ±0.2032",
+  "verdict": "rust-correct",
+  "evidence": "draftwright states '0.140 ±0.008 INCH'; the port states '3.556 ±0.2032'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+ },
+ {
+  "field": "label",
+  "file": "string_post_tapped.step",
+  "port": "dimension:#3103",
+  "python": "⌀1.7 +0.06 -0.0 ↧ 5.4",
+  "record": "dimension:0:1:4:2",
+  "rust": "⌀1.7 +0.06 0 ↧ 5.4",
+  "verdict": "rust-correct",
+  "evidence": "draftwright states '⌀1.7 +0.06 -0.0 ↧ 5.4'; the port states '⌀1.7 +0.06 0 ↧ 5.4'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+ },
+ {
+  "field": "label",
+  "file": "nist_ctc_01_asme1_ap242-e1.stp",
+  "port": "dimension:#120",
+  "python": "⌀35 +0.0 -0.2 THRU",
+  "record": "dimension:0:1:4:21",
+  "rust": "⌀35 0 -0.2 THRU",
+  "verdict": "rust-correct",
+  "evidence": "draftwright states '⌀35 +0.0 -0.2 THRU'; the port states '⌀35 0 -0.2 THRU'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+ },
+ {
+  "field": "label",
+  "file": "nist_ctc_01_asme1_ap242-e1.stp",
+  "port": "dimension:#121",
+  "python": "⌀35 +0.2 -0.0 THRU",
+  "record": "dimension:0:1:4:22",
+  "rust": "⌀35 +0.2 0 THRU",
+  "verdict": "rust-correct",
+  "evidence": "draftwright states '⌀35 +0.2 -0.0 THRU'; the port states '⌀35 +0.2 0 THRU'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+ },
+ {
+  "field": "label",
+  "file": "nist_ctc_01_merge.step",
+  "port": "dimension:#120",
+  "python": "⌀35 +0.0 -0.2 THRU",
+  "record": "dimension:0:1:4:21",
+  "rust": "⌀35 0 -0.2 THRU",
+  "verdict": "rust-correct",
+  "evidence": "draftwright states '⌀35 +0.0 -0.2 THRU'; the port states '⌀35 0 -0.2 THRU'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+ },
+ {
+  "field": "label",
+  "file": "nist_ctc_01_merge.step",
+  "port": "dimension:#121",
+  "python": "⌀35 +0.2 -0.0 THRU",
+  "record": "dimension:0:1:4:22",
+  "rust": "⌀35 +0.2 0 THRU",
+  "verdict": "rust-correct",
+  "evidence": "draftwright states '⌀35 +0.2 -0.0 THRU'; the port states '⌀35 +0.2 0 THRU'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
  }
 ]

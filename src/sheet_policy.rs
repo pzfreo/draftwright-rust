@@ -2207,7 +2207,8 @@ mod tests {
         let p = model::plan_recovered(&a, &Spec::default()).unwrap();
         assert!(sheet_fit::inside_frames(&a, &p), "{}", p.sheet.basis);
         assert!(p.sheet.scale_factor >= 0.2, "{}", p.sheet.basis);
-        assert_eq!(p.gdt.len(), 28);
+        // The value-less `2X R` and `4X R` common labels are refused (#214).
+        assert_eq!(p.gdt.len(), 26);
         let slot = p
             .dimensions
             .iter()

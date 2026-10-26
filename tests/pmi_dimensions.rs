@@ -593,7 +593,7 @@ fn a_toleranced_bore_annotates_its_callout_and_a_spec_tolerance_wins() {
         .iter()
         .find(|d| d.id == "d:f:hole_pattern:1/bore.diameter")
         .unwrap();
-    assert_eq!(callout.label, "6× ⌀10 +0.09 -0.0 THRU EQ\nSP ON ø90 BC");
+    assert_eq!(callout.label, "6× ⌀10 +0.09 0 THRU EQ SP\nON ø90 BC");
     assert!(callout.basis.contains("lower_ap242_hole_tolerances"));
     let feature = callout
         .measurements
@@ -706,11 +706,7 @@ fn holes_of_different_requirements_are_called_out_apart() {
         .filter(|d| d.id.ends_with("/bore.diameter") && d.view == "v:plan")
         .map(|d| d.label.as_str())
         .collect();
-    for want in [
-        "⌀35 +0.0 -0.2 THRU",
-        "⌀35 +0.2 -0.0 THRU",
-        "2× ⌀35 ±0.2 THRU",
-    ] {
+    for want in ["⌀35 0 -0.2 THRU", "⌀35 +0.2 0 THRU", "2× ⌀35 ±0.2 THRU"] {
         assert!(plan_labels.contains(&want), "{want}: {plan_labels:?}");
     }
     assert!(
@@ -1089,7 +1085,7 @@ fn an_external_diameter_annotates_the_turned_size_with_its_signs() {
         .iter()
         .find(|d| d.id == "d:f:turned_step:3/step.diameter")
         .unwrap();
-    assert_eq!(d.label, "ø6 +0.0 -0.008");
+    assert_eq!(d.label, "ø6 0 -0.008");
     assert!(d.basis.contains("lower_ap242_external_diameter_tolerances"));
     assert!(!plan.dimensions.iter().any(|d| d.id.starts_with("d:pmi:")));
 }
@@ -1264,7 +1260,7 @@ fn an_inch_pmi_span_covers_the_default_extent_despite_geometric_roundoff() {
         })
         .unwrap();
     assert!(d.id.starts_with("d:pmi:"), "{d:?}");
-    assert_eq!(d.label, "12.00 ±0.01 INCH");
+    assert_eq!(d.label, "304.8 ±0.254");
     let mut spec = Spec::default();
     spec.dimensions.insert(
         "d:envelope/depth.length".into(),
@@ -1281,7 +1277,7 @@ fn an_inch_pmi_span_covers_the_default_extent_despite_geometric_roundoff() {
         separate
             .dimensions
             .iter()
-            .any(|d| d.label == "12.00 ±0.01 INCH")
+            .any(|d| d.label == "304.8 ±0.254")
     );
 }
 

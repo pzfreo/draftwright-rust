@@ -139,11 +139,12 @@ fn stc_09_datum_symbols_are_inside_their_bands_and_frames_past_them_had_no_clear
             g.basis
         );
     }
-    // 12 frames and 4 datum symbols stood past their areas before the reservation; 2 frames,
-    // each moved to a strip across or beside its view, remain.
+    // 12 frames and 4 datum symbols stood past their areas before the reservation; 1 frame,
+    // moved to a strip across or beside its view, remains (2 while the value-less `2X R` and
+    // `4X R` labels were drawn, #214).
     assert_eq!(
         outside.len(),
-        2,
+        1,
         "{:?}",
         outside.iter().map(|g| &g.id).collect::<Vec<_>>()
     );
@@ -213,7 +214,8 @@ fn stc09_without_a_complete_fit_keeps_its_first_drawing_and_reports_the_floor() 
         ("A1", "1:5")
     );
     let p = cache::default_plan(&a, true);
-    assert_eq!(p.gdt.len(), 28, "complete frame/datum inventory");
+    // The value-less `2X R` and `4X R` common labels are refused (#214).
+    assert_eq!(p.gdt.len(), 26, "complete frame/datum inventory");
     let notices: Vec<_> = p
         .problems
         .iter()

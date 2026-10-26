@@ -6,6 +6,17 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### Fixed
+
+- **PMI from inch-authored files prints as millimetres an mm sheet can state (#214).** A length
+  is converted from its stated digits less the writer's float noise (at most six decimals in its
+  own unit, the product to three more), so NIST STC-08's frames print `1.524` and `0.381`, not
+  `1.524000000006`; a linear PMI dimension authored in inches prints its exact conversion
+  (`6.35 ±0.254`, not `0.25 ±0.01 INCH`, STC-09); a zero deviation is `0`, unsigned
+  (`⌀6.35 +0.0762 0`, ISO 129-1, STC-07 and STC-09); and a common label that states a radius
+  without its value (`2X R`, `4X R`: ASME's full radius) is not drawn but reported as
+  `pmi_not_lowered` (a warning).
+
 ## 0.1.0 (2026-10-25)
 
 The first release without an alpha tag. It is still on quiddity-rust **v0.2.0-alpha.2**, as in

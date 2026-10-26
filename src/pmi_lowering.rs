@@ -384,7 +384,13 @@ fn labelled(
         Err(reasons) => problems.push(Problem {
             id: format!("p:pmi_not_lowered:{}", r.source_id),
             code: "pmi_not_lowered".into(),
-            severity: "error".into(),
+            // A value-less radius loses nothing the drawn faces and their dimensions do not state.
+            severity: if reasons.iter().all(|why| why == VALUELESS_RADIUS) {
+                "warning"
+            } else {
+                "error"
+            }
+            .into(),
             message: format!(
                 "PMI {} {} ({}) is not drawn: {}.",
                 r.kind.replace('_', " "),
@@ -401,12 +407,19 @@ fn labelled(
     }
 }
 
+/// Why a common label that states a radius without its value (`4X R`) is not drawn (#214).
+const VALUELESS_RADIUS: &str = "it states a radius without its value (ASME Y14.5's full radius, set by the dimensions of the faces it joins), which ISO 129-1 does not; the drawn faces and their dimensions state it";
+
 /// A surface or common label as a leadered text label (`build_pmi_features`' label branch), or
-/// why it is not one: its reading's or attachment's blockers, no text, or no proven site.
+/// why it is not one: its reading's or attachment's blockers, no text, no proven site, or a
+/// radius without its value.
 fn label(r: &Record, centre: [f64; 3]) -> Result<Lowered, Vec<String>> {
     let mut reasons = blockers(r);
     if r.label.trim().is_empty() {
         reasons.push("the label has no text".into());
+    }
+    if r.kind == "common_label" && r.label.split_whitespace().any(|t| t == "R") {
+        reasons.push(VALUELESS_RADIUS.into());
     }
     let g = r.geometry.as_ref();
     let site = g.and_then(|g| g.sites.first().copied());
