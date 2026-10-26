@@ -1,5 +1,5 @@
 {
-  "base": "dba39f16af6cbfd54c41decc4627816e95b38e17",
+  "base": "bf8f6ce06a0984ca92c62a805294d10805d8d12b",
   "format": "draftwright.leader-crossings/1",
   "parts": {
     "1000": {
@@ -212,9 +212,9 @@
     },
     "nist_ftc_07_asme1_ap242-e2": {
       "dimension_dimension": 0,
-      "leader_arrow": 10,
-      "leader_dimension_line": 19,
-      "leader_extension_line": 13,
+      "leader_arrow": 8,
+      "leader_dimension_line": 15,
+      "leader_extension_line": 14,
       "leader_leader": 10,
       "leader_text": 0
     },
