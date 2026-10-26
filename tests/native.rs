@@ -2340,6 +2340,112 @@ fn modelled_threads_and_refusals_survive_recognition_and_analysis_json() {
     assert!(native::left_in_frame(&bad.records[index]));
 }
 
+/// A thread refusal's faces are no hole (#218): the hole on them, and its pattern, are left out,
+/// the others stay, and the refusal is reported against those faces.
+#[test]
+fn no_hole_is_built_on_faces_a_thread_refusal_names() {
+    let (part, mut doc) = document("plate");
+    let mut refusal = doc.records[0].clone();
+    refusal.id = "modelled_thread_refusals/0".into();
+    refusal.family = "modelled_thread_refusals".into();
+    refusal.record_type = "ModelledThreadRefusal".into();
+    refusal.faces = vec![6];
+    refusal.parameters = serde_json::json!({
+        "axis": {"point": [0, 0, 0], "direction": [0, 0, 1]},
+        "faces": [6], "reason": "inconsistent_diameters"
+    })
+    .as_object()
+    .unwrap()
+    .clone();
+    doc.records.push(refusal);
+    let n = native::read(&part, &doc).unwrap();
+    let faces: Vec<_> = n.holes.iter().map(|f| f.faces.clone()).collect();
+    assert_eq!(faces, [vec![7], vec![8], vec![9]]);
+    assert!(n.patterns.is_empty());
+
+    let mut analysis = model::analyse(&fixture("parts/plate.step")).unwrap().1;
+    model::recognise_document(&part, &mut analysis, &doc).unwrap();
+    assert!(
+        analysis
+            .features
+            .iter()
+            .all(|f| !f.faces.contains(&6) || f.kind != "hole")
+    );
+    let plan = model::plan_recovered(&analysis, &model::Spec::default()).unwrap();
+    let refused: Vec<_> = plan
+        .problems
+        .iter()
+        .filter(|p| p.code == "modelled_thread_refused")
+        .collect();
+    assert_eq!(refused.len(), 1);
+    assert_eq!(refused[0].severity, "warning");
+    assert!(
+        refused[0]
+            .refs
+            .contains(&"recognition:refusal:0".to_string())
+    );
+    assert!(refused[0].message.contains("inconsistent diameters"));
+
+    // Declaring the feature on those faces, as the warning asks, settles it.
+    let face = draftwright::recognition_corrections::face_fingerprint(&analysis, 6).unwrap();
+    let spec: model::Spec = serde_json::from_value(serde_json::json!({
+        "schema": model::Spec::default().schema,
+        "feature_declarations": [{"id": "f:declared:thread", "kind": "hole", "faces": [face]}],
+    }))
+    .unwrap();
+    let plan = model::plan_recovered(&analysis, &spec).unwrap();
+    assert!(
+        plan.problems
+            .iter()
+            .all(|p| p.code != "modelled_thread_refused")
+    );
+}
+
+/// A hole at the major diameter of the metric size a part is named for is reported as a possible
+/// thread, and its callout stays measured; an authored thread resolves it (#218).
+#[test]
+fn a_smooth_hole_at_a_named_metric_size_is_a_possible_thread() {
+    let (part, doc) = document("plate");
+    let mut analysis = model::analyse(&fixture("parts/plate.step")).unwrap().1;
+    model::recognise_document(&part, &mut analysis, &doc).unwrap();
+    let possible = |spec: serde_json::Value| -> Vec<String> {
+        let spec: model::Spec = serde_json::from_value(spec).unwrap();
+        let plan = model::plan_recovered(&analysis, &spec).unwrap();
+        plan.problems
+            .iter()
+            .filter(|p| p.code == "possible_thread")
+            .flat_map(|p| p.subjects.clone())
+            .collect()
+    };
+    let schema = model::Spec::default().schema;
+    let titled =
+        |title: &str| serde_json::json!({"schema": schema, "sheet": {"title": {"title": title}}});
+    assert_eq!(
+        possible(titled("M6x20 mounting plate")),
+        ["f:hole:1", "f:hole:2", "f:hole:3", "f:hole:4"]
+    );
+    // No named size, another size, or a word that only starts with M.
+    for title in ["Mounting plate", "M5 plate", "Model 6 plate", "6 mm plate"] {
+        assert!(possible(titled(title)).is_empty(), "{title}");
+    }
+    // Info only: a plain bore at that size is as likely, and the pattern owns the thread.
+    let plan = model::plan_recovered(
+        &analysis,
+        &serde_json::from_value(titled("M6 plate")).unwrap(),
+    )
+    .unwrap();
+    let p = plan
+        .problems
+        .iter()
+        .find(|p| p.code == "possible_thread")
+        .unwrap();
+    assert_eq!(p.severity, "info");
+    assert!(p.message.contains("features/f:hole_pattern:1/thread"));
+    let mut spec = titled("M6 plate");
+    spec["features"] = serde_json::json!({"f:hole:1": {"thread": {"designation": "M6"}}});
+    assert_eq!(possible(spec), ["f:hole:2", "f:hole:3", "f:hole:4"]);
+}
+
 /// recognition/6 (quiddity #92) gives a record whose frame is not the file's an `origin` and its
 /// coordinates as distances from it along named measuring axes. A plate or turned step so
 /// given, along file axes, reads exactly as the same record in absolute file coordinates.

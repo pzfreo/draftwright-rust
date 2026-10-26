@@ -158,6 +158,7 @@ catalogue! {
     "manufacturing_table_fallback" => Advisory, Code, "The callouts state the manufacturing requirements in full because their table has no place.";
     "missing_principal_dimension" => Incomplete, Code, "A principal overall size is absent from the drawing.";
     "modelled_thread_not_depicted" => Incomplete, Feature, "The thread depiction or requirement could not be drawn.";
+    "modelled_thread_refused" => Incomplete, Code, "A refused thread recognition leaves the thread size and designation unstated.";
     "nominal_rounded" => Advisory, Code, "The printed nominal uses the documented display precision.";
     "notch_requirement_missing" => Incomplete, Requirement, "The drawing does not state this required feature parameter.";
     "notch_requirement_unverifiable" => Incomplete, Requirement, "The drawing does not prove this required feature parameter.";
@@ -210,6 +211,7 @@ catalogue! {
     "polygonal_boss_requirement_unverifiable" => Incomplete, Requirement, "The drawing does not prove this required feature parameter.";
     "polygonal_stock_requirement_missing" => Incomplete, Requirement, "The drawing does not state this required feature parameter.";
     "polygonal_stock_requirement_unverifiable" => Incomplete, Requirement, "The drawing does not prove this required feature parameter.";
+    "possible_thread" => Incomplete, Feature, "A smooth cylinder at a named metric size may be an unstated thread.";
     "prismatic_pocket_requirement_unsupported" => Incomplete, Requirement, "No supported drawing grammar states this feature requirement.";
     "profiled_bore_not_dimensioned" => Incomplete, Code, "The profiled bore requirements have no complete drawn dimension.";
     "projection_relation_infeasible" => Decision, Code, "The authored projected-view relationship cannot be satisfied.";

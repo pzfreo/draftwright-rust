@@ -71,6 +71,56 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     }
     (out, problems)
 }
+/// A thread recognition refused is no hole, boss or thread on the sheet (#218): the reader
+/// leaves out holes on its faces, so the gap is reported here, against those faces, until a
+/// declared feature or a thread (PMI or authored) covers them.
+pub(crate) fn refused(a: &Analysis, s: &Spec) -> Vec<Problem> {
+    let Some(r) = &a.recognition else {
+        return Vec::new();
+    };
+    r.refusals
+        .iter()
+        .enumerate()
+        .filter(|(_, r)| r.subtype == "ModelledThreadRefusal")
+        .filter(|(_, r)| {
+            !a.features.iter().any(|f| {
+                f.id.starts_with("f:declared:") && f.faces.iter().any(|i| r.faces.contains(i))
+            }) && !threaded(a, s, &r.faces)
+        })
+        .map(|(i, r)| {
+            let reason = r
+                .parameters
+                .get("reason")
+                .and_then(Value::as_str)
+                .unwrap_or("unstated")
+                .replace('_', " ");
+            Problem {
+                id: format!("p:modelled_thread_refused:recognition:refusal:{i}"),
+                code: "modelled_thread_refused".into(),
+                severity: "warning".into(),
+                message: format!(
+                    "Recognition refused a modelled thread on {} faces ({reason}), so its size and designation are not stated and its modelled edges remain drawn. Declare the feature in the Spec's feature_declarations and state its thread (features/<id>/thread).",
+                    r.faces.len()
+                ),
+                refs: vec![
+                    format!("recognition:refusal:{i}"),
+                    format!("faces {:?}", r.faces),
+                ],
+                ..Default::default()
+            }
+        })
+        .collect()
+}
+/// Whether a PMI or Spec-authored thread (merged into the PMI) sits on any of `faces`.
+fn threaded(a: &Analysis, s: &Spec, faces: &[usize]) -> bool {
+    match &a.pmi {
+        Some(crate::pmi::Reading::Read(r)) if s.pmi != crate::model::PmiMode::Ignore => r
+            .records
+            .iter()
+            .any(|r| r.kind.ends_with("thread") && r.faces.iter().any(|i| faces.contains(i))),
+        _ => false,
+    }
+}
 fn not_depicted(f: &crate::bridge::Feature, why: &str) -> Problem {
     Problem {
         id: format!("p:modelled_thread_not_depicted:{}", f.id),
@@ -85,6 +135,82 @@ fn not_depicted(f: &crate::bridge::Feature, why: &str) -> Problem {
 }
 fn unmatched(f: &crate::bridge::Feature) -> Problem {
     Problem {id:format!("p:thread_designation_measured:{}",f.id),code:"thread_designation_measured".into(),severity:"info".into(),message:"No unique ISO 261 diameter/pitch match within the documented inference tolerance; the callout states measured diameter and pitch. Set features/<id>/modelled_thread/designation to author the intended designation.".into(),subjects:vec![f.id.clone()],..Default::default()}
+}
+
+/// The ISO 261 coarse sizes a part's title, product or file name gives as `M<d>` (`M3 x 12`,
+/// `Hex-Standoff-M3-12mm`), as a fastener names its thread. `binding.part` is the file stem, or
+/// for an assembly member its product name, the stem then being `source_stem`.
+fn named_sizes(a: &Analysis, s: &Spec) -> Vec<f64> {
+    let names = [
+        s.sheet.title.get("title").map(String::as_str),
+        a.product_name.as_deref(),
+        Some(a.binding.part.as_str()),
+        a.source_stem.as_deref(),
+    ];
+    let mut sizes = Vec::new();
+    for token in names
+        .into_iter()
+        .flatten()
+        .flat_map(|n| n.split(|c: char| !c.is_ascii_alphanumeric() && c != '.'))
+    {
+        let Some(rest) = token.strip_prefix(['M', 'm']) else {
+            continue;
+        };
+        let end = rest
+            .find(|c: char| !c.is_ascii_digit() && c != '.')
+            .unwrap_or(rest.len());
+        // `M3`, `M3x12`; not `mm`, `M3a` or `Model`.
+        if !(rest[end..].is_empty() || rest[end..].starts_with(['x', 'X'])) {
+            continue;
+        }
+        if let Ok(d) = rest[..end].parse::<f64>()
+            && crate::spec_notes::COARSE.iter().any(|(c, _)| *c == d)
+        {
+            sizes.push(d);
+        }
+    }
+    sizes
+}
+
+/// A fastener named by a metric size whose unthreaded hole or boss is at exactly that major
+/// diameter is probably a thread modelled smooth (#218). Its measured callout is kept, since no
+/// thread is proved, and the doubt is noted as info: a plain bore (a dowel hole) is equally
+/// possible, so nothing is asked of it. Authoring the feature's `thread`, or a PMI thread on its
+/// faces, settles it.
+pub(crate) fn possible_threads(a: &Analysis, s: &Spec) -> Vec<Problem> {
+    let sizes = named_sizes(a, s);
+    let patterns = a
+        .recognition
+        .as_ref()
+        .map_or(&[][..], |r| r.patterns.as_slice());
+    a.features
+        .iter()
+        .filter(|f| matches!(f.kind.as_str(), "hole" | "boss"))
+        .filter(|f| s.features.get(&f.id).and_then(|f| f.thread.as_ref()).is_none())
+        .filter(|f| !threaded(a, s, &f.faces))
+        .filter_map(|f| {
+            let d = f.parameters.get("diameter")?.as_f64()?;
+            let size = sizes.iter().find(|&&n| (n - d).abs() <= 0.02 + 1e-10)?;
+            // A patterned hole's thread is set once, on its pattern.
+            let owner = patterns
+                .iter()
+                .find(|p| p.members.contains(&f.id))
+                .map_or(&f.id, |p| &p.id);
+            Some(Problem {
+                id: format!("p:possible_thread:{}", f.id),
+                code: "possible_thread".into(),
+                severity: "info".into(),
+                message: format!(
+                    "{} is at the major diameter of the M{} this part is named for, but no thread is modelled or recognised, so the sheet states it plain. If it is threaded, set features/{}/thread to its designation.",
+                    crate::wording::capital(&crate::wording::feature(f)),
+                    fmt(*size),
+                    owner
+                ),
+                subjects: vec![f.id.clone()],
+                ..Default::default()
+            })
+        })
+        .collect()
 }
 
 /// Apply intent and PMI precedence after the immutable automatic wants memo.

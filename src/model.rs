@@ -4933,6 +4933,10 @@ fn plan_with_presentation(
             ..Default::default()
         });
     }
+    // Read from the title, declarations and PMI mode, which the placement memo leaves out of its
+    // key.
+    problems.extend(crate::dims::refused_threads(analysis, spec));
+    problems.extend(crate::dims::possible_threads(analysis, spec));
     if !effective.annotations.is_empty() {
         let mut lowered = crate::pmi_lowering::lower(analysis, &|_| true).0;
         crate::label_text::annotations(&mut lowered, &effective)?;
