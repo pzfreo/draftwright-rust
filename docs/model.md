@@ -122,7 +122,7 @@ edited.
   Its `binding.part` is the part's name and `binding.part_index` is K; `face_count` and
   `envelope` are the part's own. Its PMI is the part's only: other parts' records, findings and
   material are dropped, not refused (`pmi.drawn` = K), and a material it states fills the title
-  block. With no part chosen an assembly is read whole, as before (D4): the Analysis lists the
+  block. With no part chosen an assembly is read whole (D4), except as below: the Analysis lists the
   file's parts in `parts` (only when there are two or more) and `plan` warns
   `assembly_drawn_whole`, naming the parts and how to choose one. Bodies that lie on top of an
   earlier one (#212: their faces pair off with the same surface type and box, to a micron, as

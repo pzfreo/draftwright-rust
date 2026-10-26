@@ -1247,7 +1247,8 @@ fn instance_faces(part: &Part) -> BTreeMap<usize, Vec<usize>> {
 /// assembly drawn whole dimensions such bodies (a pulley's set screws, a bearing's inner sleeve)
 /// as features of one part, so with no part chosen this one is drawn alone. None when a body
 /// lies outside it (parts side by side, or a pin standing out of a plate, are still drawn whole)
-/// or no body's faces can be told apart.
+/// or no body's faces can be told apart. Containment is by box in the assembly frame, not by
+/// material, so a neighbour sitting in the corner of an L-bracket's box counts as held.
 fn principal_part(part: &Part, defs: &[haecceity::step::PartDefinition]) -> Option<usize> {
     let instance_faces = instance_faces(part);
     // Each placed body's part and box.
