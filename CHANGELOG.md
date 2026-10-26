@@ -52,7 +52,10 @@ All notable changes to draftwright-rust are recorded here, in the style of
   leaves its leader across seven dimensions; STC-09's ⟂ and two position frames stack over their
   holes' `3× ⌀7.137` callout (net 103 fewer findings; two touching frames in the stack now
   `label_crowded`). A pinned drawing replays the frames as they were before attaching, so a bare
-  pin still holds the attached ink (`src/dims/hole_marks.rs`).
+  pin still holds the attached ink. The area grows only into paper no view, table, notes block
+  or caption holds, so a relayout that leaves no such paper (applying fixes in the editor can)
+  returns a frame to its leader: the spindle's f7 position frame then shows main's
+  `leader_through_feature` again (`src/dims/hole_marks.rs`).
 - **A thread recognition refused is no longer drawn as a counterbore (#218).** quiddity refuses
   dw-examples' T8 flange nut thread (`inconsistent_diameters`) yet also reported a hole on its
   flanks, printed `⌀6.5 THRU ⌴ ⌀8.3 ↧ 14.8` in a 15 mm part. No hole, nor its pattern, is now

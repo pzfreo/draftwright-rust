@@ -14,15 +14,17 @@
 //! - **A datum symbol** whose faces are one hole's bore moves onto that hole's mark in the view
 //!   that sees it end-on: its own size callout when that callout names this hole alone (a
 //!   pattern's `4×` callout would make the whole pattern the datum), else its hole table tag. The
-//!   triangle's base stands just off the mark's text, its line running away from the hole, the frame in
-//!   the nearest of a few tiers.
+//!   triangle's base stands just off the mark's text, its line running away from the hole, the
+//!   frame in the nearest of a few tiers.
 //!
 //! Each takes a place only when it is clear of every other item, other views and sheet
 //! furniture, on blank paper of its own view, with no finding of its own; otherwise it stays
 //! where lowering put it. A place past its view's reserved area alone grows that area, where the
-//! grown area stays clear of the margins, the title block and every other view's. A frame with
-//! an all-around or all-over mark keeps its leader (the mark sits at its bend). One the Spec places in a view or side (`annotations/<id>/place`) is the
-//! Spec's, so placing it keeps it on its surface or leader; a bare pin holds the attached ink.
+//! grown area stays clear of the margins, the title block, every other view's area and every
+//! table, notes block and caption it did not already meet. A frame with an all-around or
+//! all-over mark keeps its leader (the mark sits at its bend). One the Spec places in a view or
+//! side (`annotations/<id>/place`) is the Spec's, so placing it keeps it on its surface or
+//! leader; a bare pin holds the attached ink.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -237,8 +239,8 @@ pub(crate) fn attach(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
                 // Past its view's reserved area alone: that area grows to hold it where the
                 // sheet has vacant paper, and nothing else may change.
                 if problems.iter().all(|p| p.code == "annotation_outside_area")
-                    && let Some(area) =
-                        super::ink_box(&all[i]).and_then(|ink| grown(view, ink, sheet, &plan.views))
+                    && let Some(area) = super::ink_box(&all[i])
+                        .and_then(|ink| grown(view, ink, sheet, &plan.views, &peers))
                 {
                     let mut views = plan.views.clone();
                     // Invariant: `view` is one of the plan's views.
@@ -525,12 +527,14 @@ fn along(mark: &Mark, side: &str) -> Vec<f64> {
 
 /// The reserved area of *view* grown to hold *ink* with the half-millimetre band
 /// [`crate::sheet_fit`] reserves around ink, when the grown area stays inside the drawing margins,
-/// off the title block and clear of every other view's area on its sheet; else none.
+/// off the title block, clear of every other view's area on its sheet and of every table, notes
+/// block and caption among *peers* the area did not already meet; else none.
 fn grown(
     view: &crate::model::PlannedView,
     ink: [f64; 4],
     sheet: &crate::model::PlannedSheet,
     views: &[crate::model::PlannedView],
+    peers: &[PlannedDimension],
 ) -> Option<[f64; 4]> {
     let a = view.area;
     let next = [
@@ -548,7 +552,12 @@ fn grown(
         && views
             .iter()
             .filter(|v| v.id != view.id && v.sheet == view.sheet)
-            .all(|v| !placement::boxes_overlap(next, v.area));
+            .all(|v| !placement::boxes_overlap(next, v.area))
+        && peers
+            .iter()
+            .filter(|q| matches!(q.kind.as_str(), "table" | "notes" | "caption"))
+            .filter_map(super::ink_box)
+            .all(|b| !placement::boxes_overlap(next, b) || placement::boxes_overlap(a, b));
     (inside && vacant).then_some(next)
 }
 
