@@ -27,7 +27,8 @@
 //!   supports are tried, in increasing radius, in 1 mm steps, whose ink stays on the sheet, its
 //!   label off the views, the title block and the other items, and whose lines cross no other
 //!   view, dimension or label. With none, it keeps the smallest radius whose label is clear of
-//!   the views, and the collision checks report what it hits: nothing is dropped. The arc is drawn as chords within 0.005 mm of it (draftwright's sampling).
+//!   the views, and the collision checks report what it hits: nothing is dropped. The arc is
+//!   drawn as chords within 0.005 mm of it (draftwright's sampling).
 //!
 //! The label is the record's, as every PMI dimension's (`60 ±0.5`; draftwright's
 //! `implicit_degrees`: its unit is the record's kind, not a printed `°`).
@@ -365,8 +366,9 @@ impl Ink {
             return None;
         }
         // The label's centre stays where the inline label stood; the arc runs LIFT inside it.
-        let label = radius;
-        let radius = (label - LIFT - self.radial_half).max(ARROW);
+        // An authored radius too small for an arc there moves the label out, not into the arc.
+        let label = radius.max(ARROW + LIFT + self.radial_half);
+        let radius = label - LIFT - self.radial_half;
         let end = self.start + self.sweep;
         let mut lines = Vec::new();
         for (length, angle) in self.lengths.iter().zip([self.start, end]) {
