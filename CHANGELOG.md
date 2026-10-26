@@ -34,6 +34,15 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Fixed
 
+- **Angular dimensions are drawn with an unbroken dimension arc (#227).** The arc was broken
+  around an inline label, and at the smallest radius that left room for the arrowheads all that
+  showed of it was the two arrowheads (dw-examples' hex-standoff-m3 "6× 120°" and
+  vslot-2020x50 "45°"). Per ISO 129-1 the arc now runs unbroken about the vertex from one
+  extension line to the other, an arrowhead at each end, with the label just outside it
+  (`src/dims/angular.rs`). The label stays where the inline label stood and the arc moves
+  inside it, so the ink reaches no further and sheets are unchanged. Where the unbroken arc
+  meets something the break used to skip, the angle takes its next place: FTC-08 rc's
+  "8× 135°" goes to another of its corners, its arc across a slot outline.
 - **Coincident copies of a body no longer multiply every count (#212).** A STEP holding the same
   solid several times on top of itself (a FreeCAD export of a body and its `Pad`) was drawn
   whole, each feature once per copy: dw-examples' gantry plate printed "24× ⌀5.1 THRU" for 12
