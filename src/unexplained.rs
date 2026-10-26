@@ -1,7 +1,8 @@
 //! Recognisable shapes among the faces quiddity leaves unexplained (#213): a protrusion, a cut,
-//! a chamfer on a hole or shaft edge, or a periodic tooth pattern. Read from the part's topology
-//! when the Analysis is made; the plan warns of each one whose faces no feature claims
-//! (`shape_not_recognised`), beside `unclaimed_geometry`'s count.
+//! a chamfer on a hole or shaft edge, a turned step or land, or a periodic tooth pattern. Read
+//! from the part's topology when the Analysis is made; the plan warns of each one the Spec does
+//! not state (`shape_not_recognised`), beside `unclaimed_geometry`'s count, congruent shapes in
+//! one warning.
 
 use std::collections::BTreeSet;
 
@@ -9,7 +10,7 @@ use haecceity::brep::{Arc, Part};
 use haecceity::geom::{self, Surface, V3};
 use serde::{Deserialize, Serialize};
 
-use crate::model::{Analysis, FaceGroup, Problem};
+use crate::model::{Analysis, FaceGroup, Problem, Spec};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -22,6 +23,8 @@ pub enum Kind {
     Chamfer,
     /// Six or more congruent curved faces evenly spaced about one axis.
     Teeth,
+    /// A shoulder plane with coaxial curved faces about its centre: a turned step or land.
+    Step,
 }
 
 impl Kind {
@@ -31,6 +34,7 @@ impl Kind {
             Kind::Cut => "cut",
             Kind::Chamfer => "chamfer",
             Kind::Teeth => "teeth",
+            Kind::Step => "step",
         }
     }
 }
@@ -65,6 +69,9 @@ pub struct Shape {
     pub chamfer: Option<Chamfer>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub teeth: Option<Teeth>,
+    /// A step's shoulder diameters, the outer edge of each of its planes, ascending.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub shoulders: Vec<f64>,
 }
 
 const TOL: f64 = 1e-3;
@@ -81,9 +88,9 @@ fn off_axis(p: V3, o: V3, d: V3) -> f64 {
 
 fn axis_of(s: &Surface) -> Option<(V3, V3)> {
     match s {
-        Surface::Cylinder { frame, .. } | Surface::Cone { frame, .. } => {
-            Some((frame.origin, frame.z))
-        }
+        Surface::Cylinder { frame, .. }
+        | Surface::Cone { frame, .. }
+        | Surface::Torus { frame, .. } => Some((frame.origin, frame.z)),
         _ => None,
     }
 }
@@ -185,12 +192,18 @@ pub fn shapes(part: &Part, accounting: &[FaceGroup]) -> Vec<Shape> {
                 angle: semi_angle.abs().to_degrees(),
             }),
             teeth: None,
+            shoulders: Vec::new(),
         });
     }
     out.extend(teeth(part, &mut free, scale));
     // Cuts: faces joined by concave edges.
     let concave = |a: usize, b: usize| part.arc(a, b) == Some(Arc::Concave);
+    let convex = |a: usize, b: usize| part.arc(a, b) == Some(Arc::Convex);
+    let mut protrusions: Vec<Vec<usize>> = Vec::new();
     for kind in [Kind::Cut, Kind::Protrusion] {
+        if kind == Kind::Protrusion {
+            out.extend(steps(part, &mut free, scale));
+        }
         let mut seen = BTreeSet::new();
         for &seed in &free.clone() {
             if seen.contains(&seed) || !free.contains(&seed) {
@@ -231,20 +244,135 @@ pub fn shapes(part: &Part, accounting: &[FaceGroup]) -> Vec<Shape> {
             {
                 continue;
             }
-            faces.sort_unstable();
             for f in &faces {
                 free.remove(f);
             }
+            if kind == Kind::Protrusion {
+                protrusions.push(faces);
+                continue;
+            }
+            faces.sort_unstable();
             out.push(Shape {
                 kind,
                 bounds: bounds(part, &faces),
                 faces,
                 chamfer: None,
                 teeth: None,
+                shoulders: Vec::new(),
             });
         }
     }
+    // Protrusions that meet one claimed face at convex edges are one: a tab's two sides, either
+    // side of its recognised wall. The face a protrusion stands on meets it at concave edges.
+    let walls = |faces: &[usize]| -> BTreeSet<usize> {
+        faces
+            .iter()
+            .flat_map(|&a| {
+                part.neighbours(a).into_iter().filter(move |&c| {
+                    accounting.get(c) == Some(&FaceGroup::Feature) && convex(a, c)
+                })
+            })
+            .collect()
+    };
+    let mut k = 0;
+    while k < protrusions.len() {
+        let mine = walls(&protrusions[k]);
+        match (k + 1..protrusions.len()).find(|&j| !mine.is_disjoint(&walls(&protrusions[j]))) {
+            Some(j) => {
+                let other = protrusions.remove(j);
+                protrusions[k].extend(other);
+            }
+            None => k += 1,
+        }
+    }
+    for mut faces in protrusions {
+        faces.sort_unstable();
+        out.push(Shape {
+            kind: Kind::Protrusion,
+            bounds: bounds(part, &faces),
+            faces,
+            chamfer: None,
+            teeth: None,
+            shoulders: Vec::new(),
+        });
+    }
     out.sort_by(|a, b| a.faces.cmp(&b.faces));
+    out
+}
+
+/// Turned steps and lands: a free round shoulder plane about an axis, with the free coaxial
+/// cylinders, cones and tori joined to it, whatever their edges. Read after the cuts and before
+/// the protrusions, as a land's faces meet along tangent edges and may span the whole part.
+fn steps(part: &Part, free: &mut BTreeSet<usize>, scale: f64) -> Vec<Shape> {
+    let mut out = Vec::new();
+    for &seed in &free.clone() {
+        if !free.contains(&seed) {
+            continue;
+        }
+        let Some((o, d)) = axis_of(&part.faces[seed].surface) else {
+            continue;
+        };
+        let Some(d) = geom::unit(d) else { continue };
+        let centre = |f: usize| {
+            let b = part.face_bounds(f);
+            geom::scale(geom::add(b.min, b.max), 0.5)
+        };
+        // A round plane's box is square across the axis, like the circle bounding it.
+        let round = |j: usize| {
+            let b = part.face_bounds(j);
+            let w: Vec<f64> = (0..3)
+                .filter(|&k| d[k].abs() < 1.0 - TOL)
+                .map(|k| b.max[k] - b.min[k])
+                .collect();
+            w.len() < 2 || (w[0] - w[1]).abs() <= 0.01 * w[0].max(w[1])
+        };
+        let member = |j: usize| match &part.faces[j].surface {
+            Surface::Plane { frame } => {
+                parallel(frame.z, d) && off_axis(centre(j), o, d) <= TOL * scale && round(j)
+            }
+            s => {
+                axis_of(s).is_some_and(|(p, e)| parallel(e, d) && off_axis(p, o, d) <= TOL * scale)
+            }
+        };
+        let mut faces = vec![seed];
+        let mut k = 0;
+        while k < faces.len() {
+            for j in part.neighbours(faces[k]) {
+                if free.contains(&j) && !faces.contains(&j) && member(j) {
+                    faces.push(j);
+                }
+            }
+            k += 1;
+        }
+        // The coordinate direction most across the axis, to read a plane's outer radius.
+        let across = (0..3)
+            .min_by(|&a, &b| d[a].abs().total_cmp(&d[b].abs()))
+            .unwrap_or(0);
+        let mut shoulders: Vec<f64> = faces
+            .iter()
+            .filter(|&&f| matches!(part.faces[f].surface, Surface::Plane { .. }))
+            .map(|&f| {
+                let b = part.face_bounds(f);
+                b.max[across] - b.min[across]
+            })
+            .collect();
+        if faces.len() < 2 || shoulders.is_empty() {
+            continue;
+        }
+        shoulders.sort_by(f64::total_cmp);
+        for f in &faces {
+            free.remove(f);
+        }
+        faces.sort_unstable();
+        out.push(Shape {
+            kind: Kind::Step,
+            bounds: bounds(part, &faces),
+            faces,
+            chamfer: None,
+            teeth: None,
+            shoulders,
+        });
+    }
     out
 }
 
@@ -353,6 +481,7 @@ fn teeth(part: &Part, free: &mut BTreeSet<usize>, scale: f64) -> Vec<Shape> {
             out.push(Shape {
                 kind: Kind::Teeth,
                 faces,
+                // Read below, once the pattern's faces are all gathered.
                 bounds: [[0.0; 3]; 2],
                 chamfer: None,
                 teeth: Some(Teeth {
@@ -360,6 +489,7 @@ fn teeth(part: &Part, free: &mut BTreeSet<usize>, scale: f64) -> Vec<Shape> {
                     centre: axis_point,
                     axis: d,
                 }),
+                shoulders: Vec::new(),
             });
         }
     }
@@ -415,59 +545,143 @@ fn faces_text(faces: &[usize]) -> String {
     }
 }
 
-/// A warning for each of *analysis*'s shapes none of whose faces *claimed* holds.
-pub fn problems(analysis: &Analysis, claimed: &BTreeSet<usize>) -> Vec<Problem> {
-    analysis
-        .unexplained_shapes
-        .iter()
-        .filter(|s| !s.faces.iter().any(|f| claimed.contains(f)))
-        .map(|s| {
-            let [lo, hi] = s.bounds;
+const UNSIZED: [&str; 2] = [
+    "recognition does not give it, so it is neither sized nor located",
+    "recognition does not give them, so they are neither sized nor located",
+];
+
+/// What a shape is, without its faces or place, and what its warning says is missing, of one
+/// shape and of several. Congruent shapes describe alike.
+fn describe(s: &Shape) -> (String, [&'static str; 2]) {
+    let [lo, hi] = s.bounds;
+    let size = format!(
+        "{} × {} × {} mm",
+        num(hi[0] - lo[0]),
+        num(hi[1] - lo[1]),
+        num(hi[2] - lo[2])
+    );
+    match (s.kind, &s.chamfer, &s.teeth) {
+        (Kind::Chamfer, Some(c), _) => (
+            format!(
+                "a {} × {}° chamfer on the edge of a ø{} cylinder",
+                num(c.length),
+                num(c.angle),
+                num(c.diameter)
+            ),
+            [
+                "no hole callout or chamfer dimension states it",
+                "no hole callout or chamfer dimension states them",
+            ],
+        ),
+        (Kind::Teeth, _, Some(t)) => (
+            format!(
+                "a periodic pattern of {} teeth or notches about the axis through ({}, {}, {}) along ({}, {}, {}), {size}",
+                t.count,
+                num(t.centre[0]),
+                num(t.centre[1]),
+                num(t.centre[2]),
+                num(t.axis[0]),
+                num(t.axis[1]),
+                num(t.axis[2])
+            ),
+            ["no tooth form or count is drawn"; 2],
+        ),
+        (Kind::Step, _, _) => (
+            format!(
+                "a turned step or land, its {} ø{}, {size}",
+                if s.shoulders.len() == 1 {
+                    "shoulder"
+                } else {
+                    "shoulders"
+                },
+                s.shoulders
+                    .iter()
+                    .map(|d| num(*d))
+                    .collect::<Vec<_>>()
+                    .join(", ø")
+            ),
+            UNSIZED,
+        ),
+        (kind, _, _) => (format!("a {} of {size}", kind.name()), UNSIZED),
+    }
+}
+
+/// A warning for each class of congruent shapes of *analysis* that *spec* does not state: none
+/// of a shape's faces is *claimed* by a feature (a feature declaration's included) or carries
+/// the Spec's leader note or feature control frame (`faces`), and no authored gear lies on a
+/// tooth pattern's axis.
+pub fn problems(analysis: &Analysis, spec: &Spec, claimed: &BTreeSet<usize>) -> Vec<Problem> {
+    let mut stated = claimed.clone();
+    for (key, f) in &spec.faces {
+        if f.note.is_some() || !f.controls.is_empty() {
+            stated.extend(crate::spec_gdt::named_faces(analysis, key).unwrap_or_default());
+        }
+    }
+    let geared = |t: &Teeth| {
+        spec.gears.iter().any(|g| {
+            let k = ["x", "y", "z"].iter().position(|a| *a == g.frame.axis);
+            k.is_some_and(|k| {
+                let mut d = [0.0; 3];
+                d[k] = 1.0;
+                parallel(d, t.axis) && off_axis(t.centre, g.frame.origin, d) <= 0.01
+            })
+        })
+    };
+    let mut classes: Vec<((Kind, String), Vec<&Shape>)> = Vec::new();
+    for s in analysis.unexplained_shapes.iter().filter(|s| {
+        !s.faces.iter().any(|f| stated.contains(f)) && !s.teeth.as_ref().is_some_and(geared)
+    }) {
+        let key = (s.kind, describe(s).0);
+        match classes.iter_mut().find(|(k, _)| *k == key) {
+            Some((_, members)) => members.push(s),
+            None => classes.push((key, vec![s])),
+        }
+    }
+    classes
+        .into_iter()
+        .map(|((kind, what), members)| {
+            let first = members[0];
+            let [lo, hi] = first.bounds;
             let at = format!(
                 "({}, {}, {})",
                 num((lo[0] + hi[0]) / 2.0),
                 num((lo[1] + hi[1]) / 2.0),
                 num((lo[2] + hi[2]) / 2.0)
             );
-            let size = format!(
-                "{} × {} × {} mm",
-                num(hi[0] - lo[0]),
-                num(hi[1] - lo[1]),
-                num(hi[2] - lo[2])
-            );
-            let faces = faces_text(&s.faces);
-            let what = match (s.kind, &s.chamfer, &s.teeth) {
-                (Kind::Chamfer, Some(c), _) => format!(
-                    "{faces} {} a {} × {}° chamfer on the edge of a ø{} cylinder at {at}, which no hole callout or chamfer dimension states",
-                    if s.faces.len() == 1 { "is" } else { "are" },
-                    num(c.length),
-                    num(c.angle),
-                    num(c.diameter)
-                ),
-                (Kind::Teeth, _, Some(t)) => format!(
-                    "{faces} form a periodic pattern of {} teeth or notches about the axis through ({}, {}, {}) along ({}, {}, {}), {size}; no tooth form or count is drawn",
-                    t.count,
-                    num(t.centre[0]),
-                    num(t.centre[1]),
-                    num(t.centre[2]),
-                    num(t.axis[0]),
-                    num(t.axis[1]),
-                    num(t.axis[2])
-                ),
-                (kind, _, _) => format!(
-                    "{faces} form a {} of {size} at {at} that recognition does not give; it is neither sized nor located",
-                    kind.name()
-                ),
+            let all: Vec<usize> = members.iter().flat_map(|s| s.faces.iter().copied()).collect();
+            let faces = faces_text(&all);
+            let (_, [one, many]) = describe(first);
+            let shape = if members.len() == 1 {
+                let verb = match (kind, all.len()) {
+                    (Kind::Chamfer, 1) => "is",
+                    (Kind::Chamfer, _) => "are",
+                    _ => "form",
+                };
+                format!("{faces} {verb} {what} at {at}; {one}")
+            } else {
+                format!(
+                    "{faces} form {} congruent shapes, each {what}, the first at {at}; {many}",
+                    members.len()
+                )
+            };
+            let remedy = match kind {
+                Kind::Teeth => {
+                    "State the gear in the Spec's gears, which withdraws this warning for a gear on this axis, or add a note on one of its faces in the Spec's faces."
+                }
+                Kind::Chamfer => {
+                    "State it with a note on one of its faces in the Spec's faces (its size, as a chamfer callout), which withdraws this warning; otherwise review it manually."
+                }
+                _ => {
+                    "If it is a hole, boss, turned step, slot or pocket, declare it in the Spec's feature_declarations using its face fingerprints; otherwise state it with a note or feature control frame on one of its faces in the Spec's faces, which withdraws this warning."
+                }
             };
             Problem {
-                id: format!("p:shape_not_recognised:face:{}", s.faces[0]),
+                id: format!("p:shape_not_recognised:face:{}", first.faces[0]),
                 code: "shape_not_recognised".into(),
                 severity: "warning".into(),
-                message: format!(
-                    "{what}. If it matches a supported feature type, declare it in the Spec's feature_declarations using its face fingerprints; otherwise add its dimensions and review it manually."
-                ),
-                subjects: s.faces.iter().map(|f| format!("face:{f}")).collect(),
-                refs: vec![format!("shape:{}", s.kind.name())],
+                message: format!("{shape}. {remedy}"),
+                subjects: all.iter().map(|f| format!("face:{f}")).collect(),
+                refs: vec![format!("shape:{}", kind.name())],
                 ..Default::default()
             }
         })

@@ -445,7 +445,7 @@ fn informational_hole_bottom_and_recovery_remain_advisory() {
     // The automatic sheet choice's recovery is stated in its sheet basis, not as a
     // layout_replanned notice; the remaining informational findings stay advisory. #226: the
     // 2.4 A/F dimension within 0.5 mm of the section arrowhead is a label_crowded notice.
-    // #213: the three shallow concentric recesses on its top face (0.33 deep) are cuts neither
+    // #213: the two shallow concentric recesses on its top face (0.33 deep) are cuts neither
     // sized nor located: shape_not_recognised, incomplete (1, 1) -> (3, 2).
     assert_review_summary("gramel/string_post.step", [(3, 2), (1, 1), (0, 0), (3, 3)]);
 }

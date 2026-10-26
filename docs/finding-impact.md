@@ -20,7 +20,7 @@ for both ordinary ink and `ink_is_leader: true` (leader through text). No messag
 `group` is an opaque deterministic key: code plus a cause where needed. Broad feature-gap codes
 use the structural feature kind from `f:<kind>:<identity>` subjects, requirement codes use sorted
 requirement roles, PMI codes use typed source kinds, leader crossings use sorted stroke kinds, and
-`shape_not_recognised` uses its `shape:<kind>` ref (protrusion, cut, chamfer or teeth).
+`shape_not_recognised` uses its `shape:<kind>` ref (protrusion, cut, chamfer, step or teeth).
 Other codes already name their cause and group by code. Occurrence IDs, prose, positions and list order never enter a key.
 Thus four section-recess grammar gaps share a group, while a different feature kind does not;
 extension-through-feature repeats share one group. Unknown externally supplied codes serialize

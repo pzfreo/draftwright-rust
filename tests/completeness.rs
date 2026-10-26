@@ -683,11 +683,116 @@ fn unexplained_shapes_are_read_from_the_part() {
             );
         }
     }
-    let plan = model::plan(&spool, &Spec::default()).unwrap();
-    let warned = plan
+    // Congruent shapes share one warning, and every shape face is in exactly one.
+    let warnings = |spec: &Spec| -> Vec<draftwright::model::Problem> {
+        model::plan(&spool, spec)
+            .unwrap()
+            .problems
+            .into_iter()
+            .filter(|q| q.code == "shape_not_recognised")
+            .collect()
+    };
+    let plain = warnings(&Spec::default());
+    let mut cited: Vec<String> = plain.iter().flat_map(|q| q.subjects.clone()).collect();
+    cited.sort();
+    let mut faces: Vec<String> = spool
+        .unexplained_shapes
+        .iter()
+        .flat_map(|s| s.faces.iter().map(|f| format!("face:{f}")))
+        .collect();
+    faces.sort();
+    assert_eq!(cited, faces);
+    let bore = |qs: &[draftwright::model::Problem]| {
+        qs.iter()
+            .find(|q| {
+                q.message
+                    .contains("1 × 45° chamfer on the edge of a ø10 cylinder")
+            })
+            .cloned()
+    };
+    assert!(bore(&plain).unwrap().message.contains("6 congruent shapes"));
+    // #213 review: the Spec states a shape with a note on one of its faces, or a tooth pattern
+    // with an authored gear on its axis, and that withdraws its warning.
+    let chamfer = &kinds(&spool, Kind::Chamfer)
+        .into_iter()
+        .find(|s| {
+            s.chamfer
+                .as_ref()
+                .is_some_and(|c| (c.diameter - 10.0).abs() < 1e-6)
+        })
+        .unwrap();
+    let t = teeth[0].teeth.as_ref().unwrap();
+    let axis = ["x", "y", "z"][(0..3).find(|&k| t.axis[k].abs() > 0.99).unwrap()];
+    let spec: Spec = serde_json::from_value(json!({
+        "faces": {format!("face:{}", chamfer.faces[0]): {"note": "C1"}},
+        "gears": [{"on": format!("face:{}", teeth[0].faces[0]),
+            "frame": {"origin": t.centre, "axis": axis}, "tooth_count": 6,
+            "module": 1.25, "pressure_angle": 20, "profile_shift": 0, "face_width": 10,
+            "tooth_thickness": 1.9634954084936207, "tooth_thickness_tolerance": [-0.03, 0.01],
+            "flank_tolerance_class": 7}],
+    }))
+    .unwrap();
+    let stated = warnings(&spec);
+    assert!(
+        bore(&stated)
+            .unwrap()
+            .message
+            .contains("5 congruent shapes")
+    );
+    assert!(
+        !stated
+            .iter()
+            .any(|q| q.labels().group == "shape_not_recognised:teeth"),
+        "{stated:#?}"
+    );
+    assert_eq!(stated.len(), plain.len() - 1);
+}
+
+/// #213 review: congruent shapes are one warning naming their count; a turned step names its
+/// shoulder; each kind's remedy is one the Spec can take.
+#[test]
+fn unexplained_shape_warnings_merge_congruent_shapes() {
+    let mut doc = serde_json::to_value(analysis(vec![])).unwrap();
+    let box_at = |x: f64| json!([[x, 0, 0], [x + 4.0, 1, 2]]);
+    doc["unexplained_shapes"] = json!([
+        {"kind":"protrusion","faces":[1, 2],"bounds":box_at(0.0)},
+        {"kind":"protrusion","faces":[3, 4],"bounds":box_at(10.0)},
+        {"kind":"protrusion","faces":[5, 6],"bounds":[[0,0,0],[4,2,1]]},
+        {"kind":"step","faces":[7, 8],"bounds":[[-31.5,-31.5,-1.5],[31.5,31.5,1.5]],
+            "shoulders":[57]},
+        {"kind":"teeth","faces":[9, 10],"bounds":[[0,0,0],[1,1,1]],
+            "teeth":{"count":20,"centre":[0,0,0],"axis":[0,0,1]}},
+    ]);
+    let a: Analysis = serde_json::from_value(doc).unwrap();
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    let shapes: Vec<_> = p
         .problems
         .iter()
         .filter(|q| q.code == "shape_not_recognised")
-        .count();
-    assert_eq!(warned, spool.unexplained_shapes.len());
+        .collect();
+    assert_eq!(shapes.len(), 4, "{shapes:#?}");
+    let pair = shapes
+        .iter()
+        .find(|q| q.subjects == ["face:1", "face:2", "face:3", "face:4"])
+        .unwrap();
+    assert!(
+        pair.message
+            .contains("2 congruent shapes, each a protrusion of 4 × 1 × 2 mm")
+    );
+    assert!(pair.message.contains("feature_declarations") && pair.message.contains("Spec's faces"));
+    let step = shapes
+        .iter()
+        .find(|q| q.labels().group == "shape_not_recognised:step")
+        .unwrap();
+    assert!(
+        step.message
+            .contains("turned step or land, its shoulder ø57")
+    );
+    let teeth = shapes
+        .iter()
+        .find(|q| q.labels().group == "shape_not_recognised:teeth")
+        .unwrap();
+    assert!(
+        teeth.message.contains("Spec's gears") && !teeth.message.contains("feature_declarations")
+    );
 }

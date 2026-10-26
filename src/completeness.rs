@@ -293,8 +293,8 @@ pub fn report(analysis: &Analysis, plan: &mut Plan) {
             subjects: unclaimed, ..Default::default()
         });
     }
-    plan.problems
-        .extend(crate::unexplained::problems(analysis, &claimed));
+    let shapes = crate::unexplained::problems(analysis, &plan.spec, &claimed);
+    plan.problems.extend(shapes);
     for id in unplanned {
         if !plan.problems.iter().any(|p| {
             p.subjects.contains(&id)
