@@ -54,6 +54,8 @@ pub mod mcp;
 #[cfg(not(target_arch = "wasm32"))]
 pub mod plan_cache;
 #[cfg(not(target_arch = "wasm32"))]
+pub mod revision;
+#[cfg(not(target_arch = "wasm32"))]
 pub mod stateless;
 
 pub mod local_layout;

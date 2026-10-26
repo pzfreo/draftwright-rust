@@ -15,6 +15,12 @@
 //!   drawing
 //! - `draftwright edit s.json ops.json`: the edited Spec
 //! - `draftwright spec drawing.(svg|dxf|pdf|png)`: the Spec embedded in a rendered drawing
+//! - `draftwright revise old.step new.step [--spec s.json] [--part K] -o dir [--title T]
+//!   [--dpi 150]`: the drawing of *old* with the Spec, the Spec carried to *new* through
+//!   quiddity's correspondence (ADR R3) and *new* drawn with it, and what changed
+//!   ([`draftwright::revision`]). Writes `report.json`, `report.md` (a pull request comment),
+//!   `spec.json` (the carried Spec), `changes.svg` and `changes.png` (the new drawing marked up)
+//!   and `drawing.svg` into *dir*, and prints the verdict
 //! - `draftwright parts part.step`: the file's distinct parts (`{parts: [{part, name,
 //!   product_id, faces, instances}]}`), by which one part of an assembly is chosen
 //! - `draftwright serve`: the JSON-lines service. One request per line on stdin, such as
@@ -102,7 +108,7 @@ fn read_json(path: &str) -> Result<Value, Error> {
 
 /// Runs the command, its arguments put as [`api::call`] takes them.
 fn run(args: &[String]) -> Result<Value, Error> {
-    let usage = "usage: draftwright (analyse|plan|render|review|edit|spec|parts|serve) …";
+    let usage = "usage: draftwright (analyse|plan|render|review|revise|edit|spec|parts|serve) …";
     let command = args.first().ok_or_else(|| Error::invalid(usage))?;
     let arg = |i: usize| {
         args.get(i)
@@ -148,6 +154,52 @@ fn run(args: &[String]) -> Result<Value, Error> {
             })
             .transpose()
     };
+    if command == "revise" {
+        let (old, new) = (std::path::Path::new(arg(1)?), std::path::Path::new(arg(2)?));
+        let dir = std::path::PathBuf::from(
+            flag(args, "-o").ok_or_else(|| Error::invalid("revise needs -o <output directory>"))?,
+        );
+        let spec = if spec.is_null() {
+            json!({ "schema": draftwright::model::SPEC_SCHEMA, "sheet": {} })
+        } else {
+            spec
+        };
+        let dpi = dpi()?.unwrap_or(api::DPI);
+        let title = flag(args, "--title").map(String::from).unwrap_or_else(|| {
+            new.file_name()
+                .map_or("part".into(), |n| n.to_string_lossy().into_owned())
+        });
+        return guarded(command, || {
+            let revised = draftwright::revision::revise(old, new, part, &spec)?;
+            let marked = revised.marked();
+            let pretty = |v: &Value| serde_json::to_vec_pretty(v).expect("JSON serialises");
+            let files: Vec<(&str, Vec<u8>)> = vec![
+                ("report.json", pretty(&json_of(&revised.report))),
+                (
+                    "report.md",
+                    revised.markdown(&title, Some("changes.png")).into_bytes(),
+                ),
+                ("spec.json", pretty(&revised.report.carried_spec)),
+                ("changes.svg", marked.svg().into_bytes()),
+                ("changes.png", marked.png(dpi).map_err(Error::failed)?),
+                ("drawing.svg", revised.new.drawing().svg().into_bytes()),
+            ];
+            std::fs::create_dir_all(&dir)
+                .map_err(|e| Error::failed(format!("cannot create {}: {e}", dir.display())))?;
+            let mut written = Vec::new();
+            for (name, bytes) in files {
+                let path = dir.join(name);
+                std::fs::write(&path, bytes)
+                    .map_err(|e| Error::failed(format!("cannot write {}: {e}", path.display())))?;
+                written.push(path.display().to_string());
+            }
+            Ok(json!({
+                "written": written,
+                "verdict": revised.report.verdict,
+                "summary": revised.report.summary,
+            }))
+        });
+    }
     if matches!(command.as_str(), "analyse" | "plan" | "render" | "review")
         && features.is_none()
         && analysis.is_null()

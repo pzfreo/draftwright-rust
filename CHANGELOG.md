@@ -6,6 +6,18 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### Added
+
+- **`draftwright revise old.step new.step --spec s.json -o dir`: a drawing carried to a new
+  revision of its part (ADR R3).** quiddity's correspondence matches the two parts, and every
+  `f:<kind>:<n>` and `face:<n>` in the Spec is rebound to what it named: an entry is carried,
+  renamed (removing a hole renumbers the holes after it), or set aside with its original kept,
+  as *orphaned* (its feature is gone) or *ambiguous* (symmetric repeats; the candidates are
+  listed, none is guessed). The new revision is drawn with the carried Spec and compared with the
+  old drawing: changed features, dimensions and notes, new problems, and each view's visible
+  edges in the part's own coordinates. It writes a report (JSON, and Markdown for a pull request
+  comment), the carried Spec, and the new drawing marked up in colour (`src/revision.rs`).
+
 ### Changed
 
 - On quiddity-rust **v0.2.0**. Its face accounting (blended box corners, plate edges, stock

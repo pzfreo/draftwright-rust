@@ -43,6 +43,8 @@ mod pmi_lowering;
 mod pmi_thread_knurl;
 #[path = "../recognition_corrections.rs"]
 mod recognition_corrections;
+#[path = "../revision.rs"]
+mod revision;
 #[path = "../saved_spec.rs"]
 mod saved_spec;
 #[path = "../serve.rs"]
