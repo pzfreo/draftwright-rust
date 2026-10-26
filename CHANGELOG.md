@@ -34,6 +34,15 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Fixed
 
+- **An assembly with no part chosen no longer dimensions its other bodies as one part's
+  features (#219).** The whole file was drawn as one part: dw-examples' GT2 pulley stated its two
+  set screws as "ø3" bosses, "HEX 2.000 A/F × 2.5 DEEP" sockets, "4× C0.25" and "6× 120°", and
+  the LM8UU bearing printed "⌀8 THRU" for its inner sleeve's 22.4 mm bore. With no part chosen,
+  when every other body lies within the box of the largest (by box diagonal, as placed), that
+  part is drawn alone, as `--part K` draws it: the pulley's drawing is `--part 2`'s and the
+  bearing's is its sleeve with "⌀12.4 THRU". The plan warns `assembly_principal_drawn`, naming
+  the parts not drawn and how to choose another. Parts side by side, or a pin standing out of a
+  plate, are drawn whole as before.
 - **Coincident copies of a body no longer multiply every count (#212).** A STEP holding the same
   solid several times on top of itself (a FreeCAD export of a body and its `Pad`) was drawn
   whole, each feature once per copy: dw-examples' gantry plate printed "24× ⌀5.1 THRU" for 12

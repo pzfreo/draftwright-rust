@@ -45,7 +45,8 @@
 //! `analyse`, `plan`, `render` and `review` take `--part K`: part K of an assembly (as `parts`
 //! lists them) drawn alone, in its own frame and with its PMI only. Without it the whole file is
 //! drawn as one part, and an assembly's plan warns (`assembly_drawn_whole`), naming its parts;
-//! when every body coincides with one part's, that part is drawn alone (`coincident_bodies`).
+//! when every body coincides with one part's (`coincident_bodies`), or lies within the largest
+//! body's box (`assembly_principal_drawn`), that part is drawn alone.
 //!
 //! Exit codes: 0 done; 2 the request is invalid (the JSON error says what would be accepted);
 //! 1 something failed and nothing was written in its place.

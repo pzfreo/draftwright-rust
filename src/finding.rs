@@ -59,6 +59,7 @@ catalogue! {
     "annotation_over_view" => Readability, Code, "An annotation overlaps view geometry.";
     "annotation_overlap" => Readability, Code, "Annotation labels overlap each other.";
     "assembly_drawn_whole" => Advisory, Code, "The complete assembly was selected for drawing.";
+    "assembly_principal_drawn" => Advisory, Code, "The assembly's largest part, holding the others, was drawn alone; the others are not drawn.";
     "authored_dimension_invalid" => Decision, Code, "The authored dimension needs a valid user definition.";
     "axial_length_missing" => Incomplete, Code, "The drawing does not state the axial length.";
     "balloon_dropped" => Incomplete, Code, "A required drawing item was dropped before it could be stated.";

@@ -73,7 +73,7 @@ fn description(tool: &str) -> &'static str {
             "One-shot PNG or PDF render from a local STEP path (optional features) or registered part_ref, with optional spec/spec_version. format is png or pdf; sheet selects one page (default 1). PNG accepts region, overlay_ids (boolean or ID list) and dpi. Returns artifact metadata; read it via resources/read or use view_sheet for MCP image content."
         }
         "parts" => {
-            "List the distinct parts of a local STEP path: each one's index (part), name, product_id, face count and number of placements (instances). Pass an index as part to inspect_part, analyse or render to draw that part of an assembly alone; without it an assembly is drawn whole, with an assembly_drawn_whole warning (unless its bodies all coincide: one is drawn, coincident_bodies)."
+            "List the distinct parts of a local STEP path: each one's index (part), name, product_id, face count and number of placements (instances). Pass an index as part to inspect_part, analyse or render to draw that part of an assembly alone; without it an assembly is drawn whole, with an assembly_drawn_whole warning (unless its bodies all coincide, coincident_bodies, or lie within the largest one's box, assembly_principal_drawn: that part is drawn alone)."
         }
         _ => unreachable!("published tool"),
     }
