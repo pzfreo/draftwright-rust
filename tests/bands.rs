@@ -192,7 +192,7 @@ fn demand_groups_holes_by_established_patterns() {
             .iter()
             .all(|h| h.pattern.as_deref() == Some("f:hole_pattern:1"))
     );
-    assert_eq!(callouts(&a), ["4× ⌀6 THRU (2×2)"]);
+    assert_eq!(callouts(&a), ["4× ⌀6 THRU"]);
 
     a.recognition.as_mut().unwrap().patterns[0].arrangement = "bolt_circle".into();
     let circle = demand::read(&a);

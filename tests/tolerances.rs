@@ -209,7 +209,7 @@ fn ctc01_prints_the_authored_bands_as_draftwright_does() {
         ("d:f:hole:1/bore.diameter", "2× ⌀20 H7 ↧ 45", "fit"),
         (
             "d:f:hole_pattern:1/bore.diameter",
-            "4× ⌀35 ±0.05 THRU (2×2)",
+            "4× ⌀35 ±0.05 THRU",
             "tolerance",
         ),
         ("d:f:fillet:6/fillet.radius", "7× R50 ±0.5", "tolerance"),
@@ -434,7 +434,7 @@ fn only_the_authored_bands_appear() {
     }
     assert_eq!(
         label(&plan, "d:f:hole_pattern:1/bore.diameter"),
-        "4× ⌀6 H7 THRU (2×2)"
+        "4× ⌀6 H7 THRU"
     );
 }
 
@@ -449,7 +449,7 @@ fn fits_from_another_revision_are_kept_inactive() {
     let plan = model::plan(&a, &s).unwrap();
     assert_eq!(
         label(&plan, "d:f:hole_pattern:1/bore.diameter"),
-        "4× ⌀6 THRU (2×2)"
+        "4× ⌀6 THRU"
     );
     let p = problem(&plan, "p:spec_entries_inactive:part").unwrap();
     assert!(p.refs.contains(&"f:hole:1".to_string()));
@@ -477,7 +477,7 @@ fn an_edited_band_survives_the_round_trip_through_every_format() {
     assert_eq!(label(&plan, "d:envelope/width.length"), "60 ±0.05");
     assert_eq!(
         label(&plan, "d:f:hole_pattern:1/bore.diameter"),
-        "4× ⌀6 H7 +0.012\n0 THRU (2×2)"
+        "4× ⌀6 H7 +0.012\n0 THRU"
     );
     // The sheet hides fit limits when asked: the class alone, as draftwright prints it.
     let hidden = model::edit(
@@ -490,11 +490,11 @@ fn an_edited_band_survives_the_round_trip_through_every_format() {
             &model::plan(&a, &hidden).unwrap(),
             "d:f:hole_pattern:1/bore.diameter"
         ),
-        "4× ⌀6 H7 THRU (2×2)"
+        "4× ⌀6 H7 THRU"
     );
     let drawing = model::render(&p, &a, &plan, &font()).unwrap();
     // The label's text run is the plan's label, band included.
-    for want in ["60 ±0.05", "4× ⌀6 H7 +0.012\n0 THRU (2×2)"] {
+    for want in ["60 ±0.05", "4× ⌀6 H7 +0.012\n0 THRU"] {
         assert!(drawing.text.iter().any(|t| t.text == want), "{want}");
     }
     let pdf = drawing.pdf(&|_| {

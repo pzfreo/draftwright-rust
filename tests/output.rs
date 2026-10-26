@@ -133,11 +133,11 @@ fn plate(edit: &Edit) -> Drawing {
 #[test]
 fn callout_symbols_are_searchable_in_the_pdf_and_the_svg() {
     let cases: [(&Edit, &str); 4] = [
-        (&|_| {}, "4× ⌀6 THRU (2×2)"),
-        (&|r| r["bottom"] = "flat".into(), "4× ⌀6 ↧ 5 (2×2)"),
+        (&|_| {}, "4× ⌀6 THRU"),
+        (&|r| r["bottom"] = "flat".into(), "4× ⌀6 ↧ 5"),
         (
             &|r| r["cbore"] = json!({ "diameter": 11.0, "depth": 6.4 }),
-            "4× ⌀6 THRU ⌴ ⌀11 ↧ 6.4\n(2×2)",
+            "4× ⌀6 THRU ⌴ ⌀11 ↧ 6.4",
         ),
         (
             &|r| {
@@ -147,7 +147,7 @@ fn callout_symbols_are_searchable_in_the_pdf_and_the_svg() {
                     "depth": 3.0,
                 })
             },
-            "4× ⌀6 THRU ⌵ ⌀12 × 90°\n(2×2)",
+            "4× ⌀6 THRU ⌵ ⌀12 × 90°",
         ),
     ];
     for (edit, callout) in cases {

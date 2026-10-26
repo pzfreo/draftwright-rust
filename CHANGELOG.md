@@ -72,6 +72,14 @@ All notable changes to draftwright-rust are recorded here, in the style of
 - **A drawn frame citing a datum the drawing does not show is said (#224):** a
   `frame_datum_not_drawn` warning names the frame and the missing datums (STC-08: nine frames
   citing A, D, E, H or J).
+- **Hole and slot callouts in drafting wording, counted as made (#225).** A through hole split
+  by a slit into coaxial segments is one hole: shf08's and sk08's clamp holes read "⌀4 THRU" and
+  "⌀7 THRU", not "2×" (segments farther apart than the bore is wide, such as sm-hanger's two
+  flanges, still count twice), and lint counts them the same way. A grid of holes no longer
+  prints its "(2×2)" arrangement, which ISO 129 has no notation for (its pitches show it). A
+  free-direction slot reads "SLOT 2 WIDE × 4.5 LONG", without the internal "ORIENTED", and a gap
+  open at both ends (the retaining ring's) reads "GAP 1.64 WIDE", its length being the wall it
+  cuts, which lint no longer asks for.
 - **Coincident copies of a body no longer multiply every count (#212).** A STEP holding the same
   solid several times on top of itself (a FreeCAD export of a body and its `Pad`) was drawn
   whole, each feature once per copy: dw-examples' gantry plate printed "24× ⌀5.1 THRU" for 12

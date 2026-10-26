@@ -5,7 +5,7 @@
 //! - **the overall extents**: width, depth and height of a prismatic part; the diameter and the
 //!   axial length of a part that is turned whole;
 //! - **whole-part polygonal stock**: its size across flats and its length, in place of the extents;
-//! - **hole callouts**: draftwright's compound grammar (`4× ⌀10 THRU ⌴ ⌀16 ↧ 5 (2×2)`), with
+//! - **hole callouts**: draftwright's compound grammar (`4× ⌀10 THRU ⌴ ⌀16 ↧ 5`), with
 //!   identical holes grouped and counted, and quiddity's hole patterns called out as patterns;
 //! - **double-D bores**: one compound major-diameter and across-flats callout;
 //! - **hole locations** from the part's box, in the view that looks along each hole, and the
@@ -24,8 +24,8 @@
 //!   front view, and its shoulders' positions along x and y;
 //! - **raised pads**: footprint, `HIGH` height callout and location, in the view down on each
 //!   ([`pads`]);
-//! - **free-direction slots**: one `ORIENTED SLOT W WIDE × L LONG` callout led to the rim
-//!   ([`oriented_slots`]).
+//! - **free-direction slots**: one `SLOT W WIDE × L LONG` callout (`GAP W WIDE` open at both
+//!   ends) led to the rim ([`oriented_slots`]).
 //!
 //! Each is a [`PlannedDimension`] with a stable ID, `d:<feature>/<parameter>`, the view that
 //! carries it, its value,

@@ -1306,19 +1306,6 @@ fn split(w: &Want, groups: &[Group]) -> Vec<(Want, Vec<usize>)> {
             let features: BTreeSet<&str> = members.iter().map(|&m| holes[m].0.as_str()).collect();
             let mut part = w.clone();
             let n = members.len();
-            // A grid's arrangement, `(2×2)`, is no longer this callout's; a face it names is.
-            part.terms.retain_mut(|t| {
-                if !t.starts_with('(') {
-                    return true;
-                }
-                match t.split_once(") ") {
-                    Some((_, face)) => {
-                        *t = face.to_string();
-                        true
-                    }
-                    None => false,
-                }
-            });
             if n > 1 {
                 part.terms[0] = format!("{n}×");
             } else {

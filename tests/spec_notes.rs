@@ -189,11 +189,11 @@ fn m6_on_the_plate_hole_pattern_prints_on_its_callout() {
     let (part, a) = plate();
     let base = model::plan_recovered(&a, &Spec::default()).unwrap();
     let id = "d:f:hole_pattern:1/bore.diameter";
-    assert_eq!(dimension(&base, id).label, "4× ⌀6 THRU (2×2)");
+    assert_eq!(dimension(&base, id).label, "4× ⌀6 THRU");
     let s = spec(json!({"features": {"f:hole_pattern:1": {"thread": {"designation": "M6"}}}}));
     let plan = model::plan_recovered(&a, &s).unwrap();
     let callout = dimension(&plan, id);
-    assert_eq!(callout.label, "4× M6 THRU\n⌀6 THRU (2×2)");
+    assert_eq!(callout.label, "4× M6 THRU\n⌀6 THRU");
     let claim = callout
         .measurements
         .iter()
@@ -222,7 +222,7 @@ fn m6_on_the_plate_hole_pattern_prints_on_its_callout() {
         &spec(json!({"features": {"f:hole_pattern:1": {"thread": {"designation": "M6x1-6H", "length": 4}}}})),
     )
     .unwrap();
-    assert_eq!(dimension(&plan, id).label, "4× M6-6H ↧ 4\n⌀6 THRU (2×2)");
+    assert_eq!(dimension(&plan, id).label, "4× M6-6H ↧ 4\n⌀6 THRU");
     let plan = model::plan_recovered(
         &a,
         &spec(json!({"features": {"f:hole:1": {"thread": {"designation": "M6"}}}})),
@@ -246,7 +246,7 @@ fn m6_on_the_plate_hole_pattern_prints_on_its_callout() {
         "{}",
         refused[0].message
     );
-    assert_eq!(dimension(&plan, id).label, "4× ⌀6 THRU (2×2)");
+    assert_eq!(dimension(&plan, id).label, "4× ⌀6 THRU");
     let plan = model::plan_recovered(
         &a,
         &spec(json!({"features": {"f:hole_pattern:1": {"thread": {"designation": "M3"}}}})),
@@ -832,7 +832,7 @@ fn a_thread_length_whose_callout_is_omitted_is_reported_not_lost() {
     assert!(plan.dimensions.iter().all(|d| d.id != id));
     // The omission keeps the label it would have printed, thread length included.
     let omitted = plan.omitted.iter().find(|o| o.id == id).expect("omitted");
-    assert_eq!(omitted.label, "4× M6-6H ↧ 4\n⌀6 THRU (2×2)");
+    assert_eq!(omitted.label, "4× M6-6H ↧ 4\n⌀6 THRU");
     // And the thread the Spec authored is reported as not drawn.
     let lost = problems(&plan, "pmi_not_drawn");
     assert_eq!(lost.len(), 1, "{:?}", plan.problems);
@@ -852,7 +852,7 @@ fn a_spec_threads_depth_on_its_holes_is_required_by_lint() {
         &spec(json!({"features": {"f:hole_pattern:1": {"thread": {"designation": "M6x1-6H", "length": 4}}}})),
     )
     .unwrap();
-    assert_eq!(dimension(&plan, id).label, "4× M6-6H ↧ 4\n⌀6 THRU (2×2)");
+    assert_eq!(dimension(&plan, id).label, "4× M6-6H ↧ 4\n⌀6 THRU");
     let d = model::render(&part, &a, &plan, &font()).unwrap();
     assert_eq!(pmi_lint(&a, &d), Vec::<String>::new());
     let thread = d.annotations.iter().find(|m| m.name == id).unwrap().clone();

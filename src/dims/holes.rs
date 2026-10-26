@@ -1,6 +1,6 @@
-//! Hole callouts, in draftwright's compound grammar (`4× ⌀10 THRU ⌴ ⌀16 ↧ 5 (2×2)`): identical
-//! holes grouped and counted, quiddity's hole patterns called out as patterns with the pitches
-//! that space them, and every hole or pattern located from the part's box in the view that looks
+//! Hole callouts, in draftwright's compound grammar (`4× ⌀10 THRU ⌴ ⌀16 ↧ 5`): identical holes
+//! grouped and counted, quiddity's hole patterns called out as patterns with the pitches that
+//! space them (a grid prints no `(2×2)` arrangement: ISO 129 has none, its pitches show it), and every hole or pattern located from the part's box in the view that looks
 //! along it. A hole that owns an AP242 thread ([`crate::pmi_lowering::manufacturing`]) prints it
 //! after its terms (`⌀1.6 ↧ 4 M2 x 0.4-6H RH; 2.5 MIN FULL THREAD`, or `SEE MFG n`) on a callout
 //! of its own.
@@ -363,7 +363,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                         }
                     }
                     (
-                        Some(format!("({}×{})", rows.len(), cols.len())),
+                        None,
                         None,
                         format!(
                             "a grid of {}×{} identical holes is called out once with its size, located by its centre and spaced by its pitches",
@@ -417,7 +417,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             .flat_map(|&m| holes[m].measurements())
             .collect();
         // A thread the Spec authors on the pattern leads its pattern suffix, as draftwright's
-        // `hole_callout_spec` folds a pattern member's thread (`4× ⌀6 THRU M6 (2×2)`).
+        // `hole_callout_spec` folds a pattern member's thread (`4× ⌀6 THRU M6 EQ SP ON ø20 BC`).
         let (thread, _) = manufacturing.terms(&p.id);
         terms.extend(thread);
         let mut threaded = String::new();
@@ -490,9 +490,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             };
             let w = &mut callouts[*i];
             match w.terms.last_mut() {
-                Some(last) if last.starts_with("EQ SP") || last.starts_with('(') => {
-                    *last = format!("{last} {which}")
-                }
+                Some(last) if last.starts_with("EQ SP") => *last = format!("{last} {which}"),
                 _ => w.terms.push(which),
             }
             w.basis += "; its members project onto another pattern's, so the face it is drilled from is named";
@@ -528,9 +526,11 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         } else {
             vec![view]
         };
+        // The segments of one through hole split by a slit are one hole: counted once.
+        let n = holes::drillings(members.iter().map(|&m| &holes[m].read));
         let mut terms = Vec::new();
-        if members.len() > 1 {
-            terms.push(format!("{}×", members.len()));
+        if n > 1 {
+            terms.push(format!("{n}×"));
         }
         terms.extend(first.terms());
         let mut measurements: Vec<Measurement> = members
@@ -590,8 +590,10 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             terms,
             measurements,
             turning: None,
-            basis: if members.len() > 1 {
+            basis: if n > 1 {
                 format!("identical holes drilled from one face are called out once and counted, where they are seen {seen}{note}{threaded}")
+            } else if members.len() > 1 {
+                format!("a through hole split into coaxial segments (by a slit or gap) is one hole, called out once without a count, where it is seen {seen}{note}{threaded}")
             } else {
                 format!("a hole's size is called out where it is seen {seen}{note}{threaded}")
             },

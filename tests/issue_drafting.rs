@@ -1629,7 +1629,7 @@ fn a_toleranced_height_is_not_handed_to_an_untoleranced_extent() {
 
 /// ISSUE-1216-a, in part: the room a callout takes is measured from the text it draws,
 /// tolerance included. On plate the pattern callout's placed box is the ink of its terms with
-/// the band (`4× ⌀6 ±0.05 THRU (2×2)`), wider than the bare callout's by the band's ink. Not
+/// the band (`4× ⌀6 ±0.05 THRU`), wider than the bare callout's by the band's ink. Not
 /// ported: draftwright's pre-placement reservation (`demand.rs` does not reserve the hole
 /// callout band; placement then reports what runs past the view's area) and a tolerance on a
 /// recess term alone (recess terms have no dimension ID).
@@ -1650,7 +1650,7 @@ fn a_callouts_room_is_measured_from_the_text_it_draws() {
     };
     let bare = fixture_plan("plate", &Spec::default());
     let banded = fixture_plan("plate", &tolerances(&[(id, "±0.05")]));
-    assert_eq!(dimension(&banded, id).label, "4× ⌀6 ±0.05 THRU (2×2)");
+    assert_eq!(dimension(&banded, id).label, "4× ⌀6 ±0.05 THRU");
     let band = draftwright::dims::label_ink(&["±0.05".to_string()], &font);
     assert!(width(&banded) >= width(&bare) + (band.max[0] - band.min[0]) - 1e-9);
 }
@@ -1677,13 +1677,8 @@ fn an_authored_magnitude_is_never_rounded() {
     ] {
         let plan = fixture_plan("plate", &tolerances(&[(id, authored)]));
         let d = dimension(&plan, id);
-        // The longest bands now wrap at the same 48 mm limit as other callouts.
-        let expected = if matches!(authored, "±0.000000123" | "+0.015 -0.002" | "+0.00001 -0") {
-            format!("4× ⌀6 {printed} THRU\n(2×2)")
-        } else {
-            format!("4× ⌀6 {printed} THRU (2×2)")
-        };
-        assert_eq!(d.label, expected, "{authored}");
+        // Without the grid's "(2×2)" (#225) even the longest bands fit within the 48 mm limit.
+        assert_eq!(d.label, format!("4× ⌀6 {printed} THRU"), "{authored}");
         let b = d.placed.as_ref().unwrap().label_box;
         let ink = draftwright::dims::label_ink(&d.terms, &font);
         assert!(((b[2] - b[0]) - (ink.max[0] - ink.min[0])).abs() < 1e-9);

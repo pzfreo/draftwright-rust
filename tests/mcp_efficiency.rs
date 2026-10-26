@@ -324,7 +324,14 @@ fn verbose_feature_problem_stays_actionable_and_can_be_cleared() {
     assert!(!ops.is_empty());
     if row.get("detail_ref").is_some() {
         assert_eq!(row["scope"], "local");
-        assert!(row["description"].as_str().unwrap().contains("Trade-off:"));
+        // The verbose row keeps the local remedy's wording: the move, with any findings it adds
+        // named after "Trade-off:". Since the grid callouts lost their "(2×2)" (#225) the 650's
+        // move below the plan adds none.
+        let description = row["description"].as_str().unwrap();
+        assert!(
+            description.starts_with("Move the 650 dimension below the plan view"),
+            "{row}"
+        );
     }
     let answer = call(
         &cache,
