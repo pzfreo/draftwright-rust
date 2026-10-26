@@ -51,6 +51,13 @@ All notable changes to draftwright-rust are recorded here, in the style of
   `0`, unsigned (`⌀6.35 +0.0762 0`, ISO 129-1, STC-07 and STC-09); and a common label that states
   a radius without its value (`2X R`, `4X R`: ASME's full radius) is not drawn but reported as
   `pmi_not_lowered` (a warning).
+- **A slot position line states every slot whose end it reaches (#228).** The planner draws one
+  location for lone slots whose low ends lie on the same span (one span, one dimension:
+  ARCH0009-6), but lint read it as stating only its own slot, so `slot_requirement_missing`
+  warned about the others: nema17-bracket's slots 3, 5 and 6, CTC-03's slot 2, CTC-04's slots 5
+  and 6 and FTC-09's slot 2. Lint now credits the line to every lone slot whose low end lies the
+  same distance from the part's box on the same axis, seen through the same axis, and still
+  checks its text against each slot's value.
 
 ## 0.1.0 (2026-10-25)
 
