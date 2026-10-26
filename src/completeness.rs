@@ -264,8 +264,12 @@ pub fn report(analysis: &Analysis, plan: &mut Plan) {
         faces: analysis.binding.face_count,
         unplanned_features: unplanned.len(),
     };
-    plan.problems
-        .retain(|p| p.code != "unclaimed_geometry" && !p.id.starts_with("p:feature_unplanned:"));
+    plan.problems.retain(|p| {
+        !matches!(
+            p.code.as_str(),
+            "unclaimed_geometry" | "shape_not_recognised"
+        ) && !p.id.starts_with("p:feature_unplanned:")
+    });
     for p in &mut plan.problems {
         if matches!(
             p.code.as_str(),
@@ -289,6 +293,8 @@ pub fn report(analysis: &Analysis, plan: &mut Plan) {
             subjects: unclaimed, ..Default::default()
         });
     }
+    plan.problems
+        .extend(crate::unexplained::problems(analysis, &claimed));
     for id in unplanned {
         if !plan.problems.iter().any(|p| {
             p.subjects.contains(&id)

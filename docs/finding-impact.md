@@ -19,7 +19,8 @@ for both ordinary ink and `ink_is_leader: true` (leader through text). No messag
 
 `group` is an opaque deterministic key: code plus a cause where needed. Broad feature-gap codes
 use the structural feature kind from `f:<kind>:<identity>` subjects, requirement codes use sorted
-requirement roles, PMI codes use typed source kinds, and leader crossings use sorted stroke kinds.
+requirement roles, PMI codes use typed source kinds, leader crossings use sorted stroke kinds, and
+`shape_not_recognised` uses its `shape:<kind>` ref (protrusion, cut, chamfer or teeth).
 Other codes already name their cause and group by code. Occurrence IDs, prose, positions and list order never enter a key.
 Thus four section-recess grammar gaps share a group, while a different feature kind does not;
 extension-through-feature repeats share one group. Unknown externally supplied codes serialize
@@ -233,6 +234,7 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `section_not_shown` | incomplete | The requested section is not shown. |
 | `section_recess_recognition_refused` | incomplete | Refused recess recognition leaves the recess requirements unstated. |
 | `section_recess_requirement_unsupported` | incomplete | No supported drawing grammar states this feature requirement. |
+| `shape_not_recognised` | incomplete | A recognisable shape among unexplained faces is neither sized nor located. |
 | `sheet_assignment_unused` | advisory | A sheet assignment has no corresponding drawing item. |
 | `sheet_below_smallest_scale` | readability | The sheet uses views below the requested legibility scale. |
 | `sheet_label_replaced` | advisory | Automatic document numbering replaces the authored sheet label. |

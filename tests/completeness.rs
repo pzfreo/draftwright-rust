@@ -592,3 +592,102 @@ fn quiddity_face_accounting_decides_which_faces_are_claimed() {
         );
     }
 }
+
+/// #213: a recognisable shape among unexplained faces warns, naming its faces, kind and place,
+/// with impact `incomplete` grouped by its kind; `unclaimed_geometry` stays the info count, and a
+/// feature claiming one of its faces (a declaration) withdraws the warning.
+#[test]
+fn unexplained_shapes_warn_beside_the_unclaimed_count() {
+    let shape =
+        |kind: &str, faces: Value| json!({"kind":kind,"faces":faces,"bounds":[[0,0,0],[4,1,2]]});
+    let mut doc = serde_json::to_value(analysis(vec![feature("unported", 1, json!({}))])).unwrap();
+    doc["unexplained_shapes"] = json!([
+        shape("protrusion", json!([5, 7, 9])),
+        shape("cut", json!([1, 2])),
+        {"kind":"chamfer","faces":[3],"bounds":[[0,0,0],[1,1,1]],
+            "chamfer":{"diameter":5.5,"length":1,"angle":45}},
+    ]);
+    let a: Analysis = serde_json::from_value(doc).unwrap();
+    let p = model::plan(&a, &Spec::default()).unwrap();
+    let shapes: Vec<_> = p
+        .problems
+        .iter()
+        .filter(|q| q.code == "shape_not_recognised")
+        .collect();
+    // Face 1 is f:unported:1's, so the cut is withdrawn.
+    assert_eq!(shapes.len(), 2, "{shapes:#?}");
+    for q in &shapes {
+        assert_eq!(q.severity, "warning");
+        let labels = q.labels();
+        assert_eq!(labels.impact, draftwright::finding::Impact::Incomplete);
+    }
+    let protrusion = shapes
+        .iter()
+        .find(|q| q.labels().group == "shape_not_recognised:protrusion")
+        .unwrap();
+    assert_eq!(protrusion.subjects, ["face:5", "face:7", "face:9"]);
+    assert!(protrusion.message.contains("at (2, 0.5, 1)"));
+    let chamfer = shapes
+        .iter()
+        .find(|q| q.labels().group == "shape_not_recognised:chamfer")
+        .unwrap();
+    assert!(chamfer.message.contains("1 × 45° chamfer") && chamfer.message.contains("ø5.5"));
+    assert!(
+        p.problems
+            .iter()
+            .any(|q| q.code == "unclaimed_geometry" && q.severity == "info")
+    );
+    assert!(!p.problems.iter().any(|q| q.severity == "error"));
+}
+
+/// #213: shapes read from real topology. The spool's hole-edge cones are chamfers on their ø10
+/// bores and its six flange scallops a periodic pattern; the string post's shallow concentric
+/// recesses are cuts. Every shape face is one quiddity leaves unexplained.
+#[test]
+fn unexplained_shapes_are_read_from_the_part() {
+    let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/pmi/step");
+    let (_, spool) = model::analyse_native(&root.join("spool_fits.step.gz")).unwrap();
+    let kinds = |a: &Analysis, kind: Kind| -> Vec<draftwright::unexplained::Shape> {
+        a.unexplained_shapes
+            .iter()
+            .filter(|s| s.kind == kind)
+            .cloned()
+            .collect()
+    };
+    use draftwright::unexplained::Kind;
+    let bores: Vec<_> = kinds(&spool, Kind::Chamfer)
+        .into_iter()
+        .filter_map(|s| s.chamfer)
+        .filter(|c| (c.diameter - 10.0).abs() < 1e-6)
+        .collect();
+    assert_eq!(bores.len(), 6, "{:?}", spool.unexplained_shapes);
+    assert!(
+        bores
+            .iter()
+            .all(|c| (c.length - 1.0).abs() < 1e-6 && (c.angle - 45.0).abs() < 1e-6)
+    );
+    let teeth = kinds(&spool, Kind::Teeth);
+    assert_eq!(teeth.len(), 1);
+    assert_eq!(teeth[0].teeth.as_ref().unwrap().count, 6);
+    let (_, post) = model::analyse_native(&root.join("string_post_tapped.step.gz")).unwrap();
+    let cuts = kinds(&post, Kind::Cut);
+    assert!(!cuts.is_empty() && cuts.iter().all(|s| s.faces.len() >= 2));
+    for a in [&spool, &post] {
+        let accounting = a.face_accounting.as_ref().unwrap();
+        for s in &a.unexplained_shapes {
+            assert!(
+                s.faces
+                    .iter()
+                    .all(|&f| accounting[f] == model::FaceGroup::Unexplained),
+                "{s:?}"
+            );
+        }
+    }
+    let plan = model::plan(&spool, &Spec::default()).unwrap();
+    let warned = plan
+        .problems
+        .iter()
+        .filter(|q| q.code == "shape_not_recognised")
+        .count();
+    assert_eq!(warned, spool.unexplained_shapes.len());
+}

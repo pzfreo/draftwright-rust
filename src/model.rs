@@ -185,6 +185,11 @@ pub struct Analysis {
     /// reports them (`features_not_recognised`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub unrecognised: Vec<Unrecognised>,
+    /// Recognisable shapes among the faces quiddity's accounting leaves unexplained (#213):
+    /// protrusions, cuts, edge chamfers and tooth patterns ([`crate::unexplained`]). The plan
+    /// warns of each whose faces no feature claims (`shape_not_recognised`).
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub unexplained_shapes: Vec<crate::unexplained::Shape>,
     /// The part's AP242 semantic PMI ([`crate::pmi::attach`]): its records, each with where it
     /// attaches, and every source not read; or why the file's PMI could not be read. Absent
     /// when the file has none. The plan lowers it to feature control frames and datum feature
@@ -1572,6 +1577,7 @@ fn analyse_step_input(
         principal_profiles: crate::lint::profiles::evidence(&part),
         outer_profiles: crate::lint::profile_angles::evidence(&part),
         unrecognised: Vec::new(),
+        unexplained_shapes: Vec::new(),
         pmi: crate::pmi::attach_with(
             bytes,
             &part,
@@ -1758,6 +1764,12 @@ pub fn recognise_document(
                     A::Unexplained => FaceGroup::Unexplained,
                 })
                 .collect()
+        });
+    analysis.unexplained_shapes = analysis
+        .face_accounting
+        .as_ref()
+        .map_or(Vec::new(), |groups| {
+            crate::unexplained::shapes(part, groups)
         });
     analysis.recognition = Some(Recognition {
         recogniser: read.recogniser,

@@ -23,6 +23,14 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Changed
 
+- **A recognisable shape among the faces quiddity leaves unexplained is a warning (#213),
+  `shape_not_recognised`, impact `incomplete`, naming its faces, kind and place:** a protrusion
+  (nema17-mount-bracket's gussets, corner-bracket-2020's tongues), a cut (FTC-11's shallow
+  recesses), a chamfer on a cylinder's edge with its size (shf08, sk08 and t8-flange-nut's hole
+  and thread-entry chamfers) or a periodic pattern of teeth or notches with its count
+  (sprocket-iso606-z08's 8, gt2-pulley's 20). Shapes are read from the part's topology when it
+  is analysed (`unexplained_shapes`); declaring the feature withdraws the warning.
+  `unclaimed_geometry` stays the info-level count. On the 30 quality parts only findings change.
 - On quiddity-rust **v0.2.1-alpha.1**. The reader accepts its new `rectangular_through_notches`
   family (not drawn yet, like `v_channels`), so CTC-01's two V-slot notches and their rounded
   channels are reported as unrecognised features instead of 3 unclaimed faces. Golden's
