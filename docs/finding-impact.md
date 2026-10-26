@@ -55,6 +55,7 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `annotation_over_view` | readability | An annotation overlaps view geometry. |
 | `annotation_overlap` | readability | Annotation labels overlap each other. |
 | `assembly_drawn_whole` | advisory | The complete assembly was selected for drawing. |
+| `assembly_principal_drawn` | advisory | The assembly's largest part, holding the others, was drawn alone; the others are not drawn. |
 | `authored_dimension_invalid` | decision | The authored dimension needs a valid user definition. |
 | `axial_length_missing` | incomplete | The drawing does not state the axial length. |
 | `balloon_dropped` | incomplete | A required drawing item was dropped before it could be stated. |

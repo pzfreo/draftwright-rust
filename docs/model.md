@@ -130,7 +130,12 @@ edited.
   with the first, that part is read alone as `--part K` reads it (`binding.part_index` is K), so
   no feature is counted once per copy, and `plan` reports `coincident_bodies` (info); otherwise
   the file is still drawn whole and `coincident_bodies` warns that the copies' features are
-  counted again. An Analysis made from one
+  counted again. When the bodies are distinct and every other body lies within the box of the
+  largest (by box diagonal, as placed; #219), that part is read alone in the same way, with
+  `principal` set in the Analysis, so a body it holds (a pulley's set screws, a bearing's inner
+  sleeve) is not dimensioned as its features; `plan` warns `assembly_principal_drawn`, naming
+  the parts not drawn and how to choose one. Parts side by side, or a pin standing out of a
+  plate, are still drawn whole. An Analysis made from one
   part is re-read from that part when passed back (`--analysis`), and a `part` beside it must be
   the same. An index the file does not have is refused (`invalid`), naming the parts. Nested
   sub-assemblies are flattened to their leaf parts; a sub-assembly is not selectable (D2).
