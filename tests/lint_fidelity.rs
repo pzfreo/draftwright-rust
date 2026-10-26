@@ -533,13 +533,10 @@ fn ctc01() -> Drawing {
 fn the_ports_own_pmi_drawing_says_what_it_draws() {
     let drawing = ctc01();
     let issues = structural::check(&drawing);
-    // Linear/angular ink agrees with its labels. C's retained remote route
-    // remains visible: a shorter bend must clear features along both legs.
-    assert_eq!(
-        fidelity(&issues),
-        ["datum_leader_remote pmi:datum.datum:f75,76:t=C"],
-        "{issues:#?}"
-    );
+    // Linear/angular ink agrees with its labels. C's remote route in the front view is gone:
+    // #224 attaches C to its hole's `⌀35` callout in the plan, which sees the bore end-on
+    // (`a_datum_symbol_sits_close_to_its_surface` keeps the remote-leader check covered).
+    assert!(fidelity(&issues).is_empty(), "{issues:#?}");
     let angular = drawing
         .sheet
         .items

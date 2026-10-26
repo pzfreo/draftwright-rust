@@ -2043,12 +2043,12 @@ mod tests {
 
     #[test]
     fn a_routing_refusal_without_space_drops_does_not_repeat_the_scale() {
-        // LM10UU's unclipped A4 trial keeps a leader/extension contact through its finishing
-        // pass, with no hard findings or drops: a smaller scale would repeat the same routing,
-        // so it is not tried.
+        // The gear blank's unclipped A4 trial keeps a leader/extension contact through its
+        // finishing pass, with no hard findings or drops: a smaller scale would repeat the same
+        // routing, so it is not tried. (LM10UU was this case until the #219-#226 stack left
+        // its A4 trial usable at 2:1.)
         let a = model::analyse_native(
-            &Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("tests/fixtures/parts/bearing-lm10uu.step.gz"),
+            &Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts/gear_blank.step"),
         )
         .unwrap()
         .1;
