@@ -130,6 +130,75 @@ fn bolt_circle_furniture_is_radial_and_tangential() {
     }
 }
 
+/// `bolt_square.step`: a 40 × 40 × 6 plate with a central Ø10 hole and four Ø4 holes on a Ø20
+/// circle at 0°, 90°, 180° and 270°, made in build123d (`Box(40, 40, 6)`, `Hole(5)`,
+/// `PolarLocations(10, 4)`, `Hole(2)`). quiddity reports the four as a rectangle turned 45°:
+/// they are called out as a bolt circle located by its centre, never from the plate's faces
+/// one by one (#223).
+#[test]
+fn a_square_of_four_on_the_axes_is_a_bolt_circle() {
+    let (a, p, d) = drawing(
+        &Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts/bolt_square.step"),
+    );
+    let pattern = &a.recognition.as_ref().unwrap().patterns[0];
+    assert_eq!(pattern.arrangement, "bolt_circle");
+    assert_eq!(pattern.parameters["diameter"].as_f64(), Some(20.0));
+    let callout = p
+        .dimensions
+        .iter()
+        .find(|d| d.id == format!("d:{}/bore.diameter", pattern.id))
+        .unwrap();
+    assert!(
+        callout.label.contains("EQ SP ON ø20 BC"),
+        "{}",
+        callout.label
+    );
+    assert!(!p.dimensions.iter().any(|d| {
+        d.measurements
+            .iter()
+            .any(|m| pattern.members.contains(&m.feature) && m.parameter.starts_with("location."))
+    }));
+    assert_eq!(work(&p, "pitch_circle").len(), 1);
+    assert!(
+        !draftwright::lint::lint(&a, &d)
+            .iter()
+            .any(|i| i.code.starts_with("hole_pattern_requirement"))
+    );
+}
+
+/// A grid located by its centre marks that centre, where `plate.step` has no hole; where a hole
+/// table locates the holes instead, no mark is drawn (#223).
+#[test]
+fn a_grid_located_by_its_centre_marks_the_centre() {
+    let file = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts/plate.step");
+    let (_, p, _) = drawing(&file);
+    let crosses = work(&p, "cross");
+    let at = |w: &Value| [0, 1].map(|k| w["centre"][k].as_f64().unwrap());
+    let mark = crosses
+        .iter()
+        .find(|w| w["id"] == "ink:v:plan:f:hole_pattern:1")
+        .unwrap();
+    let members: Vec<_> = crosses
+        .iter()
+        .filter(|w| w["id"].as_str().unwrap().starts_with("ink:v:plan:f:hole:"))
+        .map(at)
+        .collect();
+    assert_eq!(members.len(), 4);
+    for k in 0..2 {
+        let mean = members.iter().map(|c| c[k]).sum::<f64>() / 4.0;
+        assert!((at(mark)[k] - mean).abs() < 1e-6);
+    }
+    // FTC-10's grids are located by its hole table, not from their centres.
+    let Some(dir) = corpus::dir() else { return };
+    let (_, p, _) = drawing(&dir.join("nist/nist_ftc_10_asme1_rb.stp"));
+    assert!(!p.hole_tables.is_empty());
+    assert!(
+        !work(&p, "cross")
+            .iter()
+            .any(|w| w["id"].as_str().unwrap().contains("hole_pattern"))
+    );
+}
+
 #[test]
 fn section_cutting_line_is_planned_and_labels_keep_clear() {
     let Some(dir) = corpus::dir() else { return };

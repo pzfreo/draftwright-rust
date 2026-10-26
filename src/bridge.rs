@@ -792,6 +792,34 @@ fn pattern(members: &[[f64; 3]]) -> Pattern {
     }
 }
 
+/// The diameter of the circle through quiddity's rectangle of four (`width` and `height` about
+/// its `center`) when it is a square with each hole on an axis line through that centre, one
+/// hole each side of it on two axes; otherwise none (a lattice on the axes, or a rectangle).
+fn square_on_axes(q: &QHolePattern) -> Option<f64> {
+    if !q.rest.contains_key("width") || q.holes.len() != 4 {
+        return None;
+    }
+    let c = holes::point(q.rest.get("center"))?;
+    let mut radius: Option<f64> = None;
+    let mut sides = Vec::new();
+    for h in &q.holes {
+        let at = holes::point(h.get("location"))?;
+        let d = [0, 1, 2].map(|k| at[k] - c[k]);
+        let on: Vec<usize> = (0..3).filter(|&k| d[k].abs() > 1e-6).collect();
+        let [k] = on[..] else { return None };
+        let r = *radius.get_or_insert(d[k].abs());
+        if (d[k].abs() - r).abs() > 1e-6 * r.max(1.0) {
+            return None;
+        }
+        sides.push((k, d[k] > 0.0));
+    }
+    sides.sort_unstable();
+    sides.dedup();
+    let r = radius?;
+    (sides.len() == 4 && sides[0].0 == sides[1].0 && sides[2].0 == sides[3].0)
+        .then(|| round(2.0 * r))
+}
+
 /// quiddity's hole patterns, each with its members found among *features* (the holes whose
 /// records quiddity lists, matched as [`hole_pattern`] matches them). A pattern whose member is
 /// not one of the holes is refused.
@@ -812,7 +840,14 @@ fn hole_patterns(qs: &[QHolePattern], features: &[Feature]) -> Result<Vec<HolePa
         faces.sort_unstable();
         faces.dedup();
         let has = |k: &str| q.rest.contains_key(k);
+        let mut parameters = q.rest.clone();
         let arrangement = if has("diameter") {
+            "bolt_circle"
+        } else if let Some(diameter) = square_on_axes(q) {
+            // A square of four turned 45° has its holes on the axes through its centre, evenly
+            // spaced on one circle: a bolt circle of four, stated by its diameter, not a lattice
+            // the views can space (#223). The Spec's `split` dissolves it into single holes.
+            parameters.insert("diameter".into(), diameter.into());
             "bolt_circle"
         } else if (has("width") && has("height"))
             || (has("rows") && has("cols") && has("row_pitch") && has("col_pitch"))
@@ -833,7 +868,7 @@ fn hole_patterns(qs: &[QHolePattern], features: &[Feature]) -> Result<Vec<HolePa
             arrangement: arrangement.into(),
             members,
             faces,
-            parameters: q.rest.clone(),
+            parameters,
         });
     }
     out.sort_by(|a, b| a.faces.cmp(&b.faces));
@@ -975,7 +1010,7 @@ fn hole_pattern(
 
 #[cfg(test)]
 mod tests {
-    use super::kind;
+    use super::{QHolePattern, kind, square_on_axes};
 
     /// Every family in draftwright's family table (`family_table.py`), with `-` as `_`.
     #[test]
@@ -1030,5 +1065,26 @@ mod tests {
         for (family, singular) in cases {
             assert_eq!(kind(family), singular, "{family}");
         }
+    }
+
+    fn rectangle(holes: [[f64; 2]; 4]) -> QHolePattern {
+        serde_json::from_value(serde_json::json!({
+            "holes": holes.map(|[x, y]| serde_json::json!({"location": [x, y, 6.0]})),
+            "width": 1.0, "height": 1.0, "angle": 45.0, "center": [10.0, 20.0, 6.0],
+        }))
+        .unwrap()
+    }
+
+    /// Only a square with its holes on the axes through its centre is a circle of four (#223).
+    #[test]
+    fn a_square_turned_onto_the_axes_is_a_bolt_circle() {
+        let diamond = rectangle([[18.0, 20.0], [10.0, 28.0], [2.0, 20.0], [10.0, 12.0]]);
+        assert_eq!(square_on_axes(&diamond), Some(16.0));
+        let lattice = rectangle([[14.0, 24.0], [6.0, 24.0], [6.0, 16.0], [14.0, 16.0]]);
+        assert_eq!(square_on_axes(&lattice), None);
+        let kite = rectangle([[18.0, 20.0], [10.0, 28.0], [4.0, 20.0], [10.0, 12.0]]);
+        assert_eq!(square_on_axes(&kite), None);
+        let one_axis = rectangle([[18.0, 20.0], [2.0, 20.0], [18.0, 20.0], [2.0, 20.0]]);
+        assert_eq!(square_on_axes(&one_axis), None);
     }
 }
