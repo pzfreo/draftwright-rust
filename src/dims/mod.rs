@@ -77,6 +77,7 @@ mod modelled_threads;
 mod wording;
 pub(crate) use pmi_dimensions::basic as is_basic;
 pub(crate) mod callout_routes;
+pub(crate) mod contacts;
 mod leaders;
 pub(crate) use label_lanes::{compact_inventory, follow_lanes, in_lane, settle_inventory};
 pub(crate) use leaders::{default_nominal_intent, sheet_route_limits};

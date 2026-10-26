@@ -1961,7 +1961,7 @@ fn feature_crossings_where(plan: &Plan, include: impl Fn(&str) -> bool) -> usize
     leaders.len() + extensions.len()
 }
 
-fn ink_findings(plan: &Plan) -> usize {
+pub(crate) fn ink_findings(plan: &Plan) -> usize {
     plan.problems
         .iter()
         .filter(|p| {
@@ -1975,6 +1975,34 @@ fn ink_findings(plan: &Plan) -> usize {
             )
         })
         .count()
+}
+
+/// How the sheet basis names each candidate's [`ink_findings`] count; [`note_final_conflicts`]
+/// reads the count back by it.
+const BASIS_CONFLICTS: &str = "annotation conflicts";
+
+/// The sheet basis counts each candidate's annotation conflicts as the paper policy compared
+/// them, before the selected drawing's later repairs (its final leader routes among them). When
+/// the finished drawing's count differs from the one the basis states for its sheet and scale,
+/// say so, so the basis and the plan's problems agree (#226).
+pub(crate) fn note_final_conflicts(plan: &mut Plan) {
+    let key = format!("{} {} fill ", plan.sheet.size, plan.sheet.scale);
+    let Some(stated) = plan.sheet.basis.find(&key).and_then(|at| {
+        let entry = &plan.sheet.basis[at..];
+        let entry = &entry[..entry.find(')')?];
+        let before = &entry[..entry.find(&format!(" {BASIS_CONFLICTS}"))?];
+        before.rsplit([' ', '(']).next()?.parse::<usize>().ok()
+    }) else {
+        return;
+    };
+    let finished = ink_findings(plan);
+    let note = "annotation conflicts were counted before its final repairs";
+    if finished != stated && !plan.sheet.basis.contains(note) {
+        plan.sheet.basis += &format!(
+            "; the selected {} {} candidate's {note}, which take them from {stated} to {finished}",
+            plan.sheet.size, plan.sheet.scale
+        );
+    }
 }
 
 fn longer_callouts(candidate: &Plan, baseline: &Plan) -> bool {
@@ -3439,7 +3467,7 @@ fn recover_candidates(
                 let selection_fill =
                     crate::sheet_fit::selection_fill(analysis, &p, compare_diagram_fill);
                 tried.push(format!(
-                    "{name} {} fill {:.1}% ({}, {over} additional view conflicts, {crossings} additional material crossings, {} annotation conflicts, {unreadable_steps} unreadable step spans, {})",
+                    "{name} {} fill {:.1}% ({}, {over} additional view conflicts, {crossings} additional material crossings, {} {BASIS_CONFLICTS}, {unreadable_steps} unreadable step spans, {})",
                     p.sheet.scale,
                     selection_fill * 100.0,
                     verdict,
@@ -3880,6 +3908,8 @@ fn plan_recovered_once(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid
     );
     crate::sheets::furnish(&mut plan);
     crate::fixes::retain_local_layout(&mut plan);
+    crate::dims::contacts::report(&mut plan);
+    note_final_conflicts(&mut plan);
     Ok(plan)
 }
 
@@ -4504,6 +4534,8 @@ fn plan_once(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     );
     crate::sheets::furnish(&mut plan);
     crate::fixes::retain_local_layout(&mut plan);
+    crate::dims::contacts::report(&mut plan);
+    note_final_conflicts(&mut plan);
     Ok(plan)
 }
 
