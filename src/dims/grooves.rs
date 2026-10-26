@@ -6,8 +6,10 @@
 //!   the groove a notch in the silhouette: [`profile_views`] its axis (draftwright's `_EDGE_ON`:
 //!   x and z in the front, y in the side). draftwright skips the groove when that view is not
 //!   shown; the port falls back to the next view that shows the profile.
-//! - **Grouping:** none. Each groove is called out on its own at its own axial position, as
-//!   draftwright does (two identical grooves on one shaft must each be dimensioned).
+//! - **Grouping:** grooves of one turned profile (one axis line, one recorded profile) whose
+//!   callouts print alike are called out once and counted, `2× 1.2 WIDE × ø13.4`, with a leader
+//!   site at each (beyond draftwright, which calls each out on its own: #220). Each groove's
+//!   axial position is the step chain's, not the callout's.
 //! - **Leader site:** the floor's silhouette, the record's `at` (on the axis) moved out by the
 //!   floor radius across the axis.
 //!
@@ -138,14 +140,60 @@ fn owner(cx: &Context, f: &Feature) -> Result<(), String> {
     ))
 }
 
+/// A turned profile: its axis, a point on its axis line and its recorded profile.
+type Line<'a> = (usize, P3, Option<&'a Value>);
+
+/// The turned profile groove *f* lies on, when its record gives its position and axis.
+fn line<'a>(cx: &Context, f: &'a Feature) -> Option<Line<'a>> {
+    let p = &f.parameters;
+    let at = cx.frame.point(point(p.get("at"))?);
+    let k = principal(cx.frame.letter(p.get("axis")?)?)?;
+    Some((k, at, p.get("profile")))
+}
+
 fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
-    let mut out = Vec::new();
+    let mut out: Vec<(Want, Option<Line>)> = Vec::new();
     let mut problems = Vec::new();
     for f in cx.analysis.features.iter().filter(|f| f.kind == "groove") {
-        match owner(cx, f).and_then(|()| want(cx, f)) {
-            Ok(w) => out.push(w),
-            Err(why) => problems.push(not_dimensioned(f, &why)),
+        let w = match owner(cx, f).and_then(|()| want(cx, f)) {
+            Ok(w) => w,
+            Err(why) => {
+                problems.push(not_dimensioned(f, &why));
+                continue;
+            }
+        };
+        // An earlier groove of the same profile, printing alike, counts this one.
+        let on = line(cx, f);
+        let same = on.and_then(|(k, at, profile)| {
+            out.iter().position(|(o, l)| {
+                o.terms.ends_with(&w.terms)
+                    && l.is_some_and(|(k2, at2, profile2)| {
+                        k2 == k
+                            && profile2 == profile
+                            && (0..3).all(|j| j == k || (at[j] - at2[j]).abs() <= 1e-3)
+                    })
+            })
+        });
+        let (Some(i), Some((k, ..))) = (same, on) else {
+            out.push((w, on));
+            continue;
+        };
+        let o = &mut out[i].0;
+        o.measurements.extend(w.measurements);
+        if let (Shape::Callout { sites, .. }, Shape::Callout { sites: more, .. }) =
+            (&mut o.shape, w.shape)
+        {
+            sites.extend(more);
         }
+        let n = o.measurements.len() / 2;
+        if n == 2 {
+            o.terms.insert(0, String::new());
+        }
+        o.terms[0] = format!("{n}×");
+        o.basis = format!(
+            "{n} grooves of one turned profile have one width and floor diameter, so one callout counts them, in a view that shows the profile about {}",
+            AXES[k]
+        );
     }
-    (out, problems)
+    (out.into_iter().map(|(w, _)| w).collect(), problems)
 }

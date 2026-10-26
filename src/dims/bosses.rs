@@ -7,7 +7,8 @@
 //! Each boss states:
 //! - its **diameter**: on a part turned whole, a cylindrical boss on the turning axis is one band
 //!   of the profile, so its diameter is stated across it in a view that shows the profile
-//!   (draftwright leads to it from its diameter column there); any other boss reads as a circle
+//!   (draftwright leads to it from its diameter column there), equal such bands sharing one
+//!   counted diameter (`2× ø11.2`, beyond draftwright: #220); any other boss reads as a circle
 //!   looking down its axis, so its diameter is called out with a leader in that view, identical
 //!   bosses along one axis counted once (`2× ø22.9`), as draftwright collapses them. A thread
 //!   or knurl the boss owns ([`crate::pmi_lowering::manufacturing`]) follows the diameter, an
@@ -497,7 +498,9 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         })
         .collect();
 
-    let mut out = Vec::new();
+    let mut out: Vec<Want> = Vec::new();
+    // The diameter item of each size of round band on the turning axis, by its index in *out*.
+    let mut bands: BTreeMap<i64, usize> = BTreeMap::new();
     // Callouts by axis, side count (0 for a cylinder) and size; a boss carrying a thread or knurl
     // keeps its own callout (one annotation per owner), keyed by its index + 1 (0 means shared).
     let mut circles: BTreeMap<(usize, u64, i64, usize), Vec<usize>> = BTreeMap::new();
@@ -526,35 +529,59 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                 a[j] -= r;
                 c[j] += r;
                 let id = b.feature.id.as_str();
-                let mut terms = vec![format!("ø{}", fmt(diameter))];
-                carried(id, &mut terms);
-                out.push(Want {
-                id: want_id(id, "boss.diameter"),
-                views: vec![views[0]],
-                value: diameter,
-                terms,
-                measurements: std::iter::once(Measurement {
-                    feature: b.feature.id.clone(),
-                    parameter: "boss.diameter".into(),
+                // Equal bands of the profile share one diameter (`2× ø11.2`, #220); one carrying
+                // a thread or knurl keeps its own (one annotation per owner).
+                let plain = manufacturing.on(id).is_empty();
+                if let Some(&w) = bands.get(&key(diameter)).filter(|_| plain) {
+                    let w = &mut out[w];
+                    w.measurements.push(Measurement {
+                        feature: b.feature.id.clone(),
+                        parameter: "boss.diameter".into(),
+                        value: diameter,
+                    });
+                    let n = w.measurements.len();
+                    if n == 2 {
+                        w.terms.insert(0, String::new());
+                    }
+                    w.terms[0] = format!("{n}×");
+                    w.basis = format!(
+                        "the part is turned about {}, and {n} equal bosses are bands of its profile: one diameter states them all, across the first in a view that shows the profile",
+                        AXES[b.axis]
+                    );
+                } else {
+                    if plain {
+                        bands.insert(key(diameter), out.len());
+                    }
+                    let mut terms = vec![format!("ø{}", fmt(diameter))];
+                    carried(id, &mut terms);
+                    out.push(Want {
+                    id: want_id(id, "boss.diameter"),
+                    views: vec![views[0]],
                     value: diameter,
-                })
-                .chain(super::turned::claims(&manufacturing, vec![id], diameter))
-                .collect(),
-                turning: None,
-                basis: format!(
-                    "the part is turned about {}, and this boss is a band of its profile: its diameter is stated across it in a view that shows the profile{}",
-                    AXES[b.axis],
-                    super::turned::carries(&manufacturing, &[id], "boss")
-                ),
-                shape: Shape::Linear {
-                    a,
-                    b: c,
-                    axis: j,
-                    a_edge: false,
-                    b_edge: false,
-                    order: 0,
-                },
-            });
+                    terms,
+                    measurements: std::iter::once(Measurement {
+                        feature: b.feature.id.clone(),
+                        parameter: "boss.diameter".into(),
+                        value: diameter,
+                    })
+                    .chain(super::turned::claims(&manufacturing, vec![id], diameter))
+                    .collect(),
+                    turning: None,
+                    basis: format!(
+                        "the part is turned about {}, and this boss is a band of its profile: its diameter is stated across it in a view that shows the profile{}",
+                        AXES[b.axis],
+                        super::turned::carries(&manufacturing, &[id], "boss")
+                    ),
+                    shape: Shape::Linear {
+                        a,
+                        b: c,
+                        axis: j,
+                        a_edge: false,
+                        b_edge: false,
+                        order: 0,
+                    },
+                });
+                }
             } else {
                 let own = if manufacturing.on(&b.feature.id).is_empty() {
                     0

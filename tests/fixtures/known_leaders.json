@@ -243,5 +243,12 @@
     "crossing": "line:d:f:slot:4/slot_width.length",
     "verdict": "rust-wrong",
     "reason": "On ctc04 (native) the plan is crossed by the location ladders' extension lines, which start at the interior features and run through the view to the lanes above and beside it (ADR1-6); this callout's sites lie among them, so every route out of the view crosses some, and the joint assignment takes the fewest its bounded inventory offers. Re-routed with the 3 mm frame gutter (2026-10-25): the plan's strips and lanes moved, and these crossings replace eleven others (the listed total is unchanged). Reported as annotation_leader_crossing."
+  },
+  {
+    "part": "connector109",
+    "callout": "d:f:groove:2/groove.length",
+    "crossing": "line:d:f:boss:3/boss.diameter",
+    "verdict": "rust-wrong",
+    "reason": "On connector109 the two equal 6 wide grooves are one counted callout since #220 (2× 6 WIDE × ø122, claiming both), and the three ø130.94 lands are the overall diameter's, so the front view's left column loses four crowded callouts and the bounded leader search no longer caps (the previous annotation_leader_search_capped is gone). The counted callout leaves from its first groove's right-hand site, and its leader's root crosses the ø122 boss diameter's extension line where that line runs up the silhouette past the groove. A placement residual at the leader's root: every callout remains drawn, the label is clear, and the sheet is otherwise less crowded than before (scratchpad renders compared)."
   }
 ]

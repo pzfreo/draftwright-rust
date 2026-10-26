@@ -22,10 +22,10 @@
   },
   {
     "part": "connector109",
-    "code": "annotation_leader_search_capped",
+    "code": "annotation_leader_crossing",
     "count": 1,
-    "verdict": "undetermined",
-    "reason": "The default inspection baseline removes the five previously recorded leader crossings. The changed fixed ink joins nine callouts in one bounded search, which reaches its existing 200000-step cap; every callout remains drawn and the best assignment is retained, but optimality is not proven. This is the truthful search-budget warning, not a waiver of ink crossings: the previous crossing allowance is removed and all geometry checks remain active."
+    "verdict": "rust-wrong",
+    "reason": "On connector109 the two equal 6 wide grooves are one counted callout since #220 (2× 6 WIDE × ø122, claiming both), and the three ø130.94 lands are the overall diameter's, so the front view's left column loses four crowded callouts and the bounded leader search no longer caps (this entry replaces its annotation_leader_search_capped). The counted callout leaves from its first groove's right-hand site, and its leader's root crosses the ø122 boss diameter's extension line where that line runs up the silhouette past the groove. A placement residual at the leader's root: every callout remains drawn, the label is clear, and the sheet is otherwise less crowded than before (scratchpad renders compared). Listed in known_leaders.json too."
   },
   {
     "part": "m10046",
