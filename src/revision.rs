@@ -157,7 +157,7 @@ enum Bind {
 
 /// Revise: draw *old* with *spec*, carry *spec* to *new*, draw it, and compare. *part* chooses a
 /// part of an assembly in both files.
-pub fn revise(old: &Path, new: &Path, part: Option<usize>, spec: &Value) -> Result<Revised, Error> {
+pub fn diff(old: &Path, new: &Path, part: Option<usize>, spec: &Value) -> Result<Revised, Error> {
     let (old_part, old_analysis) = api::analysed(old, part, Features::Native)?;
     let (new_part, new_analysis) = api::analysed(new, part, Features::Native)?;
     let old_q = qc::recognise(&old_part);
