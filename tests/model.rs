@@ -555,3 +555,82 @@ fn analysing_step_bytes_matches_analysing_the_file() {
         );
     }
 }
+
+/// A surface model read beside the solid (#215: STC-07's CATIA fills, bounded by sketch
+/// curves) is construction geometry: the envelope, the overall dimensions, the stock faces and
+/// the edge ink come from the solid alone. The plate gains a triangle 7.5 mm above its top.
+#[test]
+fn a_surface_model_beside_the_solid_is_not_the_part() {
+    let source = std::fs::read_to_string(part("plate.step")).unwrap();
+    let fill = "#900=CARTESIAN_POINT('',(0.,0.,10.));
+#901=CARTESIAN_POINT('',(5.,0.,10.));
+#902=CARTESIAN_POINT('',(0.,5.,10.));
+#903=VERTEX_POINT('',#900);
+#904=VERTEX_POINT('',#901);
+#905=VERTEX_POINT('',#902);
+#906=DIRECTION('',(1.,0.,0.));
+#907=DIRECTION('',(-0.707106781187,0.707106781187,0.));
+#908=DIRECTION('',(0.,-1.,0.));
+#909=VECTOR('',#906,1.);
+#910=VECTOR('',#907,1.);
+#911=VECTOR('',#908,1.);
+#912=LINE('',#900,#909);
+#913=LINE('',#901,#910);
+#914=LINE('',#902,#911);
+#915=EDGE_CURVE('',#903,#904,#912,.T.);
+#916=EDGE_CURVE('',#904,#905,#913,.T.);
+#917=EDGE_CURVE('',#905,#903,#914,.T.);
+#918=ORIENTED_EDGE('',*,*,#915,.T.);
+#919=ORIENTED_EDGE('',*,*,#916,.T.);
+#920=ORIENTED_EDGE('',*,*,#917,.T.);
+#921=EDGE_LOOP('',(#918,#919,#920));
+#922=FACE_OUTER_BOUND('',#921,.T.);
+#923=DIRECTION('',(0.,0.,1.));
+#924=AXIS2_PLACEMENT_3D('',#900,#923,#906);
+#925=PLANE('',#924);
+#926=ADVANCED_FACE('Fill.1',(#922),#925,.T.);
+#927=OPEN_SHELL('Fill.1',(#926));
+#928=SHELL_BASED_SURFACE_MODEL('',(#927));
+#929=MANIFOLD_SURFACE_SHAPE_REPRESENTATION('',(#928),#713);
+#930=SHAPE_REPRESENTATION_RELATIONSHIP('','',#10,#929);";
+    let source = source.replace(
+        "ENDSEC;\nEND-ISO-10303-21;",
+        &format!("{fill}\nENDSEC;\nEND-ISO-10303-21;"),
+    );
+    let path = scratch("plate_with_fill.step");
+    std::fs::write(&path, source).unwrap();
+    let (_, plain) = model::analyse(&part("plate.step")).unwrap();
+    let (_, filled) = model::analyse(&path).unwrap();
+    // The fill is read (one face more), but it is not the part.
+    assert_eq!(filled.binding.face_count, plain.binding.face_count + 1);
+    assert_eq!(filled.solid_count, Some(1));
+    assert_eq!(filled.envelope, plain.envelope);
+    assert_eq!(filled.stock_faces, plain.stock_faces);
+    assert_eq!(filled.principal_profiles, plain.principal_profiles);
+    let (ink, plain_ink) = (
+        filled.edge_ink.as_ref().unwrap(),
+        plain.edge_ink.as_ref().unwrap(),
+    );
+    assert_eq!(ink.planes, plain_ink.planes);
+    assert_eq!(ink.curved, plain_ink.curved);
+    // The fill's edges keep their indices, with no ink.
+    assert_eq!(ink.edges.len(), plain_ink.edges.len() + 3);
+    assert_eq!(ink.edges[..plain_ink.edges.len()], plain_ink.edges[..]);
+    assert!(ink.edges[plain_ink.edges.len()..].iter().all(Vec::is_empty));
+    // The overall dimensions state the plate, not the plate and its fill.
+    let overall = |a: &model::Analysis| {
+        let plan = model::plan(a, &Spec::default()).unwrap();
+        let mut d: Vec<(String, f64)> = plan
+            .dimensions
+            .iter()
+            .filter(|d| d.id.starts_with("d:envelope/"))
+            .map(|d| (d.id.clone(), d.value))
+            .collect();
+        d.sort_by(|a, b| a.0.cmp(&b.0));
+        d
+    };
+    let (plain_overall, filled_overall) = (overall(&plain), overall(&filled));
+    assert!(!plain_overall.is_empty());
+    assert_eq!(filled_overall, plain_overall);
+    std::fs::remove_file(path).unwrap();
+}

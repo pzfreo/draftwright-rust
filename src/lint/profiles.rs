@@ -248,7 +248,7 @@ fn principal_tangents(part: &haecceity::Part, faces: &[usize]) -> Vec<[P3; 2]> {
 }
 
 /// The principal boundary faces of the solids of *part* (each solid of a part of several, else
-/// the whole part), as Python's scan reads them: what the Analysis records.
+/// its drawn faces), as Python's scan reads them: what the Analysis records.
 pub fn evidence(part: &haecceity::Part) -> Vec<Source> {
     use haecceity::geom::Surface;
     let scopes: Vec<(haecceity::geom::Bounds, Vec<usize>)> = if part.solids.len() > 1 {
@@ -256,7 +256,8 @@ pub fn evidence(part: &haecceity::Part) -> Vec<Source> {
             .map(|s| (part.solid_bounds(s), part.solids[s].faces.clone()))
             .collect()
     } else {
-        vec![(part.bounds(), (0..part.faces.len()).collect())]
+        let faces = crate::quiddity_evidence::drawn_faces(part);
+        vec![(crate::quiddity_evidence::drawn_bounds(part, &faces), faces)]
     };
     scopes
         .into_iter()

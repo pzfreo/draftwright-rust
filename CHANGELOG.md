@@ -54,6 +54,16 @@ All notable changes to draftwright-rust are recorded here, in the style of
   `0`, unsigned (`⌀6.35 +0.0762 0`, ISO 129-1, STC-07 and STC-09); and a common label that states
   a radius without its value (`2X R`, `4X R`: ASME's full radius) is not drawn but reported as
   `pmi_not_lowered` (a warning).
+- **Surface models beside the solid no longer inflate the envelope (#215).** A STEP's
+  `SHELL_BASED_SURFACE_MODEL` is read with the part (as OpenCascade reads it), but only the
+  solids' faces are drawn; the envelope, the overall dimensions, the stock faces, the principal
+  profiles and the edge ink now come from those faces too. NIST STC-07's two CATIA fills (open
+  triangles bounded by `Sketch.2`) put its overall height at 257.688 with the top extension line
+  in empty space; it is now the solid's 222.706, and the front view is centred on the solid. A
+  part with no solid is still drawn from all its faces. NIST FTC-07 (AP242, the same geometry and
+  fills) now lands on A1 1:1 instead of A2 1:2: with the honest, 17.5 mm shorter front-view box its
+  A2 1:2 layout gains leader crossings (the `F1.2` label's leader now crosses the front view) and
+  is refused; `sheet/size` A2 with `sheet/scale` 1:2 still draws it there.
 
 ## 0.1.0 (2026-10-25)
 
