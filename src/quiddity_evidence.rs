@@ -154,6 +154,32 @@ impl RiserEvidence {
     }
 }
 
+/// The faces of the part that are drawn: every solid's, or every face of a part with no solid,
+/// as haecceity's hidden-line removal draws them. Surface models read beside a solid (a CATIA
+/// fill bounded by sketch curves, say) are construction geometry, not the part (#215).
+pub(crate) fn drawn_faces(part: &Part) -> Vec<usize> {
+    let mut faces: Vec<usize> = part
+        .solids
+        .iter()
+        .flat_map(|s| s.faces.iter().copied())
+        .collect();
+    if faces.is_empty() {
+        faces = (0..part.faces.len()).collect();
+    }
+    faces.sort_unstable();
+    faces.dedup();
+    faces
+}
+
+/// The box of *faces*, the part's [`drawn_faces`]: its envelope.
+pub(crate) fn drawn_bounds(part: &Part, faces: &[usize]) -> Bounds {
+    let mut b = Bounds::empty();
+    for &f in faces {
+        b.merge(&part.face_bounds(f));
+    }
+    b
+}
+
 /// One body the levels are read within: a solid, or the whole part when it has none.
 struct Scope {
     faces: Vec<usize>,

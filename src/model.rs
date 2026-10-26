@@ -1416,7 +1416,8 @@ fn analyse_step_input(
             }
         }
     };
-    let b = part.bounds();
+    let drawn = crate::quiddity_evidence::drawn_faces(&part);
+    let b = crate::quiddity_evidence::drawn_bounds(&part, &drawn);
     let (level_supports, risers) = crate::dims::levels::evidence(&part);
     let mut analysis = Analysis {
         schema: ANALYSIS_SCHEMA.into(),
@@ -1440,7 +1441,9 @@ fn analyse_step_input(
         envelope: [b.min, b.max],
         solid_count: Some(part.solids.len()),
         face_accounting: None,
-        stock_faces: (0..part.faces.len())
+        stock_faces: drawn
+            .iter()
+            .copied()
             .filter(|&f| {
                 if !matches!(
                     part.faces[f].surface,

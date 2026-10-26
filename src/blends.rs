@@ -69,7 +69,7 @@ pub fn reliefs(part: &Part) -> Vec<Relief> {
         return Vec::new();
     }
     use std::collections::BTreeSet;
-    let bounds = part.bounds();
+    let bounds = part.solid_bounds(0);
     let spans = [0, 1, 2].map(|k| bounds.max[k] - bounds.min[k]);
     let longest = spans.into_iter().fold(0.0_f64, f64::max);
     let area = (spans[0] * spans[1])
