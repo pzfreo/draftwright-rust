@@ -281,6 +281,9 @@ const _: () = assert!(
 
 thread_local! {
     static COMPACT: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// The plan or side view [`idle_view`] leaves out, when decided for the whole Analysis
+    /// ([`with_idle_view`]).
+    static IDLE_VIEW: std::cell::Cell<Option<Option<&'static str>>> = const { std::cell::Cell::new(None) };
 }
 
 /// Whether the plan being made uses compact dimension spacing.
@@ -327,6 +330,18 @@ pub(crate) fn with_compact<T>(compact: bool, run: impl FnOnce() -> T) -> T {
         }
     }
     let _restore = Restore(COMPACT.replace(compact));
+    run()
+}
+/// Run *run* with [`idle_view`]'s choice given: the established reference drawing plans a
+/// reduced Analysis (no native recesses), where a view the drawing needs could look idle.
+pub(crate) fn with_idle_view<T>(dropped: Option<&'static str>, run: impl FnOnce() -> T) -> T {
+    struct Restore(Option<Option<&'static str>>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            IDLE_VIEW.set(self.0);
+        }
+    }
+    let _restore = Restore(IDLE_VIEW.replace(Some(dropped)));
     run()
 }
 /// The gap between a label's terms (draftwright's callout recipe), a label's baseline above its
@@ -1269,6 +1284,131 @@ pub(crate) fn reduction_preserves_requirements(
                     .iter()
                     .any(|v| carries(w, v) && !spec.views.get(*v).is_some_and(|v| v.omit))
         })
+}
+
+/// The principal view a part that is not turned leaves out because it adds nothing (#222): the
+/// plan or side view that no dimension is routed to with every view shown, so that all it would
+/// show is its outline (often a strip of hidden lines), unless it is a prism's profile
+/// ([`prism_axis`]) or looks along a cylinder (the only view showing it round). At most one is
+/// left out, the plan first, and never the front. The spec keeps it by naming it
+/// (`views/<name>`), as for a turned part's dropped view; one it omits, refers a dimension,
+/// annotation or view to, or that carries PMI or section A–A's cutting plane is kept. None for
+/// a turned part ([`crate::demand::turned_views`], whose shape this returns: the kept views,
+/// the dropped one and why).
+pub(crate) fn idle_view(
+    analysis: &Analysis,
+    spec: &Spec,
+    demand: &crate::demand::Demand,
+) -> Option<([&'static str; 2], &'static str, String)> {
+    let [allowed, plan_kept, side_kept] = idle_spec(spec);
+    if crate::demand::turned_views(demand).is_some() || !allowed {
+        return None;
+    }
+    let reduction = |v: &'static str, why: String| {
+        let other = if v == "plan" { "side" } else { "plan" };
+        (["front", other], v, why)
+    };
+    if let Some(given) = IDLE_VIEW.get() {
+        return given.map(|v| reduction(v, format!("the {v} view adds nothing to the drawing")));
+    }
+    let referred = |v: &str| if v == "plan" { plan_kept } else { side_kept };
+    let pmi = crate::pmi_lowering::views(analysis);
+    let (wants, _, _) = pmi_policy::wants(analysis, spec);
+    // Whether any is routed to *v* with every principal view shown ([`route`]'s first choice).
+    // One the spec omits still counts, so omitting a dimension never changes the views.
+    let routed = |v: &str| {
+        wants.iter().any(|w| {
+            w.views
+                .iter()
+                .copied()
+                .find(|k| NAMES.contains(k) && carries(w, k))
+                == Some(v)
+        })
+    };
+    let axis = prism_axis(analysis);
+    let round = |v: &str| {
+        analysis.edge_ink.as_ref().is_some_and(|ink| {
+            ink.curved
+                .iter()
+                .filter_map(|c| c.cylinder.as_ref())
+                .any(|c| (0..3).any(|k| (c.axis[k].abs() - 1.0).abs() < 1e-6 && end_on(k) == v))
+        })
+    };
+    ["plan", "side"]
+        .into_iter()
+        .find(|v| {
+            !pmi.contains(v)
+                && !(demand.section.is_some() && *v == "plan")
+                && !referred(v)
+                && !routed(v)
+                && axis.is_none_or(|k| end_on(k) != *v)
+                && !round(v)
+        })
+        .map(|v| {
+            let other = if v == "plan" { "side" } else { "plan" };
+            reduction(
+                v,
+                format!(
+                    "no dimension needs the {v} view (the front and {other} views carry them all) and it would add only its outline (naming views/{v} keeps it)"
+                ),
+            )
+        })
+}
+
+/// What [`idle_view`] reads from the spec: whether it may leave a view out at all (no principal
+/// view named, dimensions automatic, no scheme), and whether the spec refers a dimension,
+/// annotation or view to the plan, and to the side view, which keeps it.
+pub(crate) fn idle_spec(spec: &Spec) -> [bool; 3] {
+    let referred = |v: &str| {
+        spec.dimensions.values().any(|d| {
+            d.view.as_deref() == Some(v)
+                || d.place.as_ref().and_then(|p| p.view.as_deref()) == Some(v)
+        }) || spec
+            .annotations
+            .values()
+            .any(|a| a.place.as_ref().and_then(|p| p.view.as_deref()) == Some(v))
+            || spec.views.values().any(|s| {
+                s.detail
+                    .as_ref()
+                    .is_some_and(|d| d.from.as_deref() == Some(v))
+                    || s.place.as_ref().is_some_and(|p| p.relative_to == v)
+            })
+    };
+    [
+        spec.dimension_source != DimensionSource::Authored
+            && spec.dimension_schemes.is_empty()
+            && !NAMES.iter().any(|v| spec.views.contains_key(*v)),
+        referred("plan"),
+        referred("side"),
+    ]
+}
+
+/// The axis the part is a prism, or a stack of prisms, along (a plate, an extrusion, a boss on a
+/// plate), whose view along it is the part's profile: every edge lies square to it or along it,
+/// every plane faces along it or square to it, and every curved face is a cylinder along it.
+/// None without the Analysis's edge ink.
+fn prism_axis(analysis: &Analysis) -> Option<usize> {
+    let ink = analysis.edge_ink.as_ref()?;
+    let tol = 2.0 * crate::model::projected_ink::GRID;
+    let flat = |e: &[[f64; 3]], ks: &[usize]| {
+        ks.iter()
+            .all(|&k| e.iter().all(|p| (p[k] - e[0][k]).abs() <= tol))
+    };
+    (0..3).find(|&k| {
+        let across: Vec<usize> = (0..3).filter(|&j| j != k).collect();
+        let square = |c: f64| c.abs() < 1e-6 || (c.abs() - 1.0).abs() < 1e-6;
+        !ink.edges.is_empty()
+            && ink
+                .edges
+                .iter()
+                .all(|e| e.is_empty() || flat(e, &[k]) || flat(e, &across))
+            && ink.planes.iter().all(|f| square(f.normal[k]))
+            && ink.curved.iter().all(|c| {
+                c.cylinder
+                    .as_ref()
+                    .is_some_and(|c| (c.axis[k].abs() - 1.0).abs() < 1e-6)
+            })
+    })
 }
 
 /// Paper-space room for unpinned, side-only callouts. Keep the same labels as the solver,

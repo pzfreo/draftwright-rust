@@ -315,7 +315,8 @@ fn a_valid_plan_is_reconsidered_for_fill() {
 /// H6 review (2026-10-12): below the fill band the fullest valid allowed pair wins, so a valid
 /// A4 drawing is not traded for an emptier A3 one with one annotation conflict fewer. Measured:
 /// 10060 A4 1:1 17.0% against A3 2:1 14.9%; 10063 A4 1:1 22.6% against A3 2:1 20.8%; 10000
-/// A4 1:1 24.0% against A3 2:1 23.8%; string_post_tapped (AP242) A4 2:1 against A3 5:1.
+/// A4 1:1 24.0% against A3 2:1 23.8%; string_post_tapped (AP242) A4 2:1 against A3 5:1. Since
+/// #222 left out 10060's plan view, which no dimension needs, its A4 drawing is at 2:1.
 #[test]
 fn below_the_band_the_fullest_valid_pair_wins_on_real_candidates() {
     let Some(dir) = corpus::dir() else {
@@ -323,7 +324,7 @@ fn below_the_band_the_fullest_valid_pair_wins_on_real_candidates() {
         return;
     };
     for (file, expected) in [
-        ("mfcadpp/10060.step", ("A4", "1:1")),
+        ("mfcadpp/10060.step", ("A4", "2:1")),
         ("mfcadpp/10063.step", ("A4", "1:1")),
         ("mfcadpp/10000.step", ("A4", "1:1")),
     ] {

@@ -2426,6 +2426,7 @@ pub(crate) fn established_key(spec: &Spec) -> Vec<u8> {
             spec.hole_table,
             &spec.sheet.projection,
             spec.sheet.references,
+            crate::dims::idle_spec(spec),
         ))
         // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
         .expect("presentation inputs serialize")
@@ -2436,6 +2437,7 @@ pub(crate) fn established_key(spec: &Spec) -> Vec<u8> {
             spec.sheet.references,
             spec.pmi,
             &spec.origin,
+            crate::dims::idle_spec(spec),
         ))
         // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
         .expect("presentation inputs serialize")
@@ -2468,6 +2470,10 @@ pub(crate) fn established_drawing(analysis: &Analysis, spec: &Spec) -> Result<Pl
                 base.sheet.preferred_max_size = Some("A0".into());
                 base.sheet.projection = spec.sheet.projection.clone();
                 base.sheet.references = spec.sheet.references;
+                // The reference leaves out the view the drawing does, judged on the whole
+                // Analysis and the spec (#222; the key holds what that reads from the spec).
+                let idle = crate::dims::idle_view(analysis, spec, &crate::demand::read(analysis))
+                    .map(|r| r.1);
                 crate::planning::with(&reference, || {
                     // This recipe precedes the added notch bands as well as native recesses.
                     // Otherwise a displaced leader becomes its own established route, and
@@ -2491,11 +2497,13 @@ pub(crate) fn established_drawing(analysis: &Analysis, spec: &Spec) -> Result<Pl
                     );
                     // Keep the established compact corridors as an unrendered
                     // comparison; live placements are remeasured at faithful widths.
-                    if crate::nominal::geometry_eligible(&reference) {
-                        crate::nominal::with_comparison(|| plan_automatic(&reference, &base))
-                    } else {
-                        plan_automatic(&reference, &base)
-                    }
+                    crate::dims::with_idle_view(idle, || {
+                        if crate::nominal::geometry_eligible(&reference) {
+                            crate::nominal::with_comparison(|| plan_automatic(&reference, &base))
+                        } else {
+                            plan_automatic(&reference, &base)
+                        }
+                    })
                 })
             },
         )
@@ -3782,6 +3790,13 @@ pub(crate) fn pin_base(spec: &Spec) -> Spec {
     base.hole_table = spec.hole_table;
     base.iso_scale_factor = spec.iso_scale_factor;
     base.dimension_schemes = spec.dimension_schemes.clone();
+    // A principal view the spec names is kept in the unpinned drawing too: naming it is what
+    // keeps a view an automatic choice would leave out (#222, a turned part's repeated profile).
+    for (name, ..) in VIEWS.iter().filter(|(name, ..)| *name != "iso") {
+        if spec.views.contains_key(*name) {
+            base.views.insert((*name).into(), ViewSpec::default());
+        }
+    }
     if spec.dimensions.values().any(|d| d.between.is_some()) {
         base.dimension_source = spec.dimension_source;
         base.dimensions = spec.dimensions.clone();
@@ -5215,6 +5230,8 @@ fn plan_with_presentation(
             && (!complete_views
                 || crate::dims::reduction_preserves_requirements(analysis, spec, kept, &excluded))
     });
+    // A part that is not turned leaves out a plan or side view that adds nothing (#222).
+    let reduction = reduction.or_else(|| crate::dims::idle_view(analysis, spec, &demand));
     let shown = |name: &str| match spec.views.get(name) {
         Some(v) => !v.omit,
         None => !reduction.as_ref().is_some_and(|r| r.1 == name),

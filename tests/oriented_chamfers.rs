@@ -460,7 +460,11 @@ fn bevel_run_midpoints_do_not_invent_locations_or_force_sheet_enlargement() {
                 .count(),
             count
         );
-        let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+        // 1007's plan view, which no dimension needs, is named so that it is kept: without it
+        // (#222) the paper policy enlarges the drawing for reasons of its own.
+        let spec: Spec =
+            serde_json::from_value(serde_json::json!({"views": {"plan": {}}})).unwrap();
+        let p = model::plan_recovered(&a, &spec).unwrap();
         assert_eq!(p.dimensions.iter().filter(|d| d.label == label).count(), 1);
         assert!(
             !p.dimensions
@@ -499,9 +503,10 @@ fn bounded_notches_reserve_acute_arcs_and_leave_dense_general_profiles_alone() {
                     .any(|p| p.code == "annotation_outside_area")
             );
             // Native recesses add two complete pocket callouts, their four datum
-            // locations and the hex-pocket depth. A4 retains every requirement.
+            // locations and the hex-pocket depth. A4 retains every requirement, at 2:1 since
+            // #222 left out the plan view, which no dimension needs.
             assert_eq!(p.sheet.size, "A4");
-            assert_eq!(p.sheet.scale, "1:1");
+            assert_eq!(p.sheet.scale, "2:1");
             for (feature, parameters) in [
                 (
                     "f:section_recess:1",

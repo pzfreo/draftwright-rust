@@ -23,6 +23,16 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Changed
 
+- **A plan or side view that no dimension needs is left out (#222).** On a part that is not
+  turned, the plan or side view that no dimension is routed to with every view shown, so that
+  all it would add is its outline (often a strip of hidden lines), is dropped, unless it is a
+  prism's profile or looks along a cylinder. At most one view goes, the plan first, never the
+  front, and never one carrying PMI, section A–A's cutting plane or anything the spec refers to
+  it; the kept views' basis says why. Naming the view (`views/plan: {}`) keeps it, in a pinned
+  drawing's unpinned frame too. vslot-2020x50 and MFCAD 10020, 10046 and 10060 go from 1:1 to
+  2:1 in the room freed (10060 trades a leader crossing for an unplaceable prismatic-steps
+  detail); l-plate-5-holes, retaining-ring, shf08, MFCAD 10038 and FTC-09 lose their empty plan.
+  The rest of the 30 quality parts are unchanged.
 - On quiddity-rust **v0.2.1-alpha.1**. The reader accepts its new `rectangular_through_notches`
   family (not drawn yet, like `v_channels`), so CTC-01's two V-slot notches and their rounded
   channels are reported as unrecognised features instead of 3 unclaimed faces. Golden's
