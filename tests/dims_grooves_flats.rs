@@ -86,7 +86,8 @@ fn set(r: &mut Value, field: &str, v: Value) {
 /// Every groove and flat callout on draftwright's sheets (`10 WIDE × ø122` and `6 WIDE × ø122`
 /// twice in connector109's front view, `52.6 A/F` in its plan; string_post's double-D as one
 /// `2.4 A/F` in the plan stating both faces) is planned with the same label, view, parameters
-/// and values, each a default with a stable ID, and nothing is reported unplanned.
+/// and values, each a default with a stable ID, and nothing is reported unplanned; the two equal
+/// 6 wide grooves are one counted `2× 6 WIDE × ø122` claiming both (#220).
 #[test]
 fn grooves_and_flats_match_draftwrights_sheets() {
     for name in ["connector109", "string_post"] {
@@ -121,6 +122,18 @@ fn grooves_and_flats_match_draftwrights_sheets() {
                 )
             })
             .collect();
+        // #220: connector109's two equal 6 wide grooves on one profile are called out once and
+        // counted, claiming both; draftwright calls each out on its own.
+        let twins: Vec<Item> = python
+            .iter()
+            .filter(|(label, ..)| label == "6 WIDE × ø122")
+            .cloned()
+            .collect();
+        if let [(_, view, first), (_, _, second)] = &twins[..] {
+            python.retain(|(label, ..)| label != "6 WIDE × ø122");
+            let both = first.iter().chain(second).cloned().collect();
+            python.push(("2× 6 WIDE × ø122".into(), view.clone(), both));
+        }
         python.sort_by(|a, b| format!("{a:?}").cmp(&format!("{b:?}")));
         assert_eq!(items(&plan), python, "{name}");
         let ours: Vec<&str> = plan
@@ -133,10 +146,10 @@ fn grooves_and_flats_match_draftwrights_sheets() {
             })
             .collect();
         let want: &[&str] = if name == "connector109" {
+            // The counted callout keeps its first groove's ID (#220).
             &[
                 "d:f:groove:1/groove.length",
                 "d:f:groove:2/groove.length",
-                "d:f:groove:3/groove.length",
                 "d:f:flat:1/flat.length",
             ]
         } else {

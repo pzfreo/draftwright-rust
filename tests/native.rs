@@ -1771,8 +1771,9 @@ fn oriented_slots_are_read_and_their_pattern_checked() {
         .position(|r| r.family == "slots")
         .unwrap();
     // quiddity 0.2.0 gives the slots as `slots` measured from an origin along their own axes
-    // (#92), with no proved passage; one without its depth extent cannot be placed.
-    assert!(doc.records[slot].parameters["source"].is_null());
+    // (#92); from 0.2.1, in the plate's file axes (#91), each claims all four walls and carries
+    // a `source`. One without its depth extent still cannot be placed.
+    assert!(!doc.records[slot].parameters["source"].is_null());
     let e = refused(&|d| {
         d.records[slot].parameters.remove("d_lo");
     });

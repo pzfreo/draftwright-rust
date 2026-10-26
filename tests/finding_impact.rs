@@ -419,8 +419,12 @@ fn ctc01_counts_gaps_and_repeated_causes_without_hiding_findings() {
         // obstructed and stays a counted callout rather than a radius-centre table; a radius
         // leader that breaks the middle-arc/radial rule takes a longer compliant route, so 4× R25
         // now meets its arc radially (no radius_leader_not_radial). Advisory: no
-        // annotation_leader_crossing on the 350 line.
-        [(6, 2), (1, 1), (1, 1), (11, 3)],
+        // annotation_leader_crossing on the 350 line. #226: four labels with line-work closer
+        // than 0.5 mm are label_crowded notices: advisory (11, 3) -> (15, 4). quiddity-rust
+        // 0.2.1 recognises the two V-slot notches and their rounded channels, which draftwright
+        // does not draw yet, so they are reported as features_not_recognised: incomplete
+        // (6, 2) -> (7, 3); their faces are no longer unclaimed_geometry: advisory -> (14, 3).
+        [(7, 3), (1, 1), (1, 1), (14, 3)],
     );
 }
 #[test]
@@ -430,12 +434,14 @@ fn unsupported_recesses_and_rounding_have_separate_impacts() {
     // quiddity-rust 0.1.1 (accepted for alpha.13) publishes 1000's plate hi unrounded
     // (4.2190876 where alpha.8 gave 4.219), so the printed 4.219 adds a nominal_rounded
     // advisory: advisory (11, 2) -> (12, 2). quiddity-rust 0.2.0 publishes hi on the grid
-    // again (4.219, its #84), so that advisory goes: (12, 2) -> (11, 2).
-    assert_review_summary("mfcadpp/1000.step", [(11, 4), (1, 1), (0, 0), (11, 2)]);
+    // again (4.219, its #84), so that advisory goes: (12, 2) -> (11, 2). #226: a line within
+    // 0.5 mm of a label is a label_crowded notice: (11, 2) -> (12, 3).
+    assert_review_summary("mfcadpp/1000.step", [(11, 4), (1, 1), (0, 0), (12, 3)]);
 }
 #[test]
 fn informational_hole_bottom_and_recovery_remain_advisory() {
     // The automatic sheet choice's recovery is stated in its sheet basis, not as a
-    // layout_replanned notice; the remaining informational findings stay advisory.
-    assert_review_summary("gramel/string_post.step", [(1, 1), (1, 1), (0, 0), (2, 2)]);
+    // layout_replanned notice; the remaining informational findings stay advisory. #226: the
+    // 2.4 A/F dimension within 0.5 mm of the section arrowhead is a label_crowded notice.
+    assert_review_summary("gramel/string_post.step", [(1, 1), (1, 1), (0, 0), (3, 3)]);
 }

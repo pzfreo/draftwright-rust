@@ -2,7 +2,7 @@
 
 use super::{Omitted, Shape, Want};
 use crate::items::State;
-use crate::lint::redundancy::{Span, TOL, path};
+use crate::lint::redundancy::{Span, TOL, path, walkable, walked};
 use crate::model::{Analysis, Spec};
 
 type Kept = (Want, bool, Option<&'static str>, Vec<&'static str>);
@@ -15,7 +15,7 @@ pub(super) type References = std::collections::BTreeMap<String, Vec<String>>;
 /// parameter still identifies the original face level, not the rebased interval.
 fn ladder_span(a: &Analysis, w: &Want) -> Option<(Span, bool)> {
     let original = w.measurements.iter().find_map(|m| {
-        (m.feature == "step_level")
+        (m.feature == "step_level" && walked(a, &m.feature))
             .then(|| crate::lint::redundancy::span(a, &m.feature, &m.parameter))
             .flatten()
     })?;
@@ -61,9 +61,13 @@ fn interval(analysis: &Analysis, w: &Want) -> Option<Span> {
         return None;
     }
     let drawn = Span::new(axis, a[axis], b[axis]);
-    w.measurements.iter().find_map(|m| {
-        crate::lint::redundancy::span(analysis, &m.feature, &m.parameter).filter(|s| s.same(drawn))
-    })
+    w.measurements
+        .iter()
+        .filter(|m| walked(analysis, &m.feature))
+        .find_map(|m| {
+            crate::lint::redundancy::span(analysis, &m.feature, &m.parameter)
+                .filter(|s| s.same(drawn))
+        })
 }
 
 pub(super) fn consolidate(
@@ -74,7 +78,7 @@ pub(super) fn consolidate(
     omitted: &mut Vec<Omitted>,
 ) -> References {
     let mut references = References::new();
-    if a.solid_count.is_some_and(|n| n > 1) {
+    if !walkable(a) {
         return references;
     }
     let mut gone = std::collections::BTreeSet::new();
@@ -732,7 +736,7 @@ fn shoulders_on_slot_walls(
                     .0
                     .measurements
                     .iter()
-                    .filter(|m| m.feature == "step_level")
+                    .filter(|m| m.feature == "step_level" && walked(a, &m.feature))
                     .find_map(|m| crate::lint::redundancy::span(a, &m.feature, &m.parameter))?;
                 let ladder = kept[i].0.id.starts_with("d:step_level/") && given[i].is_empty();
                 (s.axis == walls.axis

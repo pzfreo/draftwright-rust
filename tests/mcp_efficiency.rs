@@ -284,8 +284,15 @@ fn one_feature_problem_query_returns_all_member_fixes() {
     // The new local pitch fix also clears both slot crossings. (With lanes compacted the fixes
     // also took the 100 slot length's extension off the ⌀35 hole; in the 3 mm frame gutter's
     // layout, 2026-10-25, that crossing stays.) Other records can refresh their scoped
-    // alternatives without becoming new physical findings.
-    assert_eq!(gone.len(), 6);
+    // alternatives without becoming new physical findings. #226: the same fixes also clear
+    // two label_crowded notices (line-work within 0.5 mm of 650 and 370). With #223–#225's
+    // CTC-01 changes the 4× R25 label is no longer crowded before the fixes, so it has none
+    // to clear.
+    assert_eq!(gone.len(), 8);
+    assert_eq!(
+        gone.iter().filter(|p| p["code"] == "label_crowded").count(),
+        2
+    );
     for p in &problems {
         assert!(gone.iter().any(|resolved| resolved["id"] == p["id"]));
     }
@@ -324,7 +331,14 @@ fn verbose_feature_problem_stays_actionable_and_can_be_cleared() {
     assert!(!ops.is_empty());
     if row.get("detail_ref").is_some() {
         assert_eq!(row["scope"], "local");
-        assert!(row["description"].as_str().unwrap().contains("Trade-off:"));
+        // The verbose row keeps the local remedy's wording: the move, with any findings it adds
+        // named after "Trade-off:". Since the grid callouts lost their "(2×2)" (#225) the 650's
+        // move below the plan adds none.
+        let description = row["description"].as_str().unwrap();
+        assert!(
+            description.starts_with("Move the 650 dimension below the plan view"),
+            "{row}"
+        );
     }
     let answer = call(
         &cache,

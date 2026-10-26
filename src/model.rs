@@ -117,6 +117,10 @@ pub struct Analysis {
     /// Absent in older analyses; several solids make completeness findings informational.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub solid_count: Option<usize>,
+    /// With several solids, the faces of the one solid that fills the part's box, when exactly
+    /// one does: support-plane chains are walked on it alone (#220).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub body_faces: Option<Vec<usize>>,
     /// Principal outer stock faces, credited only when the overall sizes are stated and
     /// [`Analysis::face_accounting`] is absent.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -204,6 +208,12 @@ pub struct Analysis {
     /// with it. The plan reports them (`coincident_bodies`).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub coincident: Vec<CoincidentBody>,
+    /// Whether the part `binding.part_index` names was chosen as the assembly's principal part
+    /// (#219), with no part chosen: its body the largest, holding every other within its box,
+    /// drawn alone. The other parts are not drawn, and the plan says so
+    /// (`assembly_principal_drawn`).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub principal: bool,
 }
 
 /// A placed body of a STEP file that coincides with an earlier one (`coincident_bodies`).
@@ -1185,12 +1195,7 @@ fn coincident_bodies(part: &Part, defs: &[haecceity::step::PartDefinition]) -> V
     if placed < 2 {
         return Vec::new();
     }
-    let mut instance_faces: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
-    for f in 0..part.faces.len() {
-        if let Some(s) = part.face_source(f) {
-            instance_faces.entry(s.instance).or_default().push(f);
-        }
-    }
+    let instance_faces = instance_faces(part);
     let micron = |x: f64| (x * 1e3).round() as i64;
     // Each distinct body's faces (surface type and box, sorted), with its part.
     type Faces = Vec<(u8, [i64; 6])>;
@@ -1227,6 +1232,65 @@ fn coincident_bodies(part: &Part, defs: &[haecceity::step::PartDefinition]) -> V
         }
     }
     found
+}
+
+/// The whole-file *part*'s faces by the instance of the file they came from.
+fn instance_faces(part: &Part) -> BTreeMap<usize, Vec<usize>> {
+    let mut faces: BTreeMap<usize, Vec<usize>> = BTreeMap::new();
+    for f in 0..part.faces.len() {
+        if let Some(s) = part.face_source(f) {
+            faces.entry(s.instance).or_default().push(f);
+        }
+    }
+    faces
+}
+
+/// The principal part of the whole-file *part* (read from the file whose parts are *defs*), when
+/// it holds the others (#219): the part whose placed body has the largest box diagonal (the
+/// earlier on a tie), when every other placed body lies within that body's box, to a micron. An
+/// assembly drawn whole dimensions such bodies (a pulley's set screws, a bearing's inner sleeve)
+/// as features of one part, so with no part chosen this one is drawn alone. None when a body
+/// lies outside it (parts side by side, or a pin standing out of a plate, are still drawn whole)
+/// or no body's faces can be told apart. Containment is by box in the assembly frame, not by
+/// material, so a neighbour sitting in the corner of an L-bracket's box counts as held.
+fn principal_part(part: &Part, defs: &[haecceity::step::PartDefinition]) -> Option<usize> {
+    let instance_faces = instance_faces(part);
+    // Each placed body's part and box.
+    let mut bodies: Vec<(usize, [f64; 3], [f64; 3])> = Vec::new();
+    for (k, d) in defs.iter().enumerate() {
+        for p in &d.placements {
+            let (mut lo, mut hi) = ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]);
+            for &f in p
+                .instances
+                .iter()
+                .flat_map(|i| instance_faces.get(i).into_iter().flatten())
+            {
+                let b = part.face_bounds(f);
+                for a in 0..3 {
+                    lo[a] = lo[a].min(b.min[a]);
+                    hi[a] = hi[a].max(b.max[a]);
+                }
+            }
+            if lo[0].is_finite() {
+                bodies.push((k, lo, hi));
+            }
+        }
+    }
+    let diagonal = |&(_, lo, hi): &(usize, [f64; 3], [f64; 3])| {
+        (0..3).map(|a| (hi[a] - lo[a]).powi(2)).sum::<f64>().sqrt()
+    };
+    let mut principal = bodies.first()?;
+    for b in &bodies[1..] {
+        if diagonal(b) > diagonal(principal) + 1e-6 {
+            principal = b;
+        }
+    }
+    let &(k, lo, hi) = principal;
+    bodies
+        .iter()
+        .filter(|b| !std::ptr::eq(*b, principal))
+        .all(|&(_, l, h)| (0..3).all(|a| l[a] >= lo[a] - 1e-3 && h[a] <= hi[a] + 1e-3))
+        .then_some(k)
 }
 
 /// `0: plate, 1: pin`: an assembly's parts as a message names them.
@@ -1298,9 +1362,11 @@ pub fn analyse_step(path: &Path, bytes: &[u8]) -> Result<(Part, Analysis), Unana
 /// [`analyse_step`], of one part of the file when *part* is given: part *k* of [`parts`], read
 /// alone in its own frame (`haecceity::StepFile::part`, its first placement's shape with no
 /// placement applied), its PMI only (other parts' records are dropped). The binding names the
-/// part and its index. Part 0 of a file of one part is the whole file, read as with none. With none, the whole file is read as one part, as it always was; an
-/// assembly's parts are then listed in `parts` and the plan warns that they are drawn together.
-/// Refused, naming the parts, when there is no part *k*.
+/// part and its index. Part 0 of a file of one part is the whole file, read as with none. With
+/// none, an assembly's parts are listed in `parts`, and its principal part, if any, is read alone
+/// ([`principal_part`]; the plan warns that the others are not drawn), or the one part every
+/// body coincides with; otherwise the file is read whole. Refused, naming the parts, when there
+/// is no part *k*.
 #[cfg(not(target_arch = "wasm32"))]
 pub fn analyse_step_part(
     path: &Path,
@@ -1363,6 +1429,7 @@ fn analyse_step_input(
     // with `.gz` after it, so `part.step.gz` and `part.stp.gz` are named as `part.step` is.
     let mut chosen = chosen;
     let mut coincident = Vec::new();
+    let mut principal = false;
     let (part, defs, part_name) = match chosen {
         None => {
             let part = haecceity::read_step(bytes).map_err(|e| step_refused(name, e))?;
@@ -1387,6 +1454,19 @@ fn analyse_step_input(
                     let name = file.parts[k].name.clone();
                     (part, Ok(file.parts), name)
                 }
+                // Bodies within the largest one's box: that part alone (#219), as `--part k`
+                // draws it, so no body it holds is dimensioned as its features.
+                (Ok(file), _) if file.parts.len() > 1 => match principal_part(&part, &file.parts) {
+                    Some(k) => {
+                        chosen = Some(k);
+                        principal = true;
+                        coincident = Vec::new();
+                        let part = file.part(k).map_err(|e| step_refused(name, e))?;
+                        let name = file.parts[k].name.clone();
+                        (part, Ok(file.parts), name)
+                    }
+                    None => (part, Ok(file.parts), stem.clone()),
+                },
                 (file, _) => (part, file.map(|f| f.parts), stem.clone()),
             }
         }
@@ -1440,6 +1520,24 @@ fn analyse_step_input(
         source_stem: chosen.map(|_| stem),
         envelope: [b.min, b.max],
         solid_count: Some(part.solids.len()),
+        body_faces: {
+            let fills = |s: &haecceity::brep::Solid| {
+                let (mut lo, mut hi) = ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]);
+                for &f in &s.faces {
+                    let fb = part.face_bounds(f);
+                    for k in 0..3 {
+                        lo[k] = lo[k].min(fb.min[k]);
+                        hi[k] = hi[k].max(fb.max[k]);
+                    }
+                }
+                (0..3).all(|k| (lo[k] - b.min[k]).abs() <= 1e-5 && (hi[k] - b.max[k]).abs() <= 1e-5)
+            };
+            let filling: Vec<_> = part.solids.iter().filter(|s| fills(s)).collect();
+            match filling.as_slice() {
+                [s] if part.solids.len() > 1 => Some(s.faces.clone()),
+                _ => None,
+            }
+        },
         face_accounting: None,
         stock_faces: drawn
             .iter()
@@ -1486,6 +1584,7 @@ fn analyse_step_input(
             _ => Vec::new(),
         },
         coincident,
+        principal,
     };
     let (_, toward, up) = VIEWS[3];
     // Invariant: Planned cameras come from the fixed views or checked section/detail cameras, with nonparallel axes.
@@ -1865,7 +1964,7 @@ fn feature_crossings_where(plan: &Plan, include: impl Fn(&str) -> bool) -> usize
     leaders.len() + extensions.len()
 }
 
-fn ink_findings(plan: &Plan) -> usize {
+pub(crate) fn ink_findings(plan: &Plan) -> usize {
     plan.problems
         .iter()
         .filter(|p| {
@@ -1879,6 +1978,34 @@ fn ink_findings(plan: &Plan) -> usize {
             )
         })
         .count()
+}
+
+/// How the sheet basis names each candidate's [`ink_findings`] count; [`note_final_conflicts`]
+/// reads the count back by it.
+const BASIS_CONFLICTS: &str = "annotation conflicts";
+
+/// The sheet basis counts each candidate's annotation conflicts as the paper policy compared
+/// them, before the selected drawing's later repairs (its final leader routes among them). When
+/// the finished drawing's count differs from the one the basis states for its sheet and scale,
+/// say so, so the basis and the plan's problems agree (#226).
+pub(crate) fn note_final_conflicts(plan: &mut Plan) {
+    let key = format!("{} {} fill ", plan.sheet.size, plan.sheet.scale);
+    let Some(stated) = plan.sheet.basis.find(&key).and_then(|at| {
+        let entry = &plan.sheet.basis[at..];
+        let entry = &entry[..entry.find(')')?];
+        let before = &entry[..entry.find(&format!(" {BASIS_CONFLICTS}"))?];
+        before.rsplit([' ', '(']).next()?.parse::<usize>().ok()
+    }) else {
+        return;
+    };
+    let finished = ink_findings(plan);
+    let note = "annotation conflicts were counted before its final repairs";
+    if finished != stated && !plan.sheet.basis.contains(note) {
+        plan.sheet.basis += &format!(
+            "; the selected {} {} candidate's {note}, which take them from {stated} to {finished}",
+            plan.sheet.size, plan.sheet.scale
+        );
+    }
 }
 
 fn longer_callouts(candidate: &Plan, baseline: &Plan) -> bool {
@@ -3343,7 +3470,7 @@ fn recover_candidates(
                 let selection_fill =
                     crate::sheet_fit::selection_fill(analysis, &p, compare_diagram_fill);
                 tried.push(format!(
-                    "{name} {} fill {:.1}% ({}, {over} additional view conflicts, {crossings} additional material crossings, {} annotation conflicts, {unreadable_steps} unreadable step spans, {})",
+                    "{name} {} fill {:.1}% ({}, {over} additional view conflicts, {crossings} additional material crossings, {} {BASIS_CONFLICTS}, {unreadable_steps} unreadable step spans, {})",
                     p.sheet.scale,
                     selection_fill * 100.0,
                     verdict,
@@ -3784,6 +3911,8 @@ fn plan_recovered_once(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid
     );
     crate::sheets::furnish(&mut plan);
     crate::fixes::retain_local_layout(&mut plan);
+    crate::dims::contacts::report(&mut plan);
+    note_final_conflicts(&mut plan);
     Ok(plan)
 }
 
@@ -3817,6 +3946,8 @@ fn plan_recovered_inner(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invali
                 natural.as_ref(),
             );
             crate::dims::callout_routes::finish(effective.as_ref(), spec, &mut plan);
+            crate::dims::hole_marks::attach(effective.as_ref(), spec, &mut plan);
+            crate::dims::gdt::cited_undrawn(&mut plan);
             crate::dims::pmi_policy::audit(effective.as_ref(), &plan.spec.clone(), &mut plan);
             if crate::dims::pmi_policy::carries(effective.as_ref()) || !spec.origin.is_empty() {
                 crate::fixes::attach(effective.as_ref(), &mut plan);
@@ -4406,6 +4537,8 @@ fn plan_once(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     );
     crate::sheets::furnish(&mut plan);
     crate::fixes::retain_local_layout(&mut plan);
+    crate::dims::contacts::report(&mut plan);
+    note_final_conflicts(&mut plan);
     Ok(plan)
 }
 
@@ -4447,6 +4580,8 @@ fn plan_inner(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
                 natural.as_ref(),
             );
             crate::dims::callout_routes::finish(analysis, spec, &mut plan);
+            crate::dims::hole_marks::attach(analysis, spec, &mut plan);
+            crate::dims::gdt::cited_undrawn(&mut plan);
             if !crate::placement_intent::has_pins(spec) {
                 plan.record_dimension_labels();
             }
@@ -4605,6 +4740,8 @@ fn plan_with_presentation(
                 // interior/GD&T repair, rather than an intermediate paper trial.
                 crate::dims::callout_routes::prefer_interior(analysis, base, &mut finished, None);
                 crate::dims::callout_routes::finish(analysis, base, &mut finished);
+                crate::dims::hole_marks::attach(analysis, base, &mut finished);
+                crate::dims::gdt::cited_undrawn(&mut finished);
                 Ok(finished)
             } else {
                 plan(analysis, base)
@@ -4718,17 +4855,27 @@ fn plan_with_presentation(
             }
         }
         for (id, d) in &mut effective.annotations {
-            if let Some(p) = d.place.as_mut()
+            let held = base.gdt.iter().find(|d| d.id == *id);
+            if let Some(p) = d.place.as_ref()
+                && p.pinned
+                && let Some(g) = held.filter(|g| crate::dims::hole_marks::attached(g))
+                && (crate::placement_intent::automatic_pin(p)
+                    || p.view.as_deref() == Some(g.view.trim_start_matches("v:")))
+            {
+                // A pin on a glyph attached to its hole's mark (#224), bare or in the view it
+                // attaches in, holds that ink: it is lowered and attached again as the canonical
+                // drawing was, never pinned on the strip of a view it is not lowered in.
+                d.place = None;
+            } else if let Some(p) = d.place.as_mut()
                 && p.pinned
                 && p.view.is_none()
             {
-                p.view = base
-                    .gdt
-                    .iter()
-                    .find(|d| d.id == *id)
-                    .map(|d| d.view.trim_start_matches("v:").into());
+                p.view = held.map(|d| d.view.trim_start_matches("v:").into());
             }
         }
+        effective
+            .annotations
+            .retain(|_, a| *a != Default::default());
     }
     let mut inactive = Vec::new();
     if let Some(b) = &spec.binding
@@ -4809,6 +4956,39 @@ fn plan_with_presentation(
                 analysis.binding.part,
                 analysis.parts.len(),
                 part_list(&analysis.parts)
+            ),
+            subjects: Vec::new(),
+            refs: analysis.parts.iter().map(|p| p.name.clone()).collect(),
+            ..Default::default()
+        });
+    }
+    // An assembly's principal part drawn alone (#219): the other parts are not drawn.
+    if analysis.principal
+        && let Some(k) = analysis.binding.part_index
+    {
+        let file = analysis
+            .source_stem
+            .as_ref()
+            .unwrap_or(&analysis.binding.part);
+        let others = analysis
+            .parts
+            .iter()
+            .filter(|p| p.part != k)
+            .map(|p| format!("{}: {}", p.part, p.name))
+            .collect::<Vec<_>>()
+            .join(", ");
+        let placements = match analysis.parts.get(k).map_or(1, |p| p.instances) {
+            1 => String::new(),
+            n => format!(" (one of its {n} placements)"),
+        };
+        problems.push(Problem {
+            id: "p:assembly_principal_drawn:part".into(),
+            code: "assembly_principal_drawn".into(),
+            severity: "warning".into(),
+            message: format!(
+                "{file} is an assembly of {} parts; its largest, part {k} ({}){placements}, holds the others within its box and is drawn alone, so they ({others}) are neither drawn nor dimensioned as its features. To draw another part, choose it by its index: --part K on the command line, or \"part\": K in a request.",
+                analysis.parts.len(),
+                analysis.binding.part
             ),
             subjects: Vec::new(),
             refs: analysis.parts.iter().map(|p| p.name.clone()).collect(),

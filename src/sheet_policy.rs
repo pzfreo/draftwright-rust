@@ -1072,6 +1072,8 @@ fn replay_pins(
     let effective = crate::spec_gdt::effective(analysis, &held.spec)?;
     crate::dims::callout_routes::prefer_interior(effective.as_ref(), base, &mut held, None);
     crate::dims::callout_routes::finish(effective.as_ref(), base, &mut held);
+    crate::dims::hole_marks::attach(effective.as_ref(), base, &mut held);
+    crate::dims::gdt::cited_undrawn(&mut held);
     let mut plan = if only_bare_pins(&intent, base, &held) {
         // A bare pin holds the selected finished ink, including peers on every
         // physical page. Re-solving sheet 1 would create a different pin origin.
@@ -2041,12 +2043,12 @@ mod tests {
 
     #[test]
     fn a_routing_refusal_without_space_drops_does_not_repeat_the_scale() {
-        // LM10UU's unclipped A4 trial keeps a leader/extension contact through its finishing
-        // pass, with no hard findings or drops: a smaller scale would repeat the same routing,
-        // so it is not tried.
+        // The gear blank's unclipped A4 trial keeps a leader/extension contact through its
+        // finishing pass, with no hard findings or drops: a smaller scale would repeat the same
+        // routing, so it is not tried. (LM10UU was this case until the #219-#226 stack left
+        // its A4 trial usable at 2:1.)
         let a = model::analyse_native(
-            &Path::new(env!("CARGO_MANIFEST_DIR"))
-                .join("tests/fixtures/parts/bearing-lm10uu.step.gz"),
+            &Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts/gear_blank.step"),
         )
         .unwrap()
         .1;
@@ -2565,6 +2567,8 @@ mod tests {
         crate::fixes::retain_local_layout(&mut b);
         crate::dims::callout_routes::prefer_interior(&a, &s, &mut b, None);
         crate::dims::callout_routes::finish(&a, &s, &mut b);
+        crate::dims::contacts::report(&mut b);
+        model::note_final_conflicts(&mut b);
         let p = model::plan_recovered(&a, &s).unwrap();
         assert!(p.sheet_candidates.is_empty());
         assert_eq!(

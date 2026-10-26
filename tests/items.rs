@@ -674,7 +674,16 @@ fn a_problems_fix_resolves_it() {
     ];
     let ctc01 = ap242("nist_ctc_01_asme1_ap242-e1.stp");
     let pmi = cache::default_plan(&ctc01, false);
-    let frame_view = pmi.gdt[0].view.trim_start_matches("v:").to_string();
+    // A glyph on its lowered surface: one #224 attached to its hole's mark (datum C, in the plan)
+    // goes back to its surface in another view when that view is omitted, so it is not dropped.
+    let frame_view = pmi
+        .gdt
+        .iter()
+        .find(|g| !g.basis.contains(", which sees the hole"))
+        .expect("a glyph on its surface")
+        .view
+        .trim_start_matches("v:")
+        .to_string();
     cases.push((
         "pmi_not_drawn",
         &ctc01,

@@ -55,6 +55,7 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `annotation_over_view` | readability | An annotation overlaps view geometry. |
 | `annotation_overlap` | readability | Annotation labels overlap each other. |
 | `assembly_drawn_whole` | advisory | The complete assembly was selected for drawing. |
+| `assembly_principal_drawn` | advisory | The assembly's largest part, holding the others, was drawn alone; the others are not drawn. |
 | `authored_dimension_invalid` | decision | The authored dimension needs a valid user definition. |
 | `axial_length_missing` | incomplete | The drawing does not state the axial length. |
 | `balloon_dropped` | incomplete | A required drawing item was dropped before it could be stated. |
@@ -101,6 +102,7 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `dimensions_not_ported` | incomplete | No implemented dimension grammar states this feature requirement. |
 | `duplicate_measurement` | advisory | The same measurement is repeated on the drawing. |
 | `edges_not_drawn` | incomplete | Failed projection left model edges absent from the drawing. |
+| `extension_off_centreline` | readability | An extension line lies just beside a centre line, so it reads as locating that centre. |
 | `extension_through_feature` | advisory | Extension lines crossing geometry are normal drafting practice. |
 | `feature_count_mismatch` | incomplete | The drawn evidence does not correctly state the required source information. |
 | `feature_located_twice` | advisory | Repeated location information is reported for review. |
@@ -115,6 +117,7 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `flat_leader_target_unverifiable` | readability | The flat leader target cannot be verified. |
 | `flat_requirement_missing` | incomplete | The drawing does not state this required feature parameter. |
 | `flat_requirement_unverifiable` | incomplete | The drawing does not prove this required feature parameter. |
+| `frame_datum_not_drawn` | incomplete | A drawn feature control frame cites a datum the drawing does not show. |
 | `gear_axis_mismatch` | incomplete | The drawn evidence does not correctly state the required source information. |
 | `gear_correspondence_unverifiable` | incomplete | The source gear requirement cannot be matched to the depicted gear. |
 | `gear_repeat_count_mismatch` | incomplete | The drawn evidence does not correctly state the required source information. |
@@ -139,10 +142,12 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `hole_table_unavailable` | advisory | Individual dimensions remain when the requested table cannot be used. |
 | `iso_projection_empty` | incomplete | The requested isometric view has no projected geometry. |
 | `label_centerline_overlap` | readability | A centreline crosses label ink. |
-| `label_section_furniture_overlap` | readability | Section furniture crosses label ink. |
+| `label_crowded` | readability | Text lies within 0.5 mm of another label or of foreign line-work; it stays legible but reads as touching. |
+| `label_section_furniture_overlap` | readability | Section furniture touches label ink, or annotation ink runs through a section mark. |
 | `label_vs_measured` | incomplete | The printed label does not state the measured requirement. |
 | `layout_recovery_exhausted` | readability | No recovery removed all reported layout defects. |
 | `layout_replanned` | advisory | A successful sheet or scale recovery is reported. |
+| `leader_along_centreline` | readability | A leader runs along a centre line, so the two read as one line. |
 | `leader_centerline_overlap` | readability | A leader overlaps a centreline. |
 | `leader_crosses_silhouette` | advisory | The informational audit reports leader re-entry into the silhouette. |
 | `leader_line_through_text` | readability | A leader runs through text. |

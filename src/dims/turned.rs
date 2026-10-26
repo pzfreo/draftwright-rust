@@ -9,8 +9,9 @@
 //! - **The overall diameter** of a part turned whole is `envelope`/`od.diameter`, in a view that
 //!   shows the profile. It also states the diameter of the band it is
 //!   (`_share_unique_outer_diameter`): the one band of the largest diameter on the part's axis
-//!   line, or two such bands with separate spans inside the box (`2× ø130`, two flanges). Three
-//!   or more do not share it, and each gets its own diameter.
+//!   line, or several such bands with separate spans inside the box (`2× ø130`, two flanges;
+//!   `ø15` for three lands between grooves: beyond draftwright, whose three or more each got
+//!   their own diameter, the OD stated again per land, #220).
 //! - **A step's diameter** is `step.diameter`, a callout `ø6` led to the band's silhouette at
 //!   its middle, in the front view for a band along x or z (draftwright's row below and column
 //!   left of the front view; the next profile view when the front is omitted), and led to its
@@ -115,8 +116,9 @@ fn same_line(k: usize, a: P3, b: P3) -> bool {
 }
 
 /// The bands the overall diameter of part *t* also states: the one band of its diameter on its
-/// axis line, or two with separate spans inside the box (`_share_unique_outer_diameter`, with
-/// `_two_distinct_od_bands`); none when three or more share it.
+/// axis line, or several with separate spans inside the box (`_share_unique_outer_diameter`,
+/// with `_two_distinct_od_bands`, beyond draftwright for three or more: #220); none when two of
+/// them adjoin or overlap.
 fn shared<'a>(t: &Turned, read: &'a [Banded<'a>], envelope: [P3; 2]) -> Vec<&'a Banded<'a>> {
     let matches: Vec<&Banded> = read
         .iter()
@@ -125,17 +127,14 @@ fn shared<'a>(t: &Turned, read: &'a [Banded<'a>], envelope: [P3; 2]) -> Vec<&'a 
         .collect();
     let k = t.axis;
     let [lo, hi] = envelope;
-    let two_apart = |a: &Band, b: &Band| {
-        [a, b]
+    let inside = |c: &Band| lo[k] - 1e-6 <= c.lo && c.lo < c.hi && c.hi <= hi[k] + 1e-6;
+    let apart = |a: &Band, b: &Band| a.hi < b.lo - 1e-6 || b.hi < a.lo - 1e-6;
+    let separate = matches.len() == 1
+        || matches
             .iter()
-            .all(|c| lo[k] - 1e-6 <= c.lo && c.lo < c.hi && c.hi <= hi[k] + 1e-6)
-            && (a.hi < b.lo - 1e-6 || b.hi < a.lo - 1e-6)
-    };
-    match matches[..] {
-        [_] => matches,
-        [a, b] if two_apart(&a.1, &b.1) => matches,
-        _ => Vec::new(),
-    }
+            .enumerate()
+            .all(|(i, (_, a))| inside(a) && matches[i + 1..].iter().all(|(_, b)| apart(a, b)));
+    if separate { matches } else { Vec::new() }
 }
 
 /// Whether the bands and grooves of one turned profile adjoin from one end of the part's box to
@@ -1076,6 +1075,9 @@ fn overall(
         .find(|&j| j != t.axis && profile_views(j).contains(&views[0]))
         .unwrap_or((t.axis + 1) % 3);
     let mut terms = vec![format!("ø{}", fmt(t.diameter))];
+    // Two flanges are counted, as draftwright counts them; three or more lands of one cylinder
+    // (beyond draftwright) read as the one diameter they are, which a coaxial boss of that size
+    // shares too (`share_statements`).
     if share.len() == 2 {
         terms.insert(0, "2×".into());
     }
@@ -1100,9 +1102,10 @@ fn overall(
     }));
     measurements.extend(claims(manufacturing, ids(share), t.diameter));
     let stands = match share.len() {
-        1 => "; it is also the diameter of the one band that size",
-        2 => "; it is also the diameter of the two separate bands that size",
-        _ => "",
+        0 => String::new(),
+        1 => "; it is also the diameter of the one band that size".into(),
+        2 => "; it is also the diameter of the two separate bands that size".into(),
+        n => format!("; it is also the diameter of the {n} separate bands that size"),
     };
     out.push(Want {
         id: want_id("envelope", "od.diameter"),

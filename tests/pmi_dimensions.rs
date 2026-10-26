@@ -698,8 +698,8 @@ fn holes_of_different_requirements_are_called_out_apart() {
         .collect();
     assert!(labels.contains(&"⌀20 +0.1 -0.05 ↧ 45"), "{labels:?}");
     assert!(labels.contains(&"⌀20 +0.05 -0.1 ↧ 45"), "{labels:?}");
-    // The 2×2 grid of ⌀35 whose holes carry three requirements is split too, its arrangement
-    // dropped from each callout (its pitches still locate the holes).
+    // The 2×2 grid of ⌀35 whose holes carry three requirements is split too (its pitches still
+    // locate the holes).
     let plan_labels: Vec<&str> = plan
         .dimensions
         .iter()

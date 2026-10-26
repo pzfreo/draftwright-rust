@@ -123,6 +123,41 @@ fn local_axis(v: &Value) -> Option<[f64; 3]> {
 /// The end-exclusion of a span (quiddity's `bounded_end_margin`, draftwright's 0.6 mm).
 const END_MARGIN: f64 = 0.6;
 
+/// Whether the part is one short disc on z (#220: a bearing ring, a coupling half), which reads
+/// as a part turned about z: it has no turned step, and a cylindrical boss along z is as wide as
+/// the part's box across z, centred in it, and no taller than its diameter.
+fn disc(analysis: &Analysis) -> bool {
+    let Some(frame) = analysis.recognition.as_ref().map(|r| r.frame) else {
+        return false;
+    };
+    let [lo, hi] = analysis.envelope;
+    !analysis.features.iter().any(|f| f.kind == "turned_step")
+        && analysis
+            .features
+            .iter()
+            .filter(|f| f.kind == "boss")
+            .any(|f| {
+                let p = &f.parameters;
+                let (Some(axis), Some(at), Some(d), Some(h)) = (
+                    p.get("axis").and_then(local_axis),
+                    p.get("location").and_then(vec3),
+                    p.get("diameter").and_then(Value::as_f64),
+                    p.get("height").and_then(Value::as_f64),
+                ) else {
+                    return false;
+                };
+                let at = to_part(&frame, at);
+                let tol = 1e-3 * d.max(1.0);
+                holes::principal(dir_to_part(&frame, axis)) == Some(2)
+                    && 0.0 < h
+                    && h <= d
+                    && (0..2).all(|j| {
+                        ((hi[j] - lo[j]) - d).abs() <= tol
+                            && (at[j] - 0.5 * (lo[j] + hi[j])).abs() <= tol
+                    })
+            })
+}
+
 /// Reads what the sheet must make room for from *analysis*.
 pub fn read(analysis: &Analysis) -> Demand {
     crate::planning::memo(analysis, "demand", Vec::new(), || read_uncached(analysis))
@@ -169,6 +204,8 @@ fn read_uncached(analysis: &Analysis) -> Demand {
     d.profiles = profiles.len();
     if profiles.len() == 1 {
         d.turning_axis = profiles[0].1;
+    } else if profiles.is_empty() && disc(analysis) {
+        d.turning_axis = Some(2);
     }
     let inside = |z: f64| lo[2] + END_MARGIN < z && z < hi[2] - END_MARGIN;
     d.step_zs = if !profiles.is_empty() && profiles.iter().all(|p| p.1 == Some(2)) {
@@ -352,10 +389,11 @@ fn internal_station(sites: &[(f64, &str)], centre_y: f64) -> Option<Section> {
 }
 
 /// The principal views a turned part keeps (draftwright's `_automatic_turned_principals`): the
-/// profile and the end view for its axis. None when the part is not turned about one axis, or
-/// when a hole needs the dropped view end-on (it would have nowhere to be called out: the
-/// veto draftwright reaches by planning the reduced set). Returns the kept views, the dropped one
-/// and the reason.
+/// profile and the end view for its axis; a short disc on z is one too ([`disc`]). The spec
+/// keeps the dropped view by naming it (`views/<name>`). None when the part is not turned about
+/// one axis, or when a hole needs the dropped view end-on (it would have nowhere to be called
+/// out: the veto draftwright reaches by planning the reduced set). Returns the kept views, the
+/// dropped one and the reason.
 pub fn turned_views(d: &Demand) -> Option<([&'static str; 2], &'static str, String)> {
     let axis = d.turning_axis?;
     let (kept, dropped, end_on) = match axis {

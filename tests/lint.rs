@@ -1703,7 +1703,7 @@ fn recognition(name: &str) -> Value {
     .unwrap()
 }
 
-/// The port's own callout states the plate's four ø6 holes (`4× ⌀6 THRU (2×2)`), so review finds
+/// The port's own callout states the plate's four ø6 holes (`4× ⌀6 THRU`), so review finds
 /// nothing missing; with that callout omitted from the spec, each of their requirements is
 /// missing again, and the fix says how to state them. Lint reads the drawing's annotations
 /// (their text runs and claims), never the plan or the spec.
@@ -1770,7 +1770,7 @@ fn a_countersunk_hole_is_called_out_and_its_callout_satisfies_lint() {
         .iter()
         .find(|d| d.kind == "callout")
         .unwrap();
-    assert_eq!(callout.label, "4× ⌀6 THRU ⌵ ⌀12 × 90°\n(2×2)");
+    assert_eq!(callout.label, "4× ⌀6 THRU ⌵ ⌀12 × 90°");
     assert!(
         !plan
             .problems
@@ -1789,7 +1789,7 @@ fn a_countersunk_hole_is_called_out_and_its_callout_satisfies_lint() {
     assert!(
         plan.dimensions
             .iter()
-            .any(|d| d.label == "4× ⌀6 THRU ⌵ ⌀12 (2×2)")
+            .any(|d| d.label == "4× ⌀6 THRU ⌵ ⌀12")
     );
     assert_eq!(
         found,
