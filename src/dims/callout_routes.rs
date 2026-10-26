@@ -100,7 +100,7 @@ fn balloon_obstacle(b: &crate::hole_table::Balloon) -> PlannedDimension {
     }
 }
 
-fn furniture(plan: &Plan) -> Vec<PlannedDimension> {
+pub(super) fn furniture(plan: &Plan) -> Vec<PlannedDimension> {
     let mut fixed = crate::centrelines::obstacles(&plan.views);
     fixed.extend(plan.tables.iter().filter_map(crate::tables::proxy));
     fixed.extend(
@@ -445,7 +445,7 @@ pub(crate) fn prefer_interior(
 }
 
 /// A moved callout's collision findings, measured again where it now stands.
-fn refresh(
+pub(super) fn refresh(
     analysis: &Analysis,
     plan: &mut Plan,
     all: &[PlannedDimension],

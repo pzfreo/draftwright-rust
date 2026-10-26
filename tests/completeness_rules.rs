@@ -278,8 +278,9 @@ fn to_segment(p: [f64; 2], a: [f64; 2], b: [f64; 2]) -> f64 {
 
 /// LINT-oriented_slot_coverage-width_length, ISSUE-1432-a: mfcadpp_holdout/467's free-direction
 /// slot (2 wide, 4.543 long, its section turned about 27° in the y-z plane) is called out once,
-/// `ORIENTED SLOT 2 WIDE × 4.543 LONG`, in the view along its run, claiming both requirements, its
-/// arrow on the slot's rotated rim; lint finds neither requirement missing.
+/// `SLOT 2 WIDE × 4.543 LONG` (#225: no internal `ORIENTED`), in the view along its run,
+/// claiming both requirements, its arrow on the slot's rotated rim; lint finds neither
+/// requirement missing.
 #[test]
 fn an_oriented_slot_is_called_out_once_with_both_requirements_on_its_rim() {
     let Some(dir) = corpus::dir() else { return };
@@ -298,7 +299,7 @@ fn an_oriented_slot_is_called_out_once_with_both_requirements_on_its_rim() {
         .collect();
     assert_eq!(callouts.len(), 1, "one callout states the slot");
     let d = callouts[0];
-    assert_eq!(d.label, "ORIENTED SLOT 2 WIDE × 4.543\nLONG");
+    assert_eq!(d.label, "SLOT 2 WIDE × 4.543 LONG");
     assert_eq!(d.view, "v:side");
     let mut params: Vec<_> = d
         .measurements

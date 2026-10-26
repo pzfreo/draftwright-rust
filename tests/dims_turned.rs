@@ -190,8 +190,10 @@ fn grm05_states_its_step_diameters_and_lengths_as_draftwright_does() {
 /// annotations), the overall diameter prints as the sheet's `dim_od` (`2× ø130` where it stands
 /// for spool132's two flanges), and the overall length is stated exactly where the chain does
 /// not run end to end (spool132's hub and connector109's grooves and thread leave gaps; there
-/// draftwright prints it too). grm03 differs once, listed in `known_dimensions.json`: draftwright
-/// has no overall diameter for it and leads its ø10 band on its own.
+/// draftwright prints it too). connector109's three ø130.94 lands are the overall diameter's
+/// (#220), where draftwright repeats each. grm03 differs once, listed in
+/// `known_dimensions.json`: draftwright has no overall diameter for it and leads its ø10 band
+/// on its own.
 #[test]
 fn turned_corpus_parts_state_their_steps_as_draftwright_does() {
     let Some(corpus) = corpus::dir() else {
@@ -254,6 +256,22 @@ fn turned_corpus_parts_state_their_steps_as_draftwright_does() {
         }
         if name == "grm03" {
             python.retain(|(_, l)| l != "ø10");
+        }
+        // #220: separate lands of the largest diameter are stated by the overall diameter, which
+        // claims each (connector109's three ø130.94); draftwright repeats the size per land.
+        if name == "connector109" {
+            python.retain(|(_, l)| l != "ø130.94");
+            let od = plan
+                .dimensions
+                .iter()
+                .find(|d| d.id == "d:envelope/od.diameter")
+                .unwrap();
+            let lands = od
+                .measurements
+                .iter()
+                .filter(|m| m.parameter == "step.diameter")
+                .count();
+            assert_eq!(lands, 3, "{name}");
         }
         // Axial positions now follow the inspection datum; compare physical diameter
         // statements with Python and prove every band length through lint's baseline ledger.
@@ -785,4 +803,180 @@ fn a_nonterminal_thin_z_shoulder_keeps_its_length_on_the_main_view() {
         !issues.iter().any(|i| i.code == "axial_length_missing"),
         "{issues:?}"
     );
+}
+
+/// Three ø30 lands between two equal ø26 grooves, 2 wide, on x: 10, 46 and 10 long, 70 overall.
+fn lands_between_grooves() -> Analysis {
+    let mut a = with_bands(&[
+        (q(0.0), q(10.0), 30.0),
+        (q(12.0), q(58.0), 30.0),
+        (q(60.0), q(70.0), 30.0),
+    ]);
+    let profile = a
+        .features
+        .iter()
+        .find(|f| f.kind == "turned_step")
+        .unwrap()
+        .parameters["profile"]
+        .clone();
+    for (i, z) in [11.0, 59.0].into_iter().enumerate() {
+        let mut groove = a.features[0].clone();
+        groove.id = format!("f:groove:{}", i + 1);
+        groove.kind = "groove".into();
+        groove.parameters = serde_json::from_value(json!({
+            "axis": "x", "at": [q(z), 0.0, 0.0], "width": 2.0, "diameter": 26.0,
+            "profile": profile, "named_dimensions": {}
+        }))
+        .unwrap();
+        a.features.push(groove);
+    }
+    a
+}
+
+/// #220: three ø30 lands between two equal grooves (10, 46 and 10 long, the grooves 2 wide and
+/// ø26 at 11 and 59, 70 overall). The overall diameter states every land, so no land repeats
+/// it; the two grooves are one counted callout claiming both; and the chain of lands and grooves
+/// closes with the overall length, so its longest member is reference: omitted by default and
+/// drawn in parentheses when the spec asks for references (`sheet/references`).
+#[test]
+fn lands_between_equal_grooves_state_the_diameter_once_and_close_their_chain() {
+    let a = lands_between_grooves();
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let od = plan
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:envelope/od.diameter")
+        .unwrap();
+    assert_eq!(od.label, "ø30");
+    let lands: Vec<&str> = od
+        .measurements
+        .iter()
+        .filter(|m| m.parameter == "step.diameter")
+        .map(|m| m.feature.as_str())
+        .collect();
+    assert_eq!(
+        lands,
+        ["f:turned_step:1", "f:turned_step:2", "f:turned_step:3"]
+    );
+    assert!(
+        !plan
+            .dimensions
+            .iter()
+            .any(|d| d.id.ends_with("/step.diameter")),
+        "no land repeats the overall diameter"
+    );
+    let grooves: Vec<_> = plan
+        .dimensions
+        .iter()
+        .filter(|d| d.id.contains("groove"))
+        .collect();
+    assert_eq!(grooves.len(), 1);
+    assert_eq!(grooves[0].label, "2× 2 WIDE × ø26");
+    let claimed: Vec<&str> = grooves[0]
+        .measurements
+        .iter()
+        .filter(|m| m.parameter == "groove.length")
+        .map(|m| m.feature.as_str())
+        .collect();
+    assert_eq!(claimed, ["f:groove:1", "f:groove:2"]);
+    // Every land's diameter is credited by lint, through the overall diameter's claims.
+    let ledger = ledger(&a, &plan);
+    assert!(
+        ledger
+            .iter()
+            .filter(|o| o.contains("step.diameter"))
+            .all(|o| o.ends_with("Placed")),
+        "{ledger:?}"
+    );
+    // The 46 land closes the chain 10 + 2 + 46 + 2 + 10 with the 70 overall.
+    let middle = "d:f:turned_step:2/step.length";
+    assert!(plan.dimensions.iter().all(|d| d.id != middle));
+    let covered = plan.omitted.iter().find(|o| o.id == middle).unwrap();
+    assert!(
+        matches!(&covered.state, draftwright::items::State::Covered { .. }),
+        "{covered:?}"
+    );
+    let spec: Spec = serde_json::from_value(json!({"sheet": {"references": true}})).unwrap();
+    let plan = model::plan(&a, &spec).unwrap();
+    let reference = plan.dimensions.iter().find(|d| d.id == middle).unwrap();
+    assert_eq!(reference.label, "(46)");
+    for id in [
+        "d:f:turned_step:1/step.length",
+        "d:f:turned_step:3/step.length",
+        "d:envelope/height.length",
+    ] {
+        let d = plan.dimensions.iter().find(|d| d.id == id).unwrap();
+        assert!(!d.label.starts_with('('), "{id}: {}", d.label);
+    }
+}
+
+/// #220: lm8uu's two solids (its ball cage inside the sleeve) are drawn as one. The chain of
+/// lands and grooves lies wholly on the solid that fills the box, so it still closes with the
+/// overall length; with a member on another solid, or no solid filling the box, none is walked.
+#[test]
+fn a_chain_on_the_solid_that_fills_the_box_closes_among_several() {
+    let middle = "d:f:turned_step:2/step.length";
+    let mut a = lands_between_grooves();
+    a.solid_count = Some(2);
+    let body: Vec<usize> = a.features.iter().flat_map(|f| f.faces.clone()).collect();
+    a.body_faces = Some(body.clone());
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    assert!(plan.dimensions.iter().all(|d| d.id != middle));
+    a.body_faces = None;
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    assert!(plan.dimensions.iter().any(|d| d.id == middle));
+    let elsewhere = body.iter().max().unwrap() + 1;
+    let groove = a
+        .features
+        .iter_mut()
+        .find(|f| f.id == "f:groove:1")
+        .unwrap();
+    groove.faces = vec![elsewhere];
+    a.body_faces = Some(body);
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    assert!(plan.dimensions.iter().any(|d| d.id == middle));
+}
+
+/// #220: a short disc on z (gear_blank: one ø16 boss 10 high, as wide as the part) reads as a
+/// turned part. Its diameter states the overall width and depth, which are not dimensioned
+/// again; the side view, which would repeat the front, is left out; and the spec keeps it by
+/// naming it.
+#[test]
+fn a_short_disc_on_z_reads_as_turned() {
+    let (_, a) = model::analyse_native(&fixture("parts/gear_blank.step")).unwrap();
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let views: Vec<&str> = plan.views.iter().map(|v| v.id.as_str()).collect();
+    assert!(!views.contains(&"v:side"), "{views:?}");
+    assert!(views.contains(&"v:front") && views.contains(&"v:plan"));
+    for id in ["d:envelope/width.length", "d:envelope/depth.length"] {
+        assert!(plan.dimensions.iter().all(|d| d.id != id), "{id}");
+        let o = plan.omitted.iter().find(|o| o.id == id).unwrap();
+        assert!(
+            matches!(&o.state, draftwright::items::State::Covered { by } if by == "d:f:boss:1/boss.diameter"),
+            "{o:?}"
+        );
+    }
+    let diameter = plan
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:f:boss:1/boss.diameter")
+        .unwrap();
+    assert_eq!(diameter.label, "ø16");
+    for p in ["width.length", "depth.length"] {
+        assert!(
+            diameter
+                .measurements
+                .iter()
+                .any(|m| m.feature == "envelope" && m.parameter == p),
+            "{p}"
+        );
+    }
+    assert!(
+        plan.dimensions
+            .iter()
+            .any(|d| d.id == "d:envelope/height.length")
+    );
+    let spec: Spec = serde_json::from_value(json!({"views": {"side": {}}})).unwrap();
+    let plan = model::plan(&a, &spec).unwrap();
+    assert!(plan.views.iter().any(|v| v.id == "v:side"));
 }

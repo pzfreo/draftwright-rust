@@ -516,6 +516,47 @@ pub(crate) fn plan(a: &Analysis, views: &mut [PlannedView]) {
                 ));
             }
         }
+        // A grid seen as an even lattice is located by its centre (`dims::holes`), so that
+        // origin is marked even where no hole or boss stands on it (#223). Last, so a
+        // feature's own cross there keeps its ID as they merge; [`trim`] drops the mark when
+        // no dimension locates the grid from it (a hole table instead, say).
+        for p in a
+            .recognition
+            .iter()
+            .flat_map(|r| &r.patterns)
+            .filter(|p| p.arrangement == "grid")
+        {
+            if holes::established_with(p, &holes.iter().collect::<Vec<_>>(), &round).is_err() {
+                continue;
+            }
+            let members: Vec<_> = holes
+                .iter()
+                .filter(|h| p.members.contains(&h.feature.id))
+                .collect();
+            if members
+                .iter()
+                .any(|h| !end_on(v, h.direction) || hole_removed(h))
+            {
+                continue;
+            }
+            let k = (0..3)
+                .max_by(|&i, &j| {
+                    let d = members[0].direction;
+                    d[i].abs().total_cmp(&d[j].abs())
+                })
+                // Invariant: The iterator is over the fixed three coordinate axes.
+                .expect("three components");
+            let centres: Vec<_> = members.iter().map(|h| h.at).collect();
+            let Some((_, _, c)) = crate::dims::grid_lattice(&centres, k) else {
+                continue;
+            };
+            v.line_work.push(cross(
+                format!("ink:{}:{}", v.id, p.id),
+                page(a, v, c),
+                hole_diameter(members[0]) * v.scale / 2.,
+                None,
+            ));
+        }
         if v.line_style.centre_marks == Some(false)
             || v.line_style.centre_lines == Some(false)
             || v.id == "v:iso"
@@ -778,19 +819,10 @@ pub(crate) fn obstacles(views: &[PlannedView]) -> Vec<PlannedDimension> {
                     label_box: [0.; 4],
                 }),
             };
-            if w.kind == "cutting_plane"
+            let marks = section_marks(views, v, w);
+            if !marks.is_empty()
                 && let Curve::Line(a, b) = w.curves[0]
-                && let Some(label) = views
-                    .iter()
-                    .filter_map(|v| v.cut.as_ref())
-                    .find(|c| {
-                        c.marked_in == v.id && w.id == format!("ink:{}:cut:{}", v.id, c.label)
-                    })
-                    .map(|c| c.label.as_str())
-                    // A remote section's carrier is absent, but its planned line keeps the label.
-                    .or_else(|| w.id.strip_prefix(&format!("ink:{}:cut:", v.id)))
             {
-                let (_, letters) = crate::section::cutting_plane(a[0], b[0], a[1]);
                 // Use the renderer's own wing and filled arrow outlines.
                 let ends = crate::section::cutting_plane_ends(a[0], b[0], a[1]);
                 for item in ends.iter().flatten() {
@@ -804,40 +836,74 @@ pub(crate) fn obstacles(views: &[PlannedView]) -> Vec<PlannedDimension> {
                             .extend(loops.iter().flatten().map(|c| [c.start(), c.end()]));
                     }
                 }
-                for (k, end) in ends.iter().enumerate() {
-                    let mut arrow = obstacle.clone();
-                    arrow.id = format!("{}:arrow:{k}", w.id);
-                    // Invariant: Cutting-plane ends contain the finite wing and filled arrow built above.
-                    let bounds = crate::output::items_bbox(end).unwrap();
-                    // Invariant: arrow clones obstacle, whose constructor supplies a placement.
-                    let placed = arrow.placed.as_mut().unwrap();
-                    placed.lines.clear();
-                    placed.label_box = bounds;
-                    out.push(arrow);
-                }
-                let laid = crate::dims::font().text(label, crate::section::FONT_SIZE);
-                for (k, at) in letters.into_iter().enumerate() {
-                    let mut letter = obstacle.clone();
-                    letter.id = format!("{}:letter:{k}", w.id);
-                    letter.placed = Some(Placed {
+                for (id, label_at, label_box) in marks {
+                    let mut mark = obstacle.clone();
+                    mark.id = id;
+                    mark.placed = Some(Placed {
                         lines: Vec::new(),
                         arrows: Vec::new(),
-                        label_at: at,
+                        label_at,
                         rotation: 0.,
-                        label_box: [
-                            at[0] + laid.min[0],
-                            at[1] + laid.min[1],
-                            at[0] + laid.max[0],
-                            at[1] + laid.max[1],
-                        ],
+                        label_box,
                     });
-                    out.push(letter);
+                    out.push(mark);
                 }
             }
             out.push(obstacle);
         }
     }
     out.extend(crate::detail::caption_obstacles(views));
+    out
+}
+
+/// The boxes of a cutting plane's printed marks on *v*, by id, with each mark's origin: each
+/// end's arrowhead and wing (`<line id>:arrow:<k>`), then its letters (`<line id>:letter:<k>`),
+/// as the renderer draws them. Empty for other line work, or a line whose section names no letter.
+pub(crate) fn section_marks(
+    views: &[PlannedView],
+    v: &PlannedView,
+    w: &LineWork,
+) -> Vec<(String, P, [f64; 4])> {
+    let Some(&Curve::Line(a, b)) = w.curves.first().filter(|_| w.kind == "cutting_plane") else {
+        return Vec::new();
+    };
+    let Some(label) = views
+        .iter()
+        .filter_map(|v| v.cut.as_ref())
+        .find(|c| c.marked_in == v.id && w.id == format!("ink:{}:cut:{}", v.id, c.label))
+        .map(|c| c.label.as_str())
+        // A remote section's carrier is absent, but its planned line keeps the label.
+        .or_else(|| w.id.strip_prefix(&format!("ink:{}:cut:", v.id)))
+    else {
+        return Vec::new();
+    };
+    let (_, letters) = crate::section::cutting_plane(a[0], b[0], a[1]);
+    let ends = crate::section::cutting_plane_ends(a[0], b[0], a[1]);
+    let mut out: Vec<_> = ends
+        .iter()
+        .enumerate()
+        // Invariant: Each cutting-plane end holds its finite wing and filled arrow.
+        .map(|(k, end)| {
+            (
+                format!("{}:arrow:{k}", w.id),
+                [0.; 2],
+                crate::output::items_bbox(end).unwrap(),
+            )
+        })
+        .collect();
+    let laid = crate::dims::font().text(label, crate::section::FONT_SIZE);
+    out.extend(letters.into_iter().enumerate().map(|(k, at)| {
+        (
+            format!("{}:letter:{k}", w.id),
+            at,
+            [
+                at[0] + laid.min[0],
+                at[1] + laid.min[1],
+                at[0] + laid.max[0],
+                at[1] + laid.max[1],
+            ],
+        )
+    }));
     out
 }
 
@@ -867,6 +933,29 @@ pub(crate) fn trim(views: &mut [PlannedView], dimensions: &[PlannedDimension]) {
         .collect();
     for w in views.iter_mut().flat_map(|v| &mut v.line_work) {
         trim_axis(w, &boxes);
+    }
+    unused_origins(views, dimensions);
+}
+
+/// Drops a hole pattern's own centre mark ([`plan`]) from a view where no dimension locates
+/// the pattern: then its centre is no origin, and the mark would read as a missing feature.
+pub(crate) fn unused_origins(views: &mut [PlannedView], dimensions: &[PlannedDimension]) {
+    for v in views.iter_mut() {
+        let prefix = format!("ink:{}:", v.id);
+        v.line_work.retain(|w| {
+            let Some(p) =
+                w.id.strip_prefix(&prefix)
+                    .filter(|p| w.kind == "cross" && p.starts_with("f:hole_pattern:"))
+            else {
+                return true;
+            };
+            dimensions.iter().any(|d| {
+                d.view == v.id
+                    && d.measurements
+                        .iter()
+                        .any(|m| m.feature == p && m.parameter.starts_with("location.length."))
+            })
+        });
     }
 }
 

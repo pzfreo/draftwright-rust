@@ -60,6 +60,9 @@ pub struct HoleGroup {
     pub centres: Vec<[f64; 3]>,
     /// The axis in the part's frame, as the fingerprint gives it (its sign is arbitrary).
     pub axis: Option<[f64; 3]>,
+    /// How many holes the members are as counted: the coaxial segments of one through hole
+    /// split by a slit are one ([`holes::drillings`]).
+    pub drillings: usize,
 }
 
 /// A hole's machining sizes, as recognised.
@@ -117,8 +120,8 @@ impl HoleGroup {
                 out.push((names[1], b));
             }
         }
-        if self.members.len() > 1 {
-            out.push(("grouping.count", Some(self.members.len() as f64)));
+        if self.drillings > 1 {
+            out.push(("grouping.count", Some(self.drillings as f64)));
         }
         out
     }
@@ -129,8 +132,8 @@ impl HoleGroup {
         let s = &self.sizes;
         let f = |v: Option<f64>| v.map_or("?".into(), fmt);
         let mut out = String::new();
-        if self.members.len() > 1 {
-            out += &format!("{}× ", self.members.len());
+        if self.drillings > 1 {
+            out += &format!("{}× ", self.drillings);
         }
         out += &format!("⌀{}", fmt(s.diameter));
         out += &if s.through {
@@ -169,7 +172,7 @@ impl HoleGroup {
         let c = self.centre();
         format!(
             "{}× ø{} {operation} {}, axis {axis}, centred at ({})",
-            self.members.len(),
+            self.drillings,
             fmt(s.diameter),
             if self.pattern {
                 "hole pattern"
@@ -211,6 +214,7 @@ pub fn groups(analysis: &Analysis) -> Vec<HoleGroup> {
                 .map(|&i| holes[i].feature.fingerprint.position)
                 .collect(),
             axis: holes[members[0]].feature.fingerprint.axis,
+            drillings: holes::drillings(members.iter().map(|&i| &holes[i])),
         }
     };
     let mut out = Vec::new();
@@ -602,15 +606,18 @@ fn diameters(m: &Mark) -> BTreeSet<&str> {
 /// holes whose diameters it claims when they are all the group's and its quantity (`n×`, or one
 /// when it prints none) is how many it claims, as a grouped callout's printed quantity must
 /// agree with its member allocations (`_index_hole_evidence`). So one hole's callout counts that
-/// hole only, whatever quantity it prints.
+/// hole only, whatever quantity it prints. A mark claiming the whole group may count its
+/// drillings instead (a split through hole's segments once, [`HoleGroup::drillings`]).
 fn uncounted<'a>(g: &'a HoleGroup, marks: &[Mark]) -> Vec<&'a str> {
     let counted: BTreeSet<&str> = marks
         .iter()
         .filter_map(|m| {
             let claimed = diameters(m);
             let n = Callout::read(&m.text).count.unwrap_or(1);
-            (claimed.len() == n && claimed.iter().all(|f| g.members.iter().any(|x| x == f)))
-                .then_some(claimed)
+            let whole = claimed.len() == g.members.len() && n == g.drillings;
+            ((claimed.len() == n || whole)
+                && claimed.iter().all(|f| g.members.iter().any(|x| x == f)))
+            .then_some(claimed)
         })
         .flatten()
         .collect();
@@ -746,7 +753,7 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
             }
             let what = match parameter {
                 "bore.through" => "THRU".to_string(),
-                "grouping.count" => format!("{}×", g.members.len()),
+                "grouping.count" => format!("{}×", g.drillings),
                 _ => fmt(value),
             };
             // A size claimed but misprinted cannot be credited; THRU or the quantity left off
@@ -1029,6 +1036,39 @@ mod tests {
                 )
             })
             .collect()
+    }
+
+    /// #225: a through hole split by a slit into two coaxial segments (shf08's clamp hole) is one
+    /// hole: its group wants no quantity, `⌀6.6 THRU` claiming both segments states it, and the
+    /// count audit sees one ø6.6. A third hole off the line counts again.
+    #[test]
+    fn a_through_hole_split_by_a_slit_counts_once() {
+        let segment = |top: f64| {
+            let mut h = hole([50.0, 50.0, top], true);
+            h["depth"] = json!(4.4);
+            h
+        };
+        let a = part(&[segment(10.0), segment(4.4)]);
+        let g = groups(&a);
+        assert_eq!((g.len(), g[0].drillings), (1, 1));
+        assert!(g[0].requirements().iter().all(|r| r.0 != "grouping.count"));
+        assert_eq!(g[0].callout(), "⌀6.6 THRU");
+        let both = [("f:hole:1", "bore.diameter"), ("f:hole:2", "bore.diameter")];
+        assert_eq!(found(&a, &[mark("⌀6.6 THRU", &both)]), Vec::<String>::new());
+        assert!(super::super::coverage::counts(&a, &[mark("⌀6.6 THRU", &both)]).is_empty());
+
+        let b = part(&[segment(10.0), segment(4.4), hole([20.0, 50.0, 10.0], true)]);
+        let g = groups(&b);
+        assert_eq!(g[0].drillings, 2);
+        let all = [both[0], both[1], ("f:hole:3", "bore.diameter")];
+        assert_eq!(
+            found(&b, &[mark("2× ⌀6.6 THRU", &all)]),
+            Vec::<String>::new()
+        );
+        assert_eq!(
+            found(&b, &[mark("⌀6.6 THRU", &all)]),
+            ["hole_requirement_missing f:hole:1+f:hole:2+f:hole:3 grouping.count"]
+        );
     }
 
     /// LINT-hole_coverage-opposed_bores_distinct: holes drilled from opposite faces are two

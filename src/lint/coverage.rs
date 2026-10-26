@@ -399,12 +399,15 @@ pub fn count_mismatch(
 }
 
 /// The count findings on a drawing whose annotations are *marks*: each readable hole's bore,
-/// counterbore and spotface is an occurrence; a hole callout provides its stated diameters at its
+/// counterbore and spotface is an occurrence (a split through hole's segments once); a hole callout provides its stated diameters at its
 /// quantity, its owner the holes it claims.
 pub fn counts(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     let holes = holes_by_id(analysis);
+    // The coaxial segments of one through hole split by a slit are one occurrence.
+    let continuations = holes::continuations(holes.values());
     let occurrences: Vec<f64> = holes
         .values()
+        .filter(|h| !continuations.contains(h.feature.id.as_str()))
         .flat_map(|h| {
             HOLE_DIAMETERS[..3]
                 .iter()

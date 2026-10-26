@@ -67,6 +67,72 @@ All notable changes to draftwright-rust are recorded here, in the style of
   CTC-03's "2× 135°" step out 1–2 mm, and FTC-08 rc's "8× 135°" goes to another of its
   corners, its arc across a slot outline. The vslot "45°" still sits away from its corner,
   its diagonal extension line across the "10" extension line; that part of #227 stays open.
+- **An assembly with no part chosen no longer dimensions its other bodies as one part's
+  features (#219).** The whole file was drawn as one part: dw-examples' GT2 pulley stated its two
+  set screws as "ø3" bosses, "HEX 2.000 A/F × 2.5 DEEP" sockets, "4× C0.25" and "6× 120°", and
+  the LM8UU bearing printed "⌀8 THRU" for its inner sleeve's 22.4 mm bore. With no part chosen,
+  when every other body lies within the box of the largest (by box diagonal, as placed), that
+  part is drawn alone, as `--part K` draws it: the pulley's drawing is `--part 2`'s and the
+  bearing's is its sleeve with "⌀12.4 THRU". The plan warns `assembly_principal_drawn`, naming
+  the parts not drawn and how to choose another. Parts side by side, or a pin standing out of a
+  plate, are drawn whole as before.
+- **Four holes on a bolt circle are called out as one (#223).** quiddity reports four holes at
+  90° on a pitch circle as a rectangle turned 45°, which no view can space as a lattice, so each
+  hole was located singly from the part's faces or a round flange's tangent edges
+  (dw-examples' t8-flange-nut: "3" and "19" from the ø22 flange, with
+  `hole_pattern_requirement_missing`). A square with its holes on the axes through its centre is
+  now read as a bolt circle: "4× ⌀3.4 THRU EQ SP ON ø16 BC", located by its centre, with its
+  pitch circle drawn (t8-flange-nut, t8-housing-bracket). The Spec's `split` still dissolves it.
+  A grid located by its centre now draws a centre mark there when no hole or boss stands on it
+  (t8-housing-bracket's 2×2, NIST CTC-01); none is drawn where a hole table locates the holes.
+  Still open from #223: a hole beside a round boss (dw-examples' linkrods) is located from the
+  boss's tangent edge, not its axis.
+- **Frames and datum symbols on holes attach to the holes' size callout or table tag (#224).** A
+  datum on a hole was drawn edge-on, on the hole's hidden silhouette, and a frame's leader ended
+  at the centre of its faces, often on blank material. Once the drawing is finished, a frame whose
+  faces are all bores of the holes one shown size callout (or, for one hole, table tag) names now
+  stands beneath it (or over it), without a leader, in the view that sees the holes end-on; a
+  datum on one hole's bore stands on that hole's own size callout, else its table tag. A bore
+  split in halves is recognised by its radius, not its box. Each moves only to a clear place with
+  no finding of its own, so dense drawings keep most of theirs (NIST STC-07, STC-08 and STC-10
+  keep every placement: their tags sit over material or their callouts are hemmed in); FTC-10
+  AP242 moves its cylindricity and 8-hole position frames and datum F (net 11 fewer findings),
+  STC-09 its 4-hole ⌀6.35 position frame (net 13 fewer), FTC-11 datum B, STC-06 a position frame,
+  CTC-01 datum B, CTC-02 datums F and H, CTC-05 datum B and a runout frame, and the spool
+  fixtures' datum B and their ⟂ frame onto the ⌀62 bore's callout. A view or side in
+  `annotations/<id>/place` keeps an item where lowering put it; a bare pin, or a pin in the view
+  it attaches in, holds the attached ink (`src/dims/hole_marks.rs`).
+- **A drawn frame citing a datum the drawing does not show is said (#224):** a
+  `frame_datum_not_drawn` warning names the frame and the missing datums (STC-08: nine frames
+  citing A, D, E, H or J).
+- **Hole and slot callouts in drafting wording, counted as made (#225).** A through hole split
+  by a slit into coaxial segments is one hole: shf08's and sk08's clamp holes read "⌀4 THRU" and
+  "⌀7 THRU", not "2×" (segments farther apart than the bore is wide, such as sm-hanger's two
+  flanges, still count twice), and lint counts them the same way. A grid of holes no longer
+  prints its "(2×2)" arrangement, which ISO 129 has no notation for (its pitches show it). A
+  free-direction slot reads "SLOT 2 WIDE × 4.5 LONG", without the internal "ORIENTED", and a gap
+  open at both ends (the retaining ring's) reads "GAP 1.64 WIDE", its length being the wall it
+  cuts, which lint no longer asks for.
+- **Review reports annotation contacts it used to pass as clear (#226).** Placement keeps
+  labels and lines only just clear of each other, box to box, so text 0.03–0.4 mm from a line
+  or a section letter was never reported. The finished drawing is now checked once more, after
+  its final leader-route repair (`src/dims/contacts.rs`): `label_crowded` (info) for text within
+  0.5 mm of another label, of other line-work or of a section's arrowhead or letter
+  (t8-housing-bracket's 15 against letter A, nema-17-bracket's 31 against the 20.5 and 30
+  extension lines, nema17-mount-bracket's R0.5 under the 50 line, lm8uu's groove shoulder against
+  2× C0.25); `label_section_furniture_overlap` for a line through a section mark (t8's 15
+  through the A arrowhead; a label over a mark stays lint's); `extension_off_centreline`
+  (warning) for an extension line 0.01–0.5 mm beside a centre line, which reads as locating that
+  centre (nema17-mount-bracket's 28.85, STC-07's 12.7, 210.006 and 2× 9.297); and
+  `leader_along_centreline` (warning) for a leader within 6° and 2 mm of a centre line over more
+  than 5 mm (608zz, lm8uu, lm10uu, hirth-joint, sprocket, gt2-pulley and STC-07 bores). None moves an annotation or chooses
+  paper: layouts are unchanged. When a later repair changes the selected candidate's
+  annotation-conflict count, the sheet basis says what the finished drawing has
+  (nema-17-bracket: 1 counted, 0 left), so the basis agrees with the plan's problems. Still
+  not reported, so #226 stays open: a long leader crossing its own view (gt2-pulley's
+  43.8 mm HEX 2.000 A/F leader; length alone does not single it out, GRM-03, STC-07 and FTC-08
+  each have a longer clean leader), nema17-mount-bracket's R0.5 leader ending on a hidden
+  corner, and linkrods' 0.625 and 0.75 standing beside the boss they do not locate.
 - **Coincident copies of a body no longer multiply every count (#212).** A STEP holding the same
   solid several times on top of itself (a FreeCAD export of a body and its `Pad`) was drawn
   whole, each feature once per copy: dw-examples' gantry plate printed "24× ⌀5.1 THRU" for 12
@@ -101,6 +167,21 @@ All notable changes to draftwright-rust are recorded here, in the style of
   and 6 and FTC-09's slot 2. Lint now credits the line to every lone slot whose low end lies the
   same distance from the part's box on the same axis, seen through the same axis, and still
   checks its text against each slot's value.
+- **Round parts no longer state one size several times (#220).** Three or more separate lands
+  of a turned part's largest diameter are stated by its overall diameter, which claims each:
+  lm8uu prints ø15 once, not four times. Equal grooves on one profile are one counted callout
+  (`2× 1.2 WIDE × ø13.4`), and equal bosses that are bands of the profile one diameter
+  (`2× ø11.2`). A groove's width and a turned `C` chamfer's leg are support-plane intervals, so a
+  chain of lands and grooves, or a cylinder between two end chamfers, closes with the overall
+  length and its longest member is reference: omitted by default, in parentheses with
+  `sheet/references` (lm10uu's 19.4, 608zz's 6.5). A boss filling the part's box across its axis
+  states the overall width and depth (608zz, hirth-joint, FTC-11's `ø63 ±0.5 AVG`, no `63` beside
+  it; cgb203's ø360), unless a flat face lies on that side of the box, and a short disc on z
+  drops the side view that repeated its front, as a turned part does (`views/side` keeps it).
+  A file of several solids drawn as one, where one solid fills the box, now has its chains walked
+  on that solid (the analysis records its faces as `body_faces`): lm8uu's 15.2 is reference, and
+  gt2-pulley's band lengths are conveyed by its baseline as on a single solid. Chains are still
+  never walked from one solid to another.
 
 ## 0.1.0 (2026-10-25)
 

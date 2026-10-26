@@ -1240,6 +1240,7 @@ fn pack_with_overflow(
         crate::linework::configure(&plan.spec, &mut plan.views);
         let mut generated = plan.views.clone();
         crate::centrelines::plan(analysis, &mut generated);
+        crate::centrelines::unused_origins(&mut generated, &plan.dimensions);
         for view in plan.views.iter_mut().filter(|v| v.sheet > 1) {
             view.line_work = generated
                 .iter()

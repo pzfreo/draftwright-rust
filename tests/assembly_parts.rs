@@ -197,6 +197,9 @@ fn no_part_draws_the_whole_assembly_and_warns_naming_the_parts() {
     // The pins are placed apart, so nothing coincides (#212).
     assert!(a.get("coincident").is_none(), "{a}");
     assert!(problems(&plan, "coincident_bodies").is_empty());
+    // They stand out of the plate's box, so no part is drawn alone as its principal (#219).
+    assert!(a.get("principal").is_none(), "{a}");
+    assert!(problems(&plan, "assembly_principal_drawn").is_empty());
 }
 
 /// The V-slot profile with three coincident copies (#212), unpacked.
@@ -287,6 +290,71 @@ fn coincident_bodies_are_drawn_once_as_the_part_alone() {
     assert_eq!(warned[0]["severity"], "warning");
     let message = warned[0]["message"].as_str().unwrap();
     assert!(message.contains("counted once per copy"), "{message}");
+}
+
+/// The LM8UU bearing (#219): a metal sleeve holding an inner sleeve, unpacked.
+fn lm8uu() -> String {
+    let mut bytes = Vec::new();
+    flate2::read::GzDecoder::new(std::fs::File::open(fixture("lm8uu.step.gz")).unwrap())
+        .read_to_end(&mut bytes)
+        .unwrap();
+    let path = scratch("lm8uu.step");
+    std::fs::write(&path, bytes).unwrap();
+    path.display().to_string()
+}
+
+fn labels(plan: &Value) -> Vec<String> {
+    plan["dimensions"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter_map(|d| d["label"].as_str().map(String::from))
+        .collect()
+}
+
+#[test]
+fn a_body_within_the_principal_part_is_not_dimensioned_as_its_feature() {
+    let step = lm8uu();
+    // The sleeve, whose box holds the inner sleeve's, is read alone as --part 1 reads it.
+    let (code, a) = run(&["analyse", &step, "--no-features"]);
+    assert_eq!(code, Some(0), "{a}");
+    assert_eq!(a["binding"]["part_index"], 1);
+    assert_eq!(a["binding"]["part"], "Metal");
+    assert_eq!(a["binding"]["face_count"], 14);
+    assert_eq!(a["principal"], true);
+    let (code, alone) = run(&["analyse", &step, "--part", "1", "--no-features"]);
+    assert_eq!(code, Some(0), "{alone}");
+    assert!(alone.get("principal").is_none(), "{alone}");
+    let (code, plan) = run(&["plan", &step]);
+    assert_eq!(code, Some(0), "{plan}");
+    let (code, chosen) = run(&["plan", &step, "--part", "1"]);
+    assert_eq!(code, Some(0), "{chosen}");
+    // The sleeve's own bore, not the inner sleeve's ⌀8, which is 22.4 long, as a THRU hole.
+    let drawn = labels(&plan);
+    assert!(drawn.iter().any(|l| l == "⌀12.4 THRU"), "{drawn:?}");
+    assert!(!drawn.iter().any(|l| l.contains("⌀8")), "{drawn:?}");
+    assert_eq!(drawn, labels(&chosen));
+    assert_eq!(plan["sheet"]["size"], chosen["sheet"]["size"]);
+    assert!(problems(&plan, "assembly_drawn_whole").is_empty());
+    let warned = problems(&plan, "assembly_principal_drawn");
+    assert_eq!(warned.len(), 1, "{}", plan["problems"]);
+    assert_eq!(warned[0]["severity"], "warning");
+    let message = warned[0]["message"].as_str().unwrap();
+    assert!(message.contains("part 1 (Metal)"), "{message}");
+    assert!(message.contains("they (0: Center)"), "{message}");
+    assert!(message.contains("--part"), "{message}");
+    assert!(problems(&chosen, "assembly_principal_drawn").is_empty());
+    // The inner sleeve can still be drawn alone.
+    let (code, inner) = run(&["plan", &step, "--part", "0"]);
+    assert_eq!(code, Some(0), "{inner}");
+    assert!(labels(&inner).iter().any(|l| l == "⌀8 THRU"), "{inner}");
+
+    // Passed back, the Analysis is read from the sleeve again and still warns.
+    let analysis = scratch("lm8uu_analysis.json");
+    std::fs::write(&analysis, a.to_string()).unwrap();
+    let (code, again) = run(&["plan", &step, "--analysis", analysis.to_str().unwrap()]);
+    assert_eq!(code, Some(0), "{again}");
+    assert_eq!(problems(&again, "assembly_principal_drawn").len(), 1);
 }
 
 #[test]

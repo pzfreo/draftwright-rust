@@ -483,8 +483,9 @@ pub fn spec(drawing: &Path) -> Result<Spec, Error> {
 /// `analyse`, `plan`, `render` and `review` also take `part`, the index of one part of an
 /// assembly (as `parts` lists them) to draw alone, in its own frame and with its PMI only.
 /// Without it the whole file is drawn as one part, and an assembly's plan warns
-/// (`assembly_drawn_whole`), unless every body coincides with one part's, which is then drawn
-/// alone (`coincident_bodies`). An `analysis` already names its part (`binding.part_index`): a
+/// (`assembly_drawn_whole`), unless every body coincides with one part's (`coincident_bodies`)
+/// or lies within the largest body's box (`assembly_principal_drawn`), when that part is drawn
+/// alone. An `analysis` already names its part (`binding.part_index`): a
 /// `part` beside it must be the same.
 ///
 /// `step`, `features`, `output` and `drawing` are file paths; `features` is Python quiddity's

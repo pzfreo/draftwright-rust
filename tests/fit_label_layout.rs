@@ -143,7 +143,7 @@ fn asymmetric_band_label_clears_the_dimension_stack() {
     clear_label(
         &plan,
         "d:f:hole_pattern:1/bore.diameter",
-        "4× ⌀35 +0.03 0 THRU (2×2)",
+        "4× ⌀35 +0.03 0 THRU",
     );
     let mut on = spec.clone();
     on.sheet.fit_deviations = Some(true);
