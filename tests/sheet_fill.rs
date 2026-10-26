@@ -109,7 +109,24 @@ fn grm03_keeps_a4_once_its_extension_contact_is_finished_away() {
             .iter()
             .any(|c| c.outcome.contains("leader_on_extension"))
     );
+    // Centre lines cropped on the frame line clip nothing: one A4 sheet.
     assert!(p.sheets.is_empty());
+    // A4 first outranks fill: 5:1 fills below the band, and A4 at the next scale, 10:1,
+    // still loses ink off the sheet.
+    let fill = draftwright::sheet_fit::fill(&a, &p);
+    assert!(
+        fill < draftwright::sheet_fit::FILL_BAND[0],
+        "GRM-03 fill {fill:.4}"
+    );
+    let larger = model::plan_recovered(&a, &named("A4", "10:1")).unwrap();
+    assert!(
+        larger
+            .problems
+            .iter()
+            .any(|q| q.severity == "error" && q.code == "annotation_off_sheet"),
+        "{:?}",
+        larger.problems
+    );
     assert!(p.views.iter().all(|v| v.detail.is_none()));
     assert!(p.dimensions.iter().all(|d| d.placed.is_some()));
     sheet_rule::assert_rule("grm03", &p);

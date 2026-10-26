@@ -42,7 +42,10 @@ All notable changes to draftwright-rust are recorded here, in the style of
   5:1 instead of A3 at 10:1, each with no contact. A title-block value too long for its cell at
   3 mm is drawn smaller, down to 1.8 mm (ISO 3098's smallest height), so a long drawing number
   fits A4's cell instead of overflowing it and asking for A3; only a value that does not fit even
-  then is reported as `title_field_overflow`.
+  then is reported as `title_field_overflow`. Still on A3: bearing-lm10uu, whose A4 trial keeps
+  a groove callout ending where the 19.4 step's extension line leaves the outline even after
+  the finishing pass (the leader placer finds no other route), and gt2-pulley, whose extra side
+  view, kept only for a radial hole, needs 303 mm across.
 - **Coincident copies of a body no longer multiply every count (#212).** A STEP holding the same
   solid several times on top of itself (a FreeCAD export of a body and its `Pad`) was drawn
   whole, each feature once per copy: dw-examples' gantry plate printed "24× ⌀5.1 THRU" for 12
