@@ -847,6 +847,10 @@ fn hole_patterns(qs: &[QHolePattern], features: &[Feature]) -> Result<Vec<HolePa
             // A square of four turned 45° has its holes on the axes through its centre, evenly
             // spaced on one circle: a bolt circle of four, stated by its diameter, not a lattice
             // the views can space (#223). The Spec's `split` dissolves it into single holes.
+            // The rectangle's sizes and 45° turn no longer describe it.
+            for k in ["width", "height", "angle"] {
+                parameters.remove(k);
+            }
             parameters.insert("diameter".into(), diameter.into());
             "bolt_circle"
         } else if (has("width") && has("height"))

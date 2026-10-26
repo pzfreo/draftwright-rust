@@ -539,29 +539,20 @@ pub(crate) fn plan(a: &Analysis, views: &mut [PlannedView]) {
             {
                 continue;
             }
-            let points: Vec<_> = members.iter().map(|h| page(a, v, h.at)).collect();
-            let stations = |k: usize| {
-                let mut s: Vec<f64> = points.iter().map(|q| q[k]).collect();
-                s.sort_by(f64::total_cmp);
-                s.dedup_by(|x, y| (*x - *y).abs() < 1e-3);
-                s
-            };
-            let (cols, rows) = (stations(0), stations(1));
-            let even = |s: &[f64]| {
-                s.len() > 1
-                    && s.windows(2)
-                        .all(|w| ((w[1] - w[0]) - (s[1] - s[0])).abs() < 1e-3)
-            };
-            if cols.len() * rows.len() != points.len() || !even(&cols) || !even(&rows) {
+            let k = (0..3)
+                .max_by(|&i, &j| {
+                    let d = members[0].direction;
+                    d[i].abs().total_cmp(&d[j].abs())
+                })
+                // Invariant: The iterator is over the fixed three coordinate axes.
+                .expect("three components");
+            let centres: Vec<_> = members.iter().map(|h| h.at).collect();
+            let Some((_, _, c)) = crate::dims::grid_lattice(&centres, k) else {
                 continue;
-            }
-            let c = [
-                (cols[0] + cols[cols.len() - 1]) / 2.,
-                (rows[0] + rows[rows.len() - 1]) / 2.,
-            ];
+            };
             v.line_work.push(cross(
                 format!("ink:{}:{}", v.id, p.id),
-                c,
+                page(a, v, c),
                 hole_diameter(members[0]) * v.scale / 2.,
                 None,
             ));

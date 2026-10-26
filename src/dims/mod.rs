@@ -69,6 +69,7 @@ pub(crate) mod footprints;
 pub mod gdt;
 mod grooves;
 mod holes;
+pub(crate) use holes::grid_lattice;
 pub(crate) mod interior;
 mod label_lanes;
 mod modelled_threads;

@@ -43,6 +43,8 @@ All notable changes to draftwright-rust are recorded here, in the style of
   pitch circle drawn (t8-flange-nut, t8-housing-bracket). The Spec's `split` still dissolves it.
   A grid located by its centre now draws a centre mark there when no hole or boss stands on it
   (t8-housing-bracket's 2×2, NIST CTC-01); none is drawn where a hole table locates the holes.
+  Still open from #223: a hole beside a round boss (dw-examples' linkrods) is located from the
+  boss's tangent edge, not its axis.
 - **Coincident copies of a body no longer multiply every count (#212).** A STEP holding the same
   solid several times on top of itself (a FreeCAD export of a body and its `Pad`) was drawn
   whole, each feature once per copy: dw-examples' gantry plate printed "24× ⌀5.1 THRU" for 12
