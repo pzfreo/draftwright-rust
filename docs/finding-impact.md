@@ -154,6 +154,7 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `manufacturing_table_fallback` | advisory | The callouts state the manufacturing requirements in full because their table has no place. |
 | `missing_principal_dimension` | incomplete | A principal overall size is absent from the drawing. |
 | `modelled_thread_not_depicted` | incomplete | The thread depiction or requirement could not be drawn. |
+| `modelled_thread_refused` | incomplete | A refused thread recognition leaves the thread size and designation unstated. |
 | `nominal_rounded` | advisory | The printed nominal uses the documented display precision. |
 | `notch_requirement_missing` | incomplete | The drawing does not state this required feature parameter. |
 | `notch_requirement_unverifiable` | incomplete | The drawing does not prove this required feature parameter. |
@@ -206,6 +207,7 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `polygonal_boss_requirement_unverifiable` | incomplete | The drawing does not prove this required feature parameter. |
 | `polygonal_stock_requirement_missing` | incomplete | The drawing does not state this required feature parameter. |
 | `polygonal_stock_requirement_unverifiable` | incomplete | The drawing does not prove this required feature parameter. |
+| `possible_thread` | incomplete | A smooth cylinder at a named metric size may be an unstated thread. |
 | `prismatic_pocket_requirement_unsupported` | incomplete | No supported drawing grammar states this feature requirement. |
 | `profiled_bore_not_dimensioned` | incomplete | The profiled bore requirements have no complete drawn dimension. |
 | `projection_relation_infeasible` | decision | The authored projected-view relationship cannot be satisfied. |

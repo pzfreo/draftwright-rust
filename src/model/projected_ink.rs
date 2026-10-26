@@ -190,13 +190,28 @@ fn sample(e: &haecceity::brep::Edge) -> Vec<[f64; 3]> {
     out
 }
 
-/// The part's edge evidence. Deterministic: edges and faces in the part's own order.
+/// The part's edge evidence. Deterministic: edges and faces in the part's own order. Only the
+/// [`drawn_faces`](crate::quiddity_evidence::drawn_faces) and their edges are ink; any other
+/// edge keeps its index with no samples.
 pub(super) fn evidence(part: &Part) -> EdgeInk {
     use haecceity::geom::Surface;
-    let edges = part.edges.iter().map(sample).collect();
+    let drawn = crate::quiddity_evidence::drawn_faces(part);
+    let mut inked = vec![false; part.edges.len()];
+    for &f in &drawn {
+        for e in part.face_edges(f) {
+            inked[e] = true;
+        }
+    }
+    let edges = part
+        .edges
+        .iter()
+        .zip(&inked)
+        .map(|(e, &inked)| if inked { sample(e) } else { Vec::new() })
+        .collect();
     let mut planes = Vec::new();
     let mut curved = Vec::new();
-    for (i, face) in part.faces.iter().enumerate() {
+    for i in drawn {
+        let face = &part.faces[i];
         let b = part.face_bounds(i);
         let bounds = [round(b.min), round(b.max)];
         match &face.surface {

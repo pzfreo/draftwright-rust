@@ -55,6 +55,8 @@
 //! (`DERIVED_NOT_READ`), and the members are read one by one as oriented slots, with no pattern in
 //! their fingerprints, as the bridge reads them.
 
+use std::collections::BTreeSet;
+
 use haecceity::Part;
 use quiddity::recognition::RecognitionDocument;
 use serde_json::{Map, Value};
@@ -757,6 +759,26 @@ pub fn read(part: &Part, doc: &RecognitionDocument) -> Result<Native, String> {
             })
         })
         .collect::<Result<Vec<_>, String>>()?;
+
+    // A hole on faces a modelled-thread refusal names measures the thread's flanks, not a bore
+    // (#218): it is left out, with any pattern it belongs to, and the refusal is reported instead.
+    let threaded: BTreeSet<usize> = refusals
+        .iter()
+        .filter(|r| r.subtype == "ModelledThreadRefusal")
+        .flat_map(|r| r.faces.iter().copied())
+        .collect();
+    let at = |r: &Map<String, Value>| (r.get("location").cloned(), r.get("diameter").cloned());
+    let (holes, refused): (Vec<_>, Vec<_>) = holes
+        .into_iter()
+        .partition(|r| !r.faces.iter().any(|f| threaded.contains(f)));
+    let qs: Vec<QHolePattern> = qs
+        .into_iter()
+        .filter(|q| {
+            !q.holes
+                .iter()
+                .any(|h| refused.iter().any(|r| at(&r.parameters) == at(h)))
+        })
+        .collect();
 
     let mut features = Vec::new();
     for r in holes {

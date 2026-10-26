@@ -419,8 +419,7 @@ fn annotation_items(drawing: &Drawing) -> Vec<LintIssue> {
                         format!(
                             "Title-block field '{}' overflows its cell: text {w:.2} × {h:.2} mm, \
                              cell {cw:.2} × {ch:.2} mm. Use a concise field value and retain the \
-                             full information in a notes block; text has not been shortened or \
-                             shrunk.",
+                             full information in a notes block; text has not been shortened.",
                             f.field
                         ),
                     );

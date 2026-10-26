@@ -87,7 +87,7 @@ mod corpus;
 mod sheet_rule;
 
 #[test]
-fn grm03_rejects_a4_extension_contacts_without_losing_measurements() {
+fn grm03_keeps_a4_once_its_extension_contact_is_finished_away() {
     let Some(dir) = corpus::dir() else {
         return;
     };
@@ -95,23 +95,37 @@ fn grm03_rejects_a4_extension_contacts_without_losing_measurements() {
         .unwrap()
         .1;
     let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    // #221: the A4 trial's first routing put a leader on an extension line, which the trial's
+    // finishing pass now clears, so A4 is clean and wins over A3 at 10:1.
     assert_eq!(
         (p.sheet.size.as_str(), p.sheet.scale.as_str()),
-        ("A3", "10:1")
+        ("A4", "5:1")
     );
-    // A4 adds a contact absent from the automatic A3 drawing.
+    let a4 = &p.sheet_candidates[0];
+    assert_eq!((a4.size.as_str(), a4.max), ("A4", 1));
+    assert!(a4.outcome.contains("usable"), "{}", a4.outcome);
     assert!(
-        p.sheet_candidates
+        !p.sheet_candidates
             .iter()
             .any(|c| c.outcome.contains("leader_on_extension"))
     );
-    // Centre lines cropped on the frame line clip nothing: one A3 sheet, as on main.
+    // Centre lines cropped on the frame line clip nothing: one A4 sheet.
     assert!(p.sheets.is_empty());
+    // A4 first outranks fill: 5:1 fills below the band, and A4 at the next scale, 10:1,
+    // still loses ink off the sheet.
     let fill = draftwright::sheet_fit::fill(&a, &p);
     assert!(
-        (draftwright::sheet_fit::FILL_BAND[0]..=draftwright::sheet_fit::FILL_BAND[1])
-            .contains(&fill),
+        fill < draftwright::sheet_fit::FILL_BAND[0],
         "GRM-03 fill {fill:.4}"
+    );
+    let larger = model::plan_recovered(&a, &named("A4", "10:1")).unwrap();
+    assert!(
+        larger
+            .problems
+            .iter()
+            .any(|q| q.severity == "error" && q.code == "annotation_off_sheet"),
+        "{:?}",
+        larger.problems
     );
     assert!(p.views.iter().all(|v| v.detail.is_none()));
     assert!(p.dimensions.iter().all(|d| d.placed.is_some()));
@@ -262,7 +276,7 @@ fn packed_gdt_keeps_title_overflow_on_the_recipient_sheet() {
     let a = manufacturing_plate();
     let mut spec = Spec::default();
     spec.sheet.size = Some("A3".into());
-    spec.sheet.title.insert("title".into(), "M".repeat(50));
+    spec.sheet.title.insert("title".into(), "M".repeat(100));
     let p = model::plan_recovered(&a, &spec).unwrap();
     assert_eq!(p.sheet.size, "A3");
     assert!(p.problems.iter().any(|q| q.code == "title_field_overflow"));

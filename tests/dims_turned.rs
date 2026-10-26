@@ -568,7 +568,7 @@ fn spec_tolerances_and_omissions_reach_the_step_items() {
     let plan = model::plan(&a, &spec).unwrap();
     for (id, label) in [
         ("d:f:turned_step:2/step.length", "30 ±0.05"),
-        ("d:f:turned_step:2/step.diameter", "ø16 +0.0 -0.1"),
+        ("d:f:turned_step:2/step.diameter", "ø16 0 -0.1"),
     ] {
         let d = plan.dimensions.iter().find(|d| d.id == id).unwrap();
         assert_eq!(d.label, label);

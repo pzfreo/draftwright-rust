@@ -16,16 +16,19 @@
 //!   principal view"); it is never drawn foreshortened.
 //! - **Its ink** ([`place`]): draftwright's `AngularGeometry` (`angular_geometry.py`) and
 //!   `AngularDimension` (`annotations/angular.py`): two extension lines along the sides, from just
-//!   past each witness to just past the arc; an arc about the vertex across the minor sector,
-//!   broken around the label, an arrowhead at each end; the label inline on the bisector, aligned
-//!   with the arc's tangent and turned to read from below or the right. The radius is the
-//!   smallest that leaves room for both arrows and the whole label. Witness stations select
-//!   the support half-rays, without imposing a radius. Both the physical sector and the equal
-//!   sector on the two extended supports are tried, in increasing radius, in 1 mm steps, whose
-//!   ink stays on the sheet, its label off the views, the title block and the other items, and
-//!   whose lines cross no other view, dimension or label. With none, it keeps the smallest radius
-//!   whose label is clear of the views, and the collision checks report what it hits: nothing is
-//!   dropped. The arc is drawn as chords within 0.005 mm of it (draftwright's sampling).
+//!   past each witness to just past the arc; an unbroken arc about the vertex across the minor
+//!   sector, an arrowhead at each end (ISO 129-1); the label on the bisector, aligned with the
+//!   arc's tangent, turned to read from below or the right, and set just outside the arc,
+//!   [`LIFT`] clear of it as a linear label is of its line. The label's centre lies where an
+//!   inline label stood when the arc was broken around it: the smallest radius that keeps both
+//!   arrowheads clear of the label's width (and a pad) about its station; the arc runs inside it,
+//!   so the ink reaches no further than before. Witness stations select the support half-rays,
+//!   without imposing a radius. Both the physical sector and the equal sector on the two extended
+//!   supports are tried, in increasing radius, in 1 mm steps, whose ink stays on the sheet, its
+//!   label off the views, the title block and the other items, and whose lines cross no other
+//!   view, dimension or label. With none, it keeps the smallest radius whose label is clear of
+//!   the views, and the collision checks report what it hits: nothing is dropped. The arc is
+//!   drawn as chords within 0.005 mm of it (draftwright's sampling).
 //!
 //! The label is the record's, as every PMI dimension's (`60 ±0.5`; draftwright's
 //! `implicit_degrees`: its unit is the record's kind, not a printed `°`).
@@ -34,8 +37,8 @@ use haecceity::Part;
 use haecceity::geom::Surface;
 use serde::{Deserialize, Serialize};
 
-use super::placement::{Frame, Page, boxes_overlap, crosses, ink_points, label_box};
-use super::{ARROW, GAP, OVERSHOOT, P2, P3, Placed, Shape, Want, font, label_ink};
+use super::placement::{Frame, LabelInk, Page, boxes_overlap, crosses, ink_points, label_box};
+use super::{ARROW, GAP, LIFT, OVERSHOOT, P2, P3, Placed, Shape, Want, font, label_ink};
 use crate::pmi::{Geometry, Record};
 
 /// An angle's two sides, draftwright's `AngularReference` with its `minor` sector: the vertex
@@ -224,7 +227,8 @@ pub(crate) fn from_planes(planes: [(P3, P3); 2], stations: [P3; 2]) -> Result<An
     Ok(a)
 }
 
-/// The gap around the label in the arc, page mm (draftwright's `pad_around_text`).
+/// The pad either side of the label's width that the arrowheads keep clear of, page mm
+/// (draftwright's `pad_around_text`, from when the arc was broken around the label).
 const PAD: f64 = 2.0;
 /// How far the arc's radius grows between the places tried, mm, and the most it tries.
 const STEP: f64 = 1.0;
@@ -253,11 +257,18 @@ impl Ink {
     /// its rays project to nothing or to a degenerate sector (the view does not look along its
     /// normal).
     fn new(frame: &Frame, a: &Angle, size: P2) -> Option<Ink> {
-        let vertex = frame.page(a.vertex);
+        Ink::on_page(
+            frame.page(a.vertex),
+            [frame.page(a.first), frame.page(a.second)],
+            size,
+        )
+    }
+
+    /// The ink of an angle whose vertex and witnesses are *vertex* and *witnesses* on the page.
+    fn on_page(vertex: P2, witnesses: [P2; 2], size: P2) -> Option<Ink> {
         let mut rays = Vec::new();
         let mut lengths = [0.0; 2];
-        for (i, p) in [a.first, a.second].into_iter().enumerate() {
-            let q = frame.page(p);
+        for (i, q) in witnesses.into_iter().enumerate() {
             let d = [q[0] - vertex[0], q[1] - vertex[1]];
             let n = d[0].hypot(d[1]);
             if n.is_nan() || n <= 0.0 {
@@ -278,46 +289,45 @@ impl Ink {
         }
         let start = r0[1].atan2(r0[0]);
         let middle = start + 0.5 * sweep;
-        let pi = std::f64::consts::PI;
-        let tangent = (middle + 0.5 * pi).rem_euclid(2.0 * pi);
-        let text_angle = if 0.5 * pi < tangent && tangent <= 1.5 * pi {
-            tangent - pi
-        } else {
-            tangent
-        };
         let [width, height] = size;
-        let relative = text_angle - middle;
-        let radial_half = relative.cos().abs() * width / 2.0 + relative.sin().abs() * height / 2.0;
-        let tangent_half = relative.sin().abs() * width / 2.0 + relative.cos().abs() * height / 2.0;
-        // Witness stations select the physical half-rays; their distance from the
-        // intersection must not force the arc out past the middle of a long face.
-        let mut lo = radial_half + PAD;
-        let mut hi = (2.0 * tangent_half + 2.0 * radial_half + 2.0 * PAD + 4.0 * ARROW) / sweep
-            + radial_half
-            + PAD;
-        // Fit the actual text gap and the two arrow lengths instead of adding
-        // their radial and tangential extents as if all ran along one line.
-        for _ in 0..40 {
-            let radius = 0.5 * (lo + hi);
-            let gap = (tangent_half + PAD).atan2(radius - radial_half - PAD);
-            if (0.5 * sweep - gap) * radius > ARROW {
-                hi = radius;
-            } else {
-                lo = radius;
-            }
-        }
-        let minimum = hi + 1e-6;
-        Some(Ink {
+        // The label always lies along the tangent: its width along the arc, its height across.
+        let ink = Ink {
             vertex,
             start,
             sweep,
             middle,
             lengths,
-            text_angle,
-            radial_half,
-            tangent_half,
-            minimum,
-        })
+            text_angle: 0.0,
+            radial_half: height / 2.0,
+            tangent_half: width / 2.0,
+            minimum: 0.0,
+        };
+        let mut ink = ink.along(0.5);
+        let mut lo = ink.radial_half + PAD;
+        let mut hi = (width + height + 2.0 * PAD + 4.0 * ARROW) / sweep + height / 2.0 + PAD;
+        for _ in 0..40 {
+            let radius = 0.5 * (lo + hi);
+            if ink.arrows_clear(radius) {
+                hi = radius;
+            } else {
+                lo = radius;
+            }
+        }
+        ink.minimum = hi + 1e-6;
+        Some(ink)
+    }
+
+    /// Whether the arc at *radius* leaves room for an arrowhead either side of the label's
+    /// width, padded, about its station: the label's angular extent as if it sat on the arc.
+    fn arrows_clear(&self, radius: f64) -> bool {
+        let gap = (self.tangent_half + PAD).atan2(radius - self.radial_half - PAD);
+        let near = (self.middle - self.start).min(self.start + self.sweep - self.middle);
+        (near - gap) * radius > ARROW
+    }
+
+    /// How far the label's farthest corner lies from the vertex with its centre at *radius*.
+    fn label_reach(&self, radius: f64) -> f64 {
+        (radius + self.radial_half).hypot(self.tangent_half)
     }
 
     /// The same ink with its label at *fraction* of the sweep from its start (0.5 is the
@@ -343,26 +353,23 @@ impl Ink {
         ]
     }
 
-    /// The ink at *radius* for a label of *terms*: extension lines, the arc's chords either side
-    /// of the label, an arrowhead at each end, the label centred on the bisector; none when the
-    /// arc's pieces are too short for their arrowheads.
-    fn placed(&self, radius: f64, terms: &[String]) -> Option<Placed> {
-        self.placed_at(radius, terms, false)
+    /// The ink for a label of *ink* centred at *radius*: the label on its station, the unbroken
+    /// arc's chords [`LIFT`] inside it, an arrowhead at each end, and extension lines; none when
+    /// the arc leaves no room for the arrowheads beside the label ([`Ink::arrows_clear`]).
+    fn placed(&self, radius: f64, ink: &LabelInk) -> Option<Placed> {
+        self.placed_at(radius, ink, false)
     }
 
-    fn placed_at(&self, radius: f64, terms: &[String], literal: bool) -> Option<Placed> {
-        let end = self.start + self.sweep;
-        let gap = (self.tangent_half + PAD).atan2(radius - self.radial_half - PAD);
-        let pieces = [(self.start, self.middle - gap), (self.middle + gap, end)].map(|(a, b)| {
-            if literal {
-                (a.clamp(self.start, end), b.clamp(self.start, end))
-            } else {
-                (a, b)
-            }
-        });
-        if !literal && pieces.iter().any(|(a, b)| (b - a) * radius <= ARROW) {
+    /// As [`Ink::placed`]; *literal* (an authored placement) keeps a radius without that room.
+    fn placed_at(&self, radius: f64, ink: &LabelInk, literal: bool) -> Option<Placed> {
+        if !literal && !self.arrows_clear(radius) {
             return None;
         }
+        // The label's centre stays where the inline label stood; the arc runs LIFT inside it.
+        // An authored radius too small for an arc there moves the label out, not into the arc.
+        let label = radius.max(ARROW + LIFT + self.radial_half);
+        let radius = label - LIFT - self.radial_half;
+        let end = self.start + self.sweep;
         let mut lines = Vec::new();
         for (length, angle) in self.lengths.iter().zip([self.start, end]) {
             lines.push([
@@ -370,11 +377,9 @@ impl Ink {
                 self.point(radius + OVERSHOOT, angle),
             ]);
         }
-        for (a, b) in pieces.into_iter().filter(|(a, b)| a < b) {
-            let count = ((b - a) * (radius / SAMPLING).sqrt()).ceil().max(1.0) as usize;
-            let at = |i: usize| self.point(radius, a + (b - a) * i as f64 / count as f64);
-            lines.extend((0..count).map(|i| [at(i), at(i + 1)]));
-        }
+        let count = (self.sweep * (radius / SAMPLING).sqrt()).ceil().max(1.0) as usize;
+        let at = |i: usize| self.point(radius, self.start + self.sweep * i as f64 / count as f64);
+        lines.extend((0..count).map(|i| [at(i), at(i + 1)]));
         let turn = ARROW / radius;
         let arrows = vec![
             [
@@ -383,9 +388,8 @@ impl Ink {
             ],
             [self.point(radius, end), self.point(radius, end - turn)],
         ];
-        let ink = label_ink(terms, font());
         let rotation = self.text_angle.to_degrees();
-        let centre = self.point(radius, self.middle);
+        let centre = self.point(label, self.middle);
         let mid = [
             0.5 * (ink.min[0] + ink.max[0]),
             0.5 * (ink.min[1] + ink.max[1]),
@@ -400,7 +404,7 @@ impl Ink {
             arrows,
             label_at,
             rotation,
-            label_box: label_box(&ink, label_at, rotation),
+            label_box: label_box(ink, label_at, rotation),
         })
     }
 }
@@ -418,20 +422,11 @@ pub(super) fn intent(
         [ink.max[0] - ink.min[0], ink.max[1] - ink.min[1]],
     )?;
     if let Some(a) = p.along {
-        geometry.middle = geometry.start + geometry.sweep * a.fraction();
-        let tangent =
-            (geometry.middle + std::f64::consts::FRAC_PI_2).rem_euclid(std::f64::consts::TAU);
-        geometry.text_angle = if std::f64::consts::FRAC_PI_2 < tangent
-            && tangent <= 3.0 * std::f64::consts::FRAC_PI_2
-        {
-            tangent - std::f64::consts::PI
-        } else {
-            tangent
-        };
+        geometry = geometry.along(a.fraction());
     }
     geometry.placed_at(
         geometry.minimum + p.lane.unwrap_or(0) as f64 * STEP,
-        terms,
+        &ink,
         true,
     )
 }
@@ -472,12 +467,12 @@ pub(crate) fn notch_reservations(
         // Invariant: Reversing both proven notch rays preserves their nonzero angle.
         .unwrap();
         extended.lengths = [0.; 2];
-        let terms_ref = &terms;
+        let ink_ref = &ink;
         if let Some(p) = (0..TRIES)
             .flat_map(|i| {
                 [&physical, &extended]
                     .into_iter()
-                    .filter_map(move |g| g.placed(g.minimum + i as f64 * STEP, terms_ref))
+                    .filter_map(move |g| g.placed(g.minimum + i as f64 * STEP, ink_ref))
             })
             .find(|p| !boxes_overlap(p.label_box, frame.outline()))
         {
@@ -546,10 +541,11 @@ pub(super) fn place(
         // Invariant: The original rays passed the same Ink::new test before reversal.
         .expect("reversing both rays preserves the angle");
         extended.lengths = [0.0; 2];
+        let ink = &ink;
         let mut candidates = (0..TRIES).flat_map(|n| {
             [&geometry, &extended]
                 .into_iter()
-                .filter_map(move |g| g.placed(g.minimum + n as f64 * STEP, terms))
+                .filter_map(move |g| g.placed(g.minimum + n as f64 * STEP, ink))
         });
         let others: Vec<&Placed> = placed
             .iter()
@@ -804,12 +800,15 @@ pub(super) fn place_profile(
             [false, true].into_iter().find_map(|straight_ok| {
                 (0..TRIES)
                     .map(|n| n as f64 * STEP)
-                    .take_while(|d| inks.iter().any(|(g, _)| g.minimum + d <= reach))
+                    .take_while(|d| {
+                        inks.iter()
+                            .any(|(g, _)| g.label_reach(g.minimum + d) <= reach)
+                    })
                     .find_map(|d| {
                         inks.iter().find_map(|(g, stubs)| {
                             let radius = g.minimum + d;
-                            (radius <= reach)
-                                .then(|| g.placed(radius, terms))
+                            (g.label_reach(radius) <= reach)
+                                .then(|| g.placed(radius, &ink))
                                 .flatten()
                                 .filter(|c| clear(c, *stubs, straight_ok, g.vertex))
                         })
@@ -864,6 +863,99 @@ mod tests {
             from_planes([([0.0; 3], z), ([0.0, 0.0, 5.0], z)], [[1.0; 3], [2.0; 3]]).unwrap_err(),
             "angular reference planes are parallel or coincident"
         );
+    }
+
+    /// The page ink of an angle at *vertex* between rays at *a* and *b* degrees, witnesses 10 mm
+    /// out, its label *terms*.
+    fn ink(vertex: P2, a: f64, b: f64, terms: &[String]) -> Ink {
+        let at = |d: f64| {
+            let (s, c) = d.to_radians().sin_cos();
+            [vertex[0] + 10.0 * c, vertex[1] + 10.0 * s]
+        };
+        let l = label_ink(terms, font());
+        Ink::on_page(
+            vertex,
+            [at(a), at(b)],
+            [l.max[0] - l.min[0], l.max[1] - l.min[1]],
+        )
+        .unwrap()
+    }
+
+    /// ISO 129-1 (#227): one unbroken arc about the vertex from one extension line to the other,
+    /// an arrowhead at each end on it, and the label outside the arc, clear of it, centred on the
+    /// bisector and within the sector, for a wide counted label (the hex's `6× 120°`), a narrow
+    /// acute one (the V-slot's `45°`) and labels that read from below.
+    #[test]
+    fn an_angle_is_one_unbroken_arc_with_its_label_outside() {
+        let cases = [
+            ("6× 120°", 210.0, 330.0),
+            ("45°", 180.0, 225.0),
+            ("45°", 0.0, 45.0),
+            ("135°", 100.0, 235.0),
+            ("60°", 60.0, 120.0),
+        ];
+        for (label, a, b) in cases {
+            let terms = vec![label.to_string()];
+            let vertex = [100.0, 100.0];
+            let g = ink(vertex, a, b, &terms);
+            let text = &label_ink(&terms, font());
+            let p = g.placed(g.minimum, text).unwrap();
+            let from = |q: P2| (q[0] - vertex[0]).hypot(q[1] - vertex[1]);
+            let bearing = |q: P2| (q[1] - vertex[1]).atan2(q[0] - vertex[0]).to_degrees();
+            // How far *q* lies inside the sector from its nearer side, mm (negative outside).
+            let inside = |q: P2| {
+                let side = |d: f64, sign: f64| {
+                    let (s, c) = d.to_radians().sin_cos();
+                    sign * (c * (q[1] - vertex[1]) - s * (q[0] - vertex[0]))
+                };
+                side(a, 1.0).min(side(b, -1.0))
+            };
+            let arc = &p.lines[2..];
+            let radius = from(arc[0][0]);
+            for pair in arc.windows(2) {
+                let [x, y] = [pair[0][1], pair[1][0]];
+                assert!((x[0] - y[0]).hypot(x[1] - y[1]) < 1e-9, "{label}: unbroken");
+            }
+            for q in arc.iter().flat_map(|l| [l[0], l[1]]) {
+                assert!((from(q) - radius).abs() < 1e-9, "{label}: on the arc");
+            }
+            for (q, d) in [(arc[0][0], a), (arc[arc.len() - 1][1], b)] {
+                assert!(
+                    (bearing(q) - d)
+                        .rem_euclid(360.0)
+                        .min((d - bearing(q)).rem_euclid(360.0))
+                        < 1e-6,
+                    "{label}: the arc runs from one extension line to the other"
+                );
+            }
+            for [tip, _] in &p.arrows {
+                assert!(
+                    (from(*tip) - radius).abs() < 1e-9,
+                    "{label}: arrow on the arc"
+                );
+                assert!(inside(*tip).abs() < 1e-9, "{label}: arrow tip on a side");
+            }
+            // The label's own (turned) rectangle: outside the arc by LIFT, within the sector.
+            let bx = p.label_box;
+            let centre = [0.5 * (bx[0] + bx[2]), 0.5 * (bx[1] + bx[3])];
+            assert!(
+                (bearing(centre) - 0.5 * (a + b)).rem_euclid(360.0) < 1e-6
+                    || (0.5 * (a + b) - bearing(centre)).rem_euclid(360.0) < 1e-6,
+                "{label}: on the bisector"
+            );
+            let (s, c) = g.text_angle.sin_cos();
+            let half = [g.tangent_half, g.radial_half];
+            for (u, v) in [(-1.0, -1.0), (-1.0, 1.0), (1.0, -1.0), (1.0, 1.0)] {
+                let q = [
+                    centre[0] + u * half[0] * c - v * half[1] * s,
+                    centre[1] + u * half[0] * s + v * half[1] * c,
+                ];
+                assert!(from(q) >= radius + LIFT - 1e-6, "{label}: outside the arc");
+                assert!(inside(q) > 0.0, "{label}: within the sector");
+            }
+            // Below the least radius the arrowheads would reach the label's width.
+            assert!(g.placed(g.minimum - 0.5, text).is_none(), "{label}");
+        }
     }
 
     #[test]

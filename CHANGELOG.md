@@ -23,6 +23,8 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Changed
 
+- **A Spec tolerance writes a zero deviation as `0`, unsigned** (ISO 129-1), as imported and
+  generated bands already do: `+0 -0.1` prints `0 -0.1`, not `+0.0 -0.1`.
 - On quiddity-rust **v0.2.0**. Its face accounting (blended box corners, plate edges, stock
   walls, drill-point tips, slot end walls) raises claimed faces on 65 corpus parts: CTC-01 AP242
   goes from 27 unclaimed faces to 3, and the claim losses listed for 0.1.0 are recovered. Newly
@@ -34,6 +36,37 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Fixed
 
+- **A thread recognition refused is no longer drawn as a counterbore (#218).** quiddity refuses
+  dw-examples' T8 flange nut thread (`inconsistent_diameters`) yet also reported a hole on its
+  flanks, printed `⌀6.5 THRU ⌴ ⌀8.3 ↧ 14.8` in a 15 mm part. No hole, nor its pattern, is now
+  built from faces a `ModelledThreadRefusal` names; the refusal is reported against them as
+  warning `modelled_thread_refused` until the feature is declared on them in the Spec. A smooth
+  hole or boss at exactly the major diameter of an ISO metric size the title or product names
+  (`M3 x 12 hex standoff`) keeps its measured callout and gains info `possible_thread`, which
+  `features/<id>/thread` settles.
+- **Small parts no longer go to A3 over a leader the finished drawing would not have (#221).**
+  A paper trial skipped the finishing route pass whenever its reported findings were clear, but
+  the paper policy also measures leaders on extension lines from the ink, so a contact that pass
+  clears refused A4. The pass now runs while such a contact remains. bearing-608zz and
+  hex-standoff-m3 (dw-examples) are drawn on A4 at 2:1 instead of A3 at 5:1, and GRM-03 on A4 at
+  5:1 instead of A3 at 10:1, each with no contact. A title-block value too long for its cell at
+  3 mm is drawn smaller, down to 1.8 mm (ISO 3098's smallest height), so a long drawing number
+  fits A4's cell instead of overflowing it and asking for A3; only a value that does not fit even
+  then is reported as `title_field_overflow`. Still on A3: bearing-lm10uu, whose A4 trial keeps
+  a groove callout ending where the 19.4 step's extension line leaves the outline even after
+  the finishing pass (the leader placer finds no other route), and gt2-pulley, whose extra side
+  view, kept only for a radial hole, needs 303 mm across.
+- **Angular dimensions are drawn with an unbroken dimension arc (#227).** The arc was broken
+  around an inline label, and at the smallest radius that left room for the arrowheads all that
+  showed of it was the two arrowheads (dw-examples' hex-standoff-m3 "6× 120°" and
+  vslot-2020x50 "45°"). Per ISO 129-1 the arc now runs unbroken about the vertex from one
+  extension line to the other, an arrowhead at each end, with the label just outside it
+  (`src/dims/angular.rs`). Where the first radius is clear the label keeps the inline label's
+  place and the arc moves inside it, so the ink reaches no further. Where the unbroken arc
+  meets something the break used to skip, the angle takes a later place: CTC-01's "60°" and
+  CTC-03's "2× 135°" step out 1–2 mm, and FTC-08 rc's "8× 135°" goes to another of its
+  corners, its arc across a slot outline. The vslot "45°" still sits away from its corner,
+  its diagonal extension line across the "10" extension line; that part of #227 stays open.
 - **Coincident copies of a body no longer multiply every count (#212).** A STEP holding the same
   solid several times on top of itself (a FreeCAD export of a body and its `Pad`) was drawn
   whole, each feature once per copy: dw-examples' gantry plate printed "24× ⌀5.1 THRU" for 12
@@ -51,6 +84,23 @@ All notable changes to draftwright-rust are recorded here, in the style of
   `0`, unsigned (`⌀6.35 +0.0762 0`, ISO 129-1, STC-07 and STC-09); and a common label that states
   a radius without its value (`2X R`, `4X R`: ASME's full radius) is not drawn but reported as
   `pmi_not_lowered` (a warning).
+- **Surface models beside the solid no longer inflate the envelope (#215).** A STEP's
+  `SHELL_BASED_SURFACE_MODEL` is read with the part (as OpenCascade reads it), but only the
+  solids' faces are drawn; the envelope, the overall dimensions, the stock faces, the principal
+  profiles and the edge ink now come from those faces too. NIST STC-07's two CATIA fills (open
+  triangles bounded by `Sketch.2`) put its overall height at 257.688 with the top extension line
+  in empty space; it is now the solid's 222.706, and the front view is centred on the solid. A
+  part with no solid is still drawn from all its faces. NIST FTC-07 (AP242, the same geometry and
+  fills) now lands on A1 1:1 instead of A2 1:2: with the honest, 17.5 mm shorter front-view box its
+  A2 1:2 layout gains leader crossings (the `F1.2` label's leader now crosses the front view) and
+  is refused; `sheet/size` A2 with `sheet/scale` 1:2 still draws it there.
+- **A slot position line states every slot whose end it reaches (#228).** The planner draws one
+  location for lone slots whose low ends lie on the same span (one span, one dimension:
+  ARCH0009-6), but lint read it as stating only its own slot, so `slot_requirement_missing`
+  warned about the others: nema17-bracket's slots 3, 5 and 6, CTC-03's slot 2, CTC-04's slots 5
+  and 6 and FTC-09's slot 2. Lint now credits the line to every lone slot whose low end lies the
+  same distance from the part's box on the same axis, seen through the same axis, and still
+  checks its text against each slot's value.
 
 ## 0.1.0 (2026-10-25)
 

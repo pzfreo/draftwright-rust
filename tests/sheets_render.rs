@@ -84,9 +84,10 @@ fn every_sheet_has_its_title_block() {
                 .any(|q| q.code == "title_field_overflow" && q.refs == ["title_block/sheet"])
         );
     }
+    // Long enough to overflow its cell even at the smallest title text (100/120 shrinks to fit).
     let cells = title_block::cells(
         [167., 10., 287., 50.],
-        &std::collections::BTreeMap::from([("sheet".into(), "100/120".into())]),
+        &std::collections::BTreeMap::from([("sheet".into(), "1000/1200".into())]),
         "A4",
     );
     assert_eq!(
@@ -96,7 +97,7 @@ fn every_sheet_has_its_title_block() {
             .unwrap()
             .value
             .as_deref(),
-        Some("100/120")
+        Some("1000/1200")
     );
     assert!(
         title_block::problems(&cells, [297., 210.])

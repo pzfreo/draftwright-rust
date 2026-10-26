@@ -1416,7 +1416,8 @@ fn analyse_step_input(
             }
         }
     };
-    let b = part.bounds();
+    let drawn = crate::quiddity_evidence::drawn_faces(&part);
+    let b = crate::quiddity_evidence::drawn_bounds(&part, &drawn);
     let (level_supports, risers) = crate::dims::levels::evidence(&part);
     let mut analysis = Analysis {
         schema: ANALYSIS_SCHEMA.into(),
@@ -1440,7 +1441,9 @@ fn analyse_step_input(
         envelope: [b.min, b.max],
         solid_count: Some(part.solids.len()),
         face_accounting: None,
-        stock_faces: (0..part.faces.len())
+        stock_faces: drawn
+            .iter()
+            .copied()
             .filter(|&f| {
                 if !matches!(
                     part.faces[f].surface,
@@ -4930,6 +4933,10 @@ fn plan_with_presentation(
             ..Default::default()
         });
     }
+    // Read from the title, declarations and PMI mode, which the placement memo leaves out of its
+    // key.
+    problems.extend(crate::dims::refused_threads(analysis, spec));
+    problems.extend(crate::dims::possible_threads(analysis, spec));
     if !effective.annotations.is_empty() {
         let mut lowered = crate::pmi_lowering::lower(analysis, &|_| true).0;
         crate::label_text::annotations(&mut lowered, &effective)?;
@@ -7420,6 +7427,9 @@ fn settle_finished_nominals(
         && !crate::dims::recheck_cached(analysis, plan, &cache)
             .iter()
             .any(crate::sheet_policy::layout_problem)
+        // The paper policy also measures leader/extension contacts from final ink (#221):
+        // a trial that kept one would be refused for a contact the full pass can clear.
+        && crate::dims::leader_on_extension(&plan.dimensions).is_empty()
     {
         return;
     }
@@ -9214,14 +9224,10 @@ fn render_annotations_with_cuts(
         label(laid, at, dims, None);
         if let Some(v) = &c.value {
             let centre = [0.5 * (x0 + x1), 0.5 * (y0 + y1)];
-            let run = (v.as_str(), title_block::FONT, title_block::TEXT);
+            let size = title_block::value_size(v, c.cell);
+            let run = (v.as_str(), title_block::FONT, size);
             let from = dims.len();
-            let at = label(
-                title_block::lay(v, title_block::TEXT),
-                centre,
-                dims,
-                Some(run),
-            );
+            let at = label(title_block::lay(v, size), centre, dims, Some(run));
             for r in &plan.requirements {
                 if r.carrier == "title_block" && c.field == "general_tolerance" {
                     stated.entry(r.id.clone()).or_default().extend(at);
