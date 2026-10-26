@@ -300,7 +300,9 @@ pub fn undefined_stations(c: &Corner, located: &dyn Fn(usize, f64) -> bool) -> V
 
 /// Every non-reference linear dimension drawn, re-measured from its two witnesses through its
 /// view's recorded transform ([`super::location::ink_span`]): the spans that locate stations.
-/// A counted `2× v` from one side of the part's box states its mirror from the other side too.
+/// A counted profile station (`2× v`, [`crate::dims::profile_angles`]) from one side of the
+/// part's box states its mirror from the other side too; no other counted dimension does (a
+/// pattern pitch or slot width touching a box side states no mirrored station).
 pub fn drawn_spans(a: &Analysis, drawing: &crate::output::Drawing) -> Vec<(usize, f64, f64)> {
     let text = |name: &str| {
         drawing
@@ -324,7 +326,9 @@ pub fn drawn_spans(a: &Analysis, drawing: &crate::output::Drawing) -> Vec<(usize
                 .clone()?;
             let frame = drawing.sheet.frames.get(view.trim_start_matches("v:"))?;
             let span = super::location::ink_span(a, frame, &d.lines)?;
-            Some((span, body.trim_start().starts_with("2×")))
+            let counted =
+                body.trim_start().starts_with("2×") && d.name.contains("/profile_location_");
+            Some((span, counted))
         })
         .flat_map(|((k, p, q), counted)| {
             let [lo, hi] = [a.envelope[0][k], a.envelope[1][k]];

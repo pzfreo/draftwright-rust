@@ -43,10 +43,19 @@ All notable changes to draftwright-rust are recorded here, in the style of
   for its stations (`profile_corners: angle` keeps the counted angle). Two equal stations from
   opposite sides of the box are stated once, `2× v`, and lint reads a counted station as locating
   its mirror: the symmetric octagon gets four (`2× 12.827`, `2× 33.902`, `2× 11.938`, `2× 33.013`),
-  not eight in repeated pairs, and FTC-08 stays on A1 1:2 (one advisory
-  `extension_through_feature`, 0 before); STC-08 moves from A1 1:1 to A2 1:5
-  (`extension_through_feature` 7 to 11, `leader_through_feature` 0 to 2). `profile_corners:
-  linear`, or naming one station in the Spec, states each station on its own. Other corners keep
+  not eight in repeated pairs, and FTC-08 stays on A1 1:2. Costs: FTC-08 gains one
+  `extension_through_feature` (the 141.827 slot location's witness now crosses the 12.7 slot;
+  its CI quality baseline is 0, so the quality gate fails on it) and its fillet callout reads
+  `8× R1.524`, not `8× R1.5` (the new route loses the established one-decimal text; the
+  retention check in `tests/label_lanes.rs` now uses mfcadpp/1004); l-plate-5-holes gains one
+  `label_crowded`. STC-08 (not a quality part) moves from A1 1:1 to A2 1:5 with its plan view
+  much smaller and its hole tags crowded (`annotation_leader_crossing` 4 to 37,
+  `extension_through_feature` 7 to 11, `leader_through_feature` 0 to 2, `label_crowded` 0 to
+  2): the stations tip its first estimate into a hole table, and a first estimate with a table
+  is recovered without one, where nothing at or above 1:5 is valid, so the larger sheets main
+  reached are never tried (`model::recover_tables`). `profile_corners: linear`, or naming one
+  station in the Spec, states each station on its own. A 45° corner chamfer gets its leg
+  stations, not a chamfer callout (the issue's alternative, left for later). Other corners keep
   their angles; lint now reports `profile_corner_unlocated` where no linear dimension places a
   drawn angle's edge (CTC-03 2, cgb207 1, 10046 1, 10060 2), and 10007 and 10060 gain plate-face
   corners whose angles find no clear place (`angular_requirement_missing`).
