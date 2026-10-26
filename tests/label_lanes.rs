@@ -234,14 +234,25 @@ fn precise_labels_keep_their_span_after_the_final_inventory_settles() {
         .iter()
         .find(|d| d.id == "d:f:fillet:7/fillet.radius")
         .unwrap();
-    assert_eq!(fillet.label, "8× R1.5");
     assert!(
         fillet
             .measurements
             .iter()
             .all(|m| (m.value - 1.524).abs() < 1e-6)
     );
-    assert!(fillet.basis.contains("one-decimal text retained"));
+    // Exact since the octagon's stations (#217) changed the inventory around it; mfcadpp/1004
+    // below keeps the established one-decimal text on its unchanged ink run.
+    assert_eq!(fillet.label, "8× R1.524");
+    if let Some(p) = plan_with("mfcadpp/1004.step", &Spec::default()) {
+        let hole = p
+            .dimensions
+            .iter()
+            .find(|d| d.id == "d:f:hole:1/bore.diameter")
+            .unwrap();
+        assert!((hole.measurements[0].value - 7.44654).abs() < 1e-4);
+        assert_eq!(hole.label, "⌀7.4 ↧ 5.9");
+        assert!(hole.basis.contains("one-decimal text retained"));
+    }
     assert!(
         !p.problems.iter().any(|q| {
             matches!(

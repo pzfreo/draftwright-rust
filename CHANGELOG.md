@@ -30,6 +30,26 @@ All notable changes to draftwright-rust are recorded here, in the style of
   quiddity does. The 30-part quality table and the random-pin cells are unchanged.
 - **A Spec tolerance writes a zero deviation as `0`, unsigned** (ISO 129-1), as imported and
   generated bands already do: `+0 -0.1` prints `0 -0.1`, not `+0.0 -0.1`.
+- **A cut corner is located by its legs, and an angle with no position is reported (#217).** Two
+  angles fix an edge's direction, not where it lies: dw-examples' l-plate-5-holes printed `135°` at
+  both ends of its 45° cut and neither leg. A cut across a corner of principal edges now gets its
+  missing stations, each from the nearer side of the box, instead of angles (the l-plate gets `20`
+  and `20`; the NEMA 17 bracket's motor-plate chamfers `2× 4` and `4`, where two of their angles
+  had been dropped; 10049's cut is located). A plate's face is now hidden only by a nearer face of
+  the same plate, so the bracket's base-plate chamfers, behind the motor plate's end face and never
+  reported, get `2× 4` and `4` too; a notch's flank corners are left to the notch (CTC-01's plate
+  adds nothing; 1013's `2× 113.974°` and 10020's `100.614°` beside their notches go). The counted
+  angle needs a regular polygon: FTC-08's and STC-08's chamfered-rectangle octagon loses `8× 135°`
+  for its stations (`profile_corners: angle` keeps the counted angle). Two equal stations from
+  opposite sides of the box are stated once, `2× v`, and lint reads a counted station as locating
+  its mirror: the symmetric octagon gets four (`2× 12.827`, `2× 33.902`, `2× 11.938`, `2× 33.013`),
+  not eight in repeated pairs, and FTC-08 stays on A1 1:2 (one advisory
+  `extension_through_feature`, 0 before); STC-08 moves from A1 1:1 to A2 1:5
+  (`extension_through_feature` 7 to 11, `leader_through_feature` 0 to 2). `profile_corners:
+  linear`, or naming one station in the Spec, states each station on its own. Other corners keep
+  their angles; lint now reports `profile_corner_unlocated` where no linear dimension places a
+  drawn angle's edge (CTC-03 2, cgb207 1, 10046 1, 10060 2), and 10007 and 10060 gain plate-face
+  corners whose angles find no clear place (`angular_requirement_missing`).
 - On quiddity-rust **v0.2.0**. Its face accounting (blended box corners, plate edges, stock
   walls, drill-point tips, slot end walls) raises claimed faces on 65 corpus parts: CTC-01 AP242
   goes from 27 unclaimed faces to 3, and the claim losses listed for 0.1.0 are recovered. Newly
