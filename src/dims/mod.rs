@@ -807,6 +807,9 @@ fn wants_uncached(
             }
         }
     }
+    if cx.turned.is_none() {
+        holes::round_origins(analysis, spec, &mut out);
+    }
     flats::share_locations(&cx, &mut out);
     // A planner may dimension some records of a kind it does not claim (the section recesses
     // that are blind slots): those are not reported.

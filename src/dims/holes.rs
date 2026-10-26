@@ -703,6 +703,199 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     (out, problems)
 }
 
+/// How far a hole or boss axis may lie from a round face's axis and still stand on it, mm:
+/// quiddity's 0.01 mm record rounding.
+const ON_AXIS: f64 = 0.01;
+
+/// Where the part's low box side along *k*, seen along world axis *view*, is only the tangent of
+/// a round face (no plane lies on it) whose axis carries a recognised hole or boss: that
+/// feature's ID and a point on the face's axis (#223). A tangent on a curved outline is no
+/// face to measure from; the axis of the round feature it bounds is.
+fn round_origin(analysis: &Analysis, view: usize, k: usize) -> Option<(String, P3)> {
+    let ink = analysis.edge_ink.as_ref()?;
+    let lo = analysis.envelope[0][k];
+    let flat = ink.planes.iter().any(|p| {
+        p.normal[k].abs() > 1.0 - 1e-6
+            && p.edges
+                .iter()
+                .filter_map(|&e| ink.edges.get(e)?.first())
+                .any(|q| (q[k] - lo).abs() < 1e-4)
+    });
+    if flat {
+        return None;
+    }
+    let (u, v) = in_view(view);
+    let frame = holes::frame(analysis);
+    let mut found: Option<(String, P3)> = None;
+    for c in ink.curved.iter().filter_map(|c| {
+        let y = c.cylinder.as_ref()?;
+        (y.axis[view].abs() > 1.0 - 1e-6
+            && (y.origin[k] - y.radius - lo).abs() < 1e-4
+            && (c.bounds[0][k] - lo).abs() < 1e-4)
+            .then_some(y)
+    }) {
+        let on =
+            |at: P3| (at[u] - c.origin[u]).abs() < ON_AXIS && (at[v] - c.origin[v]).abs() < ON_AXIS;
+        // A hole on the axis carries its centre mark there; else a boss standing on it.
+        let owner = holes::read(analysis)
+            .into_iter()
+            .filter_map(|(f, h)| h.ok().map(|h| (f, h)))
+            .find(|(_, h)| h.direction[view].abs() > 1.0 - 1e-6 && on(h.at))
+            .map(|(f, _)| f.id.clone())
+            .or_else(|| {
+                analysis
+                    .features
+                    .iter()
+                    .filter(|f| f.kind == "boss")
+                    .find(|f| {
+                        let at = point(f.parameters.get("location"));
+                        let d = point(f.parameters.get("axis"));
+                        at.zip(d).is_some_and(|(at, d)| {
+                            holes::dir_to_part(&frame, d)[view].abs() > 1.0 - 1e-6
+                                && on(holes::to_part(&frame, at))
+                        })
+                    })
+                    .map(|f| f.id.clone())
+            });
+        let Some(owner) = owner else { continue };
+        match &found {
+            Some((_, at)) if (at[k] - c.origin[k]).abs() > ON_AXIS => return None, // two round sides
+            Some(_) => {}
+            None => found = Some((owner, c.origin)),
+        }
+    }
+    found
+}
+
+/// Re-roots hole and hole-pattern locations measured from a box side that is only a round
+/// face's tangent ([`round_origin`]) on that round feature's axis (#223: linkrods' holes were
+/// located 0.75 and 4.625 from a ø1.5 boss's tangent, and the 3.875 between their centres was
+/// never stated). A feature on that axis is not located again: the dimensions from its centre
+/// state it, as draftwright's location backstop reads a witness on a hole's centre. An axis is
+/// left from the box when nothing stands off the round axis, when the Spec names its
+/// `origin/<axis>` (`min` keeps the box side), or when the part carries PMI, whose datums own
+/// its origins.
+pub(super) fn round_origins(analysis: &Analysis, spec: &crate::model::Spec, wants: &mut Vec<Want>) {
+    if super::pmi_policy::carries(analysis) {
+        return;
+    }
+    let lo = analysis.envelope[0];
+    let feature = |m: &Measurement, kinds: &[&str]| {
+        analysis
+            .features
+            .iter()
+            .any(|f| f.id == m.feature && kinds.contains(&f.kind.as_str()))
+            || (kinds.contains(&"hole") && m.feature.starts_with("f:hole_pattern:"))
+    };
+    // A location from the low box side: its view's axis, the axis it measures, its station.
+    let from_box = |w: &Want, kinds: &[&str]| match w.shape {
+        Shape::Linear {
+            a,
+            b,
+            axis: k,
+            a_edge: true,
+            order: 1,
+            ..
+        } if (a[k] - lo[k]).abs() < 1e-9
+            && !w.measurements.is_empty()
+            && w.measurements.iter().all(|m| {
+                m.parameter == format!("location.length.{}", AXES[k]) && feature(m, kinds)
+            }) =>
+        {
+            let view = (0..3).find(|&j| w.views.first() == Some(&end_on(j)))?;
+            Some((view, k, b[k]))
+        }
+        _ => None,
+    };
+    let mut axes: BTreeSet<(usize, usize)> = BTreeSet::new();
+    for w in wants.iter() {
+        if let Some((view, k, _)) = from_box(w, &["hole"]) {
+            axes.insert((view, k));
+        }
+    }
+    for (view, k) in axes {
+        if spec.origin.contains_key(AXES[k]) {
+            continue;
+        }
+        let Some((owner, axis)) = round_origin(analysis, view, k) else {
+            continue;
+        };
+        let c = axis[k];
+        let on: Vec<usize> = (0..wants.len())
+            .filter(|&i| {
+                from_box(&wants[i], &["hole", "boss"])
+                    .is_some_and(|(j, kk, at)| j == view && kk == k && (at - c).abs() < ON_AXIS)
+            })
+            .collect();
+        let off: Vec<usize> = (0..wants.len())
+            .filter(|&i| {
+                from_box(&wants[i], &["hole"])
+                    .is_some_and(|(j, kk, at)| j == view && kk == k && (at - c).abs() >= ON_AXIS)
+            })
+            .collect();
+        if off.is_empty() {
+            continue;
+        }
+        let stated: Vec<Measurement> = on
+            .iter()
+            .flat_map(|&i| wants[i].measurements.clone())
+            .collect();
+        let named = crate::wording::feature_id(analysis, &owner);
+        let (u, v) = in_view(view);
+        let across = if u == k { v } else { u };
+        // The nearest dimension from the axis also carries what stands on it.
+        let nearest = off.iter().copied().min_by(|&x, &y| {
+            let d = |i: usize| {
+                from_box(&wants[i], &["hole"]).map_or(f64::MAX, |(_, _, at)| (at - c).abs())
+            };
+            d(x).total_cmp(&d(y))
+        });
+        for &i in &off {
+            let w = &mut wants[i];
+            let Shape::Linear { a, b, a_edge, .. } = &mut w.shape else {
+                continue;
+            };
+            *a = *b;
+            a[k] = c;
+            a[across] = axis[across];
+            *a_edge = false;
+            let d = (b[k] - c).abs();
+            w.value = d;
+            w.terms = vec![fmt(d)];
+            for m in &mut w.measurements {
+                m.value = d;
+            }
+            w.basis = format!(
+                "located in {} from the axis of {named}, in the view that looks along the hole: the part's {} side is only the tangent of its round face, which is no face to measure from",
+                AXES[k],
+                ["left", "front", "bottom"][k],
+            );
+            if Some(i) == nearest && !stated.is_empty() {
+                let mut ids: Vec<String> = Vec::new();
+                for m in &stated {
+                    w.measurements.push(Measurement {
+                        value: d,
+                        ..m.clone()
+                    });
+                    let id = crate::wording::feature_id(analysis, &m.feature);
+                    if !ids.contains(&id) {
+                        ids.push(id);
+                    }
+                }
+                w.basis += &format!(
+                    "; {} on that axis is located by this dimension's witness on its centre",
+                    ids.join(", ")
+                );
+            }
+        }
+        let mut i = 0;
+        wants.retain(|_| {
+            i += 1;
+            !on.contains(&(i - 1))
+        });
+    }
+}
+
 /// The world axes a view looking along *k* shows across and up the page.
 fn in_view(k: usize) -> (usize, usize) {
     match k {

@@ -757,12 +757,25 @@ fn rows(
         .collect();
     let location = |f: &str, axis: &str| {
         let parameter = format!("location.length.{axis}");
-        locations.iter().find_map(|(_, d)| {
+        let found = locations.iter().find_map(|(_, d)| {
             d.measurements
                 .iter()
                 .find(|m| m.feature == f && m.parameter == parameter)
                 .map(|m| (d.label.clone(), m.clone()))
-        })
+        })?;
+        // A location from a round feature's axis (#223) is no coordinate from the box corner:
+        // the row states the hole's own.
+        let k = usize::from(axis == "y");
+        match read.get(f).map(|h| h.at[k] - analysis.envelope[0][k]) {
+            Some(distance) if (found.1.value - distance).abs() > 1e-6 => Some((
+                crate::dims::fmt(distance),
+                Measurement {
+                    value: distance,
+                    ..found.1
+                },
+            )),
+            _ => Some(found),
+        }
     };
     let mut out = Vec::new();
     for ((i, f), tag) in loose.iter().zip(tags) {
@@ -2212,10 +2225,13 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
                 for &k in &axes {
                     let parameter = format!("location.length.{}", ["x", "y", "z"][k]);
                     let distance = h.at[k] - origin[k];
+                    // A location from a round feature's axis (#223) is no coordinate.
                     let measured = plan.dimensions.iter().find(|d| {
-                        d.measurements
-                            .iter()
-                            .any(|m| m.feature == f && m.parameter == parameter)
+                        d.measurements.iter().any(|m| {
+                            m.feature == f
+                                && m.parameter == parameter
+                                && (m.value - (h.at[k] - analysis.envelope[0][k])).abs() <= 1e-6
+                        })
                     });
                     cells.push(
                         measured
