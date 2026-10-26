@@ -375,6 +375,9 @@ fn shared_locations(analysis: &Analysis, marks: &[Mark]) -> Vec<Mark> {
             ))
         })
         .collect();
+    if at.len() < 2 {
+        return marks.to_vec();
+    }
     marks
         .iter()
         .map(|m| {
