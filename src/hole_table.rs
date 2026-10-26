@@ -755,6 +755,7 @@ fn rows(
                 })
         })
         .collect();
+    let origin = crate::dims::pmi_policy::origin_point(analysis, &plan.spec);
     let location = |f: &str, axis: &str| {
         let parameter = format!("location.length.{axis}");
         let found = locations.iter().find_map(|(_, d)| {
@@ -763,11 +764,11 @@ fn rows(
                 .find(|m| m.feature == f && m.parameter == parameter)
                 .map(|m| (d.label.clone(), m.clone()))
         })?;
-        // A location from a round feature's axis (#223) is no coordinate from the box corner:
-        // the row states the hole's own.
+        // A location from a round feature's axis (#223) is no coordinate from the origin: the
+        // row states the hole's own.
         let k = usize::from(axis == "y");
-        match read.get(f).map(|h| h.at[k] - analysis.envelope[0][k]) {
-            Some(distance) if (found.1.value - distance).abs() > 1e-6 => Some((
+        match read.get(f).map(|h| h.at[k] - origin[k]) {
+            Some(distance) if (found.1.value - distance.abs()).abs() > 1e-6 => Some((
                 crate::dims::fmt(distance),
                 Measurement {
                     value: distance,
@@ -2230,7 +2231,7 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
                         d.measurements.iter().any(|m| {
                             m.feature == f
                                 && m.parameter == parameter
-                                && (m.value - (h.at[k] - analysis.envelope[0][k])).abs() <= 1e-6
+                                && (m.value - distance.abs()).abs() <= 1e-6
                         })
                     });
                     cells.push(

@@ -739,6 +739,36 @@ fn a_hole_beside_a_round_boss_is_located_from_its_axis() {
             .any(|i| i.code == "feature_not_located"),
     );
 
+    // A schedule states coordinates from the box corner, not the distances from the axis.
+    let spec: Spec = serde_json::from_value(serde_json::json!({"hole_table": "always"})).unwrap();
+    let p = model::plan_recovered(&a, &spec).unwrap();
+    let rows: Vec<_> = p.hole_tables.iter().flat_map(|t| &t.rows).collect();
+    assert!(!rows.is_empty());
+    for r in &rows {
+        let hole = if r.feature == "f:hole:1" {
+            origin
+        } else {
+            beside
+        };
+        for (k, axis) in ["x", "y"].iter().enumerate() {
+            let m = r
+                .measurements
+                .iter()
+                .find(|m| m.parameter == format!("location.length.{axis}"))
+                .unwrap_or_else(|| panic!("{r:?}"));
+            let corner = hole[k] - a.envelope[0][k];
+            assert!(
+                (m.value - corner).abs() < 1e-6,
+                "{} {axis}: {}",
+                r.feature,
+                m.value
+            );
+            // The cells are the tag, the callout, then `X` and `Y`.
+            let cell: f64 = r.cells[2 + k].parse().unwrap();
+            assert!((cell - corner).abs() < 1e-3, "{} {axis}: {r:?}", r.feature);
+        }
+    }
+
     // The Spec's origin keeps the box sides.
     let spec: Spec =
         serde_json::from_value(serde_json::json!({"origin": {"x": "min", "y": "min"}})).unwrap();
