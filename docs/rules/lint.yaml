@@ -1924,7 +1924,7 @@
   port_note: "Keep."
 
 - id: LINT-code-title_field_overflow
-  statement: "Each title-block field's text fits within its cell; text is not shortened or shrunk, and long information belongs in a notes block."
+  statement: "Each title-block field's text fits within its cell, drawn no smaller than 1.8 mm (#221); text is not shortened, and long information belongs in a notes block."
   detail: "Warning."
   class: drafting
   source:

@@ -1610,6 +1610,12 @@ mod tests {
                 crate::dims::leader_on_extension(&p.dimensions).is_empty(),
                 "{file}"
             );
+            // #221: GRM-03's A4 trial is finished free of its contact, so A4 is kept.
+            if file.starts_with("gramel/") {
+                assert_eq!(p.sheet.size, "A4", "{file}");
+                continue;
+            }
+            assert_ne!(p.sheet.size, "A4", "{file}");
             assert!(
                 p.sheet_candidates
                     .iter()
@@ -2035,15 +2041,34 @@ mod tests {
 
     #[test]
     fn a_routing_refusal_without_space_drops_does_not_repeat_the_scale() {
-        // GRM-03's unclipped A4 trial gains only a leader/extension contact: a
-        // smaller scale would repeat the same routing, so it is not tried.
+        // LM10UU's unclipped A4 trial keeps a leader/extension contact through its finishing
+        // pass, with no hard findings or drops: a smaller scale would repeat the same routing,
+        // so it is not tried.
+        let a = model::analyse_native(
+            &Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/parts/bearing-lm10uu.step.gz"),
+        )
+        .unwrap()
+        .1;
+        let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+        let a4 = &p.sheet_candidates[0];
+        assert_eq!((a4.size.as_str(), a4.max), ("A4", 1));
+        assert!(
+            a4.outcome
+                .ends_with("(0 hard, 0 drops; leader_on_extension)"),
+            "{}",
+            a4.outcome
+        );
+        assert_eq!(a4.scales.len(), 1, "{}", p.sheet.basis);
+        // GRM-03's A4 trial gained only a contact its finishing pass clears (#221): usable at
+        // its first scale.
         let Some(a) = corpus("gramel/GRM-03_thumbwheel_drive_screw.step") else {
             return;
         };
         let p = model::plan_recovered(&a, &Spec::default()).unwrap();
         let a4 = &p.sheet_candidates[0];
         assert_eq!((a4.size.as_str(), a4.max), ("A4", 1));
-        assert!(a4.outcome.contains("leader_on_extension"), "{}", a4.outcome);
+        assert!(a4.outcome.contains("usable"), "{}", a4.outcome);
         assert_eq!(a4.scales.len(), 1, "{}", p.sheet.basis);
         // 10255's A4 trial runs off the sheet: lack of room earns one smaller scale.
         let Some(a) = corpus("mfcadpp/10255.step") else {

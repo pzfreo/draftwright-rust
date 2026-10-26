@@ -59,6 +59,12 @@ fn cell<'a>(plan: &'a Plan, field: &str) -> &'a TitleCell {
         .unwrap()
 }
 
+/// The width and height of *value*'s ink as drawn in *cell*: at its fitted height.
+fn drawn(value: &str, cell: [f64; 4]) -> [f64; 2] {
+    let laid = title_block::lay(value, title_block::value_size(value, cell));
+    [laid.max[0] - laid.min[0], laid.max[1] - laid.min[1]]
+}
+
 fn overflows(plan: &Plan) -> Vec<&Problem> {
     plan.problems
         .iter()
@@ -449,9 +455,10 @@ fn no_date_field_when_no_date_was_supplied() {
 
 /// draftwright's overflow fixture: a drawn-by value wider than its cell on A2, whose excess runs
 /// into the block, not off the page. The spec gives the author; the cell credits draftwright
-/// after it, as draftwright's does.
-const AUTHOR: &str = "ENGINEERING REVIEW GROUP";
-const OVERFLOWING: &str = "ENGINEERING REVIEW GROUP / draftwright";
+/// after it, as draftwright's does. (Lengthened for #221: draftwright's own value now fits its
+/// cell drawn smaller.)
+const AUTHOR: &str = "ENGINEERING DESIGN AND MANUFACTURING REVIEW GROUP";
+const OVERFLOWING: &str = "ENGINEERING DESIGN AND MANUFACTURING REVIEW GROUP / draftwright";
 
 /// ISSUE-1536-a `test_a_field_crossing_cells_inside_page_is_reported`: the overflow is one
 /// warning naming the field, with the text's and the cell's widths, though the block stays
@@ -459,8 +466,13 @@ const OVERFLOWING: &str = "ENGINEERING REVIEW GROUP / draftwright";
 #[test]
 fn a_field_crossing_cells_inside_the_page_is_reported() {
     let (plan, _) = sheet("A2", json!({ "title": "FRAME", "drawn_by": AUTHOR }));
-    let [x0, _, x1, _] = cell(&plan, "designed_by").cell;
-    let [w, _] = title_block::measure(OVERFLOWING);
+    let c = cell(&plan, "designed_by").cell;
+    let [x0, _, x1, _] = c;
+    let [w, _] = drawn(OVERFLOWING, c);
+    assert_eq!(
+        title_block::value_size(OVERFLOWING, c),
+        title_block::MIN_TEXT
+    );
     assert!(w > x1 - x0);
     assert!(plan.sheet.title_block[2] <= plan.sheet.page[0] - 10.0 + 1e-9);
     // Nothing of the block is off the sheet. (The plate's own dimensions are placement's: on A2
@@ -489,8 +501,8 @@ fn a_field_crossing_cells_inside_the_page_is_reported() {
 
 /// ISSUE-1536-a `test_all_rendered_fields_and_multiline_height_are_checked`: each field the
 /// sheet draws is checked against its cell, a multi-line value by its height; a value that runs
-/// past the page edge is also an error. (A2's drawing number, centred in the block's right-hand
-/// cell, runs 3 mm past the drawing area too, and is reported so.)
+/// past the page edge is also an error. Each value is too long for its cell even at the smallest
+/// height a value is drawn at (#221).
 #[test]
 fn all_rendered_fields_and_multiline_heights_are_checked() {
     let cases = [
@@ -501,14 +513,24 @@ fn all_rendered_fields_and_multiline_heights_are_checked() {
         ),
         (
             "number",
-            "DOCUMENT NUMBER WITH A LONG SUFFIX".into(),
+            "DOCUMENT NUMBER WITH A LONG SUFFIX "
+                .repeat(2)
+                .trim()
+                .to_string(),
             "drawing_number",
         ),
         ("revision", "PRELIMINARY REVISION A".into(), "revision"),
-        ("date", "12 SEPTEMBER 2026 (ISSUE)".into(), "date"),
+        (
+            "date",
+            "12 SEPTEMBER 2026 (PRELIMINARY ISSUE)".into(),
+            "date",
+        ),
         (
             "tolerance",
-            "TOLERANCE REQUIREMENTS ARE IN THE PROCESS SPECIFICATION".into(),
+            "TOLERANCE REQUIREMENTS ARE IN THE PROCESS SPECIFICATION "
+                .repeat(2)
+                .trim()
+                .to_string(),
             "general_tolerance",
         ),
         (
@@ -526,7 +548,7 @@ fn all_rendered_fields_and_multiline_heights_are_checked() {
         let (plan, drawing) = sheet("A2", json!({ key: value }));
         let c = cell(&plan, field);
         let [x0, y0, x1, y1] = c.cell;
-        let [w, h] = title_block::measure(c.value.as_ref().unwrap());
+        let [w, h] = drawn(c.value.as_ref().unwrap(), c.cell);
         assert!(w > x1 - x0 || h > y1 - y0, "{field}");
         let subject = format!("title_block/{field}");
         assert!(
@@ -578,6 +600,45 @@ fn export_keeps_the_full_overflowing_value() {
         serde_json::to_string(&again).unwrap()
     );
     assert_eq!(overflows(&plan).len(), 1);
+}
+
+/// #221: a value too wide for its cell at the block's 3 mm is drawn smaller to fit, not reported
+/// (and so never a reason for larger paper); a value that fits keeps 3 mm.
+#[test]
+fn a_long_value_is_drawn_smaller_to_fit_its_cell() {
+    const NUMBER: &str = "RETAINING-RING-DIN471-M10-A";
+    let (plan, drawing) = sheet("A4", json!({ "number": NUMBER, "date": DATE }));
+    let c = cell(&plan, "drawing_number").cell;
+    let [x0, y0, x1, y1] = c;
+    assert!(
+        title_block::measure(NUMBER)[0] > x1 - x0,
+        "the value overflows at 3 mm"
+    );
+    let size = title_block::value_size(NUMBER, c);
+    assert!(
+        (title_block::MIN_TEXT..title_block::TEXT).contains(&size),
+        "{size}"
+    );
+    let [w, h] = drawn(NUMBER, c);
+    let pad = 2.0 * title_block::LABEL_PAD;
+    assert!(
+        w <= x1 - x0 - pad + 1e-9 && h <= y1 - y0 + 1e-9,
+        "clear of the cell's lines"
+    );
+    assert!(overflows(&plan).is_empty(), "{:?}", overflows(&plan));
+    assert!(
+        !plan
+            .problems
+            .iter()
+            .any(|p| p.code == "annotation_off_sheet"
+                && p.refs.iter().any(|r| r.starts_with("title_block/"))),
+        "{:?}",
+        plan.problems
+    );
+    let run = drawing.text.iter().find(|t| t.text == NUMBER).unwrap();
+    assert!((run.size - size).abs() < 1e-9);
+    let date = drawing.text.iter().find(|t| t.text == DATE).unwrap();
+    assert_eq!(date.size, title_block::TEXT);
 }
 
 /// The scale is stated outside the block, above its right end, as draftwright's scale note

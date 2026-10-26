@@ -371,9 +371,12 @@ fn title_block_values_reach_the_pdf_text_layer() {
     let (part, mut a) = model::analyse(&root.join("tests/fixtures/parts/plate.step")).unwrap();
     let json = std::fs::read_to_string(root.join("tests/fixtures/recognition/plate.json")).unwrap();
     model::recognise(&part, &mut a, &json).unwrap();
-    let (date, long) = ("2026-09-11", "ENGINEERING REVIEW GROUP / draftwright");
+    // Too long for its cell even drawn at the smallest height (#221).
+    let author = "ENGINEERING DESIGN AND MANUFACTURING REVIEW GROUP";
+    let (date, long) = ("2026-09-11", format!("{author} / draftwright"));
+    let long = long.as_str();
     let spec: Spec = serde_json::from_value(json!({ "sheet": { "size": "A2", "title": {
-        "title": "FRAME", "date": date, "drawn_by": "ENGINEERING REVIEW GROUP" } } }))
+        "title": "FRAME", "date": date, "drawn_by": author } } }))
     .unwrap();
     let plan = model::plan(&a, &spec).unwrap();
     assert!(
