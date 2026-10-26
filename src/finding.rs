@@ -20,6 +20,7 @@ enum Group {
     Requirement,
     Crossing,
     Source,
+    Shape,
 }
 
 struct Classification {
@@ -237,6 +238,7 @@ catalogue! {
     "section_not_shown" => Incomplete, Code, "The requested section is not shown.";
     "section_recess_recognition_refused" => Incomplete, Code, "Refused recess recognition leaves the recess requirements unstated.";
     "section_recess_requirement_unsupported" => Incomplete, Requirement, "No supported drawing grammar states this feature requirement.";
+    "shape_not_recognised" => Incomplete, Shape, "A recognisable shape among unexplained faces is neither sized nor located.";
     "sheet_assignment_unused" => Advisory, Code, "A sheet assignment has no corresponding drawing item.";
     "sheet_below_smallest_scale" => Readability, Code, "The sheet uses views below the requested legibility scale.";
     "sheet_label_replaced" => Advisory, Code, "Automatic document numbering replaces the authored sheet label.";
@@ -358,6 +360,10 @@ pub fn labels(
             .chain(subjects.iter().filter_map(|s| source_kind(s)))
             .collect(),
         Some(Group::Crossing) => kinds.into_iter().map(String::from).collect(),
+        Some(Group::Shape) => sources
+            .iter()
+            .filter_map(|s| s.strip_prefix("shape:").map(String::from))
+            .collect(),
         _ => BTreeSet::new(),
     };
     let group = if cause.is_empty() {

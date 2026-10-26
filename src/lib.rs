@@ -47,6 +47,7 @@ pub use session::Session;
 pub mod tables;
 pub mod text;
 pub mod title_block;
+pub mod unexplained;
 pub mod wording;
 
 #[cfg(not(target_arch = "wasm32"))]

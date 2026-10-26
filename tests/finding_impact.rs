@@ -435,13 +435,17 @@ fn unsupported_recesses_and_rounding_have_separate_impacts() {
     // (4.2190876 where alpha.8 gave 4.219), so the printed 4.219 adds a nominal_rounded
     // advisory: advisory (11, 2) -> (12, 2). quiddity-rust 0.2.0 publishes hi on the grid
     // again (4.219, its #84), so that advisory goes: (12, 2) -> (11, 2). #226: a line within
-    // 0.5 mm of a label is a label_crowded notice: (11, 2) -> (12, 3).
-    assert_review_summary("mfcadpp/1000.step", [(11, 4), (1, 1), (0, 0), (12, 3)]);
+    // 0.5 mm of a label is a label_crowded notice: (11, 2) -> (12, 3). #213: unexplained faces
+    // 22 and 23 meet at a concave edge, a cut neither sized nor located: shape_not_recognised,
+    // incomplete (11, 4) -> (12, 5).
+    assert_review_summary("mfcadpp/1000.step", [(12, 5), (1, 1), (0, 0), (12, 3)]);
 }
 #[test]
 fn informational_hole_bottom_and_recovery_remain_advisory() {
     // The automatic sheet choice's recovery is stated in its sheet basis, not as a
     // layout_replanned notice; the remaining informational findings stay advisory. #226: the
     // 2.4 A/F dimension within 0.5 mm of the section arrowhead is a label_crowded notice.
-    assert_review_summary("gramel/string_post.step", [(1, 1), (1, 1), (0, 0), (3, 3)]);
+    // #213: the two shallow concentric recesses on its top face (0.33 deep) are cuts neither
+    // sized nor located: shape_not_recognised, incomplete (1, 1) -> (3, 2).
+    assert_review_summary("gramel/string_post.step", [(3, 2), (1, 1), (0, 0), (3, 3)]);
 }
