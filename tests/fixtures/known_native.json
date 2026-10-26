@@ -72,26 +72,6 @@
   {
     "set": "corpus",
     "part": "ctc01",
-    "subject": "f:hole:1",
-    "field": "faces",
-    "python": "[73, 74]",
-    "rust": "[74]",
-    "verdict": "rust-wrong",
-    "evidence": "Python's bridge gives the hole its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones. Face 73, a cone (the drill point) closes the hole: quiddity-rust finds it, as the hole occurrence's context (holes::discover at 1bf3db2), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's position and neighbourhood change with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
-  },
-  {
-    "set": "corpus",
-    "part": "ctc01",
-    "subject": "f:hole:2",
-    "field": "faces",
-    "python": "[75, 76]",
-    "rust": "[76]",
-    "verdict": "rust-wrong",
-    "evidence": "Python's bridge gives the hole its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones. Face 75, a cone (the drill point) closes the hole: quiddity-rust finds it, as the hole occurrence's context (holes::discover at 1bf3db2), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's position and neighbourhood change with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
-  },
-  {
-    "set": "corpus",
-    "part": "ctc01",
     "subject": "f:hole_pattern:1",
     "field": "parameters.angle",
     "python": "90.0",
@@ -108,26 +88,6 @@
     "rust": "0.0",
     "verdict": "equivalent",
     "evidence": "quiddity measures a rectangle's angle from the in-plane basis of the frame its record is in (hole_patterns.rs plane_uv). Python's 90 degrees, in its working frame, and Rust's 0 degrees, in the file's, both put the width along the part's x axis (computed from each frame's basis). draftwright does not read the angle."
-  },
-  {
-    "set": "corpus",
-    "part": "ftc06",
-    "subject": "f:hole:11",
-    "field": "faces",
-    "python": "[106, 107]",
-    "rust": "[107]",
-    "verdict": "rust-wrong",
-    "evidence": "Python's bridge gives the hole its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones. Face 106, a cone (the drill point) closes the hole: quiddity-rust finds it, as the hole occurrence's context (holes::discover at 1bf3db2), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's position and neighbourhood change with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
-  },
-  {
-    "set": "corpus",
-    "part": "ftc06",
-    "subject": "f:hole:12",
-    "field": "faces",
-    "python": "[108, 109]",
-    "rust": "[109]",
-    "verdict": "rust-wrong",
-    "evidence": "Python's bridge gives the hole its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones. Face 108, a cone (the drill point) closes the hole: quiddity-rust finds it, as the hole occurrence's context (holes::discover at 1bf3db2), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's position and neighbourhood change with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
   },
   {
     "set": "corpus",
@@ -232,26 +192,6 @@
   {
     "set": "sheets",
     "part": "ctc01",
-    "subject": "f:hole:1",
-    "field": "faces",
-    "python": "[73, 74]",
-    "rust": "[74]",
-    "verdict": "rust-wrong",
-    "evidence": "Python's bridge gives the hole its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones. Face 73, a cone (the drill point) closes the hole: quiddity-rust finds it, as the hole occurrence's context (holes::discover at 1bf3db2), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's position and neighbourhood change with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
-  },
-  {
-    "set": "sheets",
-    "part": "ctc01",
-    "subject": "f:hole:2",
-    "field": "faces",
-    "python": "[75, 76]",
-    "rust": "[76]",
-    "verdict": "rust-wrong",
-    "evidence": "Python's bridge gives the hole its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones. Face 75, a cone (the drill point) closes the hole: quiddity-rust finds it, as the hole occurrence's context (holes::discover at 1bf3db2), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's position and neighbourhood change with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
-  },
-  {
-    "set": "sheets",
-    "part": "ctc01",
     "subject": "f:hole_pattern:1",
     "field": "parameters.angle",
     "python": "90.0",
@@ -268,26 +208,6 @@
     "rust": "0.0",
     "verdict": "equivalent",
     "evidence": "quiddity measures a rectangle's angle from the in-plane basis of the frame its record is in (hole_patterns.rs plane_uv). Python's 90 degrees, in its working frame, and Rust's 0 degrees, in the file's, both put the width along the part's x axis (computed from each frame's basis). draftwright does not read the angle."
-  },
-  {
-    "set": "sheets",
-    "part": "ftc06",
-    "subject": "f:hole:11",
-    "field": "faces",
-    "python": "[106, 107]",
-    "rust": "[107]",
-    "verdict": "rust-wrong",
-    "evidence": "Python's bridge gives the hole its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones. Face 106, a cone (the drill point) closes the hole: quiddity-rust finds it, as the hole occurrence's context (holes::discover at 1bf3db2), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's position and neighbourhood change with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
-  },
-  {
-    "set": "sheets",
-    "part": "ftc06",
-    "subject": "f:hole:12",
-    "field": "faces",
-    "python": "[108, 109]",
-    "rust": "[109]",
-    "verdict": "rust-wrong",
-    "evidence": "Python's bridge gives the hole its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones. Face 108, a cone (the drill point) closes the hole: quiddity-rust finds it, as the hole occurrence's context (holes::discover at 1bf3db2), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's position and neighbourhood change with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
   },
   {
     "set": "sheets",
@@ -1462,86 +1382,6 @@
   {
     "set": "dims",
     "part": "ftc07",
-    "subject": "f:hole:12",
-    "field": "faces",
-    "python": "[209, 210]",
-    "rust": "[210]",
-    "verdict": "rust-wrong",
-    "evidence": "Python's bridge gives the hole its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones. Face 209, a cone (the drill point) closes the hole: quiddity-rust finds it, as the hole occurrence's context (holes::discover at dff320c), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's position and neighbourhood change with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
-  },
-  {
-    "set": "dims",
-    "part": "ftc07",
-    "subject": "f:hole:13",
-    "field": "faces",
-    "python": "[211, 212]",
-    "rust": "[212]",
-    "verdict": "rust-wrong",
-    "evidence": "Python's bridge gives the hole its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones. Face 211, a cone (the drill point) closes the hole: quiddity-rust finds it, as the hole occurrence's context (holes::discover at dff320c), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's position and neighbourhood change with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
-  },
-  {
-    "set": "dims",
-    "part": "ftc07",
-    "subject": "f:hole:14",
-    "field": "faces",
-    "python": "[213, 214]",
-    "rust": "[214]",
-    "verdict": "rust-wrong",
-    "evidence": "Python's bridge gives the hole its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones. Face 213, a cone (the drill point) closes the hole: quiddity-rust finds it, as the hole occurrence's context (holes::discover at dff320c), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's position and neighbourhood change with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
-  },
-  {
-    "set": "dims",
-    "part": "ftc07",
-    "subject": "f:hole:15",
-    "field": "faces",
-    "python": "[215, 216]",
-    "rust": "[216]",
-    "verdict": "rust-wrong",
-    "evidence": "Python's bridge gives the hole its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones. Face 215, a cone (the drill point) closes the hole: quiddity-rust finds it, as the hole occurrence's context (holes::discover at dff320c), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's position and neighbourhood change with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
-  },
-  {
-    "set": "dims",
-    "part": "ftc07",
-    "subject": "f:hole:20",
-    "field": "faces",
-    "python": "[245, 246]",
-    "rust": "[246]",
-    "verdict": "rust-wrong",
-    "evidence": "Python's bridge gives the hole its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones. Face 245, a cone (the drill point) closes the hole: quiddity-rust finds it, as the hole occurrence's context (holes::discover at dff320c), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's position and neighbourhood change with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
-  },
-  {
-    "set": "dims",
-    "part": "ftc07",
-    "subject": "f:hole:21",
-    "field": "faces",
-    "python": "[247, 248]",
-    "rust": "[248]",
-    "verdict": "rust-wrong",
-    "evidence": "Python's bridge gives the hole its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones. Face 247, a cone (the drill point) closes the hole: quiddity-rust finds it, as the hole occurrence's context (holes::discover at dff320c), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's position and neighbourhood change with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
-  },
-  {
-    "set": "dims",
-    "part": "ftc07",
-    "subject": "f:hole:22",
-    "field": "faces",
-    "python": "[249, 250]",
-    "rust": "[250]",
-    "verdict": "rust-wrong",
-    "evidence": "Python's bridge gives the hole its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones. Face 249, a cone (the drill point) closes the hole: quiddity-rust finds it, as the hole occurrence's context (holes::discover at dff320c), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's position and neighbourhood change with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
-  },
-  {
-    "set": "dims",
-    "part": "ftc07",
-    "subject": "f:hole:23",
-    "field": "faces",
-    "python": "[251, 252]",
-    "rust": "[252]",
-    "verdict": "rust-wrong",
-    "evidence": "Python's bridge gives the hole its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones. Face 251, a cone (the drill point) closes the hole: quiddity-rust finds it, as the hole occurrence's context (holes::discover at dff320c), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's position and neighbourhood change with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
-  },
-  {
-    "set": "dims",
-    "part": "ftc07",
     "subject": "f:hole_pattern:1",
     "field": "parameters.angle",
     "python": "90.0",
@@ -1563,16 +1403,6 @@
     "set": "dims",
     "part": "ftc07",
     "subject": "f:hole_pattern:3",
-    "field": "faces",
-    "python": "[209, 210, 211, 212, 213, 214, 215, 216]",
-    "rust": "[210, 212, 214, 216]",
-    "verdict": "rust-wrong",
-    "evidence": "A pattern's faces are its members': follows from this part's hole 'faces' entries (each member lacks the drill point cone that closes it). Fix: the document carries constituent faces (a quiddity-rust schema change)."
-  },
-  {
-    "set": "dims",
-    "part": "ftc07",
-    "subject": "f:hole_pattern:3",
     "field": "parameters.angle",
     "python": "0.0",
     "rust": "90.0",
@@ -1588,16 +1418,6 @@
     "rust": "90.0",
     "verdict": "equivalent",
     "evidence": "quiddity measures a rectangle's angle from the in-plane basis of the frame its record is in (hole_patterns.rs plane_uv). Python's 90 degrees, in its working frame, and Rust's 0 degrees, in the file's, both put the width along the part's x axis (computed from each frame's basis). draftwright does not read the angle."
-  },
-  {
-    "set": "dims",
-    "part": "ftc07",
-    "subject": "f:hole_pattern:5",
-    "field": "faces",
-    "python": "[245, 246, 247, 248, 249, 250, 251, 252]",
-    "rust": "[246, 248, 250, 252]",
-    "verdict": "rust-wrong",
-    "evidence": "A pattern's faces are its members': follows from this part's hole 'faces' entries (each member lacks the drill point cone that closes it). Fix: the document carries constituent faces (a quiddity-rust schema change)."
   },
   {
     "set": "dims",
@@ -1632,16 +1452,6 @@
   {
     "set": "dims",
     "part": "m10245",
-    "subject": "f:angled_step:1",
-    "field": "faces",
-    "python": "[8, 10]",
-    "rust": "[8]",
-    "verdict": "rust-wrong",
-    "evidence": "Python's bridge gives the angled step its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining one (its slant). Face 10, a plane (the triangular flat that closes the step at an end): quiddity-rust finds it, as the occurrence's context (angled_steps::discover at dff320c), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's position and neighbourhood change with it. Fix: the document carries constituent faces (a quiddity-rust schema change), as for holes."
-  },
-  {
-    "set": "dims",
-    "part": "m10245",
     "subject": "f:boss:1",
     "field": "faces",
     "python": "[30, 31]",
@@ -1670,16 +1480,6 @@
     "evidence": "Python's bridge gives the hole its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining ones. Face 26, a plane (the blind floor) closes the hole: quiddity-rust finds it, as the hole occurrence's context (holes::discover at dff320c), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's position and neighbourhood change with it. Fix: the document carries constituent faces (a quiddity-rust schema change)."
   },
   {
-    "set": "dims",
-    "part": "m11512",
-    "subject": "f:angled_step:1",
-    "field": "faces",
-    "python": "[16, 32]",
-    "rust": "[32]",
-    "verdict": "rust-wrong",
-    "evidence": "Python's bridge gives the angled step its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining one (its slant). Face 16, a plane (the triangular flat that closes the step at an end): quiddity-rust finds it, as the occurrence's context (angled_steps::discover at dff320c), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's position and neighbourhood change with it. Fix: the document carries constituent faces (a quiddity-rust schema change), as for holes."
-  },
-  {
     "set": "steps",
     "part": "h363",
     "subject": "f:hole:1",
@@ -1698,16 +1498,6 @@
     "rust": "[16.667,13.26]",
     "verdict": "equivalent",
     "evidence": "The two ramps' widths, low side first along the axis across the run, in the frame the record is in (paired_ramp_steps.rs, as Python's): Python's working frame here reverses the part's y axis (its z is the part's -y), so its low side is the part's high side and the pair is swapped. The same widths; draftwright reads half_width (the same on both sides) into the fingerprint, and half_widths nowhere."
-  },
-  {
-    "set": "steps",
-    "part": "m10000",
-    "subject": "f:angled_step:1",
-    "field": "faces",
-    "python": "[4, 12]",
-    "rust": "[4]",
-    "verdict": "rust-wrong",
-    "evidence": "Python's bridge gives the angled step its constituent faces; the native document (quiddity-rust/recognition/1) carries only the defining one (its slant). Face 12, a plane (the triangular flat that closes the step at an end): quiddity-rust finds it, as the occurrence's context (angled_steps::discover at dff320c), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's position and neighbourhood change with it. Fix: the document carries constituent faces (a quiddity-rust schema change), as for holes."
   },
   {
     "set": "steps",
@@ -4178,5 +3968,85 @@
     "rust": "[0.0,0.452785,-0.89162]",
     "verdict": "equivalent",
     "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "corpus",
+    "part": "cgb245",
+    "subject": "f:slot:3",
+    "field": "faces",
+    "python": "[293, 297]",
+    "rust": "[293, 295, 297, 299]",
+    "verdict": "rust-correct",
+    "evidence": "quiddity-rust#104 (rule E): a rectangular slot, with corner radii and no end radius, claims both of its end walls; Python's record leaves them out, but they are the slot's own faces."
+  },
+  {
+    "set": "corpus",
+    "part": "ctc01",
+    "subject": "f:slot:2",
+    "field": "faces",
+    "python": "[10, 57]",
+    "rust": "[8, 10, 12, 57]",
+    "verdict": "rust-correct",
+    "evidence": "quiddity-rust#104 (rule E): a rectangular slot, with corner radii and no end radius, claims both of its end walls; Python's record leaves them out, but they are the slot's own faces."
+  },
+  {
+    "set": "corpus",
+    "part": "m10127",
+    "subject": "rust f:circular_blind_step:1",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:circular_blind_step:1 [18, 27] {\"axis\":\"y\",\"centreline\":[[0.0,15.3597,44.7293],[0.0,11.5125,44.7293]],\"length\":3.84713,\"radius\":4.1532,\"section\":[[4.1532,44.7293],[0.0,44.7293],[0.0,40.5761]]}",
+    "verdict": "rust-correct",
+    "evidence": "quiddity-rust#102 recognises circular blind and paired-ramp steps that Python does not; every prediction it added on the MFCAD++ parts matches their independent face labels (93 of 93 faces)."
+  },
+  {
+    "set": "sheets",
+    "part": "cgb245",
+    "subject": "f:slot:3",
+    "field": "faces",
+    "python": "[293, 297]",
+    "rust": "[293, 295, 297, 299]",
+    "verdict": "rust-correct",
+    "evidence": "quiddity-rust#104 (rule E): a rectangular slot, with corner radii and no end radius, claims both of its end walls; Python's record leaves them out, but they are the slot's own faces."
+  },
+  {
+    "set": "sheets",
+    "part": "ctc01",
+    "subject": "f:slot:2",
+    "field": "faces",
+    "python": "[10, 57]",
+    "rust": "[8, 10, 12, 57]",
+    "verdict": "rust-correct",
+    "evidence": "quiddity-rust#104 (rule E): a rectangular slot, with corner radii and no end radius, claims both of its end walls; Python's record leaves them out, but they are the slot's own faces."
+  },
+  {
+    "set": "sheets",
+    "part": "m10127",
+    "subject": "rust f:circular_blind_step:1",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:circular_blind_step:1 [18, 27] {\"axis\":\"y\",\"centreline\":[[0.0,15.3597,44.7293],[0.0,11.5125,44.7293]],\"length\":3.84713,\"radius\":4.1532,\"section\":[[4.1532,44.7293],[0.0,44.7293],[0.0,40.5761]]}",
+    "verdict": "rust-correct",
+    "evidence": "quiddity-rust#102 recognises circular blind and paired-ramp steps that Python does not; every prediction it added on the MFCAD++ parts matches their independent face labels (93 of 93 faces)."
+  },
+  {
+    "set": "steps",
+    "part": "h363",
+    "subject": "rust f:circular_blind_step:2",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:circular_blind_step:2 [25, 26] {\"axis\":\"x\",\"centreline\":[[17.1918,0.0,0.0],[14.9084,0.0,0.0]],\"length\":2.28335,\"radius\":8.0471,\"section\":[[0.0,8.0471],[0.0,0.0],[8.0471,0.0]]}",
+    "verdict": "rust-correct",
+    "evidence": "quiddity-rust#102 recognises circular blind and paired-ramp steps that Python does not; every prediction it added on the MFCAD++ parts matches their independent face labels (93 of 93 faces)."
+  },
+  {
+    "set": "steps",
+    "part": "m10060",
+    "subject": "rust f:paired_ramp_step:3",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:paired_ramp_step:3 [7, 9, 25] {\"angle\":14.81,\"at\":[2.393,26.414,25.8],\"axis\":\"x\",\"half_width\":7.158,\"half_widths\":null,\"length\":4.786,\"opening_direction\":[-1.0,0.0,0.0]}",
+    "verdict": "rust-correct",
+    "evidence": "quiddity-rust#102 recognises circular blind and paired-ramp steps that Python does not; every prediction it added on the MFCAD++ parts matches their independent face labels (93 of 93 faces)."
   }
 ]
