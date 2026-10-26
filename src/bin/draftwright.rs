@@ -15,7 +15,7 @@
 //!   drawing
 //! - `draftwright edit s.json ops.json`: the edited Spec
 //! - `draftwright spec drawing.(svg|dxf|pdf|png)`: the Spec embedded in a rendered drawing
-//! - `draftwright revise old.step new.step [--spec s.json] [--part K] -o dir [--title T]
+//! - `draftwright diff old.step new.step [--spec s.json] [--part K] -o dir [--title T]
 //!   [--dpi 150]`: the drawing of *old* with the Spec, the Spec carried to *new* through
 //!   quiddity's correspondence (ADR R3) and *new* drawn with it, and what changed
 //!   ([`draftwright::revision`]). Writes `report.json`, `report.md` (a pull request comment),
@@ -110,7 +110,7 @@ fn read_json(path: &str) -> Result<Value, Error> {
 
 /// Runs the command, its arguments put as [`api::call`] takes them.
 fn run(args: &[String]) -> Result<Value, Error> {
-    let usage = "usage: draftwright (analyse|plan|render|review|revise|edit|spec|parts|serve) …";
+    let usage = "usage: draftwright (analyse|plan|render|review|diff|edit|spec|parts|serve) …";
     let command = args.first().ok_or_else(|| Error::invalid(usage))?;
     let arg = |i: usize| {
         args.get(i)
@@ -156,10 +156,10 @@ fn run(args: &[String]) -> Result<Value, Error> {
             })
             .transpose()
     };
-    if command == "revise" {
+    if command == "diff" {
         let (old, new) = (std::path::Path::new(arg(1)?), std::path::Path::new(arg(2)?));
         let dir = std::path::PathBuf::from(
-            flag(args, "-o").ok_or_else(|| Error::invalid("revise needs -o <output directory>"))?,
+            flag(args, "-o").ok_or_else(|| Error::invalid("diff needs -o <output directory>"))?,
         );
         let spec = if spec.is_null() {
             json!({ "schema": draftwright::model::SPEC_SCHEMA, "sheet": {} })
@@ -172,7 +172,7 @@ fn run(args: &[String]) -> Result<Value, Error> {
                 .map_or("part".into(), |n| n.to_string_lossy().into_owned())
         });
         return guarded(command, || {
-            let revised = draftwright::revision::revise(old, new, part, &spec)?;
+            let revised = draftwright::revision::diff(old, new, part, &spec)?;
             let marked = revised.marked();
             let pretty = |v: &Value| serde_json::to_vec_pretty(v).expect("JSON serialises");
             let files: Vec<(&str, Vec<u8>)> = vec![

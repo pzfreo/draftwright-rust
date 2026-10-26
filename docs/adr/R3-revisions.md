@@ -1,6 +1,6 @@
 # ADR R3: Revisions
 
-**Status:** Accepted (maintainer, 2026-10-07). Implemented for the Spec by `draftwright revise`
+**Status:** Accepted (maintainer, 2026-10-07). Implemented for the Spec by `draftwright diff`
 (`src/revision.rs`, 2026-10-26): an ambiguous or orphaned entry is set aside in the report, not
 kept inactive in the Spec, which has no inactive form; plan items are compared, not labelled.
 

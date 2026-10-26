@@ -46,7 +46,7 @@ jobs:
           bin="target/${{ matrix.target }}/release/draftwright${{ matrix.exe }}"
           fixtures=tests/fixtures/revisions
           echo '{"schema": "draftwright.spec/2", "sheet": {}, "dimensions": {"d:f:hole:3/bore.diameter": {"tolerance": "+0.1 -0"}, "d:f:hole:2/bore.diameter": {"tolerance": "±0.2"}}}' > given.json
-          printed=$("$bin" revise $fixtures/hole_removed.old.step.gz $fixtures/hole_removed.new.step.gz --spec given.json -o smoke)
+          printed=$("$bin" diff $fixtures/hole_removed.old.step.gz $fixtures/hole_removed.new.step.gz --spec given.json -o smoke)
           echo "$printed"
           echo "$printed" | grep -q '"verdict": *"decide"'
           cat smoke/spec.json
