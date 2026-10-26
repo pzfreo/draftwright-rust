@@ -921,6 +921,82 @@ const UNDRAFTED: &[(&str, Disposition, DispositionReason)] = &[
     ),
 ];
 
+/// The dimensions that state *f* in place of its own (#233), as (feature, parameter): an annular
+/// groove's wall hole and boss, a V channel's profile V-notch. Empty for any other.
+pub(crate) fn stated_by(
+    analysis: &Analysis,
+    f: &crate::bridge::Feature,
+) -> Vec<(String, &'static str)> {
+    match f.kind.as_str() {
+        "annular_groove" => crate::lint::grooves::annular_owners(analysis, f)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(_, o, p)| (o, p))
+            .collect(),
+        "v_channel" => {
+            crate::lint::notch_evidence::channel_owner(&crate::notches::requirements(analysis), f)
+                .map(|n| vec![(n.clone(), "notch.angle"), (n, "notch_depth.length")])
+                .unwrap_or_default()
+        }
+        _ => Vec::new(),
+    }
+}
+
+/// A groove or channel left to the dimensions that state it ([`stated_by`]) is called out on its
+/// own when the spec omits any of them, so steering those dimensions never loses its sizes.
+fn restate(analysis: &Analysis, spec: &Spec, wants: &mut Vec<Want>, problems: &mut Vec<Problem>) {
+    let omits = |w: &Want| spec.dimensions.get(&w.id).is_some_and(|d| d.omit);
+    if spec.dimension_source != DimensionSource::Auto || !wants.iter().any(omits) {
+        return;
+    }
+    let drawn = |(o, p): &(String, &str)| {
+        wants.iter().any(|w| {
+            !omits(w)
+                && w.measurements
+                    .iter()
+                    .any(|m| m.feature == *o && m.parameter == *p)
+        })
+    };
+    let lost: Vec<_> = analysis
+        .features
+        .iter()
+        .filter(|f| {
+            let by = stated_by(analysis, f);
+            !by.is_empty() && !by.iter().all(drawn)
+        })
+        .collect();
+    if lost.is_empty() {
+        return;
+    }
+    let frame = QFrame(analysis.recognition.as_ref().map_or(
+        [[0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+        |r| r.frame,
+    ));
+    let cx = Context {
+        analysis,
+        turned: turned::turned(analysis, &frame),
+        frame,
+    };
+    let mut own = Vec::new();
+    for f in lost {
+        let ws = if f.kind == "annular_groove" {
+            grooves::annular(&cx, f)
+        } else {
+            notches::channel(&cx, f)
+        };
+        match ws {
+            Ok(ws) => own.extend(ws),
+            Err(why) => problems.push(grooves::not_dimensioned(f, &why)),
+        }
+    }
+    // The origins' own problems are reported with the default wants.
+    let _ = pmi_policy::origins(analysis, spec, &mut own);
+    if pmi_policy::carries(analysis) || !spec.origin.is_empty() {
+        own.retain(|w| !pmi_policy::on_origin(w));
+    }
+    wants.extend(own);
+}
+
 pub(crate) fn undrafted(f: &crate::bridge::Feature) -> bool {
     UNDRAFTED
         .iter()
@@ -4402,12 +4478,16 @@ pub fn render(
 }
 
 /// Where a feature or pattern sits in the part's frame: a hole's point on its axis, a fillet's or
-/// chamfer's `at`, a pattern's centre (its members' mean), for comparing with draftwright's
-/// feature keys.
+/// chamfer's `at`, an annular groove's floor centre, a pattern's centre (its members' mean), for
+/// comparing with draftwright's feature keys.
 pub fn feature_origin(analysis: &Analysis, id: &str) -> Option<P3> {
     let frame = QFrame(analysis.recognition.as_ref()?.frame);
     if let Some(f) = analysis.features.iter().find(|f| f.id == id) {
-        let at = f.parameters.get("location").or(f.parameters.get("at"));
+        let at = f
+            .parameters
+            .get("location")
+            .or(f.parameters.get("at"))
+            .or(f.parameters.get("floor_center"));
         return point(at).map(|l| frame.point(l));
     }
     let p = analysis
@@ -5330,5 +5410,216 @@ mod tests {
             [("d:f:boss:2/boss_height.length".into(), "2× 5".into(), 2)]
         );
         assert_eq!(omitted[0].0, "d:f:boss:1/boss_height.length");
+    }
+
+    /// An Analysis of a 100 × 60 × 20 block with *features* (kind, faces, record), in the
+    /// part's frame.
+    fn block(features: &[(&str, &[usize], serde_json::Value)]) -> Analysis {
+        let mut n = BTreeMap::<&str, usize>::new();
+        let features: Vec<_> = features
+            .iter()
+            .map(|(kind, faces, record)| {
+                let i = n.entry(kind).or_default();
+                *i += 1;
+                serde_json::json!({
+                    "id": format!("f:{kind}:{i}"), "kind": kind, "faces": faces,
+                    "parameters": record,
+                    "fingerprint": { "version": "test", "family": "test", "subtype": "test",
+                                     "sizes": {}, "position": [0.0, 0.0, 0.0], "neighbourhood": [] },
+                })
+            })
+            .collect();
+        serde_json::from_value(serde_json::json!({
+            "schema": "draftwright.analysis/2",
+            "binding": { "source_sha256": "", "part": "test", "face_count": 20, "loader": "test" },
+            "envelope": [[0.0, 0.0, 0.0], [100.0, 60.0, 20.0]],
+            "features": features,
+            "iso_bounds": [0.0, 0.0, 0.0, 0.0],
+            "recognition": { "recogniser": "test",
+                             "frame": [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]] },
+        }))
+        .unwrap()
+    }
+
+    /// Each want of feature *id*: its ID's parameter, views, terms and measured parameters.
+    fn own(wants: &[Want], id: &str) -> Vec<(String, Vec<&'static str>, String, Vec<String>)> {
+        wants
+            .iter()
+            .filter(|w| w.measurements.iter().any(|m| m.feature == id))
+            .map(|w| {
+                (
+                    w.id.rsplit_once('/').unwrap().1.to_string(),
+                    w.views.clone(),
+                    w.terms.join(" "),
+                    w.measurements.iter().map(|m| m.parameter.clone()).collect(),
+                )
+            })
+            .collect()
+    }
+
+    /// #233: an annular groove is called out down its axis and located, unless the hole and boss
+    /// on its walls state it, which then credit it.
+    #[test]
+    fn an_annular_groove_is_called_out_unless_its_walls_state_it() {
+        let groove = serde_json::json!({
+            "axis": [0.0, 0.0, 1.0], "floor_center": [30.0, 20.0, 18.0],
+            "inner_radius": 1.0, "outer_radius": 1.5, "depth": 2.0,
+        });
+        let a = block(&[("annular_groove", &[3, 4, 5], groove.clone())]);
+        let (wants, problems, _) = wants_uncached(&a, &Spec::default());
+        let mut got = own(&wants, "f:annular_groove:1");
+        got.sort();
+        assert_eq!(
+            got,
+            [
+                (
+                    "annular_groove_outer.diameter".to_string(),
+                    vec!["plan"],
+                    "⌀3 × ⌀2 ↧ 2".to_string(),
+                    vec![
+                        "annular_groove_outer.diameter".to_string(),
+                        "annular_groove_inner.diameter".into(),
+                        "annular_groove_depth.length".into()
+                    ]
+                ),
+                (
+                    "location.length.x".into(),
+                    vec!["plan"],
+                    "30".into(),
+                    vec!["location.length.x".into()]
+                ),
+                (
+                    "location.length.y".into(),
+                    vec!["plan"],
+                    "20".into(),
+                    vec!["location.length.y".into()]
+                ),
+            ]
+        );
+        assert!(
+            problems
+                .iter()
+                .all(|p| !p.subjects.contains(&"f:annular_groove:1".to_string()))
+        );
+        assert!(stated_by(&a, &a.features[0]).is_empty());
+
+        let walled = block(&[
+            ("annular_groove", &[3, 4, 5], groove),
+            (
+                "boss",
+                &[5],
+                serde_json::json!({"axis": [0.0, 0.0, 1.0], "diameter": 2.0, "height": 2.0, "location": [30.0, 20.0, 18.0]}),
+            ),
+            (
+                "hole",
+                &[3],
+                serde_json::json!({"axis": [0.0, 0.0, 1.0], "diameter": 3.0, "depth": 2.0, "location": [30.0, 20.0, 20.0]}),
+            ),
+        ]);
+        let (wants, ..) = wants_uncached(&walled, &Spec::default());
+        assert!(own(&wants, "f:annular_groove:1").is_empty());
+        let by = stated_by(&walled, &walled.features[0]);
+        assert_eq!(
+            by,
+            [
+                ("f:hole:1".to_string(), "bore.diameter"),
+                ("f:hole:1".into(), "bore.depth"),
+                ("f:boss:1".into(), "boss.diameter")
+            ]
+        );
+        // Omitting a wall's diameter restores the groove's own callout, so the size is not lost.
+        let id = wants
+            .iter()
+            .find(|w| {
+                w.measurements
+                    .iter()
+                    .any(|m| m.feature == "f:boss:1" && m.parameter == "boss.diameter")
+            })
+            .unwrap()
+            .id
+            .clone();
+        let spec: Spec =
+            serde_json::from_value(serde_json::json!({"dimensions": {id: {"omit": true}}}))
+                .unwrap();
+        let (steered, ..) = pmi_policy::wants(&walled, &spec);
+        assert_eq!(own(&steered, "f:annular_groove:1").len(), 3);
+        let (default, ..) = pmi_policy::wants(&walled, &Spec::default());
+        assert!(own(&default, "f:annular_groove:1").is_empty());
+    }
+
+    /// #233: a V channel is called out along its run and its trough located across it; one
+    /// whose run is along no axis is reported.
+    #[test]
+    fn a_v_channel_states_its_angle_depth_and_trough() {
+        let channel = |axis: [f64; 3]| {
+            serde_json::json!({
+                "axis": axis, "opening": [0.0, 0.0, 1.0], "at": [40.0, 30.0, 15.0],
+                "length": 60.0, "width": 5.773503, "depth": 5.0, "included_angle_degrees": 60.0,
+            })
+        };
+        let a = block(&[("v_channel", &[7, 8], channel([0.0, 1.0, 0.0]))]);
+        let (wants, ..) = wants_uncached(&a, &Spec::default());
+        assert_eq!(
+            own(&wants, "f:v_channel:1"),
+            [
+                (
+                    "v_channel.angle".to_string(),
+                    vec!["front"],
+                    "60° V × 5 DEEP".to_string(),
+                    vec![
+                        "v_channel.angle".to_string(),
+                        "v_channel_depth.length".into()
+                    ]
+                ),
+                // Along its principal opening, the mouth's face and the depth fix it.
+                (
+                    "location.length.x".into(),
+                    vec!["front"],
+                    "40".into(),
+                    vec!["location.length.x".into()]
+                ),
+            ]
+        );
+        let oblique = block(&[("v_channel", &[7, 8], channel([0.6, 0.8, 0.0]))]);
+        let (wants, problems, _) = wants_uncached(&oblique, &Spec::default());
+        assert!(own(&wants, "f:v_channel:1").is_empty());
+        assert!(
+            problems
+                .iter()
+                .any(|p| p.code == "feature_not_dimensioned" && p.subjects == ["f:v_channel:1"])
+        );
+    }
+
+    /// #233: a semicircular blind slot is called out as a round-bottom open slot and located
+    /// across its width.
+    #[test]
+    fn a_semicircular_blind_slot_is_a_round_bottom_open_slot() {
+        let slot = serde_json::json!({
+            "axis": [-1.0, 0.0, 0.0], "opening": [0.0, 0.0, 1.0], "at": [95.0, 25.0, 17.0],
+            "length": 10.0, "radius": 2.0, "straight_height": 4.0,
+        });
+        let a = block(&[("semicircular_blind_slot", &[9, 10, 11, 12], slot)]);
+        let (wants, ..) = wants_uncached(&a, &Spec::default());
+        assert_eq!(
+            own(&wants, "f:semicircular_blind_slot:1"),
+            [
+                (
+                    "semicircular_blind_slot_width.length".to_string(),
+                    vec!["plan"],
+                    "ROUND-BOTTOM OPEN SLOT 4 × 10 × 6 DEEP".to_string(),
+                    vec![
+                        "semicircular_blind_slot_width.length".to_string(),
+                        "semicircular_blind_slot_length.length".into(),
+                        "semicircular_blind_slot_depth.length".into()
+                    ]
+                ),
+                (
+                    "location_slot_across.length".into(),
+                    vec!["plan"],
+                    "25".into(),
+                    vec!["location_slot_across.length".into()]
+                ),
+            ]
+        );
     }
 }

@@ -293,6 +293,15 @@ fn from_profile(a: &Analysis, s: &Source) -> Vec<Notch> {
     }
     out
 }
+/// The profile V-notch, by ID, whose flanks include V channel *f*'s (#233): its angle and depth
+/// state the channel.
+pub(crate) fn channel_owner(notches: &[Notch], f: &crate::bridge::Feature) -> Option<String> {
+    notches
+        .iter()
+        .find(|n| f.faces.iter().all(|i| n.faces.contains(i)))
+        .map(|n| n.id.clone())
+}
+
 pub(crate) fn requirements(a: &Analysis) -> Vec<Notch> {
     let mut out: Vec<Notch> = Vec::new();
     for notch in a.outer_profiles.iter().flat_map(|s| from_profile(a, s)) {

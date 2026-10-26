@@ -225,12 +225,25 @@ pub fn report(analysis: &Analysis, plan: &mut Plan) {
             stated.extend(members.iter().filter_map(|m| m.as_str()));
         }
     }
+    // The measurements drawn, for a feature another's dimensions state (#233).
+    let said: BTreeSet<(&str, &str)> = plan
+        .dimensions
+        .iter()
+        .filter(|d| d.placed.is_some() || matches!(d.state, State::Covered { .. }))
+        .flat_map(|d| &d.measurements)
+        .chain(plan.hole_tables.iter().flat_map(|t| &t.covered))
+        .map(|m| (m.feature.as_str(), m.parameter.as_str()))
+        .collect();
     let bands = crate::lint::turned::bands(analysis);
     let unplanned: Vec<String> = analysis
         .features
         .iter()
         .filter(|f| {
             if stated.contains(f.id.as_str()) || crate::dims::undrafted(f) {
+                return false;
+            }
+            let by = crate::dims::stated_by(analysis, f);
+            if !by.is_empty() && by.iter().all(|(o, p)| said.contains(&(o.as_str(), *p))) {
                 return false;
             }
             if f.kind == "boss"

@@ -55,6 +55,8 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `annotation_over_title_block` | readability | Annotation ink overlaps the title block. |
 | `annotation_over_view` | readability | An annotation overlaps view geometry. |
 | `annotation_overlap` | readability | Annotation labels overlap each other. |
+| `annular_groove_requirement_missing` | incomplete | The drawing does not state this required feature parameter. |
+| `annular_groove_requirement_unverifiable` | incomplete | The drawing does not prove this required feature parameter. |
 | `assembly_drawn_whole` | advisory | The complete assembly was selected for drawing. |
 | `assembly_principal_drawn` | advisory | The assembly's largest part, holding the others, was drawn alone; the others are not drawn. |
 | `authored_dimension_invalid` | decision | The authored dimension needs a valid user definition. |
@@ -234,6 +236,8 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `section_not_shown` | incomplete | The requested section is not shown. |
 | `section_recess_recognition_refused` | incomplete | Refused recess recognition leaves the recess requirements unstated. |
 | `section_recess_requirement_unsupported` | incomplete | No supported drawing grammar states this feature requirement. |
+| `semicircular_blind_slot_requirement_missing` | incomplete | The drawing does not state this required feature parameter. |
+| `semicircular_blind_slot_requirement_unverifiable` | incomplete | The drawing does not prove this required feature parameter. |
 | `shape_not_recognised` | incomplete | A recognisable shape among unexplained faces is neither sized nor located. |
 | `sheet_assignment_unused` | advisory | A sheet assignment has no corresponding drawing item. |
 | `sheet_below_smallest_scale` | readability | The sheet uses views below the requested legibility scale. |
@@ -274,6 +278,8 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `turned_step_requirement_unverifiable` | incomplete | The drawing does not prove this required feature parameter. |
 | `unclaimed_geometry` | advisory | Unclaimed faces can be ordinary stock faces, not missing requirements. |
 | `unrecognised_defining_geometry` | incomplete | The drawing does not define the unrecognised principal geometry. |
+| `v_channel_requirement_missing` | incomplete | The drawing does not state this required feature parameter. |
+| `v_channel_requirement_unverifiable` | incomplete | The drawing does not prove this required feature parameter. |
 | `view_annotation_inside_extents` | advisory | An annotation inside a view extent is informational. |
 | `view_annotation_overlap` | readability | An annotation overlaps a view boundary or view geometry. |
 | `view_on_title_block` | readability | A view overlaps the title block. |

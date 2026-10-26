@@ -37,8 +37,27 @@ All notable changes to draftwright-rust are recorded here, in the style of
   stays the info-level count. On the 30 quality parts only findings change. Not covered: faces
   that recognition claims but no dimension states, such as shf08 and sk08's clamp slits and
   shf08's stem and shoulder, which stay silent.
+- **quiddity's annular grooves, V channels and semicircular blind slots are read and drawn
+  (#233),** no longer reported as `features_not_recognised`. A semicircular blind slot is called
+  out as a round-bottom open slot (`ROUND-BOTTOM OPEN SLOT W × L × D DEEP`) and located across
+  its width by its centre line. A V channel states `A° V × D DEEP` and its trough's location,
+  and an annular groove `⌀OD × ⌀ID ↧ D` and its centre's, unless the profile V-notch on its
+  flanks, or the hole and boss on its walls, already state it, as on CTC-01, holdout 408 and 419
+  and the corpus grooves checked (1008, 10077, 10098). A Spec that omits one of those stating
+  dimensions (the hole's or boss's diameter, the notch's angle or depth) brings back the groove's
+  or channel's own callout, so its sizes are never lost. Lint checks each family's sizes
+  (`annular_groove_requirement_*`, `v_channel_requirement_*`,
+  `semicircular_blind_slot_requirement_*`), reading a wall hole's and boss's printed diameters
+  and depth as the groove's; a notch-stated channel is checked by the notch's own lint. 10092
+  moves from A4 1:1 to A3 2:1 (one new `annotation_leader_crossing` and two `label_crowded`, its
+  `detail_unplaceable` gone), holdout 196 from A3 2:1 to A3 1:1 and 483 from A4 2:1 to 1:1 (new
+  `detail_unplaceable` and `annotation_leader_crossing`); 1013's slot location gains
+  `extension_through_feature` and `label_section_furniture_overlap`; 10098 loses its 78.046°
+  profile angle, the supplement of the 101.954° on the same edge, to its V channel's locations.
+  Rectangular through notches (CTC-01's two) stay unrecognised: drawn, they cost CTC-01 its 1:5
+  scale or add leader crossings. The quality parts are otherwise unchanged.
 - On quiddity-rust **v0.2.1-alpha.1**. The reader accepts its new `rectangular_through_notches`
-  family (not drawn yet, like `v_channels`), so CTC-01's two V-slot notches and their rounded
+  family (not drawn yet), so CTC-01's two V-slot notches and their rounded
   channels are reported as unrecognised features instead of 3 unclaimed faces. Golden's
   30-degree slots are recognised in the plate's file axes and claim all four walls, as Python
   quiddity does. The 30-part quality table and the random-pin cells are unchanged.

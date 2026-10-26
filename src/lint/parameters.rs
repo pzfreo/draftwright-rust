@@ -36,6 +36,35 @@ pub struct Wanted<'a> {
     pub callout: String,
 }
 
+/// A feature's requirements that another feature's dimensions state in its place (#233): each
+/// requirement, with the stating feature's ID and the parameter its dimension measures.
+pub type Owners = Vec<(&'static str, String, &'static str)>;
+
+/// *marks* that claim an owner's parameter, again as claims of the requirement it states for
+/// *f*: the owner's printed value is checked against *f*'s own.
+pub fn relay(marks: &[Mark], f: &Feature, owners: &Owners) -> Vec<Mark> {
+    let mut out = Vec::new();
+    for (requirement, owner, parameter) in owners {
+        out.extend(
+            marks
+                .iter()
+                .filter(|m| {
+                    m.claims
+                        .iter()
+                        .any(|c| &c.feature == owner && c.parameter == *parameter)
+                })
+                .map(|m| Mark {
+                    claims: vec![crate::output::Claim {
+                        feature: f.id.clone(),
+                        parameter: (*requirement).into(),
+                    }],
+                    ..m.clone()
+                }),
+        );
+    }
+    out
+}
+
 /// A record's direction (an axis letter or a vector, in quiddity's frame) in the part's frame.
 pub fn direction(frame: &[[f64; 3]; 4], v: Option<&Value>) -> Option<[f64; 3]> {
     let local = match v? {

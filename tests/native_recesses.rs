@@ -804,3 +804,83 @@ fn native_seat_locations_share_the_joint_solve_with_their_form_leader() {
         );
     }
 }
+
+/// #233: quiddity's annular grooves, V channels and semicircular blind slots are read, no longer
+/// unrecognised, and each is stated: by its own items, or by the hole and boss on a groove's
+/// walls and the profile V-notch on a channel's flanks.
+#[test]
+fn quiddity_recess_families_are_read_and_stated() {
+    let Some(dir) = corpus::dir() else {
+        eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
+        return;
+    };
+    let families = [
+        ("annular_grooves", "annular_groove"),
+        ("v_channels", "v_channel"),
+        ("semicircular_blind_slots", "semicircular_blind_slot"),
+    ];
+    for (file, counts) in [
+        ("nist/nist_ctc_01_asme1_rd.stp", [0, 2, 0]),
+        ("mfcadpp/1008.step", [1, 0, 0]),
+        ("mfcadpp/10092.step", [0, 0, 1]),
+        ("mfcadpp/10098.step", [1, 1, 0]),
+    ] {
+        let (_, a) = model::analyse_native(&dir.join(file)).unwrap();
+        assert!(
+            a.unrecognised
+                .iter()
+                .all(|u| families.iter().all(|(family, _)| u.family != *family)),
+            "{file}"
+        );
+        for ((_, kind), n) in families.iter().zip(counts) {
+            let found = a.features.iter().filter(|f| f.kind == *kind).count();
+            assert_eq!(found, n, "{file}: {kind}");
+        }
+        let plan = model::plan(&a, &Spec::default()).unwrap();
+        let ours = |f: &draftwright::bridge::Feature| {
+            plan.dimensions
+                .iter()
+                .filter(|d| d.placed.is_some() && d.measurements.iter().any(|m| m.feature == f.id))
+                .collect::<Vec<_>>()
+        };
+        for f in a
+            .features
+            .iter()
+            .filter(|f| families.iter().any(|(_, kind)| f.kind == *kind))
+        {
+            assert!(
+                plan.problems.iter().all(|p| !p.subjects.contains(&f.id)),
+                "{file}: {} is reported",
+                f.id
+            );
+            match (file, f.kind.as_str()) {
+                // Their walls' hole and boss, and the profile V-notches, state them.
+                (_, "annular_groove") | ("nist/nist_ctc_01_asme1_rd.stp", "v_channel") => {
+                    assert!(ours(f).is_empty(), "{file}: {}", f.id);
+                }
+                (_, "semicircular_blind_slot") => {
+                    let own = ours(f);
+                    let callout = own.iter().find(|d| d.kind == "callout").unwrap();
+                    assert!(callout.label.starts_with("ROUND-BOTTOM OPEN SLOT"));
+                    let width = &callout.measurements[0];
+                    assert_eq!(width.parameter, "semicircular_blind_slot_width.length");
+                    let radius = f.parameters["radius"].as_f64().unwrap();
+                    assert!((width.value - 2.0 * radius).abs() < 1e-9);
+                }
+                (_, "v_channel") => {
+                    let own = ours(f);
+                    let callout = own.iter().find(|d| d.kind == "callout").unwrap();
+                    assert!(callout.label.contains("° V ×"), "{}", callout.label);
+                    assert_eq!(
+                        own.iter()
+                            .filter(|d| d.measurements[0].parameter.starts_with("location"))
+                            .count(),
+                        2,
+                        "an oblique opening locates the trough on both of the view's axes"
+                    );
+                }
+                _ => {}
+            }
+        }
+    }
+}

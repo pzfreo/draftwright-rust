@@ -585,14 +585,17 @@ pub fn check(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     issues.extend(profiled_bores::coverage(analysis, marks));
     issues.extend(flats::coverage(analysis, marks));
     issues.extend(grooves::coverage(analysis, marks));
+    issues.extend(grooves::annular_coverage(analysis, marks));
     issues.extend(chamfers::coverage(analysis, marks));
     issues.extend(notches::coverage(analysis, marks));
+    issues.extend(notches::channel_coverage(analysis, marks));
     issues.extend(fillets::coverage(analysis, marks));
     issues.extend(blends::coverage(analysis, marks));
     issues.extend(paired_ramp_steps::coverage(analysis, marks));
     issues.extend(gussets::coverage(analysis, marks));
     issues.extend(circular_blind_steps::coverage(analysis, marks));
     issues.extend(blind_slots::coverage(analysis, marks));
+    issues.extend(blind_slots::semicircular_coverage(analysis, marks));
     issues.extend(oriented_slots::coverage(analysis, marks));
     issues.extend(steps::coverage(analysis, marks));
     issues.extend(slots::coverage(analysis, marks));
