@@ -34,6 +34,22 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Fixed
 
+- **Review reports annotation contacts it used to pass as clear (#226).** Placement keeps
+  labels and lines only just clear of each other, box to box, so text 0.03–0.4 mm from a line
+  or a section letter was never reported. The finished drawing is now checked once more, after
+  its final leader-route repair (`src/dims/contacts.rs`): `label_crowded` (info) for text within
+  0.5 mm of another label, of other line-work or of a section's arrowhead or letter
+  (t8-housing-bracket's 15 against letter A, nema-17-bracket's 31 against the 20.5 and 30
+  extension lines, nema17-mount-bracket's R0.5 under the 50 line, lm8uu's groove shoulder against
+  2× C0.25); `label_section_furniture_overlap` for a line through a section mark (t8's 15
+  through the A arrowhead; a label over a mark stays lint's); `extension_off_centreline`
+  (warning) for an extension line 0.01–0.5 mm beside a centre line, which reads as locating that
+  centre (nema17-mount-bracket's 28.85, STC-07's 12.7, 210.006 and 2× 9.297); and
+  `leader_along_centreline` (warning) for a leader within 5° and 2 mm of a centre line over more
+  than 5 mm (608zz, lm8uu, gt2-pulley and STC-07 bores). None moves an annotation or chooses
+  paper: layouts are unchanged. When a later repair changes the selected candidate's
+  annotation-conflict count, the sheet basis says what the finished drawing has
+  (nema-17-bracket: 1 counted, 0 left), so the basis agrees with the plan's problems.
 - **Coincident copies of a body no longer multiply every count (#212).** A STEP holding the same
   solid several times on top of itself (a FreeCAD export of a body and its `Pad`) was drawn
   whole, each feature once per copy: dw-examples' gantry plate printed "24× ⌀5.1 THRU" for 12

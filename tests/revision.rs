@@ -148,7 +148,18 @@ fn a_resized_boss_is_one_changed_callout() {
         .map(|a| (a.from.as_deref(), a.to.as_deref()))
         .collect();
     assert_eq!(changed, [(Some("ø20"), Some("ø26"))]);
-    assert_eq!(r.report.verdict, "ok");
+    // #226: the larger boss's interior ø26 leader runs up its vertical centre line, which the
+    // ø20 leader did not; that new warning is the revision's only problem.
+    let added: Vec<_> = r
+        .report
+        .problems
+        .added
+        .iter()
+        .map(|p| p.code.as_str())
+        .collect();
+    assert_eq!(added, ["leader_along_centreline"]);
+    assert!(r.report.problems.resolved.is_empty());
+    assert_eq!(r.report.verdict, "problems");
 }
 
 #[test]
