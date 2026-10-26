@@ -57,19 +57,25 @@ fn leaders_across_their_own_view_are_reported() {
 
 #[test]
 fn leaders_ending_on_hidden_edges_are_reported() {
-    // GRM-03's ⌀1.6 blind hole opens on the head's far face, so the end view shows it dashed;
+    // GRM-03's ⌀1.6 blind hole opens on the head's far face, so the side view, looking at the
+    // head end-on, shows it dashed;
     // string post's flat is under its flange in the plan.
-    for (file, id) in [
+    for (file, id, view) in [
         (
             "gramel/GRM-03_thumbwheel_drive_screw.step",
             "d:f:hole:1/bore.diameter",
+            "v:side",
         ),
-        ("gramel/string_post.step", "d:f:flat:1/flat.length"),
+        (
+            "gramel/string_post.step",
+            "d:f:flat:1/flat.length",
+            "v:plan",
+        ),
     ] {
         let Some(p) = plan(file) else {
             return;
         };
-        assert_eq!(found(&p, "leader_to_hidden_edge"), [[id]], "{file}");
+        assert_eq!(found(&p, "leader_to_hidden_edge"), [[id, view]], "{file}");
     }
 }
 

@@ -170,7 +170,7 @@ fn leader_ends(analysis: &Analysis, plan: &Plan) -> Vec<Problem> {
                 out.push(problem(
                     "leader_to_hidden_edge",
                     &d.id,
-                    vec![d.id.clone()],
+                    vec![d.id.clone(), v.id.clone()],
                     format!(
                         "The leader of {} ends on an edge {} shows hidden, so it points at dashed line-work.",
                         named(d),

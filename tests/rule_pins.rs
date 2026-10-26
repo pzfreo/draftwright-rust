@@ -255,7 +255,7 @@ fn opposed_coaxial_taps_keep_authored_left_and_right_callouts() {
             .iter()
             .map(|(f, _)| (
                 "leader_to_hidden_edge",
-                vec![format!("d:{}/bore.diameter", f.id)]
+                vec![format!("d:{}/bore.diameter", f.id), "v:plan".to_string()]
             ))
             .collect::<std::collections::BTreeSet<_>>()
             .into_iter()

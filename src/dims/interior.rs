@@ -466,7 +466,8 @@ impl Proof {
         self.touches_model(q, c, false) && !self.touches_model(q, c, true)
     }
 
-    /// The printed lines, visible or hidden, that page segment *s* crosses: the points inside
+    /// The edges, visible or hidden, that page segment *s* crosses (a cylinder's side-on
+    /// silhouette generators are not edges and are left out): the points inside
     /// it where it meets a physical edge chord (a chord's end included, so a line through a
     /// polyline's vertex is not missed), those within [`SLACK`] of one another along it (an edge
     /// seen end-on over another, or the two chords at a vertex) counted once.
