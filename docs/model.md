@@ -1454,7 +1454,10 @@ locations/pitches.
 
 New analyses include optional `solid_count`. Several solids make these completeness
 findings informational, following Python's assembly coverage policy. Older analyses
-without the count are conservatively assessed at warning. `clear` means no assessed
+without the count are conservatively assessed at warning. With several solids, optional
+`body_faces` lists the faces of the one solid that fills the part's box, when exactly one does:
+support-plane chains (closed chains, references, determined lengths) are walked on its features
+and the box alone, never from one solid to another (#220). `clear` means no assessed
 Plan problem needs attention (warning or error); it does not mean manufacturing readiness.
 The inspect summary additionally includes render problems in that status. Independent
 coverage lint still lives in `review.lint`, rather than being inferred from the Plan.

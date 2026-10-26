@@ -191,8 +191,9 @@ fn grm05_states_its_step_diameters_and_lengths_as_draftwright_does() {
 /// for spool132's two flanges), and the overall length is stated exactly where the chain does
 /// not run end to end (spool132's hub and connector109's grooves and thread leave gaps; there
 /// draftwright prints it too). connector109's three ø130.94 lands are the overall diameter's
-/// (#220), where draftwright repeats each. grm03 differs once, listed in `known_dimensions.json`: draftwright
-/// has no overall diameter for it and leads its ø10 band on its own.
+/// (#220), where draftwright repeats each. grm03 differs once, listed in
+/// `known_dimensions.json`: draftwright has no overall diameter for it and leads its ø10 band
+/// on its own.
 #[test]
 fn turned_corpus_parts_state_their_steps_as_draftwright_does() {
     let Some(corpus) = corpus::dir() else {
@@ -804,13 +805,8 @@ fn a_nonterminal_thin_z_shoulder_keeps_its_length_on_the_main_view() {
     );
 }
 
-/// #220: three ø30 lands between two equal grooves (10, 46 and 10 long, the grooves 2 wide and
-/// ø26 at 11 and 59, 70 overall). The overall diameter states every land, so no land repeats
-/// it; the two grooves are one counted callout claiming both; and the chain of lands and grooves
-/// closes with the overall length, so its longest member is reference: omitted by default and
-/// drawn in parentheses when the spec asks for references (`sheet/references`).
-#[test]
-fn lands_between_equal_grooves_state_the_diameter_once_and_close_their_chain() {
+/// Three ø30 lands between two equal ø26 grooves, 2 wide, on x: 10, 46 and 10 long, 70 overall.
+fn lands_between_grooves() -> Analysis {
     let mut a = with_bands(&[
         (q(0.0), q(10.0), 30.0),
         (q(12.0), q(58.0), 30.0),
@@ -834,6 +830,17 @@ fn lands_between_equal_grooves_state_the_diameter_once_and_close_their_chain() {
         .unwrap();
         a.features.push(groove);
     }
+    a
+}
+
+/// #220: three ø30 lands between two equal grooves (10, 46 and 10 long, the grooves 2 wide and
+/// ø26 at 11 and 59, 70 overall). The overall diameter states every land, so no land repeats
+/// it; the two grooves are one counted callout claiming both; and the chain of lands and grooves
+/// closes with the overall length, so its longest member is reference: omitted by default and
+/// drawn in parentheses when the spec asks for references (`sheet/references`).
+#[test]
+fn lands_between_equal_grooves_state_the_diameter_once_and_close_their_chain() {
+    let a = lands_between_grooves();
     let plan = model::plan(&a, &Spec::default()).unwrap();
     let od = plan
         .dimensions
@@ -901,6 +908,33 @@ fn lands_between_equal_grooves_state_the_diameter_once_and_close_their_chain() {
         let d = plan.dimensions.iter().find(|d| d.id == id).unwrap();
         assert!(!d.label.starts_with('('), "{id}: {}", d.label);
     }
+}
+
+/// #220: lm8uu's two solids (its ball cage inside the sleeve) are drawn as one. The chain of
+/// lands and grooves lies wholly on the solid that fills the box, so it still closes with the
+/// overall length; with a member on another solid, or no solid filling the box, none is walked.
+#[test]
+fn a_chain_on_the_solid_that_fills_the_box_closes_among_several() {
+    let middle = "d:f:turned_step:2/step.length";
+    let mut a = lands_between_grooves();
+    a.solid_count = Some(2);
+    let body: Vec<usize> = a.features.iter().flat_map(|f| f.faces.clone()).collect();
+    a.body_faces = Some(body.clone());
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    assert!(plan.dimensions.iter().all(|d| d.id != middle));
+    a.body_faces = None;
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    assert!(plan.dimensions.iter().any(|d| d.id == middle));
+    let elsewhere = body.iter().max().unwrap() + 1;
+    let groove = a
+        .features
+        .iter_mut()
+        .find(|f| f.id == "f:groove:1")
+        .unwrap();
+    groove.faces = vec![elsewhere];
+    a.body_faces = Some(body);
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    assert!(plan.dimensions.iter().any(|d| d.id == middle));
 }
 
 /// #220: a short disc on z (gear_blank: one ø16 boss 10 high, as wide as the part) reads as a

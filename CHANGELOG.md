@@ -60,9 +60,12 @@ All notable changes to draftwright-rust are recorded here, in the style of
   length and its longest member is reference: omitted by default, in parentheses with
   `sheet/references` (lm10uu's 19.4, 608zz's 6.5). A boss filling the part's box across its axis
   states the overall width and depth (608zz, hirth-joint, FTC-11's `ø63 ±0.5 AVG`, no `63` beside
-  it; cgb203's ø360), and a short disc on z drops the side view that repeated its front, as a
-  turned part does (`views/side` keeps it). lm8uu, an assembly of two solids, keeps its closed
-  axial chain: support-plane redundancy is not walked across separate solids.
+  it; cgb203's ø360), unless a flat face lies on that side of the box, and a short disc on z
+  drops the side view that repeated its front, as a turned part does (`views/side` keeps it).
+  A file of several solids drawn as one, where one solid fills the box, now has its chains walked
+  on that solid (the analysis records its faces as `body_faces`): lm8uu's 15.2 is reference, and
+  gt2-pulley's band lengths are conveyed by its baseline as on a single solid. Chains are still
+  never walked from one solid to another.
 
 ## 0.1.0 (2026-10-25)
 

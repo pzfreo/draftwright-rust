@@ -117,6 +117,10 @@ pub struct Analysis {
     /// Absent in older analyses; several solids make completeness findings informational.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub solid_count: Option<usize>,
+    /// With several solids, the faces of the one solid that fills the part's box, when exactly
+    /// one does: support-plane chains are walked on it alone (#220).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub body_faces: Option<Vec<usize>>,
     /// Principal outer stock faces, credited only when the overall sizes are stated and
     /// [`Analysis::face_accounting`] is absent.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
@@ -1439,6 +1443,24 @@ fn analyse_step_input(
         source_stem: chosen.map(|_| stem),
         envelope: [b.min, b.max],
         solid_count: Some(part.solids.len()),
+        body_faces: {
+            let fills = |s: &haecceity::brep::Solid| {
+                let (mut lo, mut hi) = ([f64::INFINITY; 3], [f64::NEG_INFINITY; 3]);
+                for &f in &s.faces {
+                    let fb = part.face_bounds(f);
+                    for k in 0..3 {
+                        lo[k] = lo[k].min(fb.min[k]);
+                        hi[k] = hi[k].max(fb.max[k]);
+                    }
+                }
+                (0..3).all(|k| (lo[k] - b.min[k]).abs() <= 1e-5 && (hi[k] - b.max[k]).abs() <= 1e-5)
+            };
+            let filling: Vec<_> = part.solids.iter().filter(|s| fills(s)).collect();
+            match filling.as_slice() {
+                [s] if part.solids.len() > 1 => Some(s.faces.clone()),
+                _ => None,
+            }
+        },
         face_accounting: None,
         stock_faces: (0..part.faces.len())
             .filter(|&f| {
