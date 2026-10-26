@@ -59,6 +59,8 @@ catalogue! {
     "annotation_over_title_block" => Readability, Code, "Annotation ink overlaps the title block.";
     "annotation_over_view" => Readability, Code, "An annotation overlaps view geometry.";
     "annotation_overlap" => Readability, Code, "Annotation labels overlap each other.";
+    "annular_groove_requirement_missing" => Incomplete, Requirement, "The drawing does not state this required feature parameter.";
+    "annular_groove_requirement_unverifiable" => Incomplete, Requirement, "The drawing does not prove this required feature parameter.";
     "assembly_drawn_whole" => Advisory, Code, "The complete assembly was selected for drawing.";
     "assembly_principal_drawn" => Advisory, Code, "The assembly's largest part, holding the others, was drawn alone; the others are not drawn.";
     "authored_dimension_invalid" => Decision, Code, "The authored dimension needs a valid user definition.";
@@ -241,6 +243,8 @@ catalogue! {
     "section_not_shown" => Incomplete, Code, "The requested section is not shown.";
     "section_recess_recognition_refused" => Incomplete, Code, "Refused recess recognition leaves the recess requirements unstated.";
     "section_recess_requirement_unsupported" => Incomplete, Requirement, "No supported drawing grammar states this feature requirement.";
+    "semicircular_blind_slot_requirement_missing" => Incomplete, Requirement, "The drawing does not state this required feature parameter.";
+    "semicircular_blind_slot_requirement_unverifiable" => Incomplete, Requirement, "The drawing does not prove this required feature parameter.";
     "shape_not_recognised" => Incomplete, Shape, "A recognisable shape among unexplained faces is neither sized nor located.";
     "sheet_assignment_unused" => Advisory, Code, "A sheet assignment has no corresponding drawing item.";
     "sheet_below_smallest_scale" => Readability, Code, "The sheet uses views below the requested legibility scale.";
@@ -281,6 +285,8 @@ catalogue! {
     "turned_step_requirement_unverifiable" => Incomplete, Requirement, "The drawing does not prove this required feature parameter.";
     "unclaimed_geometry" => Advisory, Code, "Unclaimed faces can be ordinary stock faces, not missing requirements.";
     "unrecognised_defining_geometry" => Incomplete, Code, "The drawing does not define the unrecognised principal geometry.";
+    "v_channel_requirement_missing" => Incomplete, Requirement, "The drawing does not state this required feature parameter.";
+    "v_channel_requirement_unverifiable" => Incomplete, Requirement, "The drawing does not prove this required feature parameter.";
     "view_annotation_inside_extents" => Advisory, Code, "An annotation inside a view extent is informational.";
     "view_annotation_overlap" => Readability, Code, "An annotation overlaps a view boundary or view geometry.";
     "view_on_title_block" => Readability, Code, "A view overlaps the title block.";
