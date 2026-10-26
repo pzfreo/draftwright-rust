@@ -594,7 +594,7 @@
    "outcome": "dropped"
   },
   "rust": {
-   "detail": "4× ⌀5.944 ±0.2032 THRU\n(2×2)",
+   "detail": "4× ⌀5.944 ±0.2032 THRU",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
@@ -610,7 +610,7 @@
    "outcome": "dropped"
   },
   "rust": {
-   "detail": "4× ⌀5.944 ±0.2032 THRU\n(2×2)",
+   "detail": "4× ⌀5.944 ±0.2032 THRU",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
@@ -626,7 +626,7 @@
    "outcome": "dropped"
   },
   "rust": {
-   "detail": "4× ⌀5.944 ±0.2032 THRU\n(2×2)",
+   "detail": "4× ⌀5.944 ±0.2032 THRU",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
@@ -1006,7 +1006,7 @@
   "port": "dimension:#1330",
   "python": "6× ⌀6.6 +0.09 -0.0 THRU (2×3)",
   "record": "dimension:0:1:4:3",
-  "rust": "6× ⌀6.6 +0.09 0 THRU (2×3)",
+  "rust": "6× ⌀6.6 +0.09 0 THRU",
   "verdict": "equivalent",
   "evidence": "Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
  },
@@ -1016,7 +1016,7 @@
   "port": "dimension:#15130",
   "python": "4× ⌀6.3 +0.0762 -0.0 ↧ 7.6",
   "record": "dimension:0:1:4:85",
-  "rust": "4× ⌀6.35 +0.0762 0 ↧ 7.62\n(2×2)",
+  "rust": "4× ⌀6.35 +0.0762 0 ↧ 7.62",
   "verdict": "equivalent",
   "evidence": "Both give the AP242 tolerance to the same four-hole callout; the port recognises the holes as a 2×2 grid and names the arrangement '(2×2)', draftwright calls them out as a plain count group. The tolerance text agrees. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18). The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
  },
@@ -1026,7 +1026,7 @@
   "port": "dimension:#15238",
   "python": "4× ⌀6.3 +0.0762 -0.0 ↧ 7.6",
   "record": "dimension:0:1:4:87",
-  "rust": "4× ⌀6.35 +0.0762 0 ↧ 7.62\n(2×2)",
+  "rust": "4× ⌀6.35 +0.0762 0 ↧ 7.62",
   "verdict": "equivalent",
   "evidence": "Both give the AP242 tolerance to the same four-hole callout; the port recognises the holes as a 2×2 grid and names the arrangement '(2×2)', draftwright calls them out as a plain count group. The tolerance text agrees. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18). The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
  },
@@ -1036,7 +1036,7 @@
   "port": "dimension:#15344",
   "python": "4× ⌀6.3 +0.0762 -0.0 ↧ 7.6",
   "record": "dimension:0:1:4:89",
-  "rust": "4× ⌀6.35 +0.0762 0 ↧ 7.62\n(2×2)",
+  "rust": "4× ⌀6.35 +0.0762 0 ↧ 7.62",
   "verdict": "equivalent",
   "evidence": "Both give the AP242 tolerance to the same four-hole callout; the port recognises the holes as a 2×2 grid and names the arrangement '(2×2)', draftwright calls them out as a plain count group. The tolerance text agrees. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18). The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
  },
@@ -1046,7 +1046,7 @@
   "port": "dimension:#15389",
   "python": "4× ⌀6.3 +0.0762 -0.0254 ↧ 7.6 (2×2)",
   "record": "dimension:0:1:4:90",
-  "rust": "4× ⌀6.35 +0.0762 -0.0254\n↧ 7.62 (2×2)",
+  "rust": "4× ⌀6.35 +0.0762 -0.0254\n↧ 7.62",
   "verdict": "rust-correct",
   "evidence": "Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
  },
@@ -1080,7 +1080,7 @@
   },
   "record": "dimension:0:1:4:97",
   "rust": {
-   "detail": "4× ⌀7.137 +0.1524 -0.0254\nTHRU ⌴ ⌀11.11 ↧ 7.62\n(2×2)",
+   "detail": "4× ⌀7.137 +0.1524 -0.0254\nTHRU ⌴ ⌀11.11 ↧ 7.62",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
@@ -1114,7 +1114,7 @@
   },
   "record": "dimension:0:1:4:113",
   "rust": {
-   "detail": "4× ⌀6 ±0.15 THRU ⌴ ⌀10 ↧\n2 (2×2)",
+   "detail": "4× ⌀6 ±0.15 THRU ⌴ ⌀10 ↧\n2",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
@@ -1130,7 +1130,7 @@
   },
   "record": "dimension:0:1:4:114",
   "rust": {
-   "detail": "4× ⌀6 ±0.15 THRU ⌴ ⌀10 ↧\n2 (2×2)",
+   "detail": "4× ⌀6 ±0.15 THRU ⌴ ⌀10 ↧\n2",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
@@ -1148,7 +1148,7 @@
   },
   "record": "dimension:0:1:4:115",
   "rust": {
-   "detail": "4× ⌀6 ±0.15 THRU ⌴ ⌀10 ↧\n2 (2×2)",
+   "detail": "4× ⌀6 ±0.15 THRU ⌴ ⌀10 ↧\n2",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
@@ -1185,7 +1185,7 @@
   },
   "record": "dimension:0:1:4:7",
   "rust": {
-   "detail": "4× ⌀10.541 ±0.2032 THRU ⌴\n⌀15.88 ↧ 12.7 (2×2)",
+   "detail": "4× ⌀10.541 ±0.2032 THRU ⌴\n⌀15.88 ↧ 12.7",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
@@ -1259,7 +1259,7 @@
   },
   "record": "dimension:0:1:4:89",
   "rust": {
-   "detail": "4× ⌀6 ±0.15 THRU ⌴SF ⌀10\n↧ 1.8 (2×2)",
+   "detail": "4× ⌀6 ±0.15 THRU ⌴SF ⌀10\n↧ 1.8",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
@@ -1275,7 +1275,7 @@
   },
   "record": "dimension:0:1:4:91",
   "rust": {
-   "detail": "4× ⌀6 ±0.15 THRU ⌴SF ⌀10\n↧ 1.8 (2×2)",
+   "detail": "4× ⌀6 ±0.15 THRU ⌴SF ⌀10\n↧ 1.8",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
@@ -1291,7 +1291,7 @@
   },
   "record": "dimension:0:1:4:92",
   "rust": {
-   "detail": "4× ⌀6 ±0.15 THRU ⌴SF ⌀10\n↧ 1.8 (2×2)",
+   "detail": "4× ⌀6 ±0.15 THRU ⌴SF ⌀10\n↧ 1.8",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
@@ -1329,7 +1329,7 @@
   "port": "dimension:#1360",
   "python": "6× ⌀6.6 THRU (2×3)",
   "record": "dimension:0:1:4:3",
-  "rust": "6× ⌀6.6 H11 THRU (2×3)",
+  "rust": "6× ⌀6.6 H11 THRU",
   "verdict": "rust-correct",
   "evidence": "S5 native symbolic-bore port: the AP242 record states its ISO 286 bore class (H7/H11) without numeric limits. Proven internal cylinders correlate to exactly one recognised bore callout; the class is printed on that owner alone by default (maintainer decision 2026-10-16; sheet/fit_deviations opts into stacked deviations) (draftwright's fits table; the maintainer's decision of 2026-10-11, hidden by sheet/fit_limits: false), and no duplicate dimension. Python drops that class from its text (and draws the 62 mm bore separately); the native claim and literal text now retain the authored requirement. Reading, geometric ambiguity and conflicting-class blockers still refuse lowering; existing exact-one outcome and NIST open-question tests remain unchanged. Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md. Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
  },
@@ -1438,5 +1438,15 @@
   "rust": "⌀35 +0.2 0 THRU",
   "verdict": "rust-correct",
   "evidence": "draftwright states '⌀35 +0.2 -0.0 THRU'; the port states '⌀35 +0.2 0 THRU'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:116",
+  "port": "dimension:#19877",
+  "field": "label",
+  "python": "8× ⌀2.5 ±0.15 THRU (2×4)",
+  "rust": "8× ⌀2.5 ±0.15 THRU",
+  "verdict": "rust-correct",
+  "evidence": "draftwright prints the grid's arrangement after its callout; ISO 129 has no notation for it and the grid's pitches already show it, so the port prints none (#225). Size, tolerance and count are the same."
  }
 ]

@@ -14,6 +14,8 @@
 //! The record's fields are quiddity's (`holes.py`'s `HoleRecord`, `countersinks.py`'s
 //! `CounterSink`): a countersink's sizes are `major_diameter` and `included_angle`.
 
+use std::collections::{BTreeMap, BTreeSet};
+
 use serde_json::{Map, Value};
 
 use super::{Feature, HolePattern};
@@ -35,6 +37,11 @@ pub struct Countersink {
     pub diameter: f64,
     pub angle: Option<f64>,
 }
+
+/// A drilling's requirement and the line its axis lies on ([`Hole::segment`]).
+type Drilling = (Vec<i64>, [i64; 3]);
+/// A segment of a drilling: the stretch of its line it spans, its bore and its ID.
+type Segment<'a> = ([f64; 2], f64, &'a str);
 
 /// A recognised hole, in the part's frame.
 #[derive(Clone, Debug, PartialEq)]
@@ -195,6 +202,58 @@ impl<'a> Hole<'a> {
         }
         k
     }
+
+    /// The drilling a plain through hole is a segment of: its requirement and the line its axis
+    /// lies on (where it crosses the plane through the origin square to it, to 1e-3 mm), with the
+    /// stretch of that line it spans. Any other hole, or one whose depth is not given, has none.
+    fn segment(&self) -> Option<(Drilling, [f64; 2])> {
+        let plain =
+            self.counterbore.is_none() && self.spotface.is_none() && self.countersink.is_none();
+        let depth = self.depth.filter(|d| d.is_finite() && *d > 0.0)?;
+        if !(self.through && plain) {
+            return None;
+        }
+        let d = self.direction;
+        let along: f64 = (0..3).map(|k| self.at[k] * d[k]).sum();
+        let line = [0, 1, 2].map(|k| ((self.at[k] - along * d[k]) * 1e3).round() as i64);
+        Some(((self.requirement(), line), [along, along + depth]))
+    }
+}
+
+/// The holes among *holes* that continue another's drilling across a slit: plain through holes
+/// of one requirement on one line whose segments are nearer each other than the bore is wide are
+/// one hole that the slit splits (a clamp's cross hole, shf08's `hole:1` and `hole:4`), drilled
+/// and counted once. Holes in walls farther apart (a clevis's two lugs) stay separate holes.
+pub fn continuations<'h, 'a: 'h>(
+    holes: impl IntoIterator<Item = &'h Hole<'a>>,
+) -> BTreeSet<&'a str> {
+    // Each drilling's segments: their spans, bores and IDs.
+    let mut lines: BTreeMap<Drilling, Vec<Segment<'a>>> = BTreeMap::new();
+    for h in holes {
+        if let Some((line, span)) = h.segment() {
+            lines
+                .entry(line)
+                .or_default()
+                .push((span, h.diameter, h.feature.id.as_str()));
+        }
+    }
+    let mut out = BTreeSet::new();
+    for mut segments in lines.into_values() {
+        segments.sort_by(|a, b| a.0[0].total_cmp(&b.0[0]));
+        let mut reach = f64::NEG_INFINITY;
+        for ([lo, hi], diameter, id) in segments {
+            if lo - reach < diameter {
+                out.insert(id);
+            }
+            reach = reach.max(hi);
+        }
+    }
+    out
+}
+
+/// How many holes *holes* are as drawn and counted: a slit's [`continuations`] are not.
+pub fn drillings<'h, 'a: 'h>(holes: impl IntoIterator<Item = &'h Hole<'a>> + Clone) -> usize {
+    holes.clone().into_iter().count() - continuations(holes).len()
 }
 
 /// The Analysis's hole features, each read in the part's frame, or why it cannot be.
@@ -399,6 +458,58 @@ mod tests {
         blind.0["bottom"] = json!("flat");
         blind.1["bottom"] = json!("flat");
         assert_ne!(key(&feature(blind.0)), key(&feature(blind.1)));
+    }
+
+    /// #225: shf08's clamp hole, ⌀4 THRU drilled along -x and split by a 1.2 mm slit into two
+    /// coaxial segments, is one hole; the same pair either side of a 48 mm gap (sm-hanger's two
+    /// flanges) is two, as are blind or counterbored segments and holes off the line.
+    #[test]
+    fn a_slit_splits_one_through_hole_but_a_wide_gap_leaves_two() {
+        let segment = |id: &str, x: f64, edit: &dyn Fn(&mut Value)| {
+            let mut p = json!({ "axis": [-1.0, 0.0, 0.0], "location": [x, -5.0, -11.0],
+                                "diameter": 4.0, "depth": 8.9, "bottom": "through" });
+            edit(&mut p);
+            let mut f = feature(p);
+            f.id = id.into();
+            f
+        };
+        let none = |_: &mut Value| {};
+        fn read(fs: &[Feature]) -> Vec<Hole<'_>> {
+            fs.iter()
+                .map(|f| Hole::read(f, &IDENTITY).unwrap())
+                .collect()
+        }
+        let split = [
+            segment("f:hole:1", -0.6, &none),
+            segment("f:hole:4", 9.5, &none),
+        ];
+        let holes = read(&split);
+        assert_eq!(continuations(&holes), BTreeSet::from(["f:hole:1"]));
+        assert_eq!(drillings(&holes), 1);
+
+        let lugs = [
+            segment("f:hole:1", -24.0, &none),
+            segment("f:hole:2", 28.0, &none),
+        ];
+        assert_eq!(drillings(&read(&lugs)), 2);
+        let blind = |p: &mut Value| p["bottom"] = json!("flat");
+        let pair = [
+            segment("f:hole:1", -0.6, &blind),
+            segment("f:hole:4", 9.5, &blind),
+        ];
+        assert_eq!(drillings(&read(&pair)), 2);
+        let bored = |p: &mut Value| p["cbore"] = json!({ "diameter": 8.0, "depth": 2.0 });
+        let pair = [
+            segment("f:hole:1", -0.6, &bored),
+            segment("f:hole:4", 9.5, &bored),
+        ];
+        assert_eq!(drillings(&read(&pair)), 2);
+        let off = |p: &mut Value| p["location"][1] = json!(5.0);
+        let pair = [
+            segment("f:hole:1", -0.6, &none),
+            segment("f:hole:4", 9.5, &off),
+        ];
+        assert_eq!(drillings(&read(&pair)), 2);
     }
 
     /// LINT-hole_coverage-bolt_circle_corroboration (draftwright's `bolt_circle_is_corroborated`):

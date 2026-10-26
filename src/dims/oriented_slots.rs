@@ -1,7 +1,9 @@
 //! Free-direction slots (quiddity's `OrientedSlot`, the Analysis's `oriented_slot` features):
-//! one callout carrying both requirements, `ORIENTED SLOT 2 WIDE × 4.5 LONG`
+//! one callout carrying both requirements, `SLOT 2 WIDE × 4.5 LONG`
 //! (LINT-oriented_slot_coverage-width_length, ISSUE-1432-a; draftwright's `render_oriented_slots`
-//! and `_oriented_slot_label` in `annotations/from_model.py`).
+//! and `_oriented_slot_label` in `annotations/from_model.py`, without its internal `ORIENTED`,
+//! #225). A gap open at both ends ([`crate::lint::oriented_slots::open`], a retaining ring's) has
+//! no ends to be long between: `GAP 1.64 WIDE`, its length the wall it cuts.
 //!
 //! - **Its view** looks along the slot's dominant run axis (draftwright's `_END_ON` of the slot
 //!   frame's axis, the run direction's largest component).
@@ -11,7 +13,7 @@
 //!   (`_oriented_slot_rim_polygon`), its edges' midpoints the leader's candidate targets, so a
 //!   rotated slot's leader lands on its rotated rim, not on an axis-aligned box.
 //! - Equal slots seen in one view (one width and length) share one counted callout,
-//!   `2× ORIENTED SLOT …`, claiming every member. draftwright leaves the members of oriented slot
+//!   `2× SLOT …`, claiming every member. draftwright leaves the members of oriented slot
 //!   patterns undrawn (#1430: patterns have no grammar there); the Analysis does not record the
 //!   patterns (the bridge reads their members as oriented slots), so their sizes are stated here
 //!   through the counted callout, never left unstated.
@@ -35,6 +37,7 @@ pub(super) const PLANNER: Planner = Planner {
 struct Read {
     width: f64,
     length: f64,
+    open: bool,
     axis: usize,
     rim: Vec<P3>,
 }
@@ -75,6 +78,7 @@ fn read(analysis: &crate::model::Analysis, f: &Feature) -> Result<Read, String> 
     Ok(Read {
         width,
         length,
+        open: crate::lint::oriented_slots::open(f),
         axis,
         rim,
     })
@@ -83,7 +87,7 @@ fn read(analysis: &crate::model::Analysis, f: &Feature) -> Result<Read, String> 
 fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     let mut problems = Vec::new();
     // Slots by view axis, width and length, in the Analysis's order of their first member.
-    type Key = (usize, i64, i64);
+    type Key = (usize, i64, i64, bool);
     let mut groups: BTreeMap<Key, Vec<(&Feature, Read)>> = BTreeMap::new();
     let mut order: Vec<Key> = Vec::new();
     for f in cx
@@ -94,7 +98,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     {
         match read(cx.analysis, f) {
             Ok(r) => {
-                let k = (r.axis, key(r.width), key(r.length));
+                let k = (r.axis, key(r.width), key(r.length), r.open);
                 if !groups.contains_key(&k) {
                     order.push(k);
                 }
@@ -123,14 +127,13 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             terms.push(format!("{n}×"));
         }
         terms.extend([
-            "ORIENTED".into(),
-            "SLOT".into(),
+            if r0.open { "GAP" } else { "SLOT" }.into(),
             fmt(r0.width),
             "WIDE".into(),
-            "×".into(),
-            fmt(r0.length),
-            "LONG".into(),
         ]);
+        if !r0.open {
+            terms.extend(["×".into(), fmt(r0.length), "LONG".into()]);
+        }
         out.push(Want {
             id: want_id(&first.id, "oriented_slot_width.length"),
             views: vec![end_on(r0.axis)],
@@ -143,6 +146,8 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                         ("oriented_slot_width.length", r.width),
                         ("oriented_slot_length.length", r.length),
                     ]
+                    .into_iter()
+                    .take(if r.open { 1 } else { 2 })
                     .map(|(parameter, value)| Measurement {
                         feature: f.id.clone(),
                         parameter: parameter.into(),
@@ -151,7 +156,9 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                 })
                 .collect(),
             turning: None,
-            basis: if n > 1 {
+            basis: if r0.open {
+                "a gap open at both ends states its width alone (its length is the wall it cuts), in the view along its run, the leader to its rim".into()
+            } else if n > 1 {
                 format!(
                     "{n} free-direction slots of one width and length are called out once and counted, in the view along their run, the leader to a rim"
                 )

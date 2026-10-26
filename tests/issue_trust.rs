@@ -239,9 +239,9 @@ fn the_part_owns_the_hole_requirements_and_only_the_drawn_ink_earns_them() {
         .unwrap()
         .runs
         .clone();
-    assert_eq!(drawing.text[runs[0]].text, "4× ⌀6 THRU (2×2)");
+    assert_eq!(drawing.text[runs[0]].text, "4× ⌀6 THRU");
     let mut wrong = drawing.clone();
-    wrong.text[runs[0]].text = "4× ⌀8 THRU (2×2)".into();
+    wrong.text[runs[0]].text = "4× ⌀8 THRU".into();
     let found = holes_only(lint::lint(&analysis, &wrong));
     let unverifiable: BTreeSet<&str> = found
         .iter()

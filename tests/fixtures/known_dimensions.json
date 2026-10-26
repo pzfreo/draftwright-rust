@@ -1924,7 +1924,7 @@
     "side": "rust",
     "family": "callout",
     "view": "front",
-    "label": "4× ⌀10.541 THRU ⌴ ⌀15.88\n↧ 12.7 (2×2)",
+    "label": "4× ⌀10.541 THRU ⌴ ⌀15.88\n↧ 12.7",
     "count": 1,
     "verdict": "rust-correct",
     "reason": "Faithful nominal display intentionally replaces Python one-decimal rounding; exact model hundredths/thousandths are retained up to three places. Existing ownership and view differences remain independently listed (docs/drawn-values-2026-10-18.md)."
@@ -3158,5 +3158,65 @@
     "count": 1,
     "verdict": "equivalent",
     "reason": "The same callout words and measurements now wrap at the requested 48 mm font-measured width. Geometry and coverage remain checked; see docs/thread-callouts.md."
+  },
+  {
+    "part": "cgb245",
+    "side": "python",
+    "family": "callout",
+    "view": "plan",
+    "label": "4× ⌀5 THRU (2×2)",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "draftwright prints a grid's arrangement after its callout; ISO 129 has no notation for it and the grid's pitches already show it, so the port prints none (#225). The size, THRU and count agree."
+  },
+  {
+    "part": "cgb245",
+    "side": "rust",
+    "family": "callout",
+    "view": "plan",
+    "label": "4× ⌀5 THRU",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "draftwright prints a grid's arrangement after its callout; ISO 129 has no notation for it and the grid's pitches already show it, so the port prints none (#225). The size, THRU and count agree."
+  },
+  {
+    "part": "ctc01",
+    "side": "python",
+    "family": "callout",
+    "view": "plan",
+    "label": "4× ⌀25 THRU (2×2)",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "draftwright prints a grid's arrangement after its callout; ISO 129 has no notation for it and the grid's pitches already show it, so the port prints none (#225). The size, THRU and count agree."
+  },
+  {
+    "part": "ctc01",
+    "side": "rust",
+    "family": "callout",
+    "view": "plan",
+    "label": "4× ⌀25 THRU",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "draftwright prints a grid's arrangement after its callout; ISO 129 has no notation for it and the grid's pitches already show it, so the port prints none (#225). The size, THRU and count agree."
+  },
+  {
+    "part": "ctc01",
+    "side": "python",
+    "family": "callout",
+    "view": "plan",
+    "label": "4× ⌀35 THRU (2×2)",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "draftwright prints a grid's arrangement after its callout; ISO 129 has no notation for it and the grid's pitches already show it, so the port prints none (#225). The size, THRU and count agree."
+  },
+  {
+    "part": "ctc01",
+    "side": "rust",
+    "family": "callout",
+    "view": "plan",
+    "label": "4× ⌀35 THRU",
+    "count": 1,
+    "verdict": "rust-correct",
+    "reason": "draftwright prints a grid's arrangement after its callout; ISO 129 has no notation for it and the grid's pitches already show it, so the port prints none (#225). The size, THRU and count agree."
   }
 ]
