@@ -61,6 +61,19 @@ All notable changes to draftwright-rust are recorded here, in the style of
   a groove callout ending where the 19.4 step's extension line leaves the outline even after
   the finishing pass (the leader placer finds no other route), and gt2-pulley, whose extra side
   view, kept only for a radial hole, needs 303 mm across.
+- **A profile corner's angle is drawn near its corner (#227).** Its arc still started at the
+  radius that left the label's width between the arrowheads, from when the label broke the arc,
+  so an acute corner's arc began far out: vslot-2020x50's "45°" at 18 mm from its vertex, below
+  and left of the profile. With the label outside the arc, a profile corner's arc now starts at
+  the least radius that carries both arrowheads and keeps the label inside the sector, clear of
+  both extension lines, and it prefers a place whose label is 0.5 mm clear of other ink
+  (`label_crowded`), taking a crowded one only when no other is clear (`src/dims/angular.rs`).
+  The triangle fixture's "45°" arc goes from 18 mm to 8 mm, and it and the trapezoid fixture
+  now state their 63.435° corners; hex-standoff-m3's "6× 120°" moves in from 14 mm to 12 mm.
+  vslot-2020x50 states three corners instead of one ("45°" at 11 mm, two "135°" at 4 and 6 mm);
+  its callouts route around them, leaving "8× C2.661" and "⌀4.2 THRU" crowded (two notices).
+  10046 states one more corner, and CTC-03, FTC-08, 10049 and cgb207's angles move a little.
+  PMI and notch angles keep their radii. Planning vslot-2020x50 costs 1.4× the instructions.
 - **Angular dimensions are drawn with an unbroken dimension arc (#227).** The arc was broken
   around an inline label, and at the smallest radius that left room for the arrowheads all that
   showed of it was the two arrowheads (dw-examples' hex-standoff-m3 "6× 120°" and

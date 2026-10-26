@@ -38,7 +38,7 @@ const CODES: [&str; 4] = [
 ];
 
 /// A label box *b* grown by [`TEXT_CLEAR`] on every side; an empty box stays empty.
-fn clear_box(b: [f64; 4]) -> [f64; 4] {
+pub(super) fn clear_box(b: [f64; 4]) -> [f64; 4] {
     if b[2] <= b[0] || b[3] <= b[1] {
         return b;
     }

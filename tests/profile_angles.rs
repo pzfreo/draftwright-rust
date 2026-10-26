@@ -388,3 +388,64 @@ fn a_placed_profile_angle_stays_local_to_its_corner() {
     // The clean fixture parts place most of their corners.
     assert!(checked >= 4, "{checked} placed profile angles checked");
 }
+
+/// The page vertex and arc radius of a placed angle: where its witness lines meet, and how far
+/// its arc's first chord starts from there.
+fn vertex_and_radius(placed: &draftwright::dims::Placed) -> ([f64; 2], f64) {
+    let [e0, e1] = [placed.lines[0], placed.lines[1]];
+    let r = [e0[1][0] - e0[0][0], e0[1][1] - e0[0][1]];
+    let t = [e1[1][0] - e1[0][0], e1[1][1] - e1[0][1]];
+    let det = r[0] * t[1] - r[1] * t[0];
+    let k = ((e1[0][0] - e0[0][0]) * t[1] - (e1[0][1] - e0[0][1]) * t[0]) / det;
+    let vertex = [e0[0][0] + k * r[0], e0[0][1] + k * r[1]];
+    let q = placed.lines[2][0];
+    (vertex, (q[0] - vertex[0]).hypot(q[1] - vertex[1]))
+}
+
+/// #227: an acute corner's angle is drawn near its corner. The label sits outside the arc, so
+/// the arc need not leave the label's width between its arrowheads: the triangle fixture's 45°
+/// arc stays within six label heights of its vertex (it took about 18 mm, eight heights, when
+/// it did), its label outside the arc and within the sector, and every corner of the triangle
+/// and the trapezoid finds a clear place (each dropped its 63.435° when the arcs were wider).
+#[test]
+fn an_acute_corner_angle_is_drawn_near_its_corner() {
+    let plans: Vec<Plan> = ["profile-triangle.step", "profile-trapezoid.step"]
+        .iter()
+        .map(|f| {
+            let a = model::analyse_native(
+                &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                    .join("tests/fixtures/coverage-holes")
+                    .join(f),
+            )
+            .unwrap()
+            .1;
+            model::plan_recovered(&a, &Spec::default()).unwrap()
+        })
+        .collect();
+    for p in &plans {
+        for d in angles(p) {
+            assert!(d.placed.is_some(), "{} {}: {:?}", d.id, d.label, d.state);
+        }
+    }
+    let acute = angles(&plans[0])
+        .into_iter()
+        .find(|d| (d.value - 45.0).abs() < 1e-6)
+        .expect("the triangle's 45° corner gets its angle");
+    let placed = acute.placed.as_ref().unwrap();
+    let (vertex, radius) = vertex_and_radius(placed);
+    assert!(
+        radius <= 6.0 * 2.2,
+        "{}: arc radius {radius} mm from its corner",
+        acute.id
+    );
+    // Its label is outside the arc and within the sector between its witness lines.
+    let b = placed.label_box;
+    let centre = [(b[0] + b[2]) / 2.0, (b[1] + b[3]) / 2.0];
+    assert!((centre[0] - vertex[0]).hypot(centre[1] - vertex[1]) > radius);
+    let side = |l: [[f64; 2]; 2]| {
+        let d = [l[1][0] - l[0][0], l[1][1] - l[0][1]];
+        d[0] * (centre[1] - vertex[1]) - d[1] * (centre[0] - vertex[0])
+    };
+    let [s0, s1] = [side(placed.lines[0]), side(placed.lines[1])];
+    assert!(s0 * s1 < 0.0, "{}: label outside its sector", acute.id);
+}

@@ -5,5 +5,12 @@
   "count": 1,
   "verdict": "rust-correct",
   "reason": "Stream K7 nominal_rounded (info, once per sheet): every linear dimension here agrees with its drawn span (no label_vs_measured); some print the sheet's one decimal place where the model has more (the largest is named in the message). Ordinary within the general tolerance; the port's spec has no display precision to raise."
+ },
+ {
+  "part": "m10046",
+  "code": "view_annotation_inside_extents",
+  "count": 1,
+  "verdict": "rust-correct",
+  "reason": "#227 (info): with a profile corner's arc started near its vertex, the triangular pocket's 85.381\u00b0 corner (d:envelope/profile_angle.angle.f16_e44_e46), dropped before, is now stated in the front view with its label on blank face inside the view's box, clear of every visible edge: the interior placement place_profile proves (blank face), which this lint, reading only the item's interior flag, reports as informational. Verified on the rendered front view: no edge passes through the label."
  }
 ]
