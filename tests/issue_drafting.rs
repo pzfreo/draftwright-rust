@@ -1673,7 +1673,7 @@ fn an_authored_magnitude_is_never_rounded() {
         ("±1.234567", "±1.234567"),
         ("±0.000000123", "±0.000000123"),
         ("+0.015 -0.002", "+0.015 -0.002"),
-        ("+0.00001 -0", "+0.00001 -0.0"),
+        ("+0.00001 -0", "+0.00001 0"),
     ] {
         let plan = fixture_plan("plate", &tolerances(&[(id, authored)]));
         let d = dimension(&plan, id);

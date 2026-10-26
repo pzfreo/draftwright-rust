@@ -6,7 +6,8 @@
 //!   `.tolerance(t)` and `.tolerance(lo, hi)` print them (`_fmt_tolerance`). It is printed after
 //!   the term that states the dimension's value, at the drawn precision (one decimal) or the
 //!   authored digits if there are more: the drawn precision is a minimum, and an authored
-//!   magnitude is never rounded into another requirement.
+//!   magnitude is never rounded into another requirement. A zero deviation is written `0`,
+//!   unsigned (ISO 129-1): `+0 -0.1` prints `0 -0.1`.
 //! - **A fit** is set on a hole or a cylindrical boss (`features/<id>/fit`): an ISO 286 class
 //!   from draftwright's table (`fits.py`: holes H, G, F; shafts h, g, f, js, k, n, p; grades 5 to
 //!   11; nominal sizes up to 250 mm). It is printed after the diameter of the callout that states
@@ -92,8 +93,16 @@ fn tolerance(text: &str) -> Result<(String, bool), String> {
             lower.strip_prefix('-').and_then(magnitude),
         )
     {
+        // A zero deviation is written `0`, unsigned (ISO 129-1), as an imported band is ([`band`]).
+        let deviation = |sign: char, m: &str| {
+            if zero(m) {
+                "0".to_string()
+            } else {
+                format!("{sign}{}", printed(m))
+            }
+        };
         return Ok((
-            format!("+{} -{}", printed(u), printed(l)),
+            format!("{} {}", deviation('+', u), deviation('-', l)),
             zero(u) && zero(l),
         ));
     }
@@ -758,7 +767,8 @@ mod tests {
         assert_eq!(read("±1").unwrap(), "±1.0");
         assert_eq!(read("±0.02").unwrap(), "±0.02");
         assert_eq!(read("+0.1 -0.02").unwrap(), "+0.1 -0.02");
-        assert_eq!(read("+0.1 -0").unwrap(), "+0.1 -0.0");
+        assert_eq!(read("+0.1 -0").unwrap(), "+0.1 0");
+        assert_eq!(read("+0 -0.1").unwrap(), "0 -0.1");
         assert!(tolerance("±0").unwrap().1 && tolerance("+0.0 -0").unwrap().1);
         assert!(!tolerance("+0.1 -0").unwrap().1);
         assert_eq!(read("+-0.05").unwrap_err(), "\"+-0.05\" reads as \"±0.05\"");

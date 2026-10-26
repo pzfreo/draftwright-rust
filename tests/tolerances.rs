@@ -213,7 +213,8 @@ fn ctc01_prints_the_authored_bands_as_draftwright_does() {
             "tolerance",
         ),
         ("d:f:fillet:6/fillet.radius", "7× R50 ±0.5", "tolerance"),
-        ("d:f:slot:1/slot_width.length", "40 +0.1 -0.0", "tolerance"),
+        // Python prints "40 +0.1 -0.0"; ISO 129-1 writes a zero deviation 0, unsigned.
+        ("d:f:slot:1/slot_width.length", "40 +0.1 0", "tolerance"),
         (
             "d:f:polygonal_boss:1/polygon_across_flats.length",
             "HEX 100 ±0.2 A/F",
