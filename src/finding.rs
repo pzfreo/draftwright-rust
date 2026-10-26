@@ -181,6 +181,7 @@ catalogue! {
     "page_fit_uncertain" => Readability, Code, "The composed view and annotation zones may not fit.";
     "paired_ramp_step_requirement_missing" => Incomplete, Requirement, "The drawing does not state this required feature parameter.";
     "paired_ramp_step_requirement_unverifiable" => Incomplete, Requirement, "The drawing does not prove this required feature parameter.";
+    "part_squared_to_axes" => Advisory, Code, "The part lay a fraction of a degree off the file's axes and is drawn square, in its own frame.";
     "passage_requirement_unsupported" => Incomplete, Requirement, "No supported drawing grammar states this feature requirement.";
     "pinned_item_not_drawn" => Decision, Code, "The requested pin targets an item that is not drawn.";
     "pinned_reference_chain_changed" => Decision, Code, "The authored pin conflicts with the recovered reference chain.";

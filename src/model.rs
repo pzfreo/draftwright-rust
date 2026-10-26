@@ -219,6 +219,95 @@ pub struct Analysis {
     /// (`assembly_principal_drawn`).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub principal: bool,
+    /// The rotation that set the part, a fraction of a degree to [`SQUARE_WITHIN`] off the
+    /// file's axes, square to them in its own frame (#216): the part is read, drawn and
+    /// dimensioned so moved, and the plan says so (`part_squared_to_axes`).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub squared: Option<Squared>,
+}
+
+/// A part's own frame (quiddity's `infer_part_frame`) within this many degrees of the file's
+/// axes is taken as the axes it was meant to lie on (#216): a library or exported model a
+/// fraction of a degree off them is drawn square, not as a tilted box.
+pub const SQUARE_WITHIN: f64 = 2.0;
+
+/// A part's own frame this many degrees or less off the file's axes is on them: round-off,
+/// not a turn worth drawing square (`part_squared_to_axes` prints the angle to 0.01°).
+const SQUARE_BEYOND: f64 = 0.01;
+
+/// How a part slightly off the file's axes was set square to them ([`Analysis::squared`]).
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(deny_unknown_fields)]
+pub struct Squared {
+    /// The largest angle, degrees, between one of the part's own axes and the file axis it was
+    /// set along.
+    pub angle: f64,
+    /// The rigid motion applied to the part as read (`haecceity::Part::transformed`): a
+    /// rotation about the part's centre of mass.
+    pub placement: haecceity::step::Placement,
+}
+
+impl Squared {
+    /// The rotation about its centre of mass that sets *part*'s own frame along the file axes it
+    /// is nearest, when it is off them by more than [`SQUARE_BEYOND`] and at most
+    /// [`SQUARE_WITHIN`].
+    fn of(part: &Part) -> Option<Squared> {
+        // The frame is chosen from the plane normals and cylinder axes: with each of those on a
+        // file axis, so is the frame, and it is not worked out (most parts, at no cost).
+        let on_axis = SQUARE_BEYOND.to_radians().cos();
+        if part.faces.iter().all(|face| match &face.surface {
+            haecceity::geom::Surface::Plane { frame }
+            | haecceity::geom::Surface::Cylinder { frame, .. } => {
+                let z = frame.z;
+                let norm = (z[0] * z[0] + z[1] * z[1] + z[2] * z[2]).sqrt();
+                z.iter().any(|c| c.abs() >= on_axis * norm)
+            }
+            _ => true,
+        }) {
+            return None;
+        }
+        let frame = quiddity::frames::infer_part_frame(part).ok()?;
+        let mut rows = [[0.0; 3]; 3];
+        let mut taken = [false; 3];
+        let mut cos = 1.0_f64;
+        for axis in [frame.x, frame.y, frame.z] {
+            let k = (0..3).max_by(|&a, &b| axis[a].abs().total_cmp(&axis[b].abs()))?;
+            if taken[k] {
+                return None;
+            }
+            taken[k] = true;
+            // Row k is the axis, signed to the file axis it is nearest: it rotates onto that.
+            rows[k] = axis.map(|c| c * axis[k].signum());
+            cos = cos.min(axis[k].abs());
+        }
+        // Each row signed to its nearest axis, so within 2° the rows are a rotation, not a
+        // reflection.
+        let angle = cos.min(1.0).acos().to_degrees();
+        if angle <= SQUARE_BEYOND || angle > SQUARE_WITHIN {
+            return None;
+        }
+        let o = frame.origin;
+        // About the centre of mass, which stays where it was.
+        let placement = std::array::from_fn(|i| {
+            let r = rows[i];
+            [
+                r[0],
+                r[1],
+                r[2],
+                o[i] - (r[0] * o[0] + r[1] * o[1] + r[2] * o[2]),
+            ]
+        });
+        Some(Squared { angle, placement })
+    }
+}
+
+/// *part*, read from the file *analysis* was made from, as *analysis* drew it: set square to
+/// the file's axes when it was ([`Analysis::squared`]).
+pub fn as_analysed(part: Part, analysis: &Analysis) -> Result<Part, haecceity::step::StepError> {
+    match &analysis.squared {
+        Some(s) => part.transformed(&s.placement),
+        None => Ok(part),
+    }
 }
 
 /// A placed body of a STEP file that coincides with an earlier one (`coincident_bodies`).
@@ -1501,6 +1590,24 @@ fn analyse_step_input(
             }
         }
     };
+    // A part a fraction of a degree off the file's axes is read in its own frame (#216), unless
+    // the file carries PMI: that is placed, and its frames and sites measured, in the file's
+    // axes, so a part with PMI is drawn in them. A motion the kernel refuses leaves the part
+    // in the file's axes, as before.
+    let pmi = crate::pmi::attach_with(
+        bytes,
+        &part,
+        defs.as_deref().map_err(String::as_str),
+        chosen,
+    );
+    let mut squared = pmi.is_none().then(|| Squared::of(&part)).flatten();
+    let moved = squared
+        .as_ref()
+        .and_then(|s| part.transformed(&s.placement).ok());
+    if moved.is_none() {
+        squared = None;
+    }
+    let part = moved.unwrap_or(part);
     let drawn = crate::quiddity_evidence::drawn_faces(&part);
     let b = crate::quiddity_evidence::drawn_bounds(&part, &drawn);
     let (level_supports, risers) = crate::dims::levels::evidence(&part);
@@ -1578,12 +1685,7 @@ fn analyse_step_input(
         outer_profiles: crate::lint::profile_angles::evidence(&part),
         unrecognised: Vec::new(),
         unexplained_shapes: Vec::new(),
-        pmi: crate::pmi::attach_with(
-            bytes,
-            &part,
-            defs.as_deref().map_err(String::as_str),
-            chosen,
-        ),
+        pmi,
         face_attachments: crate::pmi::face_attachments(&part),
         parts: match &defs {
             Ok(defs) if defs.len() > 1 => file_parts(defs),
@@ -1591,6 +1693,7 @@ fn analyse_step_input(
         },
         coincident,
         principal,
+        squared,
     };
     let (_, toward, up) = VIEWS[3];
     // Invariant: Planned cameras come from the fixed views or checked section/detail cameras, with nonparallel axes.
@@ -5004,6 +5107,21 @@ fn plan_with_presentation(
             ),
             subjects: Vec::new(),
             refs: analysis.parts.iter().map(|p| p.name.clone()).collect(),
+            ..Default::default()
+        });
+    }
+    // A part slightly off the file's axes, drawn square in its own frame (#216).
+    if let Some(squared) = &analysis.squared {
+        problems.push(Problem {
+            id: "p:part_squared_to_axes:part".into(),
+            code: "part_squared_to_axes".into(),
+            severity: "info".into(),
+            message: format!(
+                "{} lies {:.2}° off the file's axes, within {SQUARE_WITHIN}° of them, so it is drawn and dimensioned square, in its own frame: its sizes are its own, not a tilted box's.",
+                analysis.binding.part, squared.angle
+            ),
+            subjects: Vec::new(),
+            refs: Vec::new(),
             ..Default::default()
         });
     }
@@ -10667,3 +10785,52 @@ pub mod projected_ink;
 #[cfg(test)]
 #[path = "model_recovery_tests.rs"]
 mod recovery_tests;
+
+#[cfg(test)]
+mod squared_tests {
+    use super::*;
+
+    /// The size of *part*'s box along the file's axes.
+    fn size(part: &Part) -> [f64; 3] {
+        let b = crate::quiddity_evidence::drawn_bounds(
+            part,
+            &crate::quiddity_evidence::drawn_faces(part),
+        );
+        std::array::from_fn(|k| b.max[k] - b.min[k])
+    }
+
+    #[test]
+    fn only_a_part_within_two_degrees_of_the_axes_is_squared() {
+        let plate =
+            haecceity::read_step(include_bytes!("../tests/fixtures/parts/plate.step")).unwrap();
+        assert!(Squared::of(&plate).is_none());
+        // Compounded, the largest axis turns about 1.12 times as far: 1.6° is within 2°, 2.5° not.
+        for degrees in [0.3_f64, 1.0, 1.6, 2.5, 30.0] {
+            let (s, c) = degrees.to_radians().sin_cos();
+            // About z, then a little about x, so no file axis is left a part axis.
+            let (sx, cx) = (degrees / 2.0).to_radians().sin_cos();
+            let turned = plate
+                .transformed(&[[c, -s, 0.0, 3.0], [s, c, 0.0, -2.0], [0.0, 0.0, 1.0, 1.0]])
+                .and_then(|p| {
+                    p.transformed(&[
+                        [1.0, 0.0, 0.0, 0.0],
+                        [0.0, cx, -sx, 0.0],
+                        [0.0, sx, cx, 0.0],
+                    ])
+                })
+                .unwrap();
+            match Squared::of(&turned) {
+                Some(squared) => {
+                    assert!(degrees < 2.0, "{degrees}° squared");
+                    // The largest axis's angle: the z and x turns compound on one axis.
+                    assert!(squared.angle >= degrees && squared.angle < degrees * 1.2);
+                    let back = turned.transformed(&squared.placement).unwrap();
+                    for (got, want) in size(&back).iter().zip(size(&plate)) {
+                        assert!((got - want).abs() < 1e-6, "{degrees}°: {got} {want}");
+                    }
+                }
+                None => assert!(degrees > 2.0, "{degrees}° not squared"),
+            }
+        }
+    }
+}

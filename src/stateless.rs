@@ -274,6 +274,8 @@ impl Cache {
                     }
                 }),
             }
+            // As the Analysis drew it: set square to the file's axes when it was (#216).
+            .and_then(|part| crate::model::as_analysed(part, &analysis))
             .map_err(|e| {
                 Error::failed(format!(
                     "cannot load cached STEP: {e}; register a valid STEP"
