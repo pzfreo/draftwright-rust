@@ -17,11 +17,13 @@ pub(crate) const TEXT_CLEAR: f64 = 0.5;
 /// Two parallel lines closer than this print as one, page mm: an extension line this near a
 /// centre line lies on it.
 const SAME_LINE: f64 = 0.01;
-/// A leader within this angle of a centre line, radians (5°), and within [`ALONG_GAP`] of it
+/// A leader within this angle of a centre line, radians (6°), and within [`ALONG_GAP`] of it
 /// over more than [`ALONG_LENGTH`], reads as that centre line. A radial leader leaving a hole's
 /// rim shares the axis's overrun past the rim by construction (at most 3 mm,
-/// [`crate::centrelines::overrun`]), so the length must exceed it with a margin.
-const ALONG_ANGLE: f64 = 5.0 * std::f64::consts::PI / 180.0;
+/// [`crate::centrelines::overrun`]), so the length must exceed it with a margin. hirth-joint's
+/// ⌀8 THRU leader, 5.2° off its axis, reads as it; gt2-pulley's two leaders fanning onto a rim
+/// either side of an axis, about 8° off it, read as their own lines.
+const ALONG_ANGLE: f64 = 6.0 * std::f64::consts::PI / 180.0;
 const ALONG_GAP: f64 = 2.0;
 const ALONG_LENGTH: f64 = 5.0;
 
@@ -199,6 +201,10 @@ fn contacts(plan: &Plan) -> Vec<Problem> {
         for v in plan.views.iter().filter(|v| v.sheet == sheet.number) {
             // A section's arrowheads and letters: printed ink that placement steers around.
             for w in &v.line_work {
+                let marks = crate::centrelines::section_marks(&plan.views, v, w);
+                if marks.is_empty() {
+                    continue;
+                }
                 let section = w.id.rsplit(':').next().unwrap_or_default();
                 // The section view the mark names, else the view it is marked in.
                 let named_view = plan
@@ -206,7 +212,7 @@ fn contacts(plan: &Plan) -> Vec<Problem> {
                     .iter()
                     .find(|s| s.cut.as_ref().is_some_and(|c| c.label == section))
                     .map_or(&v.id, |s| &s.id);
-                for (id, _, mark) in crate::centrelines::section_marks(&plan.views, v, w) {
+                for (id, _, mark) in marks {
                     let what = if id.contains(":letter:") {
                         "letter"
                     } else {
@@ -554,6 +560,12 @@ mod tests {
         // A shallow leader 1 mm off the axis over 10 mm, then a steep one.
         p.dimensions = vec![callout([[40., 41.], [50., 41.5]])];
         assert_eq!(code(&p), ["leader_along_centreline"]);
+        // About 5.3° off, 0.7 to 2 mm from the axis over 14 mm: still read as the axis (hirth).
+        p.dimensions = vec![callout([[40., 40.7], [54., 42.]])];
+        assert_eq!(code(&p), ["leader_along_centreline"]);
+        // Two leaders fanning onto a rim beside the axis, about 8° off it, read as their own.
+        p.dimensions = vec![callout([[40., 41.], [54., 43.]])];
+        assert!(code(&p).is_empty());
         p.dimensions = vec![callout([[40., 41.], [45., 60.]])];
         assert!(code(&p).is_empty());
         // Exactly collinear strokes are lint's leader_centerline_overlap.
@@ -587,8 +599,8 @@ mod tests {
         crate::model::note_final_conflicts(&mut p);
         assert!(
             p.sheet.basis.ends_with(&format!(
-                "the selected A4 1:1 candidate's {stated} annotation conflicts were counted \
-                 before its final repairs, which leave {}",
+                "the selected A4 1:1 candidate's annotation conflicts were counted \
+                 before its final repairs, which take them from {stated} to {}",
                 stated + 1
             )),
             "{}",

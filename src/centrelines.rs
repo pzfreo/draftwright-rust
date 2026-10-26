@@ -841,7 +841,7 @@ pub(crate) fn section_marks(
     let mut out: Vec<_> = ends
         .iter()
         .enumerate()
-        // Invariant: Cutting-plane ends contain the finite wing and filled arrow built above.
+        // Invariant: Each cutting-plane end holds its finite wing and filled arrow.
         .map(|(k, end)| {
             (
                 format!("{}:arrow:{k}", w.id),

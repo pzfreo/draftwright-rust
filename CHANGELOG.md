@@ -45,11 +45,15 @@ All notable changes to draftwright-rust are recorded here, in the style of
   through the A arrowhead; a label over a mark stays lint's); `extension_off_centreline`
   (warning) for an extension line 0.01–0.5 mm beside a centre line, which reads as locating that
   centre (nema17-mount-bracket's 28.85, STC-07's 12.7, 210.006 and 2× 9.297); and
-  `leader_along_centreline` (warning) for a leader within 5° and 2 mm of a centre line over more
-  than 5 mm (608zz, lm8uu, gt2-pulley and STC-07 bores). None moves an annotation or chooses
+  `leader_along_centreline` (warning) for a leader within 6° and 2 mm of a centre line over more
+  than 5 mm (608zz, lm8uu, lm10uu, hirth-joint, sprocket, gt2-pulley and STC-07 bores). None moves an annotation or chooses
   paper: layouts are unchanged. When a later repair changes the selected candidate's
   annotation-conflict count, the sheet basis says what the finished drawing has
-  (nema-17-bracket: 1 counted, 0 left), so the basis agrees with the plan's problems.
+  (nema-17-bracket: 1 counted, 0 left), so the basis agrees with the plan's problems. Still
+  not reported, so #226 stays open: a long leader crossing its own view (gt2-pulley's
+  43.8 mm HEX 2.000 A/F leader; length alone does not single it out, GRM-03, STC-07 and FTC-08
+  each have a longer clean leader), nema17-mount-bracket's R0.5 leader ending on a hidden
+  corner, and linkrods' 0.625 and 0.75 standing beside the boss they do not locate.
 - **Coincident copies of a body no longer multiply every count (#212).** A STEP holding the same
   solid several times on top of itself (a FreeCAD export of a body and its `Pad`) was drawn
   whole, each feature once per copy: dw-examples' gantry plate printed "24× ⌀5.1 THRU" for 12

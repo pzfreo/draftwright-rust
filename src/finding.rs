@@ -145,7 +145,7 @@ catalogue! {
     "iso_projection_empty" => Incomplete, Code, "The requested isometric view has no projected geometry.";
     "label_centerline_overlap" => Readability, Code, "A centreline crosses label ink.";
     "label_crowded" => Readability, Code, "Text lies within 0.5 mm of another label or of foreign line-work; it stays legible but reads as touching.";
-    "label_section_furniture_overlap" => Readability, Code, "Section furniture touches label ink, or annotation ink runs through or within 0.5 mm of a section mark.";
+    "label_section_furniture_overlap" => Readability, Code, "Section furniture touches label ink, or annotation ink runs through a section mark.";
     "label_vs_measured" => Incomplete, Code, "The printed label does not state the measured requirement.";
     "layout_recovery_exhausted" => Readability, Code, "No recovery removed all reported layout defects.";
     "layout_replanned" => Advisory, Code, "A successful sheet or scale recovery is reported.";

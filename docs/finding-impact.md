@@ -141,7 +141,7 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `iso_projection_empty` | incomplete | The requested isometric view has no projected geometry. |
 | `label_centerline_overlap` | readability | A centreline crosses label ink. |
 | `label_crowded` | readability | Text lies within 0.5 mm of another label or of foreign line-work; it stays legible but reads as touching. |
-| `label_section_furniture_overlap` | readability | Section furniture touches label ink, or annotation ink runs through or within 0.5 mm of a section mark. |
+| `label_section_furniture_overlap` | readability | Section furniture touches label ink, or annotation ink runs through a section mark. |
 | `label_vs_measured` | incomplete | The printed label does not state the measured requirement. |
 | `layout_recovery_exhausted` | readability | No recovery removed all reported layout defects. |
 | `layout_replanned` | advisory | A successful sheet or scale recovery is reported. |
