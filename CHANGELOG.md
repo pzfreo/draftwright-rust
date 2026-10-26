@@ -38,10 +38,9 @@ All notable changes to draftwright-rust are recorded here, in the style of
   dw-examples' T8 flange nut thread (`inconsistent_diameters`) yet also reported a hole on its
   flanks, printed `⌀6.5 THRU ⌴ ⌀8.3 ↧ 14.8` in a 15 mm part. No hole, nor its pattern, is now
   built from faces a `ModelledThreadRefusal` names; the refusal is reported against them as
-  warning `modelled_thread_refused`, and the feature can be declared with its thread in the
-  Spec. A smooth hole or boss at exactly the major diameter of an ISO metric size the title or
-  product names (`M3 x 12 hex standoff`) keeps its measured callout and gains warning
-  `possible_thread`, which `features/<id>/thread` resolves.
+  warning `modelled_thread_refused` until the feature is declared on them in the Spec. A smooth hole or boss at exactly the major diameter of an ISO metric size the title or
+  product names (`M3 x 12 hex standoff`) keeps its measured callout and gains info
+  `possible_thread`, which `features/<id>/thread` settles.
 - **Coincident copies of a body no longer multiply every count (#212).** A STEP holding the same
   solid several times on top of itself (a FreeCAD export of a body and its `Pad`) was drawn
   whole, each feature once per copy: dw-examples' gantry plate printed "24× ⌀5.1 THRU" for 12

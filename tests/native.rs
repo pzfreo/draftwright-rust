@@ -2362,7 +2362,6 @@ fn no_hole_is_built_on_faces_a_thread_refusal_names() {
     let faces: Vec<_> = n.holes.iter().map(|f| f.faces.clone()).collect();
     assert_eq!(faces, [vec![7], vec![8], vec![9]]);
     assert!(n.patterns.is_empty());
-    assert!(n.refusals.iter().any(|r| r.faces == [6]));
 
     let mut analysis = model::analyse(&fixture("parts/plate.step")).unwrap().1;
     model::recognise_document(&part, &mut analysis, &doc).unwrap();
@@ -2386,6 +2385,20 @@ fn no_hole_is_built_on_faces_a_thread_refusal_names() {
             .contains(&"recognition:refusal:0".to_string())
     );
     assert!(refused[0].message.contains("inconsistent diameters"));
+
+    // Declaring the feature on those faces, as the warning asks, settles it.
+    let face = draftwright::recognition_corrections::face_fingerprint(&analysis, 6).unwrap();
+    let spec: model::Spec = serde_json::from_value(serde_json::json!({
+        "schema": model::Spec::default().schema,
+        "feature_declarations": [{"id": "f:declared:thread", "kind": "hole", "faces": [face]}],
+    }))
+    .unwrap();
+    let plan = model::plan_recovered(&analysis, &spec).unwrap();
+    assert!(
+        plan.problems
+            .iter()
+            .all(|p| p.code != "modelled_thread_refused")
+    );
 }
 
 /// A hole at the major diameter of the metric size a part is named for is reported as a possible
@@ -2415,6 +2428,19 @@ fn a_smooth_hole_at_a_named_metric_size_is_a_possible_thread() {
     for title in ["Mounting plate", "M5 plate", "Model 6 plate", "6 mm plate"] {
         assert!(possible(titled(title)).is_empty(), "{title}");
     }
+    // Info only: a plain bore at that size is as likely, and the pattern owns the thread.
+    let plan = model::plan_recovered(
+        &analysis,
+        &serde_json::from_value(titled("M6 plate")).unwrap(),
+    )
+    .unwrap();
+    let p = plan
+        .problems
+        .iter()
+        .find(|p| p.code == "possible_thread")
+        .unwrap();
+    assert_eq!(p.severity, "info");
+    assert!(p.message.contains("features/f:hole_pattern:1/thread"));
     let mut spec = titled("M6 plate");
     spec["features"] = serde_json::json!({"f:hole:1": {"thread": {"designation": "M6"}}});
     assert_eq!(possible(spec), ["f:hole:2", "f:hole:3", "f:hole:4"]);

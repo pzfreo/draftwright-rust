@@ -69,12 +69,12 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             shape:Shape::Callout {sites,arcs:Vec::new()},turning:None,
         });
     }
-    problems.extend(refused(cx.analysis));
     (out, problems)
 }
 /// A thread recognition refused is no hole, boss or thread on the sheet (#218): the reader
-/// leaves out holes on its faces, so the gap is reported here, against those faces.
-fn refused(a: &Analysis) -> Vec<Problem> {
+/// leaves out holes on its faces, so the gap is reported here, against those faces, until a
+/// declared feature or a thread (PMI or authored) covers them.
+pub(crate) fn refused(a: &Analysis, s: &Spec) -> Vec<Problem> {
     let Some(r) = &a.recognition else {
         return Vec::new();
     };
@@ -82,8 +82,18 @@ fn refused(a: &Analysis) -> Vec<Problem> {
         .iter()
         .enumerate()
         .filter(|(_, r)| r.subtype == "ModelledThreadRefusal")
+        .filter(|(_, r)| {
+            !a.features.iter().any(|f| {
+                f.id.starts_with("f:declared:") && f.faces.iter().any(|i| r.faces.contains(i))
+            }) && !threaded(a, s, &r.faces)
+        })
         .map(|(i, r)| {
-            let reason = r.parameters["reason"].as_str().unwrap_or("unstated").replace('_', " ");
+            let reason = r
+                .parameters
+                .get("reason")
+                .and_then(Value::as_str)
+                .unwrap_or("unstated")
+                .replace('_', " ");
             Problem {
                 id: format!("p:modelled_thread_refused:recognition:refusal:{i}"),
                 code: "modelled_thread_refused".into(),
@@ -100,6 +110,16 @@ fn refused(a: &Analysis) -> Vec<Problem> {
             }
         })
         .collect()
+}
+/// Whether a PMI or Spec-authored thread (merged into the PMI) sits on any of `faces`.
+fn threaded(a: &Analysis, s: &Spec, faces: &[usize]) -> bool {
+    match &a.pmi {
+        Some(crate::pmi::Reading::Read(r)) if s.pmi != crate::model::PmiMode::Ignore => r
+            .records
+            .iter()
+            .any(|r| r.kind.ends_with("thread") && r.faces.iter().any(|i| faces.contains(i))),
+        _ => false,
+    }
 }
 fn not_depicted(f: &crate::bridge::Feature, why: &str) -> Problem {
     Problem {
@@ -118,11 +138,13 @@ fn unmatched(f: &crate::bridge::Feature) -> Problem {
 }
 
 /// The ISO 261 coarse sizes a part's title, product or file name gives as `M<d>` (`M3 x 12`,
-/// `Hex-Standoff-M3-12mm`), as a fastener names its thread.
+/// `Hex-Standoff-M3-12mm`), as a fastener names its thread. `binding.part` is the file stem, or
+/// for an assembly member its product name, the stem then being `source_stem`.
 fn named_sizes(a: &Analysis, s: &Spec) -> Vec<f64> {
     let names = [
         s.sheet.title.get("title").map(String::as_str),
         a.product_name.as_deref(),
+        Some(a.binding.part.as_str()),
         a.source_stem.as_deref(),
     ];
     let mut sizes = Vec::new();
@@ -152,34 +174,37 @@ fn named_sizes(a: &Analysis, s: &Spec) -> Vec<f64> {
 
 /// A fastener named by a metric size whose unthreaded hole or boss is at exactly that major
 /// diameter is probably a thread modelled smooth (#218). Its measured callout is kept, since no
-/// thread is proved, and the gap is reported. Authoring the feature's `thread`, or a PMI thread
-/// on its faces, resolves it.
+/// thread is proved, and the doubt is noted as info: a plain bore (a dowel hole) is equally
+/// possible, so nothing is asked of it. Authoring the feature's `thread`, or a PMI thread on its
+/// faces, settles it.
 pub(crate) fn possible_threads(a: &Analysis, s: &Spec) -> Vec<Problem> {
     let sizes = named_sizes(a, s);
+    let patterns = a
+        .recognition
+        .as_ref()
+        .map_or(&[][..], |r| r.patterns.as_slice());
     a.features
         .iter()
         .filter(|f| matches!(f.kind.as_str(), "hole" | "boss"))
         .filter(|f| s.features.get(&f.id).and_then(|f| f.thread.as_ref()).is_none())
-        .filter(|f| match &a.pmi {
-            Some(crate::pmi::Reading::Read(r)) if s.pmi != crate::model::PmiMode::Ignore => {
-                !r.records.iter().any(|r| {
-                    r.kind.ends_with("thread") && r.faces.iter().any(|i| f.faces.contains(i))
-                })
-            }
-            _ => true,
-        })
+        .filter(|f| !threaded(a, s, &f.faces))
         .filter_map(|f| {
             let d = f.parameters.get("diameter")?.as_f64()?;
             let size = sizes.iter().find(|&&n| (n - d).abs() <= 0.02 + 1e-10)?;
+            // A patterned hole's thread is set once, on its pattern.
+            let owner = patterns
+                .iter()
+                .find(|p| p.members.contains(&f.id))
+                .map_or(&f.id, |p| &p.id);
             Some(Problem {
                 id: format!("p:possible_thread:{}", f.id),
                 code: "possible_thread".into(),
-                severity: "warning".into(),
+                severity: "info".into(),
                 message: format!(
                     "{} is at the major diameter of the M{} this part is named for, but no thread is modelled or recognised, so the sheet states it plain. If it is threaded, set features/{}/thread to its designation.",
                     crate::wording::capital(&crate::wording::feature(f)),
                     fmt(*size),
-                    f.id
+                    owner
                 ),
                 subjects: vec![f.id.clone()],
                 ..Default::default()
