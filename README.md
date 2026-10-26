@@ -60,6 +60,9 @@ draftwright render part.step --spec part.drawing.json -o out
 draftwright render part.step -o out --formats svg,pdf,png --dpi 150
                                                        # choose the formats; PNG at --dpi
 draftwright review part.step --spec part.drawing.json  # the drawing as SVG text, with problems and lint
+draftwright revise old.step new.step --spec part.drawing.json -o changes
+                                                       # the Spec carried to a new revision of the
+                                                       # part (ADR R3), its drawing, and what changed
 
 ~/repos/quiddity/.venv/bin/python tools/recognise.py part.step -o part.features.json
 draftwright render part.step --features part.features.json -o out
@@ -79,6 +82,26 @@ invocation's staging file. Output names and rendered bytes are unchanged.
 library (`api::analyse(step, None)` and the rest) are not switched to native recognition:
 there, no `features` still means no features, and Python's JSON is passed as `features`.
 `api::analyse_from` and its siblings take `Features::Native` for the command line's choice.
+
+`revise` matches the two revisions with quiddity's correspondence and carries the Spec to the
+new one: an entry naming a feature or face that renumbered is renamed, and one whose feature is
+gone (*orphaned*) or cannot be told apart from its repeats (*ambiguous*) is set aside, kept in
+the report, never deleted or guessed. It then draws the new revision with the carried Spec and
+compares the drawings. It writes into the `-o` directory:
+
+- `report.json` and `report.md`: the verdict (`ok`, `decide` when an entry or match needs a
+  person, `problems` when the new drawing has problems the old did not), the features that
+  changed, the dimensions and notes that changed, the Spec entries that need a decision, and
+  the new drawing problems. `report.md` is written to be posted as a pull request comment.
+- `spec.json`: the carried Spec, to commit beside the new STEP file.
+- `changes.svg` and `changes.png`: the new drawing marked up. Each view's visible edges are
+  compared in the part's own coordinates, so a view that moved on the sheet still compares.
+  Edges only in the new drawing are green, edges gone from the old one red, and new or changed
+  dimensions and notes boxed in green or orange.
+- `drawing.svg`: the new drawing.
+
+When the whole part is turned between the files, edges are not compared and the report says so.
+PMI frames and datums are not yet compared.
 
 To use the MCP server from an MCP client, register the `draftwright-mcp` binary as a stdio
 server (for Claude Code: `claude mcp add draftwright -- /path/to/draftwright-mcp`). It has not
