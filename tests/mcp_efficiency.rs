@@ -285,11 +285,13 @@ fn one_feature_problem_query_returns_all_member_fixes() {
     // also took the 100 slot length's extension off the ⌀35 hole; in the 3 mm frame gutter's
     // layout, 2026-10-25, that crossing stays.) Other records can refresh their scoped
     // alternatives without becoming new physical findings. #226: the same fixes also clear
-    // three label_crowded notices (line-work within 0.5 mm of 650, 370 and 4× R25).
-    assert_eq!(gone.len(), 9);
+    // two label_crowded notices (line-work within 0.5 mm of 650 and 370). With #223–#225's
+    // CTC-01 changes the 4× R25 label is no longer crowded before the fixes, so it has none
+    // to clear.
+    assert_eq!(gone.len(), 8);
     assert_eq!(
         gone.iter().filter(|p| p["code"] == "label_crowded").count(),
-        3
+        2
     );
     for p in &problems {
         assert!(gone.iter().any(|resolved| resolved["id"] == p["id"]));

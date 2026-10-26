@@ -1923,36 +1923,41 @@ fn a_groove_callout_leads_to_its_floor() {
     for (name, analysis, plan) in planned() {
         let frame = holes::frame(analysis);
         for d in &plan.dimensions {
-            let Some(m) = d
+            // A counted callout (#220: connector109's "2× 6 WIDE × ø122") measures each equal
+            // groove, so each of its tips must lie on one of their floors; every groove it
+            // measures counts as seen.
+            let floors: Vec<_> = d
                 .measurements
                 .iter()
-                .find(|m| m.parameter == "groove.diameter")
-            else {
+                .filter(|m| m.parameter == "groove.diameter")
+                .collect();
+            if floors.is_empty() {
                 continue;
-            };
+            }
             let (Some(p), Some(v)) = (&d.placed, plan.views.iter().find(|v| v.id == d.view)) else {
                 continue;
             };
-            seen += 1;
-            let f = analysis
-                .features
-                .iter()
-                .find(|f| f.id == m.feature)
-                .unwrap();
-            let at = lint::parameters::place(&frame, f.parameters.get("at")).unwrap();
-            let axis = lint::parameters::direction(&frame, f.parameters.get("axis")).unwrap();
-            let k = holes::principal(axis).unwrap();
-            let r = 0.5 * m.value;
-            let tip = p.arrows[0][0];
-            let on_floor = (0..3).filter(|&j| j != k).any(|j| {
-                [-r, r].into_iter().any(|o| {
-                    let mut site = at;
-                    site[j] += o;
-                    let s = page_of(v, analysis, site);
-                    (tip[0] - s[0]).hypot(tip[1] - s[1]) < 1e-3
+            let on_floor_of = |feature: &str, value: f64, tip: [f64; 2]| {
+                let f = analysis.features.iter().find(|f| f.id == feature).unwrap();
+                let at = lint::parameters::place(&frame, f.parameters.get("at")).unwrap();
+                let axis = lint::parameters::direction(&frame, f.parameters.get("axis")).unwrap();
+                let k = holes::principal(axis).unwrap();
+                let r = 0.5 * value;
+                (0..3).filter(|&j| j != k).any(|j| {
+                    [-r, r].into_iter().any(|o| {
+                        let mut site = at;
+                        site[j] += o;
+                        let s = page_of(v, analysis, site);
+                        (tip[0] - s[0]).hypot(tip[1] - s[1]) < 1e-3
+                    })
                 })
-            });
-            assert!(on_floor, "{name}: {} tip at {tip:?}", d.id);
+            };
+            for arrow in &p.arrows {
+                let tip = arrow[0];
+                let on_floor = floors.iter().any(|m| on_floor_of(&m.feature, m.value, tip));
+                assert!(on_floor, "{name}: {} tip at {tip:?}", d.id);
+            }
+            seen += floors.len();
         }
     }
     if !sampled().is_empty() {
