@@ -3814,6 +3814,8 @@ fn plan_recovered_inner(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invali
                 natural.as_ref(),
             );
             crate::dims::callout_routes::finish(effective.as_ref(), spec, &mut plan);
+            crate::dims::hole_marks::attach(effective.as_ref(), spec, &mut plan);
+            crate::dims::gdt::cited_undrawn(&mut plan);
             crate::dims::pmi_policy::audit(effective.as_ref(), &plan.spec.clone(), &mut plan);
             if crate::dims::pmi_policy::carries(effective.as_ref()) || !spec.origin.is_empty() {
                 crate::fixes::attach(effective.as_ref(), &mut plan);
@@ -4444,6 +4446,8 @@ fn plan_inner(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
                 natural.as_ref(),
             );
             crate::dims::callout_routes::finish(analysis, spec, &mut plan);
+            crate::dims::hole_marks::attach(analysis, spec, &mut plan);
+            crate::dims::gdt::cited_undrawn(&mut plan);
             if !crate::placement_intent::has_pins(spec) {
                 plan.record_dimension_labels();
             }

@@ -2508,12 +2508,12 @@
      "kind": "datum_ref",
      "rides_on": null,
      "text": "H",
-     "view": "front"
+     "view": "plan"
     }
    ]
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright's drawing: not drawn, dropped (plan_incomplete, pmi_dropped); the port's: 'H' (datum ref, front view). As known_pmi_lowering.json (drawn, rust-correct): draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+  "evidence": "draftwright's drawing: not drawn, dropped (plan_incomplete, pmi_dropped); the port's: 'H' (datum ref, plan view). As known_pmi_lowering.json (drawn, rust-correct): draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet). Since #224 the symbol is attached to its hole's mark in the view that sees the hole end-on (its size callout, plan view), not drawn edge-on on the hole's hidden silhouette."
  },
  {
   "file": "nist_ctc_02_asme1_ap242-e2.stp",
@@ -4777,12 +4777,12 @@
      "kind": "datum_ref",
      "rides_on": null,
      "text": "F",
-     "view": "side"
+     "view": "front"
     }
    ]
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright's drawing: not drawn, dropped (plan_incomplete, pmi_dropped); the port's: 'F' (datum ref, side view). As known_pmi_lowering.json (drawn, rust-correct): draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+  "evidence": "draftwright's drawing: not drawn, dropped (plan_incomplete, pmi_dropped); the port's: 'F' (datum ref, front view). As known_pmi_lowering.json (drawn, rust-correct): draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet). Since #224 the symbol is attached to its hole's mark in the view that sees the hole end-on (its hole table tag C2, front view), not drawn edge-on on the hole's hidden silhouette."
  },
  {
   "file": "nist_ftc_10_asme1_ap242-e2.stp",
@@ -8127,6 +8127,36 @@
   "evidence": "draftwright states '6× ⌀10 +0.09 -0.0 THRU EQ SP ON ⌀90 BC' (dimension, plan view); the port states '6× ⌀10 +0.09 0 THRU EQ SP ON ⌀90 BC' (dimension, plan view). The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
  },
  {
+  "file": "spool_fits.step",
+  "record": "datum:0:1:4:8",
+  "port": "datum:#6324",
+  "field": "drawing",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "datum_ref",
+     "rides_on": null,
+     "text": "B",
+     "view": "front"
+    }
+   ]
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "datum_ref",
+     "rides_on": null,
+     "text": "B",
+     "view": "plan"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: 'B' (datum ref, front view); the port's: 'B' (datum ref, plan view). Datum B is the ⌀62 bore, a feature of size: draftwright draws its symbol edge-on in the front view, on the bore's silhouette, which is hidden there. Since #224 the port attaches it to the bore's own size callout in the plan view, which sees the bore end-on, as ASME Y14.5 and ISO 5459 place a feature of size's datum symbol on its size dimension; annotations/<id>/place keeps draftwright's attachment."
+ },
+ {
   "file": "string_post_tapped.step",
   "record": "datum:0:1:4:5",
   "port": "datum:#3086",
@@ -8309,6 +8339,36 @@
   },
   "verdict": "rust-correct",
   "evidence": "S5 native symbolic-bore port: this source declares its literal ISO 286 H7/H11 class without numeric limits. Proven internal cylinders correlate uniquely to the recognised bore owner; its native text now retains the class without computing unstated limits or duplicating the dimension. Python drops the class (and draws the 62 mm bore separately). The symbolic-fit regression and unchanged exact-one-outcome/NIST open-question tests verify the reading and owner. Maintainer decision 2026-10-16: the default drawing states the class alone; sheet/fit_deviations explicitly adds stacked upper/lower deviations."
+ },
+ {
+  "file": "hw_spool_fits_intent.step",
+  "record": "datum:0:1:4:8",
+  "port": "datum:#6322",
+  "field": "drawing",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "datum_ref",
+     "rides_on": null,
+     "text": "B",
+     "view": "front"
+    }
+   ]
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "datum_ref",
+     "rides_on": null,
+     "text": "B",
+     "view": "plan"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: 'B' (datum ref, front view); the port's: 'B' (datum ref, plan view). Datum B is the ⌀62 bore, a feature of size: draftwright draws its symbol edge-on in the front view, on the bore's silhouette, which is hidden there. Since #224 the port attaches it to the bore's own size callout in the plan view, which sees the bore end-on, as ASME Y14.5 and ISO 5459 place a feature of size's datum symbol on its size dimension; annotations/<id>/place keeps draftwright's attachment."
  },
  {
   "file": "hw_string_post_tapped_intent.step",

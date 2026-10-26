@@ -151,7 +151,7 @@ const SHELF: f64 = 2.0;
 const PAD: f64 = 0.6 * TEXT;
 const ZONE_R: f64 = 0.42 * TEXT;
 const MATERIAL_R: f64 = 0.62 * TEXT;
-const TRIANGLE: f64 = 1.4 * TEXT;
+pub(super) const TRIANGLE: f64 = 1.4 * TEXT;
 const RING: f64 = 0.7 * ARROW;
 /// The clearance beyond the dimensions, and between tiers.
 const CLEAR: f64 = crate::layout::GDT_CLEAR;
@@ -2098,6 +2098,44 @@ fn plan_search(
     Some((out, problems))
 }
 
+/// Datum *letter*'s symbol with its triangle's base centred at *tip* and its line running out
+/// toward *side*, its frame in tier *tier* (0 nearest, as [`first_tier`] spaces it from a tip).
+pub(super) fn datum_at(letter: &str, tip: P2, side: &str, tier: usize) -> GdtPlaced {
+    let d = outward(side);
+    let size = [H, H];
+    let reach = 0.9 * TRIANGLE + 0.8 * TEXT + TEXT + tier as f64 * step(Shape::Datum, side, size);
+    let pos = dot(tip, d) + reach;
+    let c = candidate(
+        Shape::Datum,
+        tip,
+        side,
+        if d[0] + d[1] < 0.0 { -pos } else { pos },
+        size,
+    );
+    let laid = datum_frame(letter);
+    let shift = |p: P2| [p[0] + c.origin[0], p[1] + c.origin[1]];
+    let moved = |t: &GdtText| GdtText {
+        text: t.text.clone(),
+        at: shift(t.at),
+        size: t.size,
+    };
+    GdtPlaced {
+        tip,
+        lines: c.lines,
+        arrows: c.arrows,
+        label_box: c.label_box,
+        strokes: laid
+            .strokes
+            .iter()
+            .map(|[a, b]| [shift(*a), shift(*b)])
+            .collect(),
+        arcs: Vec::new(),
+        fills: c.fills,
+        letters: laid.letters.iter().map(moved).collect(),
+        runs: laid.runs.iter().map(moved).collect(),
+    }
+}
+
 /// How free a surface finish is to move along its strip: its count of other proven sites there
 /// (none for anything else). In one strip the finish with fewest places is placed first, so a
 /// narrow face (a flange) keeps its only site before a long one takes the paper beside it.
@@ -2140,6 +2178,56 @@ fn polygons_touch(a: &[P2], b: &[P2]) -> bool {
             a[1] < b[0] - 1e-9 || b[1] < a[0] - 1e-9
         })
     })
+}
+
+/// A drawn frame citing a datum whose symbol the drawing does not show (#224): the frame cannot
+/// be read without it, so each such frame is said once, naming the datums it lacks
+/// (`frame_datum_not_drawn`, a warning). Why each datum is missing is its own problem
+/// (`pmi_not_lowered`, `pmi_not_drawn`, an omission). Replaces any earlier statement.
+pub(crate) fn cited_undrawn(plan: &mut crate::model::Plan) {
+    plan.problems.retain(|p| p.code != "frame_datum_not_drawn");
+    let drawn: BTreeSet<&str> = plan
+        .gdt
+        .iter()
+        .filter(|g| g.kind == "datum_feature" && g.state == State::Shown)
+        .filter_map(|g| g.cells.first().map(String::as_str))
+        .collect();
+    let mut found = Vec::new();
+    for g in plan
+        .gdt
+        .iter()
+        .filter(|g| g.kind == "control_frame" && g.state == State::Shown)
+    {
+        let mut missing: Vec<&str> = g
+            .cells
+            .iter()
+            .skip(2)
+            .map(String::as_str)
+            .filter(|d| !drawn.contains(d))
+            .collect();
+        missing.dedup();
+        if missing.is_empty() {
+            continue;
+        }
+        found.push(Problem {
+            id: format!("p:frame_datum_not_drawn:{}", g.id),
+            code: "frame_datum_not_drawn".into(),
+            severity: "warning".into(),
+            message: format!(
+                "The feature control frame {} cites datum{} {} that the drawing does not show, so it cannot be read in full. Draw the datum{} (see why {} not drawn) or review the frame manually.",
+                g.label,
+                if missing.len() > 1 { "s" } else { "" },
+                missing.join(", "),
+                if missing.len() > 1 { "s" } else { "" },
+                if missing.len() > 1 { "they are" } else { "it is" },
+            ),
+            subjects: vec![g.id.clone()],
+            refs: missing.iter().map(|d| format!("datum {d}")).collect(),
+            ..Default::default()
+        });
+    }
+    plan.problems.extend(found);
+    plan.status = crate::completeness::status(&plan.problems);
 }
 
 /// Independent final-plan lint, including pinned and unavoidable placements.
