@@ -62,10 +62,11 @@ pub fn analyse_native_in(dir: Option<&Path>, path: &Path) -> Result<(Part, Analy
     })
 }
 
-/// *compute*'s part and Analysis of the whole STEP file at *path* (no part of an assembly
-/// chosen), the Analysis read from or written to the cache in *dir* when given, keyed by the
-/// file's name and bytes and *recipe*: which reading *compute* makes, with every other input it
-/// reads (recognition JSON, for one). On a hit the part is read from the file again.
+/// *compute*'s part and Analysis of the STEP file at *path* with no part of an assembly chosen
+/// (the whole file, or the part `binding.part_index` names when its bodies coincide), the
+/// Analysis read from or written to the cache in *dir* when given, keyed by the file's name and
+/// bytes and *recipe*: which reading *compute* makes, with every other input it reads
+/// (recognition JSON, for one). On a hit the part is read from the file again.
 pub fn analysed_in<E>(
     dir: Option<&Path>,
     path: &Path,

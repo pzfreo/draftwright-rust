@@ -206,11 +206,12 @@ pub struct Analysis {
     pub coincident: Vec<CoincidentBody>,
 }
 
-/// A placed body of a STEP file that coincides with an earlier one ([`coincident_bodies`]).
+/// A placed body of a STEP file that coincides with an earlier one (`coincident_bodies`).
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields)]
 pub struct CoincidentBody {
-    /// Its part's index in `parts`, the part's name, and which of its placements it is.
+    /// Its part's index in `parts`, the part's name, and which of its placements it is (from 0,
+    /// as the parts are numbered).
     pub part: usize,
     pub name: String,
     pub placement: usize,
@@ -1365,31 +1366,28 @@ fn analyse_step_input(
     let (part, defs, part_name) = match chosen {
         None => {
             let part = haecceity::read_step(bytes).map_err(|e| step_refused(name, e))?;
-            let defs = haecceity::step::read_part_definitions(bytes)
+            // `read_part_definitions` is this file's `parts`: read once, kept for part *k*.
+            let file = haecceity::step::StepFile::read(bytes)
                 .map_err(|e| format!("cannot read the parts: {e}"));
-            if let Ok(defs) = &defs {
-                coincident = coincident_bodies(&part, defs);
+            if let Ok(file) = &file {
+                coincident = coincident_bodies(&part, &file.parts);
             }
-            let placed = defs.as_ref().map_or(0, |defs| {
-                defs.iter().map(|d| d.placements.len()).sum::<usize>()
-            });
-            match coincident.first() {
+            match (file, coincident.first()) {
                 // Every body of an assembly coincides with part *k*'s first: *k* alone is drawn,
                 // as `--part k` draws it, so no feature is counted once per copy (#212). A file
                 // of one part placed on itself is still read whole: its part 0 is the file.
-                Some(c)
-                    if coincident.len() + 1 == placed
-                        && defs.as_ref().is_ok_and(|d| d.len() > 1) =>
+                (Ok(file), Some(c))
+                    if file.parts.len() > 1
+                        && coincident.len() + 1
+                            == file.parts.iter().map(|d| d.placements.len()).sum::<usize>() =>
                 {
                     let k = c.of;
-                    let file = haecceity::step::StepFile::read(bytes)
-                        .map_err(|e| step_refused(name, e))?;
                     chosen = Some(k);
                     let part = file.part(k).map_err(|e| step_refused(name, e))?;
                     let name = file.parts[k].name.clone();
                     (part, Ok(file.parts), name)
                 }
-                _ => (part, defs, stem.clone()),
+                (file, _) => (part, file.map(|f| f.parts), stem.clone()),
             }
         }
         Some(k) => {
@@ -4823,7 +4821,7 @@ fn plan_with_presentation(
             .map(|c| {
                 let placed = analysis.parts.get(c.part).is_some_and(|p| p.instances > 1);
                 if placed {
-                    format!("{}: {} (placement {})", c.part, c.name, c.placement + 1)
+                    format!("{}: {} (placement {})", c.part, c.name, c.placement)
                 } else {
                     format!("{}: {}", c.part, c.name)
                 }
@@ -4840,6 +4838,13 @@ fn plan_with_presentation(
                 format!(
                     "Every body of {file} coincides with part {k} ({}), which is drawn alone: the copies ({bodies}) are not drawn, so their features are not counted again. --part K on the command line, or \"part\": K in a request, draws part K instead.",
                     analysis.binding.part
+                ),
+            ),
+            // A file of one part has no other part to choose: its part 0 is the whole file.
+            None if analysis.parts.is_empty() => (
+                "warning",
+                format!(
+                    "{file} has bodies that coincide with another ({bodies}); the file is drawn whole, so their features are counted once per copy."
                 ),
             ),
             None => (

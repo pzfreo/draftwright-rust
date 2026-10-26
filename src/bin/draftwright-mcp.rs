@@ -45,7 +45,8 @@ fn tools() -> Value {
         "minimum": 0,
         "description": "Draw one part of an assembly alone, in its own frame and with its PMI \
             only: its index, as the parts tool lists them. Without it the whole file is drawn as \
-            one part, and an assembly's plan warns (assembly_drawn_whole).",
+            one part, and an assembly's plan warns (assembly_drawn_whole), unless its bodies all \
+            coincide (coincident_bodies).",
     });
     let analysis = json!({
         "type": "object",

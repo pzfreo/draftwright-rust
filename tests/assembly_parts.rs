@@ -247,7 +247,7 @@ fn coincident_bodies_are_drawn_once_as_the_part_alone() {
     assert_eq!(reported[0]["severity"], "info");
     let message = reported[0]["message"].as_str().unwrap();
     assert!(
-        message.contains("0: V-Slot-20x20-100mm (placement 2), 1: Pad"),
+        message.contains("0: V-Slot-20x20-100mm (placement 1), 1: Pad"),
         "{message}"
     );
     assert!(message.contains("--part"), "{message}");
