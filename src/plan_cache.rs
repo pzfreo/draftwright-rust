@@ -99,7 +99,7 @@ pub fn analysed_in<E>(
     match computed {
         Some(part) => Ok((part, analysis)),
         // The part the Analysis was read from: one part alone when every body coincided with
-        // it (#212).
+        // it (#212), set square to the file's axes when it was (#216).
         None => {
             match model::step_bytes(&bytes)
                 .ok()
@@ -108,7 +108,9 @@ pub fn analysed_in<E>(
                     Some(k) => crate::haecceity::step::StepFile::read(&b)
                         .and_then(|file| file.part(k))
                         .ok(),
-                }) {
+                })
+                .and_then(|part| model::as_analysed(part, &analysis).ok())
+            {
                 Some(part) => Ok((part, analysis)),
                 None => (compute.take().unwrap())(),
             }

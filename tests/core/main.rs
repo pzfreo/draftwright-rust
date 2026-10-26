@@ -35,6 +35,8 @@ mod model;
 mod native;
 #[path = "../native_recesses.rs"]
 mod native_recesses;
+#[path = "../off_axis.rs"]
+mod off_axis;
 #[path = "../pmi.rs"]
 mod pmi;
 #[path = "../pmi_lowering.rs"]

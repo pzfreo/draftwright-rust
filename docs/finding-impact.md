@@ -176,6 +176,7 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `page_fit_uncertain` | readability | The composed view and annotation zones may not fit. |
 | `paired_ramp_step_requirement_missing` | incomplete | The drawing does not state this required feature parameter. |
 | `paired_ramp_step_requirement_unverifiable` | incomplete | The drawing does not prove this required feature parameter. |
+| `part_squared_to_axes` | advisory | The part lay a fraction of a degree off the file's axes and is drawn square, in its own frame. |
 | `passage_requirement_unsupported` | incomplete | No supported drawing grammar states this feature requirement. |
 | `pinned_item_not_drawn` | decision | The requested pin targets an item that is not drawn. |
 | `pinned_reference_chain_changed` | decision | The authored pin conflicts with the recovered reference chain. |

@@ -41,6 +41,16 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Fixed
 
+- **A part a fraction of a degree off the file's axes is drawn square, in its own frame
+  (#216).** dw-examples' DIN 471 M10 retaining ring lies about 1.09° off them, so it was drawn
+  as a tilted box: 1.147 thick instead of 1, 12.309 × 14.550 instead of 12.298 × 14.537, a
+  slanted plan rectangle, and its holes and boss unlocated as inclined to every axis. When
+  quiddity's part frame is within 2° of the file's axes, the part is now turned onto them
+  about its centre of mass before it is read (`squared` in the Analysis), and the plan says so
+  (info `part_squared_to_axes`). The ring now gets its true sizes, its three holes and boss
+  located, and its flats and gap recognised. A part on the file's axes, or further off them, or
+  whose file carries PMI (placed in the file's axes), is unchanged: the 30 quality parts' plans
+  are identical.
 - **A thread recognition refused is no longer drawn as a counterbore (#218).** quiddity refuses
   dw-examples' T8 flange nut thread (`inconsistent_diameters`) yet also reported a hole on its
   flanks, printed `⌀6.5 THRU ⌴ ⌀8.3 ↧ 14.8` in a 15 mm part. No hole, nor its pattern, is now
