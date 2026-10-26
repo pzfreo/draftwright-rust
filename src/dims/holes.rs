@@ -347,14 +347,8 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                     }
                 }
             }
-            "grid" => match lattice(&centres, u, v) {
-                Some((cols, rows)) if cols.len() * rows.len() == n => {
-                    let centre = {
-                        let mut c = centres[0];
-                        c[u] = 0.5 * (cols[0] + cols[cols.len() - 1]);
-                        c[v] = 0.5 * (rows[0] + rows[rows.len() - 1]);
-                        c
-                    };
+            "grid" => match grid_lattice(&centres, k) {
+                Some((cols, rows, centre)) => {
                     located_pattern(&mut located, &p.id, centre, k, turned.as_ref());
                     for (along, values, name) in [(u, &cols, "col"), (v, &rows, "row")] {
                         if values.len() > 1 {
@@ -736,6 +730,19 @@ fn lattice(centres: &[P3], u: usize, v: usize) -> Option<(Vec<f64>, Vec<f64>)> {
     let cols = distinct(centres.iter().map(|c| c[u]));
     let rows = distinct(centres.iter().map(|c| c[v]));
     (even(&cols) && even(&rows)).then_some((cols, rows))
+}
+
+/// A grid's column and row positions and its centre, when its members, seen along world axis
+/// *k*, are a full evenly spaced lattice: the grid is then located by that centre.
+pub(crate) fn grid_lattice(centres: &[P3], k: usize) -> Option<(Vec<f64>, Vec<f64>, P3)> {
+    let (u, v) = in_view(k);
+    let (cols, rows) = lattice(centres, u, v)?;
+    (cols.len() * rows.len() == centres.len()).then(|| {
+        let mut c = centres[0];
+        c[u] = 0.5 * (cols[0] + cols[cols.len() - 1]);
+        c[v] = 0.5 * (rows[0] + rows[rows.len() - 1]);
+        (cols, rows, c)
+    })
 }
 
 /// A linear pattern's axis and its members' positions along it, when they lie evenly along one

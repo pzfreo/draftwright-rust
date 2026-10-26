@@ -516,6 +516,47 @@ pub(crate) fn plan(a: &Analysis, views: &mut [PlannedView]) {
                 ));
             }
         }
+        // A grid seen as an even lattice is located by its centre (`dims::holes`), so that
+        // origin is marked even where no hole or boss stands on it (#223). Last, so a
+        // feature's own cross there keeps its ID as they merge; [`trim`] drops the mark when
+        // no dimension locates the grid from it (a hole table instead, say).
+        for p in a
+            .recognition
+            .iter()
+            .flat_map(|r| &r.patterns)
+            .filter(|p| p.arrangement == "grid")
+        {
+            if holes::established_with(p, &holes.iter().collect::<Vec<_>>(), &round).is_err() {
+                continue;
+            }
+            let members: Vec<_> = holes
+                .iter()
+                .filter(|h| p.members.contains(&h.feature.id))
+                .collect();
+            if members
+                .iter()
+                .any(|h| !end_on(v, h.direction) || hole_removed(h))
+            {
+                continue;
+            }
+            let k = (0..3)
+                .max_by(|&i, &j| {
+                    let d = members[0].direction;
+                    d[i].abs().total_cmp(&d[j].abs())
+                })
+                // Invariant: The iterator is over the fixed three coordinate axes.
+                .expect("three components");
+            let centres: Vec<_> = members.iter().map(|h| h.at).collect();
+            let Some((_, _, c)) = crate::dims::grid_lattice(&centres, k) else {
+                continue;
+            };
+            v.line_work.push(cross(
+                format!("ink:{}:{}", v.id, p.id),
+                page(a, v, c),
+                hole_diameter(members[0]) * v.scale / 2.,
+                None,
+            ));
+        }
         if v.line_style.centre_marks == Some(false)
             || v.line_style.centre_lines == Some(false)
             || v.id == "v:iso"
@@ -867,6 +908,29 @@ pub(crate) fn trim(views: &mut [PlannedView], dimensions: &[PlannedDimension]) {
         .collect();
     for w in views.iter_mut().flat_map(|v| &mut v.line_work) {
         trim_axis(w, &boxes);
+    }
+    unused_origins(views, dimensions);
+}
+
+/// Drops a hole pattern's own centre mark ([`plan`]) from a view where no dimension locates
+/// the pattern: then its centre is no origin, and the mark would read as a missing feature.
+pub(crate) fn unused_origins(views: &mut [PlannedView], dimensions: &[PlannedDimension]) {
+    for v in views.iter_mut() {
+        let prefix = format!("ink:{}:", v.id);
+        v.line_work.retain(|w| {
+            let Some(p) =
+                w.id.strip_prefix(&prefix)
+                    .filter(|p| w.kind == "cross" && p.starts_with("f:hole_pattern:"))
+            else {
+                return true;
+            };
+            dimensions.iter().any(|d| {
+                d.view == v.id
+                    && d.measurements
+                        .iter()
+                        .any(|m| m.feature == p && m.parameter.starts_with("location.length."))
+            })
+        });
     }
 }
 

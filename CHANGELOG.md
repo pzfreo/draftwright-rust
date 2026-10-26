@@ -43,6 +43,17 @@ All notable changes to draftwright-rust are recorded here, in the style of
   bearing's is its sleeve with "⌀12.4 THRU". The plan warns `assembly_principal_drawn`, naming
   the parts not drawn and how to choose another. Parts side by side, or a pin standing out of a
   plate, are drawn whole as before.
+- **Four holes on a bolt circle are called out as one (#223).** quiddity reports four holes at
+  90° on a pitch circle as a rectangle turned 45°, which no view can space as a lattice, so each
+  hole was located singly from the part's faces or a round flange's tangent edges
+  (dw-examples' t8-flange-nut: "3" and "19" from the ø22 flange, with
+  `hole_pattern_requirement_missing`). A square with its holes on the axes through its centre is
+  now read as a bolt circle: "4× ⌀3.4 THRU EQ SP ON ø16 BC", located by its centre, with its
+  pitch circle drawn (t8-flange-nut, t8-housing-bracket). The Spec's `split` still dissolves it.
+  A grid located by its centre now draws a centre mark there when no hole or boss stands on it
+  (t8-housing-bracket's 2×2, NIST CTC-01); none is drawn where a hole table locates the holes.
+  Still open from #223: a hole beside a round boss (dw-examples' linkrods) is located from the
+  boss's tangent edge, not its axis.
 - **Coincident copies of a body no longer multiply every count (#212).** A STEP holding the same
   solid several times on top of itself (a FreeCAD export of a body and its `Pad`) was drawn
   whole, each feature once per copy: dw-examples' gantry plate printed "24× ⌀5.1 THRU" for 12
