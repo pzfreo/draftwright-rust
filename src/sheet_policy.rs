@@ -1072,6 +1072,8 @@ fn replay_pins(
     let effective = crate::spec_gdt::effective(analysis, &held.spec)?;
     crate::dims::callout_routes::prefer_interior(effective.as_ref(), base, &mut held, None);
     crate::dims::callout_routes::finish(effective.as_ref(), base, &mut held);
+    crate::dims::hole_marks::attach(effective.as_ref(), base, &mut held);
+    crate::dims::gdt::cited_undrawn(&mut held);
     let mut plan = if only_bare_pins(&intent, base, &held) {
         // A bare pin holds the selected finished ink, including peers on every
         // physical page. Re-solving sheet 1 would create a different pin origin.

@@ -37,6 +37,8 @@ mod dims_stock;
 mod dims_turned;
 #[path = "../fit_label_layout.rs"]
 mod fit_label_layout;
+#[path = "../hole_marks.rs"]
+mod hole_marks;
 #[path = "../hole_tables.rs"]
 mod hole_tables;
 #[path = "../planned_hole_tables.rs"]

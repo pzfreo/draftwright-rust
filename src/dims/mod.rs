@@ -68,6 +68,7 @@ mod flats;
 pub(crate) mod footprints;
 pub mod gdt;
 mod grooves;
+pub(crate) mod hole_marks;
 mod holes;
 pub(crate) use holes::grid_lattice;
 pub(crate) mod interior;

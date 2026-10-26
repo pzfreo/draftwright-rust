@@ -120,6 +120,7 @@ catalogue! {
     "flat_leader_target_unverifiable" => Readability, Code, "The flat leader target cannot be verified.";
     "flat_requirement_missing" => Incomplete, Requirement, "The drawing does not state this required feature parameter.";
     "flat_requirement_unverifiable" => Incomplete, Requirement, "The drawing does not prove this required feature parameter.";
+    "frame_datum_not_drawn" => Incomplete, Source, "A drawn feature control frame cites a datum the drawing does not show.";
     "gear_axis_mismatch" => Incomplete, Code, "The drawn evidence does not correctly state the required source information.";
     "gear_correspondence_unverifiable" => Incomplete, Code, "The source gear requirement cannot be matched to the depicted gear.";
     "gear_repeat_count_mismatch" => Incomplete, Code, "The drawn evidence does not correctly state the required source information.";
