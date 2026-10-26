@@ -194,7 +194,9 @@ fn mixed_view_and_item_pins_keep_settled_peers_in_the_guttered_frame() {
     let (_, analysis) = model::analyse_native(&corpus.join("mfcadpp/10060.step")).unwrap();
     for gutter in [0.0, 25.0] {
         let mut spec: Spec =
-            serde_json::from_value(json!({"sheet":{"view_gutter":gutter}})).unwrap();
+            // The plan view is named so that it is kept to be pinned (#222 would leave it out).
+            serde_json::from_value(json!({"sheet":{"view_gutter":gutter},"views":{"plan":{}}}))
+                .unwrap();
         let base = model::plan_recovered(&analysis, &spec).unwrap();
         let front = base.views.iter().find(|v| v.id == "v:front").unwrap();
         for id in [

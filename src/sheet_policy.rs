@@ -657,7 +657,53 @@ fn illegible_shortfall(analysis: &Analysis, spec: &Spec, baseline: &Plan, plan: 
     plan.status = crate::completeness::status(&plan.problems);
 }
 
+/// [`select_once`], with an idle view left out (#222) only when that keeps the drawing on
+/// paper no larger than the drawing with it shown takes at its first choice: otherwise, when
+/// keeping the view reaches smaller paper, the view is kept. The plan keeps the caller's spec,
+/// so planning it again reaches the same drawing.
 pub(crate) fn select(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
+    crate::dims::idle_decided(analysis, spec, || {
+        let plan = select_once(analysis, spec)?;
+        let decision = crate::dims::idle_decision(analysis, spec);
+        let paper = |p: &Plan| {
+            (
+                layout::PAGES
+                    .iter()
+                    .position(|g| g.0 == p.sheet.size)
+                    .unwrap_or(usize::MAX),
+                1 + p.sheets.len(),
+            )
+        };
+        let (Some(v), Some(shown)) = (decision.dropped, decision.paper) else {
+            return Ok(plan);
+        };
+        let escalated = |p: &Plan| {
+            let (page, count) = paper(p);
+            page > shown.0 || count > shown.1
+        };
+        if !automatic(spec)
+            || plan.views.iter().any(|w| w.id == format!("v:{v}"))
+            || !escalated(&plan)
+        {
+            return Ok(plan);
+        }
+        let mut named = spec.clone();
+        named.views.insert(v.into(), Default::default());
+        match crate::dims::with_idle_view(None, || select_once(analysis, &named)) {
+            Ok(mut kept) if paper(&kept) < paper(&plan) => {
+                kept.spec = plan.spec.clone();
+                kept.sheet.basis += &format!(
+                    "; the {v} view, which no dimension needs, is kept: leaving it out took {} at {}",
+                    plan.sheet.size, plan.sheet.scale
+                );
+                Ok(kept)
+            }
+            _ => Ok(plan),
+        }
+    })
+}
+
+fn select_once(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     if automatic(spec) && crate::placement_intent::has_pins(spec) {
         return pinned(analysis, spec);
     }
@@ -1991,11 +2037,14 @@ mod tests {
         assert_eq!(at_limit(271.01).scale("A4", 1, 1.0), None);
         // mfcadpp holdout 317's aligned front and side estimate is within 5% of A4's drawable
         // width at 1:2, and that full trial is the winner. (mfcadpp 10163 was this case until
-        // quiddity-rust 0.2.0 read one fewer fillet and it moved off the limit.)
+        // quiddity-rust 0.2.0 read one fewer fillet and it moved off the limit.) Its plan view,
+        // which no dimension needs, is named so that it is kept (#222 would leave it out and
+        // reach 1:1 off the limit).
         let Some(a) = corpus("mfcadpp_holdout/317.step") else {
             return;
         };
-        let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+        let spec: Spec = serde_json::from_value(json!({"views": {"plan": {}}})).unwrap();
+        let p = model::plan_recovered(&a, &spec).unwrap();
         assert_eq!(
             (
                 p.sheet.size.as_str(),
@@ -2008,7 +2057,7 @@ mod tests {
         assert_eq!((winner.size.as_str(), winner.kind.as_deref()), ("A4", None));
         assert_eq!(winner.scales, ["1:2"]);
         crate::planning::with(&a, || {
-            let baseline = model::plan_automatic(&a, &Spec::default()).unwrap();
+            let baseline = model::plan_automatic(&a, &spec).unwrap();
             let estimate = Estimate::new(&a, &baseline);
             assert!(estimate.fits("A4", 1, 0.5));
             let wider = Estimate {
@@ -2115,7 +2164,8 @@ mod tests {
     #[test]
     fn bounded_trials_keep_clean_reductions_and_reject_new_ink() {
         for (file, size, scale) in [
-            ("mfcadpp/10020.step", "A4", "1:1"),
+            // #222: its plan view, which no dimension needs, is left out, and 2:1 fits.
+            ("mfcadpp/10020.step", "A4", "2:1"),
             // Its paired-ramp step's angle, recognised since quiddity main after 0.2.0-alpha.2,
             // conflicts with an annotation on A4 at 1:1; A3 at 2:1 is clean.
             ("mfcadpp/10033.step", "A3", "2:1"),

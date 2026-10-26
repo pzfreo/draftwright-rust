@@ -2541,6 +2541,7 @@ pub(crate) fn established_key(spec: &Spec) -> Vec<u8> {
             spec.hole_table,
             &spec.sheet.projection,
             spec.sheet.references,
+            crate::dims::idle_spec(spec),
         ))
         // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
         .expect("presentation inputs serialize")
@@ -2551,6 +2552,7 @@ pub(crate) fn established_key(spec: &Spec) -> Vec<u8> {
             spec.sheet.references,
             spec.pmi,
             &spec.origin,
+            crate::dims::idle_spec(spec),
         ))
         // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
         .expect("presentation inputs serialize")
@@ -2583,6 +2585,10 @@ pub(crate) fn established_drawing(analysis: &Analysis, spec: &Spec) -> Result<Pl
                 base.sheet.preferred_max_size = Some("A0".into());
                 base.sheet.projection = spec.sheet.projection.clone();
                 base.sheet.references = spec.sheet.references;
+                // The reference leaves out the view the drawing does, judged on the whole
+                // Analysis and the spec (#222; the key holds what that reads from the spec).
+                let idle = crate::dims::idle_view(analysis, spec, &crate::demand::read(analysis))
+                    .map(|r| r.1);
                 crate::planning::with(&reference, || {
                     // This recipe precedes the added notch bands as well as native recesses.
                     // Otherwise a displaced leader becomes its own established route, and
@@ -2606,11 +2612,13 @@ pub(crate) fn established_drawing(analysis: &Analysis, spec: &Spec) -> Result<Pl
                     );
                     // Keep the established compact corridors as an unrendered
                     // comparison; live placements are remeasured at faithful widths.
-                    if crate::nominal::geometry_eligible(&reference) {
-                        crate::nominal::with_comparison(|| plan_automatic(&reference, &base))
-                    } else {
-                        plan_automatic(&reference, &base)
-                    }
+                    crate::dims::with_idle_view(idle, || {
+                        if crate::nominal::geometry_eligible(&reference) {
+                            crate::nominal::with_comparison(|| plan_automatic(&reference, &base))
+                        } else {
+                            plan_automatic(&reference, &base)
+                        }
+                    })
                 })
             },
         )
@@ -3897,6 +3905,13 @@ pub(crate) fn pin_base(spec: &Spec) -> Spec {
     base.hole_table = spec.hole_table;
     base.iso_scale_factor = spec.iso_scale_factor;
     base.dimension_schemes = spec.dimension_schemes.clone();
+    // A principal view the spec names is kept in the unpinned drawing too: naming it is what
+    // keeps a view an automatic choice would leave out (#222, a turned part's repeated profile).
+    for (name, ..) in VIEWS.iter().filter(|(name, ..)| *name != "iso") {
+        if spec.views.contains_key(*name) {
+            base.views.insert((*name).into(), ViewSpec::default());
+        }
+    }
     if spec.dimensions.values().any(|d| d.between.is_some()) {
         base.dimension_source = spec.dimension_source;
         base.dimensions = spec.dimensions.clone();
@@ -4084,20 +4099,23 @@ pub(crate) fn plan_automatic(analysis: &Analysis, spec: &Spec) -> Result<Plan, I
     ))
     // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
     .expect("planning inputs serialize");
-    crate::dims::spaced(spec, || {
-        // A finished plan reused from a retained session scope skips the policies its
-        // planning activated in this scope (the established route policy and its witness
-        // and interior statement sets), which the session clears on every invocation.
-        // Activate them again, exactly as the planning that produced it did, so later
-        // planning in this invocation does not depend on whether this plan was reused.
-        if spec.sheet.scale.is_none()
-            && crate::planning::lookup::<Result<Plan, Invalid>>(analysis, "finished-plan", &key)
-                .is_some()
-        {
-            activate_established(analysis, spec)?;
-        }
-        crate::planning::memo(analysis, "finished-plan", key, || {
-            plan_automatic_uncached(analysis, spec)
+    // Every plan made for this spec leaves out the same idle view (#222).
+    crate::dims::idle_decided(analysis, spec, || {
+        crate::dims::spaced(spec, || {
+            // A finished plan reused from a retained session scope skips the policies its
+            // planning activated in this scope (the established route policy and its witness
+            // and interior statement sets), which the session clears on every invocation.
+            // Activate them again, exactly as the planning that produced it did, so later
+            // planning in this invocation does not depend on whether this plan was reused.
+            if spec.sheet.scale.is_none()
+                && crate::planning::lookup::<Result<Plan, Invalid>>(analysis, "finished-plan", &key)
+                    .is_some()
+            {
+                activate_established(analysis, spec)?;
+            }
+            crate::planning::memo(analysis, "finished-plan", key, || {
+                plan_automatic_uncached(analysis, spec)
+            })
         })
     })
 }
@@ -4177,6 +4195,7 @@ fn plan_automatic_uncached(analysis: &Analysis, spec: &Spec) -> Result<Plan, Inv
                 &base,
                 crate::nominal::comparison(),
                 crate::planning::nominals_deferred(),
+                crate::dims::idle_given(),
             ))
             // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
             .expect("canonical label inputs serialize"),
@@ -4684,7 +4703,9 @@ fn plan_inner(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     }
     crate::planning::with(analysis, || {
         crate::dims::spaced(spec, || {
-            let mut plan = plan_with(analysis, spec, false, false, None, false, false)?;
+            let mut plan = crate::dims::idle_decided(analysis, spec, || {
+                plan_with(analysis, spec, false, false, None, false, false)
+            })?;
             finish_nominal_plan(analysis, spec, &mut plan);
             let natural =
                 natural_spec(spec).and_then(|full| crate::model::plan(analysis, &full).ok());
@@ -5345,6 +5366,8 @@ fn plan_with_presentation(
             && (!complete_views
                 || crate::dims::reduction_preserves_requirements(analysis, spec, kept, &excluded))
     });
+    // A part that is not turned leaves out a plan or side view that adds nothing (#222).
+    let reduction = reduction.or_else(|| crate::dims::idle_view(analysis, spec, &demand));
     let shown = |name: &str| match spec.views.get(name) {
         Some(v) => !v.omit,
         None => !reduction.as_ref().is_some_and(|r| r.1 == name),
@@ -7609,6 +7632,7 @@ pub(crate) fn radius_edit_reference(
         crate::planning::is_fixed_pair(),
         crate::planning::nominals_deferred(),
         recovered,
+        crate::dims::idle_given(),
     ))
     .expect("radius reference inputs serialize");
     crate::planning::memo(analysis, "radius-edit-reference", key.clone(), || {

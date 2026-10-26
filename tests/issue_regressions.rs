@@ -508,9 +508,8 @@ fn an_open_channel_is_one_feature_with_one_width() {
 /// reported (`annotation_over_title_block`, `annotation_off_sheet`), not dropped. Not ported:
 /// draftwright withholds such a dimension as an error naming the block and re-plans onto a
 /// sheet that fits (its recovery ladder, ISSUE-1299-a); the port reports it where it stands.
-/// Difference, undetermined: on the stepped box the port's first fit is A3 at 1:1, draftwright's
-/// sheet A4 at 1:1 (the port's layout reserves the views' bands before placing; draftwright fits
-/// the dimensions into A4's whitespace after).
+/// On the stepped box the port's first fit is A4 at 1:1, as draftwright's sheet, since its plan
+/// view, which no dimension needs, is left out (#222; it was A3 with the plan).
 #[test]
 fn the_title_block_keeps_dimensions_out_without_dropping_them() {
     for (part, defect, depth) in [
@@ -555,7 +554,7 @@ fn the_title_block_keeps_dimensions_out_without_dropping_them() {
             );
         }
     }
-    assert_eq!(planned("tb_stepped", &Spec::default()).sheet.size, "A3");
+    assert_eq!(planned("tb_stepped", &Spec::default()).sheet.size, "A4");
     let crowded = planned(
         "tb_tall_box",
         &spec(json!({ "sheet": { "size": "A4", "scale": "2:1" } })),

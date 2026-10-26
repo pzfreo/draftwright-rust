@@ -56,6 +56,23 @@ All notable changes to draftwright-rust are recorded here, in the style of
   profile angle, the supplement of the 101.954° on the same edge, to its V channel's locations.
   Rectangular through notches (CTC-01's two) stay unrecognised: drawn, they cost CTC-01 its 1:5
   scale or add leader crossings. The quality parts are otherwise unchanged.
+- **A plan or side view that no dimension needs is left out (#222).** On a part that is not
+  turned, the plan or side view on which the drawing with every view shown places no
+  dimension, so that all it would add is its outline (often a strip of hidden lines), is
+  dropped, unless it is a prism's profile or looks along a cylinder. The decision is read from
+  that drawing itself, after every routing preference and added statement (a profile angle,
+  a thickness moved for readable witnesses). At most one view goes, the plan first, never the
+  front, and never one carrying PMI, section A–A's cutting plane or anything the spec refers to
+  it; the kept views' basis says why. Leaving it out never takes larger paper or more sheets
+  than the drawing with it shown: then the view is kept, and the sheet basis says so (MFCAD
+  10092 stays A4 1:1 rather than A3 5:1). Naming the view (`views/plan: {}`) keeps it, in a
+  pinned drawing's unpinned frame too; naming any principal view, or authored dimensions or a
+  dimension scheme, turns the rule off. vslot-2020x50 and MFCAD 10020, 10046, 10060, 10156,
+  10167, 1017 and 10245 go from 1:1 to 2:1 in the room freed (10156 and 10167 lose warnings;
+  10060 trades a leader crossing for an unplaceable prismatic-steps detail, and 10101 gains an
+  extension through a feature at its unchanged 2:1); l-plate-5-holes, retaining-ring, shf08,
+  MFCAD 10038 and FTC-09 lose their empty plan. The rest of the 30 quality parts are unchanged.
+  The title-block fixture tb_stepped now fits A4, as draftwright's sheet, instead of A3.
 - On quiddity-rust **v0.2.1-alpha.1**. The reader accepts its new `rectangular_through_notches`
   family (not drawn yet), so CTC-01's two V-slot notches and their rounded
   channels are reported as unrecognised features instead of 3 unclaimed faces. Golden's

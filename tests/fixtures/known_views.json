@@ -277,12 +277,6 @@
   },
   {
     "part": "m10046",
-    "fact": "centre:plan",
-    "verdict": "undetermined",
-    "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls; tests/bands.rs compares the bands): the sheet and scale differ (A4 at 1:1 against A3 at 2:1, below)."
-  },
-  {
-    "part": "m10046",
     "fact": "centre:side",
     "verdict": "undetermined",
     "reason": "Follows from the layout's inputs, not its arithmetic (tests/layout.rs reproduces draftwright's own layout calls; tests/bands.rs compares the bands): the sheet and scale differ (A4 at 1:1 against A3 at 2:1, below)."
@@ -307,12 +301,6 @@
   },
   {
     "part": "m10046",
-    "fact": "scale:plan",
-    "verdict": "undetermined",
-    "reason": "The view takes the sheet's scale, which differs: A4 at 1:1 vs A3 at 2:1."
-  },
-  {
-    "part": "m10046",
     "fact": "scale:side",
     "verdict": "undetermined",
     "reason": "The view takes the sheet's scale, which differs: A4 at 1:1 vs A3 at 2:1."
@@ -322,6 +310,12 @@
     "fact": "sheet",
     "verdict": "undetermined",
     "reason": "Draftwright's first choice, with the angular dimensions' footprints its 12 angle features reserve (`AngularReservation`), was A3 at 2:1; the port's bands agree with draftwright's (tests/bands.rs) but it has no angular dimensions yet, so fits A4 at 1:1."
+  },
+  {
+    "part": "m10046",
+    "fact": "views",
+    "verdict": "rust-correct",
+    "reason": "Draftwright draws the plan view, a strip of the part's outline that carries no dimension: no requirement is routed to it with every view shown. The port leaves it out (#222: a view that adds nothing is not drawn), keeping front, side and isometric; naming views/plan keeps it. Its centre and scale facts no longer apply."
   },
   {
     "part": "m10127",

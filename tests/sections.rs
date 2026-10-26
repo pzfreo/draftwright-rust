@@ -65,6 +65,41 @@ fn a_prismatic_part_keeps_its_three_views() {
     }
 }
 
+/// #222: no dimension of the angled blind step is routed to its plan view, a strip of the part's
+/// outline: the plan is left out, every dimension stays in the view it had, the basis says why,
+/// and a spec that names the plan keeps it.
+#[test]
+fn a_view_no_dimension_needs_is_left_out() {
+    let step = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/parts/issue_1247_angled_blind_step.step");
+    let (_, analysis) = model::analyse_native(&step).unwrap();
+    let plan = model::plan(&analysis, &Spec::default()).unwrap();
+    assert_eq!(ids(&plan), ["v:front", "v:side", "v:iso"]);
+    for v in &plan.views[..2] {
+        assert!(
+            v.basis.contains("no dimension needs the plan view")
+                && v.basis.contains("so the plan view is left out"),
+            "{}",
+            v.basis
+        );
+    }
+    let spec: Spec =
+        serde_json::from_value(serde_json::json!({ "views": { "plan": {} } })).unwrap();
+    let kept = model::plan(&analysis, &spec).unwrap();
+    assert_eq!(ids(&kept), ["v:front", "v:plan", "v:side", "v:iso"]);
+    let carriers = |plan: &model::Plan| {
+        let mut c: Vec<(String, String)> = plan
+            .dimensions
+            .iter()
+            .map(|d| (d.id.clone(), d.view.clone()))
+            .collect();
+        c.sort();
+        c
+    };
+    assert_eq!(carriers(&plan), carriers(&kept));
+    assert!(kept.dimensions.iter().all(|d| d.view != "v:plan"));
+}
+
 #[test]
 fn an_unknown_view_names_the_section_among_the_choices() {
     let (_, analysis) = fixture("plate");

@@ -281,14 +281,26 @@ pub(crate) fn spaced_digest(key: &[u8; 32]) -> [u8; 32] {
     hasher.finalize().into()
 }
 
-/// Placement policies held in the planning scope are inputs to exact result caches too.
-pub(crate) fn policy_key(analysis: &Analysis) -> (bool, bool, bool, Option<[u8; 32]>, bool) {
+/// Placement policies held in the planning scope are inputs to exact result caches too, as is
+/// the idle view decided for the plan being made ([`crate::dims::idle_decided`]).
+#[allow(clippy::type_complexity)]
+pub(crate) fn policy_key(
+    analysis: &Analysis,
+) -> (
+    bool,
+    bool,
+    bool,
+    Option<[u8; 32]>,
+    bool,
+    Option<Option<&'static str>>,
+) {
     (
         lookup::<bool>(analysis, "canonical-circular-recipes", &[]).unwrap_or(false),
         lookup::<bool>(analysis, "established-route-policy", &[]).unwrap_or(false),
         crate::nominal::comparison(),
         TRIAL_RADIUS_REFERENCE.with(|r| r.borrow().as_ref().map(|r| r.1)),
         crate::dims::compact(),
+        crate::dims::idle_given(),
     )
 }
 
