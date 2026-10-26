@@ -1028,7 +1028,6 @@ impl Blind<'_> {
             parameter: parameter.into(),
             value,
         };
-        let words = |s: &str| s.split(' ').map(String::from).collect::<Vec<_>>();
         let (terms, measurements, basis) = if self.round {
             let flat = self.width - 2.0 * self.depth;
             let mut t = words("ROUND-BOTTOM OPEN SLOT");
@@ -1083,6 +1082,11 @@ impl Blind<'_> {
     }
 }
 
+/// A callout's words, as its terms.
+fn words(s: &str) -> Vec<String> {
+    s.split(' ').map(String::from).collect()
+}
+
 /// A semicircular blind slot's callout, with the point its centre line is located by, the axis
 /// across it and the view that carries them, or why it cannot be stated.
 fn semicircular(frame: &QFrame, f: &Feature) -> Result<(Want, P3, usize, &'static str), String> {
@@ -1093,11 +1097,7 @@ fn semicircular(frame: &QFrame, f: &Feature) -> Result<(Want, P3, usize, &'stati
         Ok(crate::bridge::holes::dir_to_part(&frame.0, d))
     };
     let (axis, opening) = (dir("axis")?, dir("opening")?);
-    let across = [
-        axis[1] * opening[2] - axis[2] * opening[1],
-        axis[2] * opening[0] - axis[0] * opening[2],
-        axis[0] * opening[1] - axis[1] * opening[0],
-    ];
+    let across = super::angular::cross(axis, opening);
     let (Some(deep), Some(wide)) = (principal(opening), principal(across)) else {
         return Err(
             "its opening or width is not along x, y or z, so no standard view shows it".into(),
@@ -1119,10 +1119,7 @@ fn semicircular(frame: &QFrame, f: &Feature) -> Result<(Want, P3, usize, &'stati
             .ok_or("its record gives no straight height")?;
     let width = 2.0 * radius;
     let view = end_on(deep);
-    let mut terms: Vec<String> = "ROUND-BOTTOM OPEN SLOT"
-        .split(' ')
-        .map(String::from)
-        .collect();
+    let mut terms = words("ROUND-BOTTOM OPEN SLOT");
     terms.extend([
         fmt(width),
         "×".into(),

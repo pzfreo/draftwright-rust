@@ -1,7 +1,8 @@
 //! A V is specified by included angle, theoretical sharp depth, and mouth position.
 //!
 //! quiddity's V channels (`VChannel`, #233) are the same requirement as a feature. One whose
-//! flanks a profile V-notch here already names is stated by that notch. Otherwise it is
+//! flanks a profile V-notch here already names is stated by that notch, unless the spec omits
+//! the notch's angle or depth ([`super::restate`]). Otherwise it is
 //! called out in the view along its run, `A° V × D DEEP` (the included angle and the depth to
 //! the sharp or virtual trough, which fix its width), with a leader to a flank, and its trough
 //! is located from the part's box on that view's axes, except along a principal opening, where
@@ -34,24 +35,8 @@ pub(super) const PLANNER: Planner = Planner {
     wants,
 };
 
-/// The profile V-notch, by ID, whose flanks include V channel *f*'s: it states the channel.
-pub(super) fn owner(notches: &[crate::lint::notch_evidence::Notch], f: &Feature) -> Option<String> {
-    notches
-        .iter()
-        .find(|n| f.faces.iter().all(|i| n.faces.contains(i)))
-        .map(|n| n.id.clone())
-}
-
-/// A V channel's callout and trough locations, none when a profile V-notch on its flanks states
-/// it, or why it cannot be stated.
-fn channel(
-    cx: &Context,
-    f: &Feature,
-    notches: &[crate::lint::notch_evidence::Notch],
-) -> Result<Vec<Want>, String> {
-    if owner(notches, f).is_some() {
-        return Ok(Vec::new());
-    }
+/// A V channel's callout and trough locations, or why they cannot be stated.
+pub(super) fn channel(cx: &Context, f: &Feature) -> Result<Vec<Want>, String> {
     let p = &f.parameters;
     let angle = size(f, "included_angle_degrees")?;
     let depth = size(f, "depth")?;
@@ -66,11 +51,7 @@ fn channel(
     let at = cx
         .frame
         .point(point(p.get("at")).ok_or("its record gives no at")?);
-    let across = [
-        axis[1] * opening[2] - axis[2] * opening[1],
-        axis[2] * opening[0] - axis[0] * opening[2],
-        axis[0] * opening[1] - axis[1] * opening[0],
-    ];
+    let across = super::angular::cross(axis, opening);
     // A point three quarters up a flank, clear of a rounded trough.
     let flank =
         std::array::from_fn(|j| at[j] + 0.75 * (opening[j] * depth + across[j] * 0.5 * width));
@@ -141,13 +122,10 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     let mut out = Vec::new();
     let mut problems = Vec::new();
     let notches = crate::notches::requirements(cx.analysis);
-    for f in cx
-        .analysis
-        .features
-        .iter()
-        .filter(|f| f.kind == "v_channel")
-    {
-        match channel(cx, f, &notches) {
+    for f in cx.analysis.features.iter().filter(|f| {
+        f.kind == "v_channel" && crate::lint::notch_evidence::channel_owner(&notches, f).is_none()
+    }) {
+        match channel(cx, f) {
             Ok(ws) => out.extend(ws),
             Err(why) => problems.push(not_dimensioned(f, &why)),
         }

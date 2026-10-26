@@ -49,6 +49,7 @@ pub(super) fn wants(
         crate::planning::memo(a, "pmi-wants", key, || super::wants_uncached(a, s))
     };
     super::modelled_threads::apply(a, s, &mut result.0, &mut result.1);
+    super::restate(a, s, &mut result.0, &mut result.1);
     super::blends::count_equal(s, &mut result.0);
     result
 }

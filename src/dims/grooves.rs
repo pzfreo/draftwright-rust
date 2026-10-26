@@ -21,7 +21,8 @@
 //! Annular face grooves (quiddity's `AnnularGroove`, #233): a blind ring between two coaxial
 //! walls, sunk into a face. Its outer wall reads as a blind hole and its inner wall as a boss,
 //! and where both are recognised their callouts (`⌀D ↧ depth`, `øD`) and the hole's location
-//! state the whole groove, so it adds nothing. Otherwise it is called out in the view down its
+//! state the whole groove, so it adds nothing, unless the spec omits one of those sizes
+//! ([`super::restate`]). Otherwise it is called out in the view down its
 //! axis, `⌀OD × ⌀ID ↧ depth`, with a leader to its outer rim, and its centre is located from the
 //! part's box on that view's two axes. A groove whose axis is along no axis of the part is
 //! reported (`feature_not_dimensioned`).
@@ -161,41 +162,12 @@ fn line<'a>(cx: &Context, f: &'a Feature) -> Option<Line<'a>> {
     Some((k, at, p.get("profile")))
 }
 
-/// The hole on annular groove *f*'s outer wall and the boss on its inner wall, by ID, when both
-/// are recognised at its diameters: their callouts state it.
-pub(super) fn walls(analysis: &crate::model::Analysis, f: &Feature) -> Option<Vec<String>> {
-    let wall = |kind: &str, radius: &str| {
-        let d = 2.0 * f.parameters.get(radius)?.as_f64()?;
-        analysis
-            .features
-            .iter()
-            .find(|w| {
-                w.kind == kind
-                    && !w.faces.is_empty()
-                    && w.faces.iter().all(|i| f.faces.contains(i))
-                    && w.parameters
-                        .get("diameter")
-                        .and_then(Value::as_f64)
-                        .is_some_and(|x| (x - d).abs() <= 1e-3)
-            })
-            .map(|w| w.id.clone())
-    };
-    Some(vec![
-        wall("hole", "outer_radius")?,
-        wall("boss", "inner_radius")?,
-    ])
-}
-
-/// An annular groove's callout and centre locations, none when its walls' hole and boss state
-/// it, or why it cannot be stated.
-fn annular(cx: &Context, f: &Feature) -> Result<Vec<Want>, String> {
+/// An annular groove's callout and centre locations, or why they cannot be stated.
+pub(super) fn annular(cx: &Context, f: &Feature) -> Result<Vec<Want>, String> {
     let p = &f.parameters;
     let outer = 2.0 * size(f, "outer_radius")?;
     let inner = 2.0 * size(f, "inner_radius")?;
     let depth = size(f, "depth")?;
-    if walls(cx.analysis, f).is_some() {
-        return Ok(Vec::new());
-    }
     let axis = dir_to_part(
         &cx.frame.0,
         point(p.get("axis")).ok_or("its record gives no axis")?,
@@ -273,12 +245,9 @@ fn annular(cx: &Context, f: &Feature) -> Result<Vec<Want>, String> {
 fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     let mut out: Vec<(Want, Option<Line>)> = Vec::new();
     let mut problems = Vec::new();
-    for f in cx
-        .analysis
-        .features
-        .iter()
-        .filter(|f| f.kind == "annular_groove")
-    {
+    for f in cx.analysis.features.iter().filter(|f| {
+        f.kind == "annular_groove" && crate::lint::grooves::annular_owners(cx.analysis, f).is_none()
+    }) {
         match annular(cx, f) {
             Ok(ws) => out.extend(ws.into_iter().map(|w| (w, None))),
             Err(why) => problems.push(not_dimensioned(f, &why)),

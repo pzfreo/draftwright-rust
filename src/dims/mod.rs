@@ -921,15 +921,80 @@ const UNDRAFTED: &[(&str, Disposition, DispositionReason)] = &[
     ),
 ];
 
-/// The features whose dimensions state *f* in place of its own (#233): an annular groove's
-/// wall hole and boss, a V channel's profile V-notch. Empty for any other.
-pub(crate) fn stated_by(analysis: &Analysis, f: &crate::bridge::Feature) -> Vec<String> {
+/// The dimensions that state *f* in place of its own (#233), as (feature, parameter): an annular
+/// groove's wall hole and boss, a V channel's profile V-notch. Empty for any other.
+pub(crate) fn stated_by(
+    analysis: &Analysis,
+    f: &crate::bridge::Feature,
+) -> Vec<(String, &'static str)> {
     match f.kind.as_str() {
-        "annular_groove" => grooves::walls(analysis, f),
-        "v_channel" => notches::owner(&crate::notches::requirements(analysis), f).map(|n| vec![n]),
-        _ => None,
+        "annular_groove" => crate::lint::grooves::annular_owners(analysis, f)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(_, o, p)| (o, p))
+            .collect(),
+        "v_channel" => {
+            crate::lint::notch_evidence::channel_owner(&crate::notches::requirements(analysis), f)
+                .map(|n| vec![(n.clone(), "notch.angle"), (n, "notch_depth.length")])
+                .unwrap_or_default()
+        }
+        _ => Vec::new(),
     }
-    .unwrap_or_default()
+}
+
+/// A groove or channel left to the dimensions that state it ([`stated_by`]) is called out on its
+/// own when the spec omits any of them, so steering those dimensions never loses its sizes.
+fn restate(analysis: &Analysis, spec: &Spec, wants: &mut Vec<Want>, problems: &mut Vec<Problem>) {
+    let omits = |w: &Want| spec.dimensions.get(&w.id).is_some_and(|d| d.omit);
+    if spec.dimension_source != DimensionSource::Auto || !wants.iter().any(omits) {
+        return;
+    }
+    let drawn = |(o, p): &(String, &str)| {
+        wants.iter().any(|w| {
+            !omits(w)
+                && w.measurements
+                    .iter()
+                    .any(|m| m.feature == *o && m.parameter == *p)
+        })
+    };
+    let lost: Vec<_> = analysis
+        .features
+        .iter()
+        .filter(|f| {
+            let by = stated_by(analysis, f);
+            !by.is_empty() && !by.iter().all(drawn)
+        })
+        .collect();
+    if lost.is_empty() {
+        return;
+    }
+    let frame = QFrame(analysis.recognition.as_ref().map_or(
+        [[0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+        |r| r.frame,
+    ));
+    let cx = Context {
+        analysis,
+        turned: turned::turned(analysis, &frame),
+        frame,
+    };
+    let mut own = Vec::new();
+    for f in lost {
+        let ws = if f.kind == "annular_groove" {
+            grooves::annular(&cx, f)
+        } else {
+            notches::channel(&cx, f)
+        };
+        match ws {
+            Ok(ws) => own.extend(ws),
+            Err(why) => problems.push(grooves::not_dimensioned(f, &why)),
+        }
+    }
+    // The origins' own problems are reported with the default wants.
+    let _ = pmi_policy::origins(analysis, spec, &mut own);
+    if pmi_policy::carries(analysis) || !spec.origin.is_empty() {
+        own.retain(|w| !pmi_policy::on_origin(w));
+    }
+    wants.extend(own);
 }
 
 pub(crate) fn undrafted(f: &crate::bridge::Feature) -> bool {
@@ -4413,12 +4478,16 @@ pub fn render(
 }
 
 /// Where a feature or pattern sits in the part's frame: a hole's point on its axis, a fillet's or
-/// chamfer's `at`, a pattern's centre (its members' mean), for comparing with draftwright's
-/// feature keys.
+/// chamfer's `at`, an annular groove's floor centre, a pattern's centre (its members' mean), for
+/// comparing with draftwright's feature keys.
 pub fn feature_origin(analysis: &Analysis, id: &str) -> Option<P3> {
     let frame = QFrame(analysis.recognition.as_ref()?.frame);
     if let Some(f) = analysis.features.iter().find(|f| f.id == id) {
-        let at = f.parameters.get("location").or(f.parameters.get("at"));
+        let at = f
+            .parameters
+            .get("location")
+            .or(f.parameters.get("at"))
+            .or(f.parameters.get("floor_center"));
         return point(at).map(|l| frame.point(l));
     }
     let p = analysis
@@ -5449,10 +5518,33 @@ mod tests {
         ]);
         let (wants, ..) = wants_uncached(&walled, &Spec::default());
         assert!(own(&wants, "f:annular_groove:1").is_empty());
+        let by = stated_by(&walled, &walled.features[0]);
         assert_eq!(
-            stated_by(&walled, &walled.features[0]),
-            ["f:hole:1", "f:boss:1"]
+            by,
+            [
+                ("f:hole:1".to_string(), "bore.diameter"),
+                ("f:hole:1".into(), "bore.depth"),
+                ("f:boss:1".into(), "boss.diameter")
+            ]
         );
+        // Omitting a wall's diameter restores the groove's own callout, so the size is not lost.
+        let id = wants
+            .iter()
+            .find(|w| {
+                w.measurements
+                    .iter()
+                    .any(|m| m.feature == "f:boss:1" && m.parameter == "boss.diameter")
+            })
+            .unwrap()
+            .id
+            .clone();
+        let spec: Spec =
+            serde_json::from_value(serde_json::json!({"dimensions": {id: {"omit": true}}}))
+                .unwrap();
+        let (steered, ..) = pmi_policy::wants(&walled, &spec);
+        assert_eq!(own(&steered, "f:annular_groove:1").len(), 3);
+        let (default, ..) = pmi_policy::wants(&walled, &Spec::default());
+        assert!(own(&default, "f:annular_groove:1").is_empty());
     }
 
     /// #233: a V channel is called out along its run and its trough located across it; one

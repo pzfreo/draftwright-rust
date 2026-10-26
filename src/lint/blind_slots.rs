@@ -13,6 +13,10 @@
 //! to by every structural fact; here the Analysis feature is the record, so there is no join to
 //! fail, and the values are the grammar's. Not reached: `_suppressed` (lint cannot read the
 //! author's omissions) and the assembly severity.
+//!
+//! quiddity's semicircular blind slots (`semicircular_blind_slot`, #233) state their width (the
+//! half-round floor's diameter), length and depth: `semicircular_blind_slot_width.length`,
+//! `_length.length` and `_depth.length`, from the record's radius, length and straight height.
 
 use super::parameters::{self, Wanted, fmt, fmt3};
 use super::section_recesses::{BlindSlot, Grammar, grammar, recesses};
@@ -117,6 +121,56 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     let mut issues = findings(analysis, marks, false);
     issues.extend(findings(analysis, marks, true));
     issues
+}
+
+/// The semicircular blind slots' requirements: the width, length and depth of each.
+pub fn semicircular_wanted(analysis: &Analysis) -> Vec<Wanted<'_>> {
+    let mut out = Vec::new();
+    for f in analysis
+        .features
+        .iter()
+        .filter(|f| f.kind == "semicircular_blind_slot")
+    {
+        let radius = parameters::size(f, "radius");
+        let depth = radius
+            .clone()
+            .and_then(|r| Ok(r + parameters::size(f, "straight_height")?));
+        for (parameter, value, word) in [
+            (
+                "semicircular_blind_slot_width.length",
+                radius.map(|r| 2.0 * r),
+                "wide",
+            ),
+            (
+                "semicircular_blind_slot_length.length",
+                parameters::size(f, "length"),
+                "long",
+            ),
+            ("semicircular_blind_slot_depth.length", depth, "deep"),
+        ] {
+            out.push(Wanted {
+                feature: f,
+                parameter: parameter.into(),
+                callout: value.as_ref().map_or(format!("its {parameter}"), |v| {
+                    format!("{} {word}", fmt(*v))
+                }),
+                values: value.map(|v| vec![v]),
+            });
+        }
+    }
+    out
+}
+
+/// The semicircular blind slot findings.
+pub fn semicircular_coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
+    let noun = |f: &Feature| format!("semicircular blind slot {}", f.id);
+    parameters::coverage(
+        "semicircular_blind_slot",
+        &semicircular_wanted(analysis),
+        marks,
+        noun,
+        "the slot's callout, in the view that looks into it",
+    )
 }
 
 #[cfg(test)]
