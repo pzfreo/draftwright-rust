@@ -37,15 +37,18 @@ All notable changes to draftwright-rust are recorded here, in the style of
 - **Frames and datum symbols on holes attach to the holes' size callout or table tag (#224).** A
   datum on a hole was drawn edge-on, on the hole's hidden silhouette, and a frame's leader ended
   at the centre of its faces, often on blank material. Once the drawing is finished, a frame whose
-  faces are all bores of the holes one shown size callout names now stands beneath that callout
-  (or over it), without a leader, in the view that sees the holes end-on; a datum on one hole's
-  bore stands on that hole's own size callout, else its table tag. Each moves only to a clear
-  place with no finding of its own, so dense drawings keep most of theirs (NIST STC-07 to STC-10
-  keep every placement); FTC-10 AP242 moves its cylindricity and 8-hole position frames and datum
-  F (losing 14 crossing and through-feature findings), FTC-11 datum B, STC-06 a position frame,
-  CTC-02 datum H, CTC-05 datum B and a runout frame, and the spool fixtures' datum B and their ⟂
-  frame onto the ⌀62 bore's callout. `annotations/<id>/place` keeps an item where lowering put it
-  (`src/dims/hole_marks.rs`).
+  faces are all bores of the holes one shown size callout (or, for one hole, table tag) names now
+  stands beneath it (or over it), without a leader, in the view that sees the holes end-on; a
+  datum on one hole's bore stands on that hole's own size callout, else its table tag. A bore
+  split in halves is recognised by its radius, not its box. Each moves only to a clear place with
+  no finding of its own, so dense drawings keep most of theirs (NIST STC-07, STC-08 and STC-10
+  keep every placement: their tags sit over material or their callouts are hemmed in); FTC-10
+  AP242 moves its cylindricity and 8-hole position frames and datum F (net 11 fewer findings),
+  STC-09 its 4-hole ⌀6.35 position frame (net 13 fewer), FTC-11 datum B, STC-06 a position frame,
+  CTC-01 datum B, CTC-02 datums F and H, CTC-05 datum B and a runout frame, and the spool
+  fixtures' datum B and their ⟂ frame onto the ⌀62 bore's callout. A view or side in
+  `annotations/<id>/place` keeps an item where lowering put it; a bare pin, or a pin in the view
+  it attaches in, holds the attached ink (`src/dims/hole_marks.rs`).
 - **A drawn frame citing a datum the drawing does not show is said (#224):** a
   `frame_datum_not_drawn` warning names the frame and the missing datums (STC-08: nine frames
   citing A, D, E, H or J).

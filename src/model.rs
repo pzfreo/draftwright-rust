@@ -4606,6 +4606,8 @@ fn plan_with_presentation(
                 // interior/GD&T repair, rather than an intermediate paper trial.
                 crate::dims::callout_routes::prefer_interior(analysis, base, &mut finished, None);
                 crate::dims::callout_routes::finish(analysis, base, &mut finished);
+                crate::dims::hole_marks::attach(analysis, base, &mut finished);
+                crate::dims::gdt::cited_undrawn(&mut finished);
                 Ok(finished)
             } else {
                 plan(analysis, base)
@@ -4719,17 +4721,27 @@ fn plan_with_presentation(
             }
         }
         for (id, d) in &mut effective.annotations {
-            if let Some(p) = d.place.as_mut()
+            let held = base.gdt.iter().find(|d| d.id == *id);
+            if let Some(p) = d.place.as_ref()
+                && p.pinned
+                && let Some(g) = held.filter(|g| crate::dims::hole_marks::attached(g))
+                && (crate::placement_intent::automatic_pin(p)
+                    || p.view.as_deref() == Some(g.view.trim_start_matches("v:")))
+            {
+                // A pin on a glyph attached to its hole's mark (#224), bare or in the view it
+                // attaches in, holds that ink: it is lowered and attached again as the canonical
+                // drawing was, never pinned on the strip of a view it is not lowered in.
+                d.place = None;
+            } else if let Some(p) = d.place.as_mut()
                 && p.pinned
                 && p.view.is_none()
             {
-                p.view = base
-                    .gdt
-                    .iter()
-                    .find(|d| d.id == *id)
-                    .map(|d| d.view.trim_start_matches("v:").into());
+                p.view = held.map(|d| d.view.trim_start_matches("v:").into());
             }
         }
+        effective
+            .annotations
+            .retain(|_, a| *a != Default::default());
     }
     let mut inactive = Vec::new();
     if let Some(b) = &spec.binding

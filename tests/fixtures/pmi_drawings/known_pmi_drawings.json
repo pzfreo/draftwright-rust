@@ -1268,6 +1268,36 @@
   "evidence": "draftwright states '⌀35 +0.2 -0.0 THRU' (dimension, plan view); the port states '⌀35 +0.2 0 THRU' (dimension, plan view). The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
  },
  {
+  "file": "nist_ctc_01_asme1_ap242-e1.stp",
+  "record": "datum:0:1:4:3",
+  "port": "datum:#35",
+  "field": "drawing",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "datum_ref",
+     "rides_on": null,
+     "text": "B",
+     "view": "front"
+    }
+   ]
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "datum_ref",
+     "rides_on": null,
+     "text": "B",
+     "view": "plan"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: 'B' (datum ref, front view); the port's: 'B' (datum ref, plan view). Datum B is one hole's bore, a feature of size: draftwright draws its symbol edge-on in the front view, on the bore's silhouette, which is hidden there. Since #224 the port attaches it to the hole's mark (its size callout or hole table tag) in the plan view, which sees the bore end-on, as ASME Y14.5 and ISO 5459 place a feature of size's datum symbol on its size dimension; a view or side in annotations/<id>/place keeps draftwright's attachment."
+ },
+ {
   "file": "nist_ctc_01_merge.step",
   "record": "datum:0:1:4:2",
   "port": "datum:#34",
@@ -1352,6 +1382,36 @@
   },
   "verdict": "rust-correct",
   "evidence": "draftwright states '⌀35 +0.2 -0.0 THRU' (dimension, plan view); the port states '⌀35 +0.2 0 THRU' (dimension, plan view). The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+ },
+ {
+  "file": "nist_ctc_01_merge.step",
+  "record": "datum:0:1:4:3",
+  "port": "datum:#35",
+  "field": "drawing",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "datum_ref",
+     "rides_on": null,
+     "text": "B",
+     "view": "front"
+    }
+   ]
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "datum_ref",
+     "rides_on": null,
+     "text": "B",
+     "view": "plan"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: 'B' (datum ref, front view); the port's: 'B' (datum ref, plan view). Datum B is one hole's bore, a feature of size: draftwright draws its symbol edge-on in the front view, on the bore's silhouette, which is hidden there. Since #224 the port attaches it to the hole's mark (its size callout or hole table tag) in the plan view, which sees the bore end-on, as ASME Y14.5 and ISO 5459 place a feature of size's datum symbol on its size dimension; a view or side in annotations/<id>/place keeps draftwright's attachment."
  },
  {
   "file": "nist_ctc_02_asme1_ap242-e2.stp",
@@ -3324,6 +3384,36 @@
   "rust": null,
   "verdict": "rust-correct",
   "evidence": "known_pmi.json (record, rust-correct): draftwright keeps an XCAF occurrence of datum C that it could not project onto the datum's Part 21 definition (datum #127 has 0 related DATUM_FEATUREs), beside its record for the datum; the port reads one record per datum from Part 21: datum:#127 (part 0) is paired with another of draftwright's records for it. On the drawing: draftwright's is not drawn, refused (pmi_not_extracted, pmi_not_lowered); the port has no such record, so neither draws nor reports it."
+ },
+ {
+  "file": "nist_ctc_02_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:45",
+  "port": "datum:#76",
+  "field": "drawing",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "datum_ref",
+     "rides_on": null,
+     "text": "F",
+     "view": "front"
+    }
+   ]
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "datum_ref",
+     "rides_on": null,
+     "text": "F",
+     "view": "plan"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: 'F' (datum ref, front view); the port's: 'F' (datum ref, plan view). Datum F is one hole's bore, a feature of size: draftwright draws its symbol edge-on in the front view, on the bore's silhouette, which is hidden there. Since #224 the port attaches it to the hole's mark (its size callout or hole table tag) in the plan view, which sees the bore end-on, as ASME Y14.5 and ISO 5459 place a feature of size's datum symbol on its size dimension; a view or side in annotations/<id>/place keeps draftwright's attachment."
  },
  {
   "file": "nist_ftc_07_asme1_ap242-e2.stp",
@@ -8154,7 +8244,7 @@
    ]
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright's drawing: 'B' (datum ref, front view); the port's: 'B' (datum ref, plan view). Datum B is the ⌀62 bore, a feature of size: draftwright draws its symbol edge-on in the front view, on the bore's silhouette, which is hidden there. Since #224 the port attaches it to the bore's own size callout in the plan view, which sees the bore end-on, as ASME Y14.5 and ISO 5459 place a feature of size's datum symbol on its size dimension; annotations/<id>/place keeps draftwright's attachment."
+  "evidence": "draftwright's drawing: 'B' (datum ref, front view); the port's: 'B' (datum ref, plan view). Datum B is the ⌀62 bore, a feature of size: draftwright draws its symbol edge-on in the front view, on the bore's silhouette, which is hidden there. Since #224 the port attaches it to the bore's own size callout in the plan view, which sees the bore end-on, as ASME Y14.5 and ISO 5459 place a feature of size's datum symbol on its size dimension; a view or side in annotations/<id>/place keeps draftwright's attachment."
  },
  {
   "file": "string_post_tapped.step",
@@ -8368,7 +8458,7 @@
    ]
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright's drawing: 'B' (datum ref, front view); the port's: 'B' (datum ref, plan view). Datum B is the ⌀62 bore, a feature of size: draftwright draws its symbol edge-on in the front view, on the bore's silhouette, which is hidden there. Since #224 the port attaches it to the bore's own size callout in the plan view, which sees the bore end-on, as ASME Y14.5 and ISO 5459 place a feature of size's datum symbol on its size dimension; annotations/<id>/place keeps draftwright's attachment."
+  "evidence": "draftwright's drawing: 'B' (datum ref, front view); the port's: 'B' (datum ref, plan view). Datum B is the ⌀62 bore, a feature of size: draftwright draws its symbol edge-on in the front view, on the bore's silhouette, which is hidden there. Since #224 the port attaches it to the bore's own size callout in the plan view, which sees the bore end-on, as ASME Y14.5 and ISO 5459 place a feature of size's datum symbol on its size dimension; a view or side in annotations/<id>/place keeps draftwright's attachment."
  },
  {
   "file": "hw_string_post_tapped_intent.step",

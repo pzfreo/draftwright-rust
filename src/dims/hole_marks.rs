@@ -9,7 +9,8 @@
 //! - **A frame** whose faces are all bores of holes one shown size callout names, and no others,
 //!   moves beneath that callout's text in the view that sees the holes end-on, left-aligned with
 //!   it and without a leader, as the size callout's own frame (over the text when beneath has no
-//!   room); a second frame on the same callout continues the first's stack.
+//!   room); a second frame on the same callout continues the first's stack. A frame on one hole
+//!   a table states takes its tag the same way.
 //! - **A datum symbol** whose faces are one hole's bore moves onto that hole's mark in the view
 //!   that sees it end-on: its own size callout when that callout names this hole alone (a
 //!   pattern's `4×` callout would make the whole pattern the datum), else its hole table tag. The
@@ -19,8 +20,8 @@
 //! Each takes a place only when it is clear of every other item, other views and sheet
 //! furniture, on blank paper of its own view, with no finding of its own; otherwise it stays
 //! where lowering put it. A frame with an all-around or all-over mark keeps its leader (the mark
-//! sits at its bend). One the Spec places (`annotations/<id>/place`) is the Spec's, so placing it
-//! keeps it on its surface or leader.
+//! sits at its bend). One the Spec places in a view or side (`annotations/<id>/place`) is the
+//! Spec's, so placing it keeps it on its surface or leader; a bare pin holds the attached ink.
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -71,10 +72,6 @@ pub(crate) fn attach(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
                 || g.placed.is_none()
                 || g.state != crate::items::State::Shown
                 || !g.modifiers.is_empty()
-                || spec
-                    .annotations
-                    .get(&g.id)
-                    .is_some_and(|a| a.place.is_some())
             {
                 continue;
             }
@@ -101,8 +98,16 @@ pub(crate) fn attach(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
             }) else {
                 continue;
             };
+            if spec
+                .annotations
+                .get(&g.id)
+                .and_then(|a| a.place.as_ref())
+                .is_some_and(|p| lowered(p, view.id.trim_start_matches("v:")))
+            {
+                continue;
+            }
             let named: BTreeSet<&str> = owners.iter().map(|h| h.feature.id.as_str()).collect();
-            let Some(mark) = mark(plan, &named, &view.id, !frame) else {
+            let Some(mark) = mark(plan, &named, &view.id) else {
                 continue;
             };
             let Some(sheet) = std::iter::once(&plan.sheet)
@@ -243,7 +248,7 @@ pub(crate) fn attach(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
                     .or_default()
                     .push(g.id.clone());
                 format!(
-                    "; {} {} in the {} view, which sees the holes end-on, in place of a leader to its faces (annotations/{}/place keeps the leader)",
+                    "; {} {} in the {} view{ATTACHED}s end-on, in place of a leader to its faces (a view or side in annotations/{}/place keeps the leader)",
                     if side == "below" { "beneath" } else { "over" },
                     mark.name,
                     view.id.trim_start_matches("v:"),
@@ -251,7 +256,7 @@ pub(crate) fn attach(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
                 )
             } else {
                 format!(
-                    "; attached to {} in the {} view, which sees the hole end-on where its surface is hidden (annotations/{}/place keeps it on its surface)",
+                    "; attached to {} in the {} view{ATTACHED} end-on where its surface is hidden (a view or side in annotations/{}/place keeps it on its surface)",
                     mark.name,
                     view.id.trim_start_matches("v:"),
                     g.id
@@ -267,6 +272,64 @@ pub(crate) fn attach(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
     all.extend(plan.gdt.iter().filter_map(gdt::proxy));
     callout_routes::refresh(analysis, plan, &all, &cache, &changed, &rechecked_codes);
 }
+
+/// Whether placement intent *p* keeps a glyph on its lowered attachment: it names a view other
+/// than *end_on* (where the glyph attaches), or a side, lane or position along a lowered strip.
+/// A bare pin, an offset, or a pin in *end_on* holds the attached ink instead.
+fn lowered(p: &crate::placement_intent::Place, end_on: &str) -> bool {
+    if p.view.as_deref() == Some(end_on) {
+        return !p.pinned;
+    }
+    p.view.is_some() || p.side.is_some() || p.lane.is_some() || p.along.is_some()
+}
+
+/// Whether *place* pins lowered glyph *item* in the view it attaches in on its hole's mark (an
+/// editor's pin of the attached glyph, where it is drawn). That view is not one the glyph is
+/// lowered in, so lowering takes it as a bare pin and [`attach`] holds it on its mark.
+pub(crate) fn pinned_on_mark(
+    analysis: &Analysis,
+    item: &crate::pmi_lowering::Lowered,
+    place: &crate::placement_intent::Place,
+) -> bool {
+    use crate::pmi_lowering::Glyph;
+    let frame = match &item.glyph {
+        Glyph::ControlFrame {
+            all_around,
+            all_over,
+            ..
+        } => !*all_around && !*all_over,
+        Glyph::Datum { .. } => false,
+        _ => return false,
+    };
+    if !place.pinned || place.view.is_none() {
+        return false;
+    }
+    let read = crate::bridge::holes::read(analysis);
+    let holes: Vec<&Hole> = read.iter().filter_map(|(_, h)| h.as_ref().ok()).collect();
+    let Some(owners) = bore_owners(analysis, &holes, &item.faces) else {
+        return false;
+    };
+    if !frame && owners.len() != 1 {
+        return false;
+    }
+    // The principal view down the holes' common axis: side, front or plan down x, y or z.
+    let Some(k) = owners[0].principal.map(|(k, _)| k) else {
+        return false;
+    };
+    owners
+        .iter()
+        .all(|h| h.principal.map(|(a, _)| a) == Some(k))
+        && place.view.as_deref() == Some(["side", "front", "plan"][k])
+}
+
+/// Whether glyph *g* was attached to a hole's mark here, so a pin on it holds that ink rather
+/// than naming the view it was lowered into.
+pub(crate) fn attached(g: &gdt::PlannedGdt) -> bool {
+    g.basis.contains(ATTACHED)
+}
+
+/// What the basis of an attached glyph says.
+const ATTACHED: &str = ", which sees the hole";
 
 /// The holes whose bores *faces* are, each face a cylinder of one hole at its bore's diameter
 /// (not a counterbore, spotface or countersink), or none.
@@ -285,10 +348,13 @@ fn bore_owners<'a>(
         else {
             return None;
         };
-        let across = (0..3)
-            .filter(|&j| j != axis)
-            .map(|j| b[j + 3] - b[j])
-            .fold(0.0, f64::max);
+        // Its diameter from a proven site's distance to its axis, else its box: a bore split in
+        // halves at an angle spans less than its diameter across either principal axis.
+        let across: Vec<usize> = (0..3).filter(|&j| j != axis).collect();
+        let across = match (a.sites.first(), a.support.as_slice()) {
+            (Some(p), &[u, v]) => 2.0 * (p[across[0]] - u).hypot(p[across[1]] - v),
+            _ => across.iter().map(|&j| b[j + 3] - b[j]).fold(0.0, f64::max),
+        };
         let mut of = holes
             .iter()
             .filter(|h| h.feature.faces.binary_search(&face).is_ok());
@@ -305,9 +371,9 @@ fn bore_owners<'a>(
     Some(owners)
 }
 
-/// The mark of holes *named* in *view*: a shown size callout naming exactly them, else (for a
-/// datum, *tag*) one hole's table tag.
-fn mark(plan: &Plan, named: &BTreeSet<&str>, view: &str, tag: bool) -> Option<Mark> {
+/// The mark of holes *named* in *view*: a shown size callout naming exactly them, else one hole's
+/// table tag.
+fn mark(plan: &Plan, named: &BTreeSet<&str>, view: &str) -> Option<Mark> {
     let callout = plan.dimensions.iter().find(|d| {
         let holes: BTreeSet<&str> = d
             .measurements
@@ -324,7 +390,9 @@ fn mark(plan: &Plan, named: &BTreeSet<&str>, view: &str, tag: bool) -> Option<Ma
             && d.measurements
                 .iter()
                 .all(|m| named.contains(m.feature.as_str()) || m.feature.starts_with("pmi:"))
-            && (named.len() > 1 || !d.label.contains('×'))
+            // A count (`4×`) makes the whole pattern the mark's subject; `⌵ ⌀12 × 90°` and
+            // `M6×1` are one hole's.
+            && (named.len() > 1 || !counted(&d.label))
     });
     if let Some(d) = callout {
         let p = d.placed.as_ref()?;
@@ -340,7 +408,7 @@ fn mark(plan: &Plan, named: &BTreeSet<&str>, view: &str, tag: bool) -> Option<Ma
         });
     }
     let b = plan.balloons.iter().find(|b| {
-        tag && b.view == view
+        b.view == view
             && b.certifying
             && b.features.len() == 1
             && named.len() == 1
@@ -354,6 +422,14 @@ fn mark(plan: &Plan, named: &BTreeSet<&str>, view: &str, tag: bool) -> Option<Ma
         tag: true,
         name: format!("its hole table tag {}", b.tag),
     })
+}
+
+/// Whether *label* opens with a count, `4×`.
+fn counted(label: &str) -> bool {
+    label
+        .split_once('×')
+        .map(|(n, _)| n.trim())
+        .is_some_and(|n| !n.is_empty() && n.chars().all(|c| c.is_ascii_digit()))
 }
 
 /// Frame *old* moved rigidly so its box's top left corner is *corner*, without its leader.
@@ -443,10 +519,9 @@ fn clear(
             t[3].max(p[1]),
         ]
     });
-    let whole = triangle;
     if outlines
         .iter()
-        .any(|(own, o)| placement::boxes_overlap(whole, *o) && !(*own && paper(whole)))
+        .any(|(own, o)| placement::boxes_overlap(triangle, *o) && !(*own && paper(triangle)))
     {
         return false;
     }
@@ -502,4 +577,15 @@ fn clear(
                 });
             frame_clear && triangle_clear
         })
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn only_a_leading_count_counts() {
+        assert!(super::counted("4× ⌀7 THRU"));
+        assert!(super::counted("12 × ⌀3"));
+        assert!(!super::counted("⌀12 THRU ⌵ ⌀20 × 90°"));
+        assert!(!super::counted("M6×1 THRU"));
+    }
 }

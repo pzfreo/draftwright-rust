@@ -1479,6 +1479,7 @@ fn plan_search(
             .annotations
             .get(&item.id)
             .and_then(|a| a.place.as_ref())
+            .filter(|p| !super::hole_marks::pinned_on_mark(analysis, item, p))
         {
             if let Some(v) = p.view.as_deref() {
                 item.view = match v {
@@ -2584,7 +2585,11 @@ pub(crate) fn validate_placements(
         let Some(entry) = spec.annotations.get(&item.id).filter(|e| !e.omit) else {
             continue;
         };
-        let Some(place) = &entry.place else {
+        let Some(place) = entry
+            .place
+            .as_ref()
+            .filter(|p| !super::hole_marks::pinned_on_mark(analysis, &item, p))
+        else {
             continue;
         };
         let Some(record) = report.records.iter().find(|r| r.source_id == item.source) else {

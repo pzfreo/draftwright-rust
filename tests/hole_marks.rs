@@ -80,14 +80,33 @@ fn ftc10_hole_frames_and_datums_attach_to_their_marks() {
     }
 }
 
-/// The Spec's placement intent is the override: a placed frame keeps its leader, a placed datum
-/// its surface.
+/// A frame on holes whose bores are split in halves at an angle (so neither half spans the
+/// diameter across a principal axis) still finds its holes' size callout.
+#[test]
+fn a_frame_on_split_bores_attaches_to_their_callout() {
+    let a = nist("nist_stc_09_asme1_ap242-e4.stp.gz");
+    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let frame = plan
+        .gdt
+        .iter()
+        .find(|g| {
+            g.id == "pmi:geometric_tolerance.position:f42,43,44,45,46,47,54,55:ref=A,B,C:mod=diameter_zone"
+        })
+        .unwrap();
+    assert!(frame.basis.contains("size callout"), "{}", frame.basis);
+    let p = frame.placed.as_ref().unwrap();
+    assert!(p.lines.is_empty(), "{p:?}");
+    assert!(mark_box(&plan, p.label_box, 1.0).is_some());
+}
+
+/// The Spec's placement intent is the override: a frame placed on a side keeps its leader, a
+/// datum placed in a view its surface.
 #[test]
 fn a_placed_hole_frame_or_datum_keeps_its_lowered_attachment() {
     let a = nist(FTC10);
     let spec: Spec = serde_json::from_value(serde_json::json!({"annotations": {
-        CYLINDRICITY: {"place": {}},
-        DATUM_F: {"place": {}},
+        CYLINDRICITY: {"place": {"side": "below"}},
+        DATUM_F: {"place": {"view": "side"}},
     }}))
     .unwrap();
     let plan = model::plan_recovered(&a, &spec).unwrap();
@@ -97,6 +116,34 @@ fn a_placed_hole_frame_or_datum_keeps_its_lowered_attachment() {
     let datum = plan.gdt.iter().find(|g| g.id == DATUM_F).unwrap();
     assert_eq!(datum.view, "v:side");
     assert!(!datum.basis.contains("table tag"));
+}
+
+/// A bare pin on an attached datum holds it on its hole's size callout, not back on the edge-on
+/// silhouette it was lowered onto.
+#[test]
+fn a_bare_pin_holds_an_attached_datum() {
+    let path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/pmi/step/spool_fits.step.gz");
+    let a = model::analyse_native(&path).unwrap().1;
+    const DATUM_B: &str = "pmi:datum.datum:f55:t=B";
+    let free = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let spec: Spec = serde_json::from_value(serde_json::json!({"annotations": {
+        DATUM_B: {"place": {"pinned": true}},
+    }}))
+    .unwrap();
+    let pinned = model::plan_recovered(&a, &spec).unwrap();
+    let datum = |p: &Plan| p.gdt.iter().find(|g| g.id == DATUM_B).unwrap().clone();
+    let (free, pinned) = (datum(&free), datum(&pinned));
+    assert_eq!(free.view, "v:plan");
+    assert!(free.basis.contains("size callout"), "{}", free.basis);
+    assert_eq!(pinned.view, free.view);
+    let (f, p) = (free.placed.unwrap(), pinned.placed.unwrap());
+    assert!(
+        (0..2).all(|k| (f.tip[k] - p.tip[k]).abs() < 1e-6),
+        "{:?} vs {:?}",
+        f.tip,
+        p.tip
+    );
 }
 
 /// Every shown frame citing a datum with no shown symbol is said once, naming what it lacks,
@@ -138,6 +185,13 @@ fn frames_citing_undrawn_datums_are_said() {
             said += 1;
         }
     }
-    // stc-10's symmetry frame cites J, which the file never lowers.
-    assert!(said >= 1);
+    // stc-10's symmetry frame alone cites an undrawn datum, J, which the file never lowers.
+    assert_eq!(said, 1);
+    let lacking: Vec<&String> = plan
+        .problems
+        .iter()
+        .filter(|p| p.code == "frame_datum_not_drawn")
+        .flat_map(|p| &p.refs)
+        .collect();
+    assert_eq!(lacking, ["datum J"]);
 }
