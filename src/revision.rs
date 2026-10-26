@@ -5,7 +5,9 @@
 //! classifies each recognised feature and face as carried, adapted, ambiguous, orphaned or new.
 //! draftwright reads its own feature IDs through that match (a feature is the quiddity record with
 //! the same faces, in the same file), then rebinds the Spec: every `f:<kind>:<n>` and
-//! `face:<n>` in an entry's key or values names what it named before. An entry is carried
+//! `face:<n>` in an entry's key or values, and every face embedded in an ID
+//! (`profile_angle.angle.f12`), names what it named before. quiddity does not match edges, so
+//! an embedded edge (`:e3`) carries only when every face carried as it was. An entry is carried
 //! (unchanged or renamed), or set aside, with its original kept in the report, never deleted:
 //! *orphaned* (what it names is gone), *ambiguous* (the candidates are listed; none is guessed),
 //! or refused by the new part ([`crate::session::Session::open_spec`]).
@@ -43,6 +45,8 @@ pub struct Revised {
     pub report: Report,
     /// quiddity's match of the two parts.
     pub correspondence: Correspondence,
+    /// The edges only in one drawing, as counted in the report.
+    edges: Edges,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -92,8 +96,9 @@ pub struct FeatureChange {
 #[derive(Clone, Debug, Serialize)]
 pub struct SpecEntry {
     pub path: String,
-    /// `renamed`, `orphaned`, `ambiguous` or `set_aside` (refused by the new part). Entries
-    /// carried unchanged are not listed.
+    /// `renamed`, `orphaned`, `ambiguous`, `set_aside` (refused by the new part) or
+    /// `refused_before` (the old part already refused it, so it says nothing of the revision).
+    /// Entries carried unchanged are not listed.
     pub class: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub to: Option<String>,
@@ -133,10 +138,13 @@ pub struct ProblemRef {
     pub message: String,
 }
 
-#[derive(Clone, Copy, Debug, Default, Serialize)]
+#[derive(Clone, Debug, Default, Serialize)]
 pub struct EdgeCounts {
     pub added: usize,
     pub removed: usize,
+    /// Views whose direction or up changed between the drawings: their edges are not compared.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub reoriented: Vec<String>,
 }
 
 /// What one old ID names in the new part.
@@ -170,7 +178,7 @@ pub fn revise(old: &Path, new: &Path, part: Option<usize>, spec: &Value) -> Resu
     for s in &old_opened.set_aside {
         entries.push(SpecEntry {
             path: unescape(&s.path),
-            class: "set_aside".into(),
+            class: "refused_before".into(),
             to: None,
             entry: s.entry.clone(),
             why: format!("already refused by the old revision ({})", s.reason_code),
@@ -197,17 +205,15 @@ pub fn revise(old: &Path, new: &Path, part: Option<usize>, spec: &Value) -> Resu
     let edges = compare_edges(&old_session, &new_session, &corr);
     let features = matching.changes(&corr, &old_session, &new_session);
     let status = [old_session.plan().status, new_session.plan().status];
-    let decide = entries.iter().any(|e| e.class != "renamed")
-        || features.iter().any(|f| f.class == "ambiguous");
+    let open = entries.iter().filter(|e| e.needs_decision()).count()
+        + features.iter().filter(|f| f.class == "ambiguous").count();
     let verdict = if !problems.added.is_empty() {
         "problems"
-    } else if decide {
+    } else if open > 0 {
         "decide"
     } else {
         "ok"
     };
-    let open = entries.iter().filter(|e| e.class != "renamed").count()
-        + features.iter().filter(|f| f.class == "ambiguous").count();
     let mut summary = match verdict {
         "ok" => "The drawing rebuilds from the carried Spec with no new problems.".to_string(),
         "decide" => format!(
@@ -228,6 +234,28 @@ pub fn revise(old: &Path, new: &Path, part: Option<usize>, spec: &Value) -> Resu
         summary += " The whole part is turned relative to the old file, so its views changed: \
                     dimensions along each axis are compared as drawn, and edges are not compared.";
     }
+    let counts = edges.counts();
+    if !counts.reoriented.is_empty() {
+        summary += &format!(
+            " The {} view{} now look{} along another direction, so {} edges are not compared.",
+            counts.reoriented.join(", "),
+            if counts.reoriented.len() == 1 {
+                ""
+            } else {
+                "s"
+            },
+            if counts.reoriented.len() == 1 {
+                "s"
+            } else {
+                ""
+            },
+            if counts.reoriented.len() == 1 {
+                "its"
+            } else {
+                "their"
+            },
+        );
+    }
     Ok(Revised {
         report: Report {
             verdict: verdict.into(),
@@ -242,13 +270,21 @@ pub fn revise(old: &Path, new: &Path, part: Option<usize>, spec: &Value) -> Resu
             annotations,
             problems,
             status,
-            edges: edges.counts(),
+            edges: counts,
             carried_spec: new_opened.spec,
         },
         old: old_session,
         new: new_session,
         correspondence: corr,
+        edges,
     })
+}
+
+impl SpecEntry {
+    /// Whether a person must decide on this entry: it did not carry because of the revision.
+    fn needs_decision(&self) -> bool {
+        !matches!(self.class.as_str(), "renamed" | "refused_before")
+    }
 }
 
 /// The two parts' draftwright features and faces, matched through quiddity's correspondence.
@@ -257,6 +293,8 @@ struct Matching {
     faces: BTreeMap<usize, Bind>,
     /// Each old draftwright feature's quiddity record.
     records: BTreeMap<String, String>,
+    /// Every face carried with its number and nothing is new, so edge numbers still hold.
+    same_faces: bool,
 }
 
 /// Each draftwright feature's quiddity record: the one sharing most of its faces.
@@ -285,14 +323,31 @@ impl Matching {
         new_prints: &qc::Fingerprints,
     ) -> Self {
         let old_records = records(old, old_prints);
-        let mut by_record: BTreeMap<String, String> = BTreeMap::new();
+        // Several draftwright features can share a record (a countersink and its hole): a new
+        // feature is the one on the matched record that is of the old feature's kind, or the
+        // record's only feature (a hole that gained a counterbore changes kind).
+        let kind = |a: &Analysis, id: &str| {
+            a.features
+                .iter()
+                .find(|f| f.id == id)
+                .map(|f| f.kind.clone())
+        };
+        let mut by_record: BTreeMap<String, Vec<(String, Option<String>)>> = BTreeMap::new();
         for (feature, record) in records(new, new_prints) {
-            by_record.entry(record).or_insert(feature);
+            let k = kind(new, &feature);
+            by_record.entry(record).or_default().push((feature, k));
         }
         let entries: BTreeMap<&str, &qc::Entry<String>> =
             corr.features.iter().map(|e| (e.old.as_str(), e)).collect();
-        let to_new = |record: &String| by_record.get(record).cloned();
-        let features = old
+        let to_new = |record: &String, k: &str| {
+            by_record.get(record).and_then(|on| {
+                on.iter()
+                    .find(|(_, nk)| nk.as_deref() == Some(k))
+                    .or(if on.len() == 1 { on.first() } else { None })
+                    .map(|(f, _)| f.clone())
+            })
+        };
+        let mut features: BTreeMap<String, Bind> = old
             .features
             .iter()
             .map(|f| {
@@ -301,11 +356,14 @@ impl Matching {
                         Class::Carried | Class::Adapted => e
                             .new
                             .as_ref()
-                            .and_then(to_new)
+                            .and_then(|r| to_new(r, &f.kind))
                             .map_or(Bind::Orphaned, Bind::To),
-                        Class::Ambiguous => {
-                            Bind::Ambiguous(e.candidates.iter().filter_map(to_new).collect())
-                        }
+                        Class::Ambiguous => Bind::Ambiguous(
+                            e.candidates
+                                .iter()
+                                .filter_map(|r| to_new(r, &f.kind))
+                                .collect(),
+                        ),
                         _ => Bind::Orphaned,
                     },
                     None => Bind::Orphaned,
@@ -313,6 +371,21 @@ impl Matching {
                 (f.id.clone(), bind)
             })
             .collect();
+        // Two old features that still reach one new feature can't both be it: neither is
+        // guessed.
+        let mut reached: BTreeMap<String, usize> = BTreeMap::new();
+        for b in features.values() {
+            if let Bind::To(n) = b {
+                *reached.entry(n.clone()).or_default() += 1;
+            }
+        }
+        for b in features.values_mut() {
+            if let Bind::To(n) = b
+                && reached[n.as_str()] > 1
+            {
+                *b = Bind::Ambiguous(vec![n.clone()]);
+            }
+        }
         let faces = corr
             .faces
             .iter()
@@ -329,16 +402,49 @@ impl Matching {
                 (e.old, bind)
             })
             .collect();
+        let same_faces = corr.new_faces.is_empty()
+            && corr
+                .faces
+                .iter()
+                .all(|e| e.class == Class::Carried && e.new == Some(e.old));
         Matching {
             features,
             faces,
             records: old_records,
+            same_faces,
         }
     }
 
-    /// What an old ID (`f:<kind>:<n>` or `face:<n>`) names now; an ID the old part did not have
-    /// (one the Spec declares itself) is left as it is.
+    /// What an old ID (`f:<kind>:<n>`, `face:<n>`, or an embedded `f<n>.<m>` or `e<n>`) names
+    /// now; an ID the old part did not have (one the Spec declares itself) is left as it is.
     fn bind(&self, id: &str) -> Bind {
+        let numbered = |l: &&str| l.starts_with(|c: char| c.is_ascii_digit());
+        if id.strip_prefix('e').filter(numbered).is_some() {
+            // quiddity matches faces, not edges: an edge number means the same edge only when
+            // every face carried as it was.
+            return if self.same_faces {
+                Bind::To(id.into())
+            } else {
+                Bind::Orphaned
+            };
+        }
+        if let Some(list) = id.strip_prefix('f').filter(numbered) {
+            let mut now = Vec::new();
+            for n in list.split('.') {
+                match self.bind(&format!("face:{n}")) {
+                    Bind::To(m) => now.push(m.trim_start_matches("face:").to_string()),
+                    Bind::Ambiguous(c) => {
+                        return Bind::Ambiguous(
+                            c.iter()
+                                .map(|m| format!("f{}", m.trim_start_matches("face:")))
+                                .collect(),
+                        );
+                    }
+                    Bind::Orphaned => return Bind::Orphaned,
+                }
+            }
+            return Bind::To(format!("f{}", now.join(".")));
+        }
         if let Some(n) = id
             .strip_prefix("face:")
             .and_then(|n| n.parse::<usize>().ok())
@@ -392,68 +498,51 @@ impl Matching {
         let Some(sections) = spec.as_object() else {
             return (spec.clone(), report);
         };
-        fn note(
-            report: &mut Vec<SpecEntry>,
-            path: String,
-            entry: &Value,
-            result: Result<(String, Value), (String, Bind)>,
-            key: &str,
-        ) -> Option<Value> {
-            match result {
-                Ok((to, _)) if to == key => None,
-                Ok((to, value)) => {
-                    report.push(SpecEntry {
-                        path,
-                        class: "renamed".into(),
-                        to: Some(to),
-                        entry: entry.clone(),
-                        why: String::new(),
-                        candidates: Vec::new(),
-                    });
-                    Some(value)
-                }
-                Err((id, Bind::Ambiguous(candidates))) => {
-                    report.push(SpecEntry {
-                        path,
-                        class: "ambiguous".into(),
-                        to: None,
-                        entry: entry.clone(),
-                        why: format!("{id} matches more than one feature of the new part"),
-                        candidates,
-                    });
-                    None
-                }
-                Err((id, _)) => {
-                    report.push(SpecEntry {
-                        path,
-                        class: "orphaned".into(),
-                        to: None,
-                        entry: entry.clone(),
-                        why: format!("{id} has no match in the new part"),
-                        candidates: Vec::new(),
-                    });
-                    None
-                }
-            }
-        }
         for (section, value) in sections {
             match value {
                 _ if section == "binding" => {}
-                Value::Object(entries) if section != "sheet" => {
+                // The sheet's settings are carried one by one: an ID that does not carry sets
+                // aside only the setting that names it.
+                Value::Object(_) if section == "sheet" => {
+                    if let Some(v) = self.carry_part(section, value, true, &mut report) {
+                        out.insert(section.clone(), v);
+                    }
+                }
+                Value::Object(entries) => {
+                    let results: Vec<_> = entries
+                        .iter()
+                        .map(|(key, entry)| {
+                            let result = self
+                                .rename(key)
+                                .and_then(|k| Ok((k, self.rename_value(entry)?)));
+                            (key, entry, result)
+                        })
+                        .collect();
+                    let mut reached: BTreeMap<&str, usize> = BTreeMap::new();
+                    for (_, _, r) in &results {
+                        if let Ok((k, _)) = r {
+                            *reached.entry(k.as_str()).or_default() += 1;
+                        }
+                    }
                     let mut kept = Map::new();
-                    for (key, entry) in entries {
-                        let result = self
-                            .rename(key)
-                            .and_then(|k| Ok((k, self.rename_value(entry)?)));
-                        let carried = result.as_ref().ok().cloned();
-                        match note(&mut report, format!("{section}/{key}"), entry, result, key) {
-                            Some(v) => {
-                                kept.insert(carried.expect("carried").0, v);
-                            }
-                            None => {
-                                if let Some((k, v)) = carried.filter(|(k, _)| k == key) {
-                                    kept.insert(k, v);
+                    for (key, entry, result) in &results {
+                        let path = format!("{section}/{key}");
+                        match result {
+                            Err(e) => report.push(set_aside(path, entry, e)),
+                            // Two entries would carry to one key: neither is chosen.
+                            Ok((to, _)) if reached[to.as_str()] > 1 => report.push(SpecEntry {
+                                path,
+                                class: "ambiguous".into(),
+                                to: None,
+                                entry: (*entry).clone(),
+                                why: format!("more than one entry carries to {to}"),
+                                candidates: vec![to.clone()],
+                            }),
+                            Ok((to, v)) => {
+                                if to != *key || v != *entry {
+                                    report.push(renamed(path, entry, to.clone()));
                                 }
+                                kept.insert(to.clone(), v.clone());
                             }
                         }
                     }
@@ -466,42 +555,69 @@ impl Matching {
                             .get("id")
                             .and_then(Value::as_str)
                             .map_or(i.to_string(), String::from);
-                        let result = self.rename_value(entry).map(|v| (String::new(), v));
-                        match result {
-                            Ok((_, v)) => {
-                                if &v != entry {
-                                    report.push(SpecEntry {
-                                        path: format!("{section}/{name}"),
-                                        class: "renamed".into(),
-                                        to: None,
-                                        entry: entry.clone(),
-                                        why: String::new(),
-                                        candidates: Vec::new(),
-                                    });
-                                }
-                                kept.push(v);
-                            }
-                            Err(e) => {
-                                note(&mut report, format!("{section}/{name}"), entry, Err(e), "");
-                            }
+                        if let Some(v) =
+                            self.carry_part(&format!("{section}/{name}"), entry, false, &mut report)
+                        {
+                            kept.push(v);
                         }
                     }
                     out.insert(section.clone(), Value::Array(kept));
                 }
                 other => {
-                    let renamed = self.rename_value(other);
-                    match renamed {
-                        Ok(v) => {
-                            out.insert(section.clone(), v);
-                        }
-                        Err(e) => {
-                            note(&mut report, section.clone(), other, Err(e), "");
-                        }
+                    if let Some(v) = self.carry_part(section, other, false, &mut report) {
+                        out.insert(section.clone(), v);
                     }
                 }
             }
         }
         (Value::Object(out), report)
+    }
+
+    /// *value* (at *path*) renamed, or set aside. With *partial* (the sheet), an object or list
+    /// that does not carry is carried member by member, each one that does not set aside alone.
+    fn carry_part(
+        &self,
+        path: &str,
+        value: &Value,
+        partial: bool,
+        report: &mut Vec<SpecEntry>,
+    ) -> Option<Value> {
+        let e = match self.rename_value(value) {
+            Ok(v) => {
+                if v != *value {
+                    report.push(renamed(path.into(), value, String::new()));
+                }
+                return Some(v);
+            }
+            Err(e) => e,
+        };
+        match value {
+            Value::Object(o) if partial => Some(Value::Object(
+                o.iter()
+                    .filter_map(|(k, x)| {
+                        let at = format!("{path}/{k}");
+                        let k = match self.rename(k) {
+                            Ok(k) => k,
+                            Err(e) => {
+                                report.push(set_aside(at, x, &e));
+                                return None;
+                            }
+                        };
+                        Some((k, self.carry_part(&at, x, true, report)?))
+                    })
+                    .collect(),
+            )),
+            Value::Array(a) if partial => Some(Value::Array(
+                a.iter()
+                    .enumerate()
+                    .filter_map(|(i, x)| self.carry_part(&format!("{path}/{i}"), x, true, report))
+                    .collect(),
+            )),
+            _ => {
+                report.push(set_aside(path.into(), value, &e));
+                None
+            }
+        }
     }
 
     /// The new ID of an old drawing item's ID (`d:f:hole:3/…`), if its feature carried.
@@ -569,12 +685,25 @@ impl Matching {
     }
 }
 
-/// The span of the next `f:<kind>:<n>` or `face:<n>` in *s*.
+/// The span of the next `f:<kind>:<n>` or `face:<n>` in *s*, or of a face or edge list embedded
+/// in an ID after `.` or `:` (`profile_angle.angle.f12`, `outer_profile:f12:e3:e4`, `:f3.4`).
 fn next_id(s: &str) -> Option<(usize, usize)> {
     let b = s.as_bytes();
     let word = |c: u8| c.is_ascii_alphanumeric() || c == b'_';
+    let digit = |k: usize| k < b.len() && b[k].is_ascii_digit();
     let mut i = 0;
     while i < b.len() {
+        // An edge also follows a face with `_` (`profile_angle.angle.f97_e92_e96`).
+        let after = |c: u8| matches!(c, b'.' | b':') || (c == b'_' && b[i] == b'e');
+        if i > 0 && after(b[i - 1]) && matches!(b[i], b'f' | b'e') && digit(i + 1) {
+            let mut j = i + 1;
+            while digit(j) || (j < b.len() && b[j] == b'.' && digit(j + 1)) {
+                j += 1;
+            }
+            if j == b.len() || !b[j].is_ascii_alphanumeric() {
+                return Some((i, j));
+            }
+        }
         let (face, feature) = (b[i..].starts_with(b"face:"), b[i..].starts_with(b"f:"));
         if (i == 0 || !word(b[i - 1])) && (face || feature) {
             let mut j = i + if face { 5 } else { 2 };
@@ -605,6 +734,42 @@ fn next_id(s: &str) -> Option<(usize, usize)> {
 /// A JSON pointer's path as written: `~1` is `/`, `~0` is `~`.
 fn unescape(path: &str) -> String {
     path.replace("~1", "/").replace("~0", "~")
+}
+
+/// A Spec entry carried under a new name, or with renamed references (*to* empty).
+fn renamed(path: String, entry: &Value, to: String) -> SpecEntry {
+    SpecEntry {
+        path,
+        class: "renamed".into(),
+        to: (!to.is_empty()).then_some(to),
+        entry: entry.clone(),
+        why: String::new(),
+        candidates: Vec::new(),
+    }
+}
+
+/// A Spec entry set aside because *id* does not carry.
+fn set_aside(path: String, entry: &Value, (id, bind): &(String, Bind)) -> SpecEntry {
+    let (class, why, candidates) = match bind {
+        Bind::Ambiguous(c) => (
+            "ambiguous",
+            format!("{id} matches more than one feature of the new part"),
+            c.clone(),
+        ),
+        _ => (
+            "orphaned",
+            format!("{id} has no match in the new part"),
+            Vec::new(),
+        ),
+    };
+    SpecEntry {
+        path,
+        class: class.into(),
+        to: None,
+        entry: entry.clone(),
+        why,
+        candidates,
+    }
 }
 
 fn annotations(old: &Session, new: &Session, m: &Matching) -> Vec<AnnotationChange> {
@@ -660,13 +825,24 @@ fn annotations(old: &Session, new: &Session, m: &Matching) -> Vec<AnnotationChan
             .map(|n| (n.id.clone(), n.text.clone()))
             .collect()
     };
-    let (before, after) = (notes(old), notes(new));
+    // Notes are matched as dimensions are: an automatic note's ID names its feature.
+    let after = notes(new);
+    let before: BTreeMap<String, (String, String)> = notes(old)
+        .into_iter()
+        .map(|(id, text)| {
+            let now = m
+                .item(&id)
+                .filter(|n| after.contains_key(n))
+                .unwrap_or_else(|| format!("\u{0}gone {id}"));
+            (now, (id, text))
+        })
+        .collect();
     for (id, text) in &after {
         match before.get(id) {
-            Some(was) if was == text => {}
-            Some(was) => out.push(AnnotationChange {
+            Some((_, was)) if was == text => {}
+            Some((was_id, was)) => out.push(AnnotationChange {
                 class: "changed".into(),
-                old: Some(id.clone()),
+                old: Some(was_id.clone()),
                 new: Some(id.clone()),
                 from: Some(was.clone()),
                 to: Some(text.clone()),
@@ -680,8 +856,8 @@ fn annotations(old: &Session, new: &Session, m: &Matching) -> Vec<AnnotationChan
             }),
         }
     }
-    for (id, text) in &before {
-        if !after.contains_key(id) {
+    for (now, (id, text)) in &before {
+        if !after.contains_key(now) {
             out.push(AnnotationChange {
                 class: "removed".into(),
                 old: Some(id.clone()),
@@ -701,7 +877,9 @@ fn problems(old: &Session, new: &Session, m: &Matching) -> Problems {
             .iter()
             .map(|s| {
                 if rename {
-                    m.item(s).unwrap_or_else(|| s.clone())
+                    // An old subject with no match names nothing new: it can't match any new
+                    // problem, even one whose subject now has its old number.
+                    m.item(s).unwrap_or_else(|| format!("\u{0}gone {s}"))
                 } else {
                     s.clone()
                 }
@@ -739,6 +917,7 @@ fn problems(old: &Session, new: &Session, m: &Matching) -> Problems {
 struct Edges {
     added: Vec<Vec<P>>,
     removed: Vec<Vec<P>>,
+    reoriented: Vec<String>,
 }
 
 impl Edges {
@@ -746,6 +925,7 @@ impl Edges {
         EdgeCounts {
             added: self.added.len(),
             removed: self.removed.len(),
+            reoriented: self.reoriented.clone(),
         }
     }
 }
@@ -874,6 +1054,7 @@ fn compare_edges(old: &Session, new: &Session, corr: &Correspondence) -> Edges {
     let mut edges = Edges {
         added: Vec::new(),
         removed: Vec::new(),
+        reoriented: Vec::new(),
     };
     if turned(corr) {
         // A turned revision's views are not the same projection: compare annotations only.
@@ -894,6 +1075,12 @@ fn compare_edges(old: &Session, new: &Session, corr: &Correspondence) -> Edges {
         ) else {
             continue;
         };
+        let same = |a: [f64; 3], b: [f64; 3]| (0..3).all(|k| (a[k] - b[k]).abs() < 1e-9);
+        if !same(of.direction, nf.direction) || !same(of.up, nf.up) {
+            // The planner turned this view: its old edges are another projection.
+            edges.reoriented.push(key.to_string());
+            continue;
+        }
         let Some(camera) = View::new(nf.direction, nf.up) else {
             continue;
         };
@@ -944,7 +1131,7 @@ impl Revised {
             },
             items,
         };
-        let edges = compare_edges(&self.old, &self.new, &self.correspondence);
+        let edges = &self.edges;
         let polyline = |p: &Vec<P>| {
             Item::Edge(Curve::Beziers(
                 p.windows(2).map(|w| vec![w[0], w[1]]).collect(),
@@ -1087,7 +1274,7 @@ impl Revised {
             }
             s += "\n";
         }
-        let decisions: Vec<&SpecEntry> = r.spec.iter().filter(|e| e.class != "renamed").collect();
+        let decisions: Vec<&SpecEntry> = r.spec.iter().filter(|e| e.needs_decision()).collect();
         if !decisions.is_empty() {
             s += "**Spec entries that need a decision**\n\n";
             for e in decisions {
@@ -1103,6 +1290,18 @@ impl Revised {
                         format!("; candidates {}", e.candidates.join(", "))
                     }
                 );
+            }
+            s += "\n";
+        }
+        let before: Vec<&SpecEntry> = r
+            .spec
+            .iter()
+            .filter(|e| e.class == "refused_before")
+            .collect();
+        if !before.is_empty() {
+            s += "**Spec entries the old revision already refused**\n\n";
+            for e in before {
+                let _ = writeln!(s, "- `{}`: {}", e.path, e.why);
             }
             s += "\n";
         }
@@ -1157,6 +1356,7 @@ mod tests {
             .collect(),
             faces: BTreeMap::new(),
             records: BTreeMap::new(),
+            same_faces: false,
         };
         let spec = serde_json::json!({"schema": "draftwright.spec/2", "binding": {"x": 1}, "sheet": {},
             "dimensions": {"d:f:hole:3/bore.diameter": {"tolerance": "+0.1 -0"}, "d:f:hole:4/location.length.x": {"tolerance": "±0.05"}, "d:f:hole:2/bore.diameter": {"tolerance": "±0.2"}},
@@ -1174,5 +1374,117 @@ mod tests {
             .collect();
         assert!(classes.contains(&("dimensions/d:f:hole:2/bore.diameter", "orphaned")));
         assert!(classes.contains(&("dimensions/d:f:hole:3/bore.diameter", "renamed")));
+    }
+
+    fn matching(same_faces: bool) -> Matching {
+        Matching {
+            features: [
+                ("f:hole:3", Bind::To("f:hole:2".into())),
+                ("f:hole:2", Bind::Orphaned),
+            ]
+            .into_iter()
+            .map(|(k, v)| (k.to_string(), v))
+            .collect(),
+            faces: [
+                (12, Bind::To("face:11".into())),
+                (13, Bind::Orphaned),
+                (14, Bind::To("face:13".into())),
+            ]
+            .into_iter()
+            .collect(),
+            records: BTreeMap::new(),
+            same_faces,
+        }
+    }
+
+    #[test]
+    fn embedded_faces_and_edges_are_found() {
+        let s = "d:envelope/profile_angle.angle.f12 outer_profile:f12:e3:e4 x.f3.4 \
+                 location.length.x f12 profile_angle.angle.f97_e92_e96 location.f9_2 hole_e1x";
+        let mut found = Vec::new();
+        let mut rest = s;
+        while let Some((a, b)) = next_id(rest) {
+            found.push(rest[a..b].to_string());
+            rest = &rest[b..];
+        }
+        assert_eq!(
+            found,
+            ["f12", "f12", "e3", "e4", "f3.4", "f97", "e92", "e96", "f9"]
+        );
+    }
+
+    #[test]
+    fn embedded_faces_rename_and_edges_carry_only_unchanged() {
+        let m = matching(false);
+        assert_eq!(
+            m.rename("d:envelope/profile_location_x.length.f14_2"),
+            Ok("d:envelope/profile_location_x.length.f13_2".into())
+        );
+        assert_eq!(
+            m.rename("d:envelope/profile_angle.angle.f13"),
+            Err(("f13".into(), Bind::Orphaned))
+        );
+        assert_eq!(
+            m.rename("outer_profile:f12:e3:e4"),
+            Err(("e3".into(), Bind::Orphaned))
+        );
+        assert_eq!(
+            matching(true).rename("notch:f12:e3:e4"),
+            Ok("notch:f11:e3:e4".into())
+        );
+    }
+
+    #[test]
+    fn colliding_and_retargeted_entries_are_reported() {
+        let spec = serde_json::json!({
+            "dimensions": {
+                "d:f:hole:3/bore.diameter": {"tolerance": "+0.1 -0"},
+                "d:f:hole:2/bore.diameter": {"tolerance": "±0.2"},
+            },
+            "faces": {
+                "a": {"faces": ["face:12"]},
+                "b": {"faces": ["face:14"]},
+                "c": {"faces": ["face:9"]},
+            },
+        });
+        // An orphaned key set aside, not colliding; then two keys that both reach f:hole:2.
+        let mut m = matching(false);
+        m.features
+            .insert("f:hole:2".into(), Bind::To("f:hole:2".into()));
+        let (carried, report) = m.carry(&spec);
+        assert_eq!(carried["dimensions"], serde_json::json!({}));
+        let classes: Vec<(&str, &str)> = report
+            .iter()
+            .map(|e| (e.path.as_str(), e.class.as_str()))
+            .collect();
+        assert!(classes.contains(&("dimensions/d:f:hole:3/bore.diameter", "ambiguous")));
+        assert!(classes.contains(&("dimensions/d:f:hole:2/bore.diameter", "ambiguous")));
+        // Same keys, renamed faces: reported, not carried silently.
+        assert!(classes.contains(&("faces/a", "renamed")));
+        assert!(classes.contains(&("faces/b", "renamed")));
+        assert!(!classes.iter().any(|(p, _)| *p == "faces/c"));
+        assert_eq!(
+            carried["faces"]["a"]["faces"],
+            serde_json::json!(["face:11"])
+        );
+    }
+
+    #[test]
+    fn one_unmatched_sheet_setting_keeps_the_rest() {
+        let spec = serde_json::json!({"sheet": {
+            "size": "A3", "zones": false,
+            "views": {"front": {"section": "face:13"}, "top": {"section": "face:12"}},
+        }});
+        let (carried, report) = matching(false).carry(&spec);
+        assert_eq!(
+            carried["sheet"],
+            serde_json::json!({"size": "A3", "zones": false,
+                "views": {"front": {}, "top": {"section": "face:11"}}})
+        );
+        let classes: Vec<(&str, &str)> = report
+            .iter()
+            .map(|e| (e.path.as_str(), e.class.as_str()))
+            .collect();
+        assert!(classes.contains(&("sheet/views/front/section", "orphaned")));
     }
 }

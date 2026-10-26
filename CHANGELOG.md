@@ -8,6 +8,9 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Added
 
+- **The `draftwright` command line for Linux (x86_64), macOS (Apple Silicon) and Windows
+  (x86_64), attached to each release** (`.github/workflows/cli.yml`), each built, tried on a
+  revision and checksummed.
 - **`draftwright revise old.step new.step --spec s.json -o dir`: a drawing carried to a new
   revision of its part (ADR R3).** quiddity's correspondence matches the two parts, and every
   `f:<kind>:<n>` and `face:<n>` in the Spec is rebound to what it named: an entry is carried,

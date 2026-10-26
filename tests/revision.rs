@@ -251,3 +251,22 @@ fn the_command_line_writes_the_report_and_the_marked_drawing() {
     );
     assert!(md.contains("![What changed"), "{md}");
 }
+
+#[test]
+fn an_entry_the_old_revision_already_refused_does_not_ask_for_a_decision() {
+    let (old, _) = pair("hole_moved");
+    let r = revise(
+        &old,
+        &old,
+        None,
+        &spec(json!({ "d:f:hole:99/bore.diameter": { "tolerance": "±0.1" } })),
+    )
+    .unwrap();
+    let classes: Vec<_> = r.report.spec.iter().map(|e| e.class.as_str()).collect();
+    assert_eq!(classes, ["refused_before"]);
+    assert_eq!(r.report.verdict, "ok", "{}", r.report.summary);
+    assert!(
+        r.markdown("plate", None)
+            .contains("the old revision already refused")
+    );
+}
