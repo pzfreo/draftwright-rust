@@ -138,6 +138,21 @@ All notable changes to draftwright-rust are recorded here, in the style of
   43.8 mm HEX 2.000 A/F leader; length alone does not single it out, GRM-03, STC-07 and FTC-08
   each have a longer clean leader), nema17-mount-bracket's R0.5 leader ending on a hidden
   corner, and linkrods' 0.625 and 0.75 standing beside the boss they do not locate.
+- **Review reports leaders that end on hidden edges or run across their own view (#226).** The
+  final contact check also reads each callout leader against its view's physical edges
+  (`src/dims/contacts.rs`, with the interior router's edge proof): `leader_to_hidden_edge`
+  (warning) when the tip lies on an edge only where a nearer planar face covers it, so it points
+  at dashed line-work (nema17-mount-bracket's R0.5, GRM-03's ⌀1.6 blind hole, string post's
+  2.4 A/F, CTC-04's counterbores and R13, FTC-06's bosses, and pockets, holes and ramps seen
+  only hidden on 8 of the first 12 MFCAD parts in `tools/quality_parts.txt`); and
+  `leader_across_view` (warning) when a leader at least 15 mm long crosses four or more lines of
+  its view (visible or hidden, coincident ones once) beyond the fewest a straight way out of the
+  view from its tip would cross (cgb245's two 2× R3 slot leaders, CTC-02's ⌀40 counterbores
+  and 6× R18, CTC-03's 2× R9.52, CTC-05's ø304.8). Length alone does not single these out: a
+  bore leader whose every way out crosses the same rings (gt2-pulley's ⌀5 THRU) is not
+  reported. Layouts are unchanged: neither moves a leader, and a feature seen only hidden keeps
+  its callout where it is. Still open on #226: linkrods' 0.625 and 0.75 standing beside the
+  boss they do not locate.
 - **Coincident copies of a body no longer multiply every count (#212).** A STEP holding the same
   solid several times on top of itself (a FreeCAD export of a body and its `Pad`) was drawn
   whole, each feature once per copy: dw-examples' gantry plate printed "24× ⌀5.1 THRU" for 12

@@ -455,10 +455,48 @@ impl Proof {
     pub(super) fn touches(&self, v: &PlannedView, tip: P2) -> bool {
         let q = self.model_point(v, tip);
         let c = 0.05 / v.scale + SLACK;
-        self.touches_model(q, c)
+        self.touches_model(q, c, self.require_visible_attachment)
     }
 
-    fn touches_model(&self, q: P2, c: f64) -> bool {
+    /// Whether a leader *tip* lies on a physical edge only where a planar face nearer the
+    /// viewer covers it, so the reader sees that edge as hidden ink (#226).
+    pub(super) fn hidden_tip(&self, v: &PlannedView, tip: P2) -> bool {
+        let q = self.model_point(v, tip);
+        let c = 0.05 / v.scale + SLACK;
+        self.touches_model(q, c, false) && !self.touches_model(q, c, true)
+    }
+
+    /// The printed lines, visible or hidden, that page segment *s* crosses: the points inside
+    /// it where it meets a physical edge chord (a chord's end included, so a line through a
+    /// polyline's vertex is not missed), those within [`SLACK`] of one another along it (an edge
+    /// seen end-on over another, or the two chords at a vertex) counted once.
+    pub(super) fn lines_crossed(&self, v: &PlannedView, s: [P2; 2]) -> usize {
+        let s = [self.model_point(v, s[0]), self.model_point(v, s[1])];
+        let d = [s[1][0] - s[0][0], s[1][1] - s[0][1]];
+        let length = d[0].hypot(d[1]);
+        let mut at: Vec<f64> = self
+            .grid
+            .near(bounds_of(s))
+            .filter(|&i| i < self.depths.len())
+            .filter_map(|i| {
+                let [a, b] = self.segments[i];
+                let e = [b[0] - a[0], b[1] - a[1]];
+                let den = d[0] * e[1] - d[1] * e[0];
+                if den.abs() < 1e-12 {
+                    return None;
+                }
+                let w = [a[0] - s[0][0], a[1] - s[0][1]];
+                let t = (w[0] * e[1] - w[1] * e[0]) / den;
+                let u = (w[0] * d[1] - w[1] * d[0]) / den;
+                (t > 0.0 && t < 1.0 && (0.0..=1.0).contains(&u)).then_some(t * length)
+            })
+            .collect();
+        at.sort_by(f64::total_cmp);
+        at.dedup_by(|b, a| *b - *a <= SLACK);
+        at.len()
+    }
+
+    fn touches_model(&self, q: P2, c: f64, visible: bool) -> bool {
         self.grid
             .near(padded([q[0], q[1], q[0], q[1]], c))
             .any(|i| {
@@ -481,7 +519,7 @@ impl Proof {
                 } else {
                     from.max(to)
                 };
-                !self.require_visible_attachment
+                !visible
                     || !self.faces.iter().any(|f| {
                         f.depth > depth + 2.0 * SLACK
                             && self.face_contains(f, q)
@@ -896,7 +934,7 @@ pub(super) fn visible_circular_rims(
     for (centre, radius) in sites {
         for q in proof.arc_model_stations(camera.map(*centre), *radius) {
             found = true;
-            if proof.touches_model(q, 2.0 * SLACK) {
+            if proof.touches_model(q, 2.0 * SLACK, proof.require_visible_attachment) {
                 return Some(true);
             }
         }
@@ -1661,6 +1699,38 @@ mod tests {
         assert!(!proof(&hidden).touches(&view(), [0., 5.]));
         assert!(proof(&ink(vec![semicircle()])).touches(&view(), [0., 5.]));
         assert!(proof(&hidden).touches(&view(), [-50., 0.]));
+    }
+
+    #[test]
+    fn a_tip_on_an_edge_behind_a_front_face_is_hidden() {
+        let mut hidden = ink(vec![semicircle()]);
+        for p in &mut hidden.edges[4] {
+            p[2] = -5.0;
+        }
+        let behind = proof(&hidden);
+        assert!(behind.hidden_tip(&view(), [0., 5.]));
+        // On the face's own outline, or on no edge at all, it is not.
+        assert!(!behind.hidden_tip(&view(), [-50., 0.]));
+        assert!(!behind.hidden_tip(&view(), [0., 20.]));
+        assert!(!proof(&ink(vec![semicircle()])).hidden_tip(&view(), [0., 5.]));
+    }
+
+    #[test]
+    fn crossed_lines_count_each_printed_line_once() {
+        // Three vertical lines, the middle one twice (an edge seen end-on over another), and a
+        // polyline whose vertex the segment passes through.
+        let vertical = |x: f64| vec![[x, -10.], [x, 10.]];
+        let p = proof(&ink(vec![
+            vertical(-20.),
+            vertical(0.),
+            vertical(0.),
+            vertical(20.),
+            vec![[30., -10.], [30., 0.], [30., 10.]],
+        ]));
+        assert_eq!(p.lines_crossed(&view(), [[-40., 0.], [40., 0.]]), 4);
+        // The plate's outline counts too; a line the segment only reaches is not crossed.
+        assert_eq!(p.lines_crossed(&view(), [[-60., 5.], [-20., 5.]]), 1);
+        assert_eq!(p.lines_crossed(&view(), [[-10., 20.], [10., 20.]]), 0);
     }
 
     #[test]

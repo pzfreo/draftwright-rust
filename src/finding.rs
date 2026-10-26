@@ -151,11 +151,13 @@ catalogue! {
     "label_vs_measured" => Incomplete, Code, "The printed label does not state the measured requirement.";
     "layout_recovery_exhausted" => Readability, Code, "No recovery removed all reported layout defects.";
     "layout_replanned" => Advisory, Code, "A successful sheet or scale recovery is reported.";
+    "leader_across_view" => Readability, Code, "A long leader crosses more of its own view's lines than a leader leaving the other way would.";
     "leader_along_centreline" => Readability, Code, "A leader runs along a centre line, so the two read as one line.";
     "leader_centerline_overlap" => Readability, Code, "A leader overlaps a centreline.";
     "leader_crosses_silhouette" => Advisory, Code, "The informational audit reports leader re-entry into the silhouette.";
     "leader_line_through_text" => Readability, Code, "A leader runs through text.";
     "leader_through_feature" => Readability, Code, "A leader crosses feature material on its way to its target.";
+    "leader_to_hidden_edge" => Readability, Code, "A leader ends on an edge its view shows hidden.";
     "legibility_floor_breached" => Readability, Code, "The selected geometry scale is below the requested legibility floor.";
     "location_on_datum" => Advisory, Code, "The datum already states this zero location.";
     "location_ref_dropped" => Incomplete, Code, "A required drawing item was dropped before it could be stated.";

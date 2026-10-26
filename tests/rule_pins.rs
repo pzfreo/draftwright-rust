@@ -240,8 +240,27 @@ fn opposed_coaxial_taps_keep_authored_left_and_right_callouts() {
         .filter(|i| i.severity != draftwright::lint::Severity::Info)
         .collect();
     assert!(issues.is_empty(), "{issues:?}");
-    let problems: Vec<_> = p.problems.iter().filter(|i| i.severity != "info").collect();
-    assert!(problems.is_empty(), "{problems:?}");
+    // #226: neither tap opens on the face the plan looks at (the M4 opens below, the M2 is
+    // closed), so both circles print dashed and the Spec-pinned plan leaders end on hidden ink.
+    let mut problems: Vec<_> = p
+        .problems
+        .iter()
+        .filter(|i| i.severity != "info")
+        .map(|i| (i.code.as_str(), i.subjects.clone()))
+        .collect();
+    problems.sort();
+    assert_eq!(
+        problems,
+        holes
+            .iter()
+            .map(|(f, _)| (
+                "leader_to_hidden_edge",
+                vec![format!("d:{}/bore.diameter", f.id)]
+            ))
+            .collect::<std::collections::BTreeSet<_>>()
+            .into_iter()
+            .collect::<Vec<_>>(),
+    );
 }
 
 #[test]
