@@ -6,6 +6,107 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### Fixed
+
+- **A rectangle of holes is no longer called out as a bolt circle (#223).** quiddity accepts a
+  bolt circle whose holes are up to 2% off one radius and 4% off even spacing, so dw-examples'
+  gantry plate called four ⌀5.1 holes on a 19.85 × 20 rectangle "4× ⌀5.1 THRU EQ SP ON ø28.18 BC",
+  located by a centre that is no feature (22.825, 0.075 from a hole at 22.75) and marked with
+  radial crosses. A bolt circle now needs its holes on one radius within 0.01 mm and evenly spaced
+  within 0.05°; otherwise its holes are loose, each located by its own coordinates. The gantry
+  plate now calls "7× ⌀5.1 THRU" and goes from A3 2:1 to A4 1:1. CTC-02's four three-hole
+  "circles" (already dimensioned singly) change only their stated basis; the `boss_circle` test
+  part's 24.3 × 24.38 rectangle (0.19° off even) now prints "6× ⌀2.4 THRU" located singly, where
+  it printed "4× ⌀2.4 THRU EQ SP ON ø34.42 BC" as Python draftwright does, and its tests check
+  the boss rule on the four squared. t8-flange-nut and t8-housing-bracket keep their bolt
+  circles. The Spec's `pattern` can still declare one.
+
+- **A hole size that also names the hole's rim edge is drawn.** NIST STC-10 references each
+  hole of a pattern by its cylindrical face and a rim edge of that face, and the edge alone
+  made the size undrawn ("one diameter reference is not a face"). An edge every point of which
+  lies on one of the referenced cylinders, within its extent, now names that hole again. STC-10
+  gains A1-A8 `⌀2.5 ±0.15`, the `⌀3.5 G6` locating holes (printed by class), `⌀3.5 ±0.2` and
+  `4× ⌀7 ±0.25`, on their callouts and repeated in the hole table rows; `pmi_not_lowered` falls
+  from 35 to 29. Any other edge still refuses. The G6 callout, now carrying PMI, stays beside
+  the schedule in the plan view and moves the frames above it: two leaders of the C-hole frames
+  now cross the labels of `⌖ ⌀1Ⓜ A B C` and `⌖ ⌀0.65 A B C` (`annotation_ink_overlap` 1 to 5).
+  No other drawing of the 30 quality parts or the 35 dw-examples changes.
+
+- **Cited datums on a width or read through a nonconformance are drawn.** A datum whose faces are a
+  width's two opposite planes is the width's median plane, so it was refused ("not coplanar") and
+  every frame citing it said `frame_datum_not_drawn`. Once the drawing is finished, such a datum a
+  shown frame cites now stands on an extension line of the width's own size dimension, in line with
+  its dimension line (ISO 5459), where it has a clear place (`src/dims/size_datums.rs`);
+  `annotations/<id>/omit` leaves it out. A datum feature naming no face, which the STEP reader reads
+  as its datum's usage's faces (a nonconformance it reads through, said in the basis), is no longer
+  refused either. dw-examples: STC-06's datum B (12 frames read in full), FTC-06's A–E (every
+  frame), STC-08's A and D (7 of 9 frames), CTC-02's D; STC-07 and CTC-03 draw their origin datums
+  A, D, E and D. `frame_datum_not_drawn` over the 35 dw-examples and 30 quality parts falls from 37
+  to 13 (leader crossings 771 to 786: FTC-06 and STC-07 gain 11 and 8 around the new symbols, CTC-02
+  loses 7), and CTC-03's plan view states its holes by dimensions rather than a hole table
+  (`hole_table: always` restores it). Still undrawn: widths whose size dimension has no clear place
+  (FTC-10 J, STC-09 H, STC-10 J), datums on hole patterns (STC-06 F, STC-08 E, H, J) and datums set
+  by datum targets (CTC-02 A–C, CTC-05 C, D, FTC-10 K, L).
+
+- **A modelled thread quiddity refuses only because a chamfer splits its flanks is measured and
+  drawn conventionally.** dw-examples' T8 flange nut has a modelled 4-start, 8 mm lead Tr8 bore;
+  its top chamfer cuts each flank into two faces, and quiddity-rust 0.2.1 refuses the thread
+  (`inconsistent_diameters`) because the short pieces do not span the thread depth. The bore had
+  no size or designation (`modelled_thread_refused`) and its helix was drawn as a grey tangle.
+  draftwright now measures a refused thread from its faces with quiddity's own invariants (one
+  lead on every helical edge, faces of constant radius only at the minor and major diameters,
+  crest and root edges repeating every lead / starts, quiddity's depth-to-pitch bounds) and
+  reads it as a modelled thread, with the refusal's reason kept as `refused`; anything else stays
+  refused. The nut's bore is now called out "⌀8.3 × P2 4 STARTS" (no ISO 261 match, so measured,
+  info `thread_designation_measured`) and drawn with ISO 6410 minor and major lines.
+  `features/<id>/modelled_thread` overrides the designation or turns the depiction off. Where a
+  chamfer or end face meets any modelled thread's flanks along a jagged curve, that boundary is
+  now drawn at the crest, like a circular one, instead of as the raw intersection.
+
+- **A drawing of an assembly's principal part says the other parts are not shown.** dw-examples'
+  LM8UU is a sleeve and an insert; only the sleeve is drawn (#219), so under the title "LM8UU
+  linear bearing" the sheet showed a ⌀12.4 bore and no ⌀8, with the warning only in the review.
+  The sheet now carries an automatic general note, `ASSEMBLY OF 2 PARTS: ONLY PART METAL SHOWN;
+  PART CENTER NOT SHOWN` (the parts by name, or the others by count beyond three), which
+  `annotations/n:assembly/omit` leaves out and `annotations/n:assembly/text` words. A part chosen
+  with `--part` gets none. Only LM8UU and the GT2 pulley change on the 30 quality parts and the
+  35 dw-examples drawings, on the same sheets. LM8UU's notes block takes the top left, so its
+  views move down and its isometric (not to scale) is drawn much smaller in the lower-left corner;
+  the GT2 pulley's notes block takes the top right, so its isometric moves up beside it and is
+  drawn at the sheet's scale (5:1, was 6.35:1).
+
+- **A PMI label that is a lone symbol is no longer drawn as an empty box.** CTC-04's side view
+  and FTC-07's plan carried leadered labels of a lone `⌴`, and FTC-07 a private-use glyph
+  (U+F055) of its authoring system's font: AP242 common labels that are fragments of callouts
+  whose sizes the file states elsewhere, printed as empty boxes with no size or depth. A label
+  whose text has no letter or digit is now refused with why (`pmi_not_lowered`, a warning: the
+  lone symbol states nothing its features' own dimensions do not). On the 30 quality parts and
+  the 35 dw-examples drawings, only CTC-04 (one label) and FTC-07 (two) change; FTC-07 has four
+  fewer leader crossings.
+
+- **A PMI angle prints its unit.** An AP242 angular dimension printed its record's label, whose
+  unit is only its kind, so CTC-01's right V-notch read `60 ±0.5` (as if millimetres) beside the
+  left notch's `60°`. Every value of a drawn PMI angle, its deviations and limits included, now
+  carries `°` (`60° ±0.5°`, ISO 129-1). Only CTC-01's angle label changes on the 30 quality parts
+  and the 35 dw-examples drawings.
+
+- **A sheet is judged by its drawn items, not by an empty band past its border (#163).** The
+  automatic search trimmed a reservation that ran past the border into empty paper only for
+  section views, so a principal view's unused band refused an enlargement whose ink fits. The
+  21 mm 2020 corner bracket stayed at 1:1 on a near-empty A4 although 2:1 fits it cleanly, and
+  the sheet-metal hanger went to A3 at 1:2 although A4 holds the same drawing at 1:2. The trim
+  now applies to every view, still only when every drawn footprint is proven inside the frame:
+  the bracket is drawn at 2:1 on A4 and the hanger at 1:2 on A4 (and the gear-blank test part
+  at 5:1 on A4 rather than A3). An enlargement that adds a crossing of two dimension lines is
+  now held to the same ratchet as one that adds a line through material, so the authored
+  vertex-to-vertex diagonal on the `plate.step` test part keeps 1:1 rather than crossing its
+  60 mm overall width at 2:1 (`authored_aligned_span_clears_dimension_lines_extensions_and_arrowheads`).
+  The other 29 quality parts and 34 dw-examples drawings plan identically. Not changed by this
+  fix, because their scale has other causes: NIST STC-09 (its front view's stacked baseline lanes
+  rule out A4–A2 at any scale, and a GD&T corridor pass takes A1 from 1:2 to 1:5), NIST FTC-08
+  and STC-06 (no candidate on any paper is valid; layout density), and the 2020×50 V-slot (A4 2:1
+  is set aside for one added leader through material; left for a decision).
+
 ## 0.2.0 (2026-10-27)
 
 Now on quiddity-rust **v0.2.1** (previously `0.2.0-alpha.2`), which changes no library code from

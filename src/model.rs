@@ -1825,7 +1825,9 @@ pub fn recognise_document(
     doc: &quiddity::recognition::RecognitionDocument,
 ) -> Result<(), String> {
     use crate::bridge::native;
-    let doc = &native::in_file_axes(doc);
+    let mut doc = native::in_file_axes(doc);
+    crate::bridge::refused_threads::complete(part, &mut doc);
+    let doc = &doc;
     let read = native::read(part, doc)?;
     let mut features = read.holes;
     features.extend(read.features);
@@ -2077,6 +2079,16 @@ fn feature_crossings_where(plan: &Plan, include: impl Fn(&str) -> bool) -> usize
         }
     }
     leaders.len() + extensions.len()
+}
+
+// Distinct pairs of dimension lines that cross each other.
+fn dimension_line_crossings(plan: &Plan) -> usize {
+    plan.problems
+        .iter()
+        .filter(|p| p.code == "dimension_line_crossing")
+        .map(|p| &p.subjects)
+        .collect::<BTreeSet<_>>()
+        .len()
 }
 
 pub(crate) fn ink_findings(plan: &Plan) -> usize {
@@ -3573,6 +3585,10 @@ fn recover_candidates(
                 f.dropped += undrawn_gdt(&p);
                 let over = over_views(&p).saturating_sub(over_views(&first));
                 let crossings = feature_crossings(&p).saturating_sub(feature_crossings(&first));
+                // A crossed dimension line reads worse than a line through material: an
+                // enlargement that adds one is held to the same ratchet (#163).
+                let line_crossings =
+                    dimension_line_crossings(&p).saturating_sub(dimension_line_crossings(&first));
                 p.sheet.fill = crate::sheet_fit::fill(analysis, &p);
                 // A declined optional crop leaves an ordinary drawing. Its refusal must
                 // not veto the small-sheet candidates that F1 would otherwise accept.
@@ -3600,6 +3616,15 @@ fn recover_candidates(
                     ink_findings(&p),
                     p.sheet.arrangement
                 ));
+                if line_crossings > 0 {
+                    // Invariant: A candidate trace was pushed immediately before updating its final entry.
+                    tried
+                        .last_mut()
+                        .expect("candidate trace")
+                        .push_str(&format!(
+                            "; {line_crossings} additional dimension-line crossings"
+                        ));
+                }
                 let corridor_extra = extra_corridors(&p);
                 let existing_extra = extra_existing_crossings(&p);
                 if corridor_extra > 0 {
@@ -3656,7 +3681,7 @@ fn recover_candidates(
                         scale,
                         width: p.sheet.page[0],
                         fill: selection_fill,
-                        extra_crossings: crossings,
+                        extra_crossings: crossings + line_crossings,
                     },
                     p,
                 ));
@@ -4077,6 +4102,7 @@ fn plan_recovered_inner(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invali
             );
             crate::dims::callout_routes::finish(effective.as_ref(), spec, &mut plan);
             crate::dims::hole_marks::attach(effective.as_ref(), spec, &mut plan);
+            crate::dims::size_datums::attach(effective.as_ref(), spec, &mut plan);
             crate::dims::gdt::cited_undrawn(&mut plan);
             crate::dims::pmi_policy::audit(effective.as_ref(), &plan.spec.clone(), &mut plan);
             if crate::dims::pmi_policy::carries(effective.as_ref()) || !spec.origin.is_empty() {
@@ -4717,6 +4743,7 @@ fn plan_inner(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
             );
             crate::dims::callout_routes::finish(analysis, spec, &mut plan);
             crate::dims::hole_marks::attach(analysis, spec, &mut plan);
+            crate::dims::size_datums::attach(analysis, spec, &mut plan);
             crate::dims::gdt::cited_undrawn(&mut plan);
             if !crate::placement_intent::has_pins(spec) {
                 plan.record_dimension_labels();
@@ -4880,6 +4907,7 @@ fn plan_with_presentation(
                 // so it takes their reservations before attaching grew them (#224).
                 let areas: Vec<_> = finished.views.iter().map(|v| v.area).collect();
                 crate::dims::hole_marks::attach(analysis, base, &mut finished);
+                crate::dims::size_datums::attach(analysis, base, &mut finished);
                 for (v, area) in finished.views.iter_mut().zip(areas) {
                     v.area = area;
                 }
@@ -5128,9 +5156,10 @@ fn plan_with_presentation(
             code: "assembly_principal_drawn".into(),
             severity: "warning".into(),
             message: format!(
-                "{file} is an assembly of {} parts; its largest, part {k} ({}){placements}, holds the others within its box and is drawn alone, so they ({others}) are neither drawn nor dimensioned as its features. To draw another part, choose it by its index: --part K on the command line, or \"part\": K in a request.",
+                "{file} is an assembly of {} parts; its largest, part {k} ({}){placements}, holds the others within its box and is drawn alone, so they ({others}) are neither drawn nor dimensioned as its features; a general note on the sheet says so (annotations/{}/omit leaves it out). To draw another part, choose it by its index: --part K on the command line, or \"part\": K in a request.",
                 analysis.parts.len(),
-                analysis.binding.part
+                analysis.binding.part,
+                crate::notes::ASSEMBLY_NOTE
             ),
             subjects: Vec::new(),
             refs: analysis.parts.iter().map(|p| p.name.clone()).collect(),
@@ -5286,6 +5315,10 @@ fn plan_with_presentation(
                 .map(|r| r.id),
         );
         annotation_ids.extend(crate::dims::blends::note_ids(analysis));
+        annotation_ids.extend(crate::dims::size_datums::ids(analysis));
+        if crate::notes::assembly_note(analysis).is_some() {
+            annotation_ids.push(crate::notes::ASSEMBLY_NOTE.into());
+        }
         let missing = effective
             .annotations
             .keys()
@@ -5583,6 +5616,15 @@ fn plan_with_presentation(
     let (mut notes_given, omitted_notes, more) =
         crate::notes::reconcile(&requirements, analysis, spec);
     problems.extend(more);
+    for note in &mut notes_given {
+        if note.id == crate::notes::ASSEMBLY_NOTE
+            && let Some(text) = spec.annotations.get(&note.id).and_then(|a| a.text.as_ref())
+        {
+            note.text = text
+                .terms(&note.id, std::slice::from_ref(&note.text))?
+                .join(" ");
+        }
+    }
     let mut radius_notes = if crate::dims::pmi_policy::strict(analysis, spec) {
         Vec::new()
     } else {

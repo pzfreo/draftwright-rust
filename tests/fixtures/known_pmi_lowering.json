@@ -1084,14 +1084,19 @@
   "file": "nist_ctc_02_asme1_ap242-e2.stp",
   "record": "datum:0:1:4:43",
   "port": "datum:#79",
-  "field": "lowered",
-  "python": "datum_ref",
-  "rust": {
-   "lowered": "raw",
-   "problem": "pmi_not_lowered"
-  },
-  "verdict": "undetermined",
-  "evidence": "haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity nonconformance on #79 (datum_feature): the datum feature identifies no face; its datum's usage does (§6.5.1 puts it on the datum feature): read as the); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
+  "field": "site",
+  "python": [
+   -243.6923,
+   390.0,
+   0.0
+  ],
+  "rust": [
+   243.6923,
+   390.0,
+   0.0
+  ],
+  "verdict": "equivalent",
+  "evidence": "Both are proven attachment points on datum D's plane (z = 0, at the same y), mirrored across x: draftwright takes its point on XCAF's reading of the datum's faces and the port on the face its datum feature is read as (haecceity reads the feature, which names no face, as its datum's usage's faces, a nonconformance it reads through; the port now lowers it on those faces). The view and side agree."
  },
  {
   "file": "nist_ctc_02_asme1_ap242-e2.stp",

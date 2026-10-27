@@ -146,21 +146,22 @@ fn the_service_answers_each_line() {
     );
     let fixed: Vec<draftwright::items::Op> =
         serde_json::from_value(problems[0]["fix"].clone()).unwrap();
-    // Compact dimension lanes keep A4 at 2:1 without the isometric (#163); the retained
-    // layout keeps that spacing.
-    assert_eq!(fixed.len(), 6);
+    // A4 at 2:1 without the isometric, at normal spacing since its trial is judged by its
+    // ink rather than an empty band past the border (#163; compact lanes were the fallback
+    // that held it there before). The retained layout keeps no spacing override.
+    assert_eq!(fixed.len(), 5);
     for (path, value) in [
         ("sheet/keep_layout", json!(true)),
         ("sheet/size", json!("A4")),
         ("sheet/scale", json!("2:1")),
         ("sheets/max", json!(1)),
-        ("sheet/dimension_spacing", json!("compact")),
     ] {
         assert_eq!(
             fixed.iter().find(|op| op.path == path).unwrap().value,
             Some(value)
         );
     }
+    assert!(!fixed.iter().any(|op| op.path == "sheet/dimension_spacing"));
     // No feature-size requirements; the sheet still proves every overall extent.
     assert_eq!(replies[1]["result"]["lint"], json!([]));
     assert_eq!(replies[2]["error"]["choices"], json!(["svg", "pdf", "png"]));

@@ -1328,6 +1328,36 @@
   "evidence": "draftwright's drawing: 'B' (datum ref, front view); the port's: 'B' (datum ref, plan view). Datum B is one hole's bore, a feature of size: draftwright draws its symbol edge-on in the front view, on the bore's silhouette, which is hidden there. Since #224 the port attaches it to the hole's mark (its size callout or hole table tag) in the plan view, which sees the bore end-on, as ASME Y14.5 and ISO 5459 place a feature of size's datum symbol on its size dimension; a view or side in annotations/<id>/place keeps draftwright's attachment. Above its `⌀35` callout the `4× R25` callout's leader leaves no clear place; beneath it is past the plan's reserved area, which since this change grows into the vacant paper above the front view to hold it (before, B stayed on its silhouette)."
  },
  {
+  "field": "drawing",
+  "file": "nist_ctc_01_asme1_ap242-e1.stp",
+  "port": "dimension:#33",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": null,
+     "text": "60 ±0.5",
+     "view": "plan"
+    }
+   ]
+  },
+  "record": "dimension:0:1:4:17",
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": null,
+     "text": "60° ±0.5°",
+     "view": "plan"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright states '60 ±0.5' (dimension, plan view); the port states '60° ±0.5°' (dimension, plan view). An angle's record label leaves its unit to the record's kind (draftwright's implicit_degrees), which a reader of the sheet cannot see: a bare '60 ±0.5' reads as millimetres beside the automatic notch angle's '60°'. The port prints the unit on the nominal and its deviation (ISO 129-1)."
+ },
+ {
   "file": "nist_ctc_01_merge.step",
   "record": "datum:0:1:4:2",
   "port": "datum:#34",
@@ -1442,6 +1472,36 @@
   },
   "verdict": "rust-correct",
   "evidence": "draftwright's drawing: 'C' (datum ref, front view); the port's: 'C' (datum ref, plan view). Datum C is one hole's bore, a feature of size: draftwright draws its symbol edge-on in the front view, on the bore's silhouette, which is hidden there. Since #224 the port attaches it to the hole's mark (its size callout or hole table tag) in the plan view, which sees the bore end-on, as ASME Y14.5 and ISO 5459 place a feature of size's datum symbol on its size dimension; a view or side in annotations/<id>/place keeps draftwright's attachment. Datum B, the other bottom hole's bore, stays on its silhouette in the front view, as draftwright draws it: with the `4× R25` callout's leader beside B's `⌀35` callout, above it has no clear place and beneath it is past the plan's area (until the backlog-1 and backlog-2 stacks met, B attached and C did not)."
+ },
+ {
+  "field": "drawing",
+  "file": "nist_ctc_01_merge.step",
+  "port": "dimension:#33",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": null,
+     "text": "60 ±0.5",
+     "view": "plan"
+    }
+   ]
+  },
+  "record": "dimension:0:1:4:17",
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": null,
+     "text": "60° ±0.5°",
+     "view": "plan"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright states '60 ±0.5' (dimension, plan view); the port states '60° ±0.5°' (dimension, plan view). An angle's record label leaves its unit to the record's kind (draftwright's implicit_degrees), which a reader of the sheet cannot see: a bare '60 ±0.5' reads as millimetres beside the automatic notch angle's '60°'. The port prints the unit on the nominal and its deviation (ISO 129-1)."
  },
  {
   "file": "nist_ctc_02_asme1_ap242-e2.stp",
@@ -2604,31 +2664,6 @@
   },
   "verdict": "rust-correct",
   "evidence": "draftwright's drawing: not drawn, dropped (plan_incomplete, pmi_dropped); the port's: 'H' (datum ref, plan view). As known_pmi_lowering.json (drawn, rust-correct): draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet). Since #224 the symbol is attached to its hole's mark in the view that sees the hole end-on (its size callout, plan view), not drawn edge-on on the hole's hidden silhouette."
- },
- {
-  "file": "nist_ctc_02_asme1_ap242-e2.stp",
-  "record": "datum:0:1:4:43",
-  "port": "datum:#79",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "datum_ref",
-     "rides_on": null,
-     "text": "D",
-     "view": "front"
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "undetermined",
-  "evidence": "draftwright's drawing: 'D' (datum ref, front view); the port's: not drawn, refused (pmi_not_lowered). As known_pmi_lowering.json (lowered, undetermined): haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity nonconformance on #79 (datum_feature): the datum feature identifies no face; its datum's usage does (§6.5.1 puts it on the datum feature): read as the); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
  },
  {
   "file": "nist_ctc_02_asme1_ap242-e2.stp",
@@ -6327,6 +6362,32 @@
   "evidence": "draftwright states '0.500 ±0.008 INCH' (dimension, side view); the port states '12.7 ±0.2032' (dimension, side view). The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
  },
  {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "datum_definition:#8312",
+  "port": "datum:#8313",
+  "field": "drawing",
+  "python": {
+   "codes": [
+    "pmi_not_extracted",
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "datum_ref",
+     "rides_on": null,
+     "text": "B",
+     "view": "side"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: not drawn, refused; the port's: 'B' (datum ref, side view). Datum B's faces are the part's two opposite planes y = ±152.4, so it is the median plane of the 304.8 width: draftwright refuses it (datum reference faces are not coplanar) and the frames citing B cannot be read. The port draws it as ISO 5459 draws a datum on a feature of size, its triangle on an extension line of the width's own AP242 size dimension (304.8 ±0.254, between exactly those faces), in line with the dimension line (src/dims/size_datums.rs)."
+ },
+ {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
   "record": "dimension:0:1:4:92",
   "port": "dimension:#9797",
@@ -8139,6 +8200,162 @@
   "evidence": "known_pmi.json (record, rust-correct): straightness 0.2: a straightness with a unit basis, per unit length or area (NIST's expected PMI: '.01 / ⌀1.00' (ftc_07), '0.2 / 15' (ftc_10, stc_10)). XCAF does not transfer it, so draftwright's census has no source for it (silently missing). The port reads it, partially: the unit-basis (per unit area or length) is not carried; applies to supplemental geometry (trimmed_curve), not only the part's faces and edges. On the drawing: the port's is not drawn, refused (pmi_not_lowered); draftwright has no such record."
  },
  {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:90",
+  "port": "dimension:#296",
+  "field": "drawing",
+  "python": {
+   "codes": [
+    "authored_dim_source_unresolved",
+    "pmi_not_extracted"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "8× ⌀2.5 ±0.15 THRU",
+     "view": "front"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "The hole's references are its cylindrical face and a rim edge of that face. draftwright refuses the record (pmi_not_extracted: 'one diameter reference is not a face'; with it authored_dim_source_unresolved). Every point of the edge lies on the referenced cylinder within its extent, so it names the same hole again and adds nothing to measure; the port reads the size from the cylinders (pmi_lowering cylinder_geometry, edge_on_cylinder), matches them to the recognised hole callout of those holes (same axis line and diameter) and states it there and in its hole table rows. An edge off the referenced cylinders still refuses (tests/pmi_dimensions.rs a_hole_size_naming_its_rim_edge_reaches_its_callout_and_schedule)."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:99",
+  "port": "dimension:#305",
+  "field": "drawing",
+  "python": {
+   "codes": [
+    "authored_dim_source_unresolved",
+    "pmi_not_extracted"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "3× ⌀3.5 G6 THRU",
+     "view": "front"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "The hole's references are its cylindrical face and a rim edge of that face. draftwright refuses the record (pmi_not_extracted: 'one diameter reference is not a face'; with it authored_dim_source_unresolved). Every point of the edge lies on the referenced cylinder within its extent, so it names the same hole again and adds nothing to measure; the port reads the size from the cylinders (pmi_lowering cylinder_geometry, edge_on_cylinder), matches them to the recognised hole callout of those holes (same axis line and diameter) and states it there and in its hole table rows. An edge off the referenced cylinders still refuses (tests/pmi_dimensions.rs a_hole_size_naming_its_rim_edge_reaches_its_callout_and_schedule). Its class stated without limits is printed as the class alone on the uniquely matched recognised bore callout (symbolic_bore), the default fit presentation (deviations are a Spec option)."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:100",
+  "port": "dimension:#306",
+  "field": "drawing",
+  "python": {
+   "codes": [
+    "authored_dim_source_unresolved",
+    "pmi_not_extracted"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "3× ⌀3.5 G6 THRU",
+     "view": "front"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "The hole's references are its cylindrical face and a rim edge of that face. draftwright refuses the record (pmi_not_extracted: 'one diameter reference is not a face'; with it authored_dim_source_unresolved). Every point of the edge lies on the referenced cylinder within its extent, so it names the same hole again and adds nothing to measure; the port reads the size from the cylinders (pmi_lowering cylinder_geometry, edge_on_cylinder), matches them to the recognised hole callout of those holes (same axis line and diameter) and states it there and in its hole table rows. An edge off the referenced cylinders still refuses (tests/pmi_dimensions.rs a_hole_size_naming_its_rim_edge_reaches_its_callout_and_schedule). Its class stated without limits is printed as the class alone on the uniquely matched recognised bore callout (symbolic_bore), the default fit presentation (deviations are a Spec option)."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:103",
+  "port": "dimension:#309",
+  "field": "drawing",
+  "python": {
+   "codes": [
+    "authored_dim_source_unresolved",
+    "pmi_not_extracted"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "3× ⌀3.5 G6 THRU",
+     "view": "front"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "The hole's references are its cylindrical face and a rim edge of that face. draftwright refuses the record (pmi_not_extracted: 'one diameter reference is not a face'; with it authored_dim_source_unresolved). Every point of the edge lies on the referenced cylinder within its extent, so it names the same hole again and adds nothing to measure; the port reads the size from the cylinders (pmi_lowering cylinder_geometry, edge_on_cylinder), matches them to the recognised hole callout of those holes (same axis line and diameter) and states it there and in its hole table rows. An edge off the referenced cylinders still refuses (tests/pmi_dimensions.rs a_hole_size_naming_its_rim_edge_reaches_its_callout_and_schedule). Its class stated without limits is printed as the class alone on the uniquely matched recognised bore callout (symbolic_bore), the default fit presentation (deviations are a Spec option)."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:104",
+  "port": "dimension:#310",
+  "field": "drawing",
+  "python": {
+   "codes": [
+    "authored_dim_source_unresolved",
+    "pmi_not_extracted"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "3× ⌀3.5 ±0.2 THRU",
+     "view": "front"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "The hole's references are its cylindrical face and a rim edge of that face. draftwright refuses the record (pmi_not_extracted: 'one diameter reference is not a face'; with it authored_dim_source_unresolved). Every point of the edge lies on the referenced cylinder within its extent, so it names the same hole again and adds nothing to measure; the port reads the size from the cylinders (pmi_lowering cylinder_geometry, edge_on_cylinder), matches them to the recognised hole callout of those holes (same axis line and diameter) and states it there and in its hole table rows. An edge off the referenced cylinders still refuses (tests/pmi_dimensions.rs a_hole_size_naming_its_rim_edge_reaches_its_callout_and_schedule)."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:113",
+  "port": "dimension:#319",
+  "field": "drawing",
+  "python": {
+   "codes": [
+    "authored_dim_source_unresolved",
+    "pmi_not_extracted"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "4× ⌀7 ±0.25 THRU ⌴ ⌀10 ↧ 10",
+     "view": "plan"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "The hole's references are its cylindrical face and a rim edge of that face. draftwright refuses the record (pmi_not_extracted: 'one diameter reference is not a face'; with it authored_dim_source_unresolved). Every point of the edge lies on the referenced cylinder within its extent, so it names the same hole again and adds nothing to measure; the port reads the size from the cylinders (pmi_lowering cylinder_geometry, edge_on_cylinder), matches them to the recognised hole callout of those holes (same axis line and diameter) and states it there and in its hole table rows. An edge off the referenced cylinders still refuses (tests/pmi_dimensions.rs a_hole_size_naming_its_rim_edge_reaches_its_callout_and_schedule)."
+ },
+ {
   "file": "spool_fits.step",
   "record": "dimension:0:1:4:1",
   "port": "dimension:#6333",
@@ -9466,6 +9683,56 @@
   },
   "verdict": "rust-correct",
   "evidence": "Only nominal display changes to shortest faithful decimals up to three places; tolerances, claims and rendering outcomes are retained (drawn-values-2026-10-18)."
+ },
+ {
+  "field": "drawing",
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "port": "dimension:#16423",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "note",
+     "rides_on": null,
+     "text": "",
+     "view": "front"
+    }
+   ]
+  },
+  "record": "dimension:0:1:4:108",
+  "rust": {
+   "codes": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: a leadered note in the front view whose whole text is a lone symbol (the private-use glyph U+F055 of the authoring system's font), printed as an empty box with no size or depth; the port's: not drawn, refused (pmi_not_lowered, a warning). The common label is a fragment of a callout whose sizes the file states in its own dimension records; alone it states nothing."
+ },
+ {
+  "field": "drawing",
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "port": "dimension:#16482",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "note",
+     "rides_on": null,
+     "text": "⌴",
+     "view": "front"
+    }
+   ]
+  },
+  "record": "dimension:0:1:4:110",
+  "rust": {
+   "codes": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: a leadered note in the front view whose whole text is a lone symbol ('⌴'), printed as an empty box with no size or depth; the port's: not drawn, refused (pmi_not_lowered, a warning). The common label is a fragment of a callout whose sizes the file states in its own dimension records; alone it states nothing."
  },
  {
   "field": "drawing",

@@ -23,7 +23,9 @@
 //!   surface label's edge at its parameter midpoint, a common label's face at the vertex nearest
 //!   the face's box centre, [`label_geometry`]) in the front view, or the side view when its
 //!   references' box is longest along y, above or below by whether the site is above the part's
-//!   centre (`build_pmi_features`' label branch, drawn as `render_gdt` draws a `Note`).
+//!   centre (`build_pmi_features`' label branch, drawn as `render_gdt` draws a `Note`). A
+//!   label of a lone symbol (ctc04's and ftc07's `⌴`, ftc07's private-use U+F055: a fragment of
+//!   a callout whose sizes the file states elsewhere) is not drawn, as it would print an empty box.
 //! - **A thread or knurl** ([`manufacturing`], `lower_ap242_manufacturing_requirements`) is no
 //!   item of its own: it is given to the one hole or turned step its cylinder proves, its words
 //!   and structured statement reconciled and its text checked against the cylinder, and that
@@ -384,8 +386,12 @@ fn labelled(
         Err(reasons) => problems.push(Problem {
             id: format!("p:pmi_not_lowered:{}", r.source_id),
             code: "pmi_not_lowered".into(),
-            // A value-less radius loses nothing the drawn faces and their dimensions do not state.
-            severity: if reasons.iter().all(|why| why == VALUELESS_RADIUS) {
+            // A value-less radius, or a lone symbol, loses nothing the drawn faces and their
+            // dimensions do not state.
+            severity: if reasons
+                .iter()
+                .all(|why| why == VALUELESS_RADIUS || why == LONE_SYMBOL)
+            {
                 "warning"
             } else {
                 "error"
@@ -410,13 +416,19 @@ fn labelled(
 /// Why a common label that states a radius without its value (`4X R`) is not drawn (#214).
 const VALUELESS_RADIUS: &str = "it states a radius without its value (ASME Y14.5's full radius, set by the dimensions of the faces it joins), which an ISO 129-1 sheet does not print; its faces' dimensions should state it";
 
+/// Why a label that is a lone symbol with no letter or digit (`⌴`, or a private-use glyph of the
+/// authoring system's font) is not drawn.
+const LONE_SYMBOL: &str = "its text is a lone symbol with no size, depth or name, so it would print as an empty box; the requirement it marks is stated, or not, by its features' own dimensions";
+
 /// A surface or common label as a leadered text label (`build_pmi_features`' label branch), or
-/// why it is not one: its reading's or attachment's blockers, no text, no proven site, or a
-/// radius without its value.
+/// why it is not one: its reading's or attachment's blockers, no text, a lone symbol, no proven
+/// site, or a radius without its value.
 fn label(r: &Record, centre: [f64; 3]) -> Result<Lowered, Vec<String>> {
     let mut reasons = blockers(r);
     if r.label.trim().is_empty() {
         reasons.push("the label has no text".into());
+    } else if !r.label.chars().any(char::is_alphanumeric) {
+        reasons.push(LONE_SYMBOL.into());
     }
     let tokens: Vec<&str> = r.label.split_whitespace().collect();
     if r.kind == "common_label"
@@ -1108,7 +1120,11 @@ fn control_frame(r: &Record, centre: [f64; 3]) -> Result<Lowered, Vec<String>> {
 /// A datum as a datum feature symbol (`build_pmi_features`' datum branch and `datum`), or why it
 /// is not one.
 fn datum(r: &Record, centre: [f64; 3]) -> Result<Lowered, Vec<String>> {
-    let mut reasons = blockers(r);
+    // A nonconformance the reader read through (a datum feature naming no face of its own, read
+    // as its datum's usage's faces) says how the datum was read, not that it is lost: it goes to
+    // the basis, and the faces decide.
+    let (read_through, mut reasons): (Vec<String>, Vec<String>) =
+        blockers(r).into_iter().partition(|b| read_through(b));
     if r.label.trim().is_empty() {
         reasons.push("the datum has no letter".into());
     }
@@ -1136,8 +1152,18 @@ fn datum(r: &Record, centre: [f64; 3]) -> Result<Lowered, Vec<String>> {
             at.view,
             at.side,
             at.how
-        ),
+        ) + &read_through
+            .iter()
+            .map(|b| format!("; {}", crate::pmi::reader_reason(b)))
+            .collect::<String>(),
     })
+}
+
+/// Whether blocker *b* is a reader nonconformance the reader read through as its detail states
+/// (`…: read as …`, `…; read as …`), losing nothing.
+pub fn read_through(b: &str) -> bool {
+    b.starts_with("haecceity nonconformance on ")
+        && (b.contains(": read as ") || b.contains("; read as "))
 }
 
 /// Who authored record *r*, for its basis: the STEP's AP242 PMI, or the Spec
@@ -2003,10 +2029,6 @@ fn cylinder_geometry(part: &Part, r: &Record, value: f64, g: &mut Geometry) {
         return;
     }
     let noun = if radius { "radius" } else { "diameter" };
-    if !r.edges.is_empty() {
-        g.reasons
-            .push(format!("one {noun} reference is not a face"));
-    }
     for &f in &r.faces {
         match cylinder(part, f) {
             Ok(c) => {
@@ -2016,6 +2038,16 @@ fn cylinder_geometry(part: &Part, r: &Record, value: f64, g: &mut Geometry) {
             }
             Err(why) => g.reasons.push(why.replace("diameter", noun)),
         }
+    }
+    // A rim edge of a referenced cylinder names that cylinder again (NIST STC-10's hole sizes
+    // reference each hole's face and its rim); any other edge is no size reference.
+    if !r
+        .edges
+        .iter()
+        .all(|&e| g.cylinders.iter().any(|c| edge_on_cylinder(part, e, c)))
+    {
+        g.reasons
+            .push(format!("one {noun} reference is not a face"));
     }
     if let [Some(target)] = g.targets.as_slice() {
         let mut d = target.direction;
@@ -2102,6 +2134,27 @@ fn cylinder_geometry(part: &Part, r: &Record, value: f64, g: &mut Geometry) {
                 .push("the radius's face has no proven point at its parameter centre".into());
         }
     }
+}
+
+/// Whether every point that stands in for edge *e* lies on cylinder *c*, within its extent (to
+/// 1e-4 mm).
+fn edge_on_cylinder(part: &Part, e: usize, c: &Cylinder) -> bool {
+    part.edges.get(e).is_some_and(|edge| {
+        edge.samples
+            .iter()
+            .chain([&edge.start, &edge.end])
+            .all(|p| {
+                let d: [f64; 3] = [0, 1, 2].map(|i| p[i] - c.origin[i]);
+                let t: f64 = (0..3).map(|i| d[i] * c.direction[i]).sum();
+                let off = (0..3)
+                    .map(|i| (d[i] - t * c.direction[i]).powi(2))
+                    .sum::<f64>()
+                    .sqrt();
+                (off - c.radius).abs() <= 1e-4
+                    && c.interval[0] - 1e-4 <= t
+                    && t <= c.interval[1] + 1e-4
+            })
+    })
 }
 
 /// Geometrically identical cylinders (one face XCAF repeats in a group): draftwright coalesces

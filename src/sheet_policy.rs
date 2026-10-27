@@ -1119,6 +1119,7 @@ fn replay_pins(
     crate::dims::callout_routes::prefer_interior(effective.as_ref(), base, &mut held, None);
     crate::dims::callout_routes::finish(effective.as_ref(), base, &mut held);
     crate::dims::hole_marks::attach(effective.as_ref(), base, &mut held);
+    crate::dims::size_datums::attach(effective.as_ref(), base, &mut held);
     crate::dims::gdt::cited_undrawn(&mut held);
     let mut plan = if only_bare_pins(&intent, base, &held) {
         // A bare pin holds the selected finished ink, including peers on every
@@ -1659,22 +1660,10 @@ mod tests {
                 crate::dims::leader_on_extension(&p.dimensions).is_empty(),
                 "{file}"
             );
-            // #221: GRM-03's A4 trial is finished free of its contact, so A4 is kept.
-            if file.starts_with("gramel/") {
-                assert_eq!(p.sheet.size, "A4", "{file}");
-                continue;
-            }
-            assert_ne!(p.sheet.size, "A4", "{file}");
-            assert!(
-                p.sheet_candidates
-                    .iter()
-                    .any(|c| c.outcome.contains("leader_on_extension")
-                        || c.outcome.contains("hard rejected")
-                        || c.kind.as_deref() == Some(RULED_OUT)
-                        || c.outcome.contains("annotation_overlap")
-                        || c.outcome.contains("page_fit_uncertain")),
-                "{file}"
-            );
+            // #221: GRM-03's A4 trial is finished free of its contact, so A4 is kept. #163: the
+            // hanger's A4 trial, judged by its ink rather than an empty band past the border,
+            // is free of contacts too (asserted above for every sheet), so A4 is kept.
+            assert_eq!(p.sheet.size, "A4", "{file}");
         }
     }
 
@@ -2093,10 +2082,29 @@ mod tests {
 
     #[test]
     fn a_routing_refusal_without_space_drops_does_not_repeat_the_scale() {
-        // The gear blank's unclipped A4 trial keeps a leader/extension contact through its
-        // finishing pass, with no hard findings or drops: a smaller scale would repeat the same
-        // routing, so it is not tried. (LM10UU was this case until the #219-#226 stack left
-        // its A4 trial usable at 2:1.)
+        // GRM-02's unclipped A4 trial keeps a leader/extension contact through its finishing
+        // pass, with no hard findings or drops: a smaller scale would repeat the same routing,
+        // so it is not tried. (LM10UU was this case until the #219-#226 stack left its A4
+        // trial usable at 2:1, and the gear blank until #163 judged its A4 trial by its ink
+        // rather than an empty band past the border.)
+        let a = model::analyse_native(
+            &Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts/grm02.step"),
+        )
+        .unwrap()
+        .1;
+        let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+        let a4 = &p.sheet_candidates[0];
+        assert_eq!((a4.size.as_str(), a4.max), ("A4", 1));
+        assert!(
+            a4.outcome.ends_with(
+                "(0 hard, 0 drops; annotation_outside_area, extension_through_feature, \
+                 leader_on_extension)"
+            ),
+            "{}",
+            a4.outcome
+        );
+        assert_eq!(a4.scales.len(), 1, "{}", p.sheet.basis);
+        // The gear blank's A4 trial is usable at its first scale (#163).
         let a = model::analyse_native(
             &Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts/gear_blank.step"),
         )
@@ -2105,12 +2113,7 @@ mod tests {
         let p = model::plan_recovered(&a, &Spec::default()).unwrap();
         let a4 = &p.sheet_candidates[0];
         assert_eq!((a4.size.as_str(), a4.max), ("A4", 1));
-        assert!(
-            a4.outcome
-                .ends_with("(0 hard, 0 drops; leader_on_extension)"),
-            "{}",
-            a4.outcome
-        );
+        assert!(a4.outcome.contains("usable"), "{}", a4.outcome);
         assert_eq!(a4.scales.len(), 1, "{}", p.sheet.basis);
         // GRM-03's A4 trial gained only a contact its finishing pass clears (#221): usable at
         // its first scale.

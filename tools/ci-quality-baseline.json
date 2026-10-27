@@ -517,7 +517,7 @@
       2
     ],
     "sm-hanger": [
-      "A3",
+      "A4",
       "1:2",
       1
     ],
@@ -528,6 +528,6 @@
     ]
   },
   "source": "Recorded from the complete quality.py --record audit",
-  "source_commit": "684b8708ae8184cb2e567c09879ddb94154d3e39",
-  "verified_binary_sha256": "84189fba88723aa7dd094151bcdb3c4c7e12b22793e11848cc4b51976922ef1d"
+  "source_commit": "98637e8ff3944b755fdd1a6de7e62baedf2721e0",
+  "verified_binary_sha256": "b490c3da1bbeddeacee136d0f207ff1f6255fbcd98875862322d4d6e95afb6ca"
 }

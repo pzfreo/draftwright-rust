@@ -211,14 +211,36 @@ fn demand_groups_holes_by_established_patterns() {
 /// `tools/recognise.py` (quiddity 0.4.0.dev0): quiddity fits a ø34.42 circle through the four
 /// lower holes, and draftwright's sheet for it prints `4× ⌀2.4 THRU EQ SP ON\nø34.4 BC` and
 /// `2× ⌀2.4 THRU`. Without the boss, the circle is refused and the six are loose.
+///
+/// The four lower holes are a 24.3 × 24.38 rectangle, 0.19° off even spacing, which since #223
+/// is no bolt circle: as recognised, all six are loose. The rule is checked on them squared to
+/// 24.3 × 24.3 about the same centre in quiddity's records.
 #[test]
 fn a_boss_on_its_centre_establishes_a_small_bolt_circle() {
     let fixtures = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures");
-    let (_, mut a) = draftwright::model::analyse_with(
-        &fixtures.join("parts/boss_circle.step"),
-        Some(&fixtures.join("recognition/boss_circle.json")),
-    )
-    .unwrap();
+    let (part, mut a) =
+        draftwright::model::analyse(&fixtures.join("parts/boss_circle.step")).unwrap();
+    let json = std::fs::read_to_string(fixtures.join("recognition/boss_circle.json")).unwrap();
+    let mut as_recognised = a.clone();
+    draftwright::model::recognise(&part, &mut as_recognised, &json).unwrap();
+    assert!(
+        as_recognised
+            .recognition
+            .as_ref()
+            .unwrap()
+            .patterns
+            .is_empty()
+    );
+    assert!(
+        demand::read(&as_recognised)
+            .holes
+            .iter()
+            .all(|h| h.pattern.is_none())
+    );
+    let squared = json
+        .replace("-32.103747339", "-32.063747339")
+        .replace("-7.7237473394", "-7.7637473394");
+    draftwright::model::recognise(&part, &mut a, &squared).unwrap();
     let callouts = |a: &draftwright::model::Analysis| -> Vec<(String, String)> {
         let plan = draftwright::model::plan(a, &draftwright::model::Spec::default()).unwrap();
         plan.dimensions
