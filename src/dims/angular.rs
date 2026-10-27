@@ -22,13 +22,19 @@
 //!   [`LIFT`] clear of it as a linear label is of its line. The label's centre lies where an
 //!   inline label stood when the arc was broken around it: the smallest radius that keeps both
 //!   arrowheads clear of the label's width (and a pad) about its station; the arc runs inside it,
-//!   so the ink reaches no further than before. Witness stations select the support half-rays,
-//!   without imposing a radius. Both the physical sector and the equal sector on the two extended
-//!   supports are tried, in increasing radius, in 1 mm steps, whose ink stays on the sheet, its
-//!   label off the views, the title block and the other items, and whose lines cross no other
-//!   view, dimension or label. With none, it keeps the smallest radius whose label is clear of
-//!   the views, and the collision checks report what it hits: nothing is dropped. The arc is
-//!   drawn as chords within 0.005 mm of it (draftwright's sampling).
+//!   so the ink reaches no further than before. A profile corner's angle ([`place_profile`])
+//!   instead starts at the smallest radius whose arc carries both arrowheads with room between
+//!   them and whose label stays within the sector, [`GAP`] clear of both extension lines
+//!   ([`Ink::compact`]; #227: the label no longer interrupts the arc, so an acute corner's arc
+//!   need not clear its width and stays near its vertex). PMI and notch angles keep the wider
+//!   radius: the recess callouts do not yet route around a notch arc brought in, and 10020's
+//!   21° notch then sent its sheet from A4 1:1 to A3 2:1. Witness stations select the support
+//!   half-rays, without imposing a radius. Both the physical sector and the equal sector on the
+//!   two extended supports are tried, in increasing radius, in 1 mm steps, whose ink stays on the
+//!   sheet, its label off the views, the title block and the other items, and whose lines cross
+//!   no other view, dimension or label. With none, it keeps the smallest radius whose label is
+//!   clear of the views, and the collision checks report what it hits: nothing is dropped. The
+//!   arc is drawn as chords within 0.005 mm of it (draftwright's sampling).
 //!
 //! The label is the record's, as every PMI dimension's (`60 ±0.5`; draftwright's
 //! `implicit_degrees`: its unit is the record's kind, not a printed `°`).
@@ -37,7 +43,10 @@ use haecceity::Part;
 use haecceity::geom::Surface;
 use serde::{Deserialize, Serialize};
 
-use super::placement::{Frame, LabelInk, Page, boxes_overlap, crosses, ink_points, label_box};
+use super::contacts::clear_box;
+use super::placement::{
+    Frame, LabelInk, Page, boxes_overlap, crosses, ink_points, ink_through, label_box,
+};
 use super::{ARROW, GAP, LIFT, OVERSHOOT, P2, P3, Placed, Shape, Want, font, label_ink};
 use crate::pmi::{Geometry, Record};
 
@@ -250,6 +259,9 @@ struct Ink {
     radial_half: f64,
     tangent_half: f64,
     minimum: f64,
+    /// Whether its radius is bounded by [`Ink::fits`] (a profile corner's) rather than by
+    /// [`Ink::arrows_clear`].
+    compact: bool,
 }
 
 impl Ink {
@@ -301,20 +313,73 @@ impl Ink {
             radial_half: height / 2.0,
             tangent_half: width / 2.0,
             minimum: 0.0,
+            compact: false,
         };
-        let mut ink = ink.along(0.5);
-        let mut lo = ink.radial_half + PAD;
-        let mut hi = (width + height + 2.0 * PAD + 4.0 * ARROW) / sweep + height / 2.0 + PAD;
+        Some(ink.along(0.5).least())
+    }
+
+    /// The same ink with its least radius found, by bisection, for its rule ([`Ink::room`]).
+    fn least(mut self) -> Ink {
+        let mut lo = self.radial_half + PAD;
+        let mut hi = (2.0 * (self.tangent_half + self.radial_half + PAD) + 4.0 * ARROW)
+            / self.sweep
+            + self.radial_half
+            + PAD;
+        // A sector that never leaves room (none of a profile corner's is a half turn or more)
+        // keeps a radius too far out to place.
+        for _ in 0..32 {
+            if self.room(hi) {
+                break;
+            }
+            hi *= 2.0;
+        }
         for _ in 0..40 {
             let radius = 0.5 * (lo + hi);
-            if ink.arrows_clear(radius) {
+            if self.room(radius) {
                 hi = radius;
             } else {
                 lo = radius;
             }
         }
-        ink.minimum = hi + 1e-6;
-        Some(ink)
+        self.minimum = hi + 1e-6;
+        self
+    }
+
+    /// The same ink bounded by [`Ink::fits`]: its arc as near the vertex as its arrowheads and
+    /// label allow (a profile corner's, #227).
+    fn compact(mut self) -> Ink {
+        self.compact = true;
+        self.least()
+    }
+
+    /// Whether a label centred at *radius* leaves its arc room, by this ink's rule.
+    fn room(&self, radius: f64) -> bool {
+        if self.compact {
+            self.fits(radius)
+        } else {
+            self.arrows_clear(radius)
+        }
+    }
+
+    /// Whether a label centred at *radius* on its station leaves its arc ([`LIFT`] inside the
+    /// label) room for an arrowhead at each end with a [`GAP`] between them, and lies within the
+    /// sector, [`GAP`] clear of both extension lines, which overshoot the arc.
+    fn fits(&self, radius: f64) -> bool {
+        let arc = radius - LIFT - self.radial_half;
+        if arc < ARROW || self.sweep * arc < 2.0 * ARROW + GAP {
+            return false;
+        }
+        let (s, c) = self.middle.sin_cos();
+        let [(s0, c0), (s1, c1)] = [self.start, self.start + self.sweep].map(f64::sin_cos);
+        [-1.0, 1.0].into_iter().all(|u| {
+            [-1.0, 1.0].into_iter().all(|v| {
+                let along = radius + u * self.radial_half;
+                let across = v * self.tangent_half;
+                let q = [along * c - across * s, along * s + across * c];
+                // Each corner's distance inside each side.
+                c0 * q[1] - s0 * q[0] >= GAP && s1 * q[0] - c1 * q[1] >= GAP
+            })
+        })
     }
 
     /// Whether the arc at *radius* leaves room for an arrowhead either side of the label's
@@ -355,14 +420,14 @@ impl Ink {
 
     /// The ink for a label of *ink* centred at *radius*: the label on its station, the unbroken
     /// arc's chords [`LIFT`] inside it, an arrowhead at each end, and extension lines; none when
-    /// the arc leaves no room for the arrowheads beside the label ([`Ink::arrows_clear`]).
+    /// the arc leaves no room by its rule ([`Ink::room`]).
     fn placed(&self, radius: f64, ink: &LabelInk) -> Option<Placed> {
         self.placed_at(radius, ink, false)
     }
 
     /// As [`Ink::placed`]; *literal* (an authored placement) keeps a radius without that room.
     fn placed_at(&self, radius: f64, ink: &LabelInk, literal: bool) -> Option<Placed> {
-        if !literal && !self.arrows_clear(radius) {
+        if !literal && !self.room(radius) {
             return None;
         }
         // The label's centre stays where the inline label stood; the arc runs LIFT inside it.
@@ -666,15 +731,48 @@ fn local_radius(height: f64) -> f64 {
     LOCAL_REACH * height
 }
 
+/// How far beyond another item's ink a candidate's ink may still meet it, page mm: past the
+/// distance at which parallel lines read as one ([`super::leaders::lines_meet`], 1 mm).
+const NEAR: f64 = 1.5;
+
+/// The bounds of *p*'s ink ([`ink_points`]), grown by *margin*; an empty label box adds none.
+fn reach(p: &Placed, margin: f64) -> [f64; 4] {
+    let b = p.label_box;
+    let label = if b[2] > b[0] && b[3] > b[1] { 4 } else { 0 };
+    // `ink_points` lists the label box's four corners last.
+    let [x0, y0, x1, y1] = ink_points(p)
+        .take(2 * p.lines.len() + 3 * p.arrows.len() + label)
+        .fold(
+            [
+                f64::INFINITY,
+                f64::INFINITY,
+                f64::NEG_INFINITY,
+                f64::NEG_INFINITY,
+            ],
+            |r, q| {
+                [
+                    r[0].min(q[0]),
+                    r[1].min(q[1]),
+                    r[2].max(q[0]),
+                    r[3].max(q[1]),
+                ]
+            },
+        );
+    [x0 - margin, y0 - margin, x1 + margin, y1 + margin]
+}
+
 /// Places each profile-corner angle of *items* (see [`super::profile_angles`]) one at a time in
 /// its true-shape view, at its corner or (a counted angle) at any one of its equal corners:
 /// inside the corner's material (an arc whose sides are the corner's own edges, its label on
 /// proven blank face) or in the equal sector between the extended edges, outside the material.
-/// The arc stays local to its corner ([`local_radius`]) and wholly within the view's reserved
-/// area; it crosses no projected edge of the part, no other item's lines, and touches no
-/// label; no callout's leader or padded label meets its witness lines. With no such place the
-/// angle stays unplaced (dropped): it never takes a fallback, moves another item or asks for
-/// more paper. One already placed by its authored placement intent is kept.
+/// The arc starts as near the corner as its arrowheads and label allow ([`Ink::compact`]),
+/// stays local to it ([`local_radius`]) and wholly within the view's reserved area; it crosses
+/// no projected edge of the part, no other item's lines, and touches no label, preferring a
+/// label clear of other ink by reading distance; its arrowheads lie across no other item's
+/// line, its ink keeps out of the span an off-span linear label settles back into, and no
+/// callout's leader or padded label meets its witness lines. With no such place the angle stays
+/// unplaced (dropped): it never takes a fallback, moves another item or asks for more paper.
+/// One already placed by its authored placement intent is kept.
 #[allow(clippy::too_many_arguments)]
 pub(super) fn place_profile(
     frames: &std::collections::BTreeMap<&str, Frame>,
@@ -735,6 +833,8 @@ pub(super) fn place_profile(
                 d.placed.as_ref().map(|q| (q, crossable))
             }))
             .collect();
+        // Each one's ink bounds, to pass over those far from a candidate.
+        let reaches: Vec<[f64; 4]> = others.iter().map(|&(q, _)| reach(q, NEAR)).collect();
         // A placed callout whose leader or padded label meets the angle's witness lines reads
         // as touching an extension line (the maintainer's 2026-10-12 contact rule).
         let callouts: Vec<&Placed> = placed
@@ -750,8 +850,25 @@ pub(super) fn place_profile(
                     .filter_map(|d| d.placed.as_ref()),
             )
             .collect();
+        // A linear label still beside its span is brought back between its arrows by label
+        // settlement ([`super::label_lanes`]); the strip it returns to stays free of the angle.
+        let homes: Vec<[f64; 4]> = others
+            .iter()
+            .filter(|&&(q, witnesses)| witnesses == 2 && q.arrows.len() == 2)
+            .filter_map(|&(q, _)| {
+                let k = usize::from(q.rotation != 0.0);
+                let (a, b) = (q.arrows[0][0][k], q.arrows[1][0][k]);
+                let (lo, hi) = (a.min(b), a.max(b));
+                let mut strip = q.label_box;
+                (strip[k] < lo - 1e-6 || strip[k + 2] > hi + 1e-6).then(|| {
+                    (strip[k], strip[k + 2]) = (lo, hi);
+                    strip
+                })
+            })
+            .collect();
         let area = page.area(view);
         let clear = |c: &Placed, stubs: usize, straight_ok: bool, vertex: P2| {
+            let ink = reach(c, 0.0);
             // The label within the same reach of its corner as the arc.
             let b = c.label_box;
             let far = [b[0], b[2]]
@@ -766,10 +883,20 @@ pub(super) fn place_profile(
                 && callouts
                     .iter()
                     .all(|q| !super::leaders::meets_extensions(&c.lines[..2], &q.lines, q.label_box))
-                && others.iter().all(|&(q, crossable)| {
-                    super::placement::annotations_clear(c, q)
-                        && super::placement::lines_clear_but(c, q, crossable)
+                && others.iter().zip(&reaches).all(|(&(q, crossable), &r)| {
+                    // Ink farther apart than [`NEAR`] cannot meet.
+                    !boxes_overlap(ink, r)
+                        || (super::placement::annotations_clear(c, q)
+                            && super::placement::lines_clear_but(c, q, crossable)
+                            // An arrowhead never lies across another item's line, even one the
+                            // arc may cross.
+                            && c.arrows.iter().flat_map(|h| super::leaders::head(*h)).all(|s| {
+                                q.lines.iter().all(|t| !super::leaders::lines_meet(s, *t))
+                            }))
                 })
+                && homes
+                    .iter()
+                    .all(|&h| !boxes_overlap(c.label_box, h) && !ink_through(c, h))
                 // The label on proven blank paper: a blank face inside the corner, or exterior
                 // paper clear of every projected edge.
                 && (proof.blank(v, c.label_box) || proof.exterior_clear(v, c.label_box, &[], &[]))
@@ -777,8 +904,18 @@ pub(super) fn place_profile(
                 // witness stubs lie on the corner's own edges.
                 && proof.lines_clear(v, &c.lines[stubs..], &c.arrows, 2 - stubs, straight_ok)
         };
+        // A clear place whose label is also clear of other ink by reading distance
+        // (`label_crowded`).
+        let roomy = |c: &Placed| {
+            let grown = clear_box(c.label_box);
+            others.iter().all(|&(q, _)| {
+                !boxes_overlap(grown, q.label_box)
+                    && !ink_through(q, grown)
+                    && !ink_through(c, clear_box(q.label_box))
+            })
+        };
         let chosen = std::iter::once(angle).chain(alternates).find_map(|angle| {
-            let physical = Ink::new(frame, angle, size)?;
+            let physical = Ink::new(frame, angle, size)?.compact();
             let mut extended = Ink::new(
                 frame,
                 &Angle {
@@ -787,7 +924,8 @@ pub(super) fn place_profile(
                     second: [0, 1, 2].map(|k| 2.0 * angle.vertex[k] - angle.second[k]),
                 },
                 size,
-            )?;
+            )?
+            .compact();
             extended.lengths = [0.0; 2];
             let reach = local_radius(size[1]);
             // The label may slide off the bisector; its arc pieces must still carry arrows.
@@ -797,8 +935,10 @@ pub(super) fn place_profile(
                 .collect();
             // First an arc that crosses nothing; then one whose arc and witnesses may cross the
             // part's edges, blend silhouettes included, but never a hole or boss seen end-on.
+            // Each the nearest roomy place, else the nearest crowded one (still stated).
             [false, true].into_iter().find_map(|straight_ok| {
-                (0..TRIES)
+                let mut crowded = None;
+                let roomy = (0..TRIES)
                     .map(|n| n as f64 * STEP)
                     .take_while(|d| {
                         inks.iter()
@@ -810,9 +950,21 @@ pub(super) fn place_profile(
                             (g.label_reach(radius) <= reach)
                                 .then(|| g.placed(radius, &ink))
                                 .flatten()
-                                .filter(|c| clear(c, *stubs, straight_ok, g.vertex))
+                                .filter(|c| {
+                                    // Once a crowded place is held, only a roomy one is worth
+                                    // the full check.
+                                    if crowded.is_some() {
+                                        return roomy(c) && clear(c, *stubs, straight_ok, g.vertex);
+                                    }
+                                    clear(c, *stubs, straight_ok, g.vertex)
+                                        && (roomy(c) || {
+                                            crowded = Some(c.clone());
+                                            false
+                                        })
+                                })
                         })
-                    })
+                    });
+                roomy.or(crowded)
             })
         });
         placed[i] = chosen;
@@ -954,6 +1106,67 @@ mod tests {
                 assert!(inside(q) > 0.0, "{label}: within the sector");
             }
             // Below the least radius the arrowheads would reach the label's width.
+            assert!(g.placed(g.minimum - 0.5, text).is_none(), "{label}");
+        }
+    }
+
+    /// #227: a profile corner's compact arc needs room only for its two arrowheads and a label
+    /// within the sector, not for the label's width between the arrowheads, so the V-slot's
+    /// acute `45°` comes far nearer its vertex; at its least radius the arc still carries both
+    /// arrowheads and the label stays outside it, [`GAP`] inside both extension lines.
+    #[test]
+    fn a_compact_arc_keeps_arrowheads_and_label_in_its_sector() {
+        let cases = [
+            ("45°", 180.0, 225.0, 0.6),
+            ("6× 120°", 210.0, 330.0, 1.0),
+            ("135°", 100.0, 235.0, 1.0),
+            ("21.227°", 10.0, 31.227, 1.0),
+        ];
+        for (label, a, b, most) in cases {
+            let terms = vec![label.to_string()];
+            let vertex = [100.0, 100.0];
+            let wide = ink(vertex, a, b, &terms);
+            let g = wide.clone().compact();
+            assert!(
+                g.minimum <= most * wide.minimum + 1e-9,
+                "{label}: {} against {}",
+                g.minimum,
+                wide.minimum
+            );
+            let text = &label_ink(&terms, font());
+            for f in [0.5, 0.35, 0.65] {
+                let g = g.along(f);
+                let Some(p) = g.placed(g.minimum, text) else {
+                    // Off the bisector a narrow sector may need more radius.
+                    assert!(f != 0.5, "{label}: placeable at its least radius");
+                    continue;
+                };
+                let from = |q: P2| (q[0] - vertex[0]).hypot(q[1] - vertex[1]);
+                let radius = from(p.lines[2][0]);
+                let sweep = (b - a).to_radians();
+                assert!(
+                    sweep * radius >= 2.0 * ARROW + GAP - 1e-6,
+                    "{label}: two arrowheads"
+                );
+                let (s, c) = g.text_angle.sin_cos();
+                let bx = p.label_box;
+                let centre = [0.5 * (bx[0] + bx[2]), 0.5 * (bx[1] + bx[3])];
+                for (u, v) in [(-1.0, -1.0), (-1.0, 1.0), (1.0, -1.0), (1.0, 1.0)] {
+                    let q = [
+                        centre[0] + u * g.tangent_half * c - v * g.radial_half * s,
+                        centre[1] + u * g.tangent_half * s + v * g.radial_half * c,
+                    ];
+                    assert!(from(q) >= radius + LIFT - 1e-6, "{label}: outside the arc");
+                    for (d, sign) in [(a, 1.0), (b, -1.0)] {
+                        let (sd, cd) = f64::to_radians(d).sin_cos();
+                        let inside = sign * (cd * (q[1] - vertex[1]) - sd * (q[0] - vertex[0]));
+                        assert!(
+                            inside >= GAP - 1e-6,
+                            "{label}: clear of the extension lines"
+                        );
+                    }
+                }
+            }
             assert!(g.placed(g.minimum - 0.5, text).is_none(), "{label}");
         }
     }
