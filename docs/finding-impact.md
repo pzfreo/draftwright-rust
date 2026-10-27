@@ -150,11 +150,13 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `label_vs_measured` | incomplete | The printed label does not state the measured requirement. |
 | `layout_recovery_exhausted` | readability | No recovery removed all reported layout defects. |
 | `layout_replanned` | advisory | A successful sheet or scale recovery is reported. |
+| `leader_across_view` | readability | A long leader crosses more of its own view's lines than a leader leaving the other way would. |
 | `leader_along_centreline` | readability | A leader runs along a centre line, so the two read as one line. |
 | `leader_centerline_overlap` | readability | A leader overlaps a centreline. |
 | `leader_crosses_silhouette` | advisory | The informational audit reports leader re-entry into the silhouette. |
 | `leader_line_through_text` | readability | A leader runs through text. |
 | `leader_through_feature` | readability | A leader crosses feature material on its way to its target. |
+| `leader_to_hidden_edge` | readability | A leader ends on an edge its view shows hidden. |
 | `legibility_floor_breached` | readability | The selected geometry scale is below the requested legibility floor. |
 | `location_on_datum` | advisory | The datum already states this zero location. |
 | `location_ref_dropped` | incomplete | A required drawing item was dropped before it could be stated. |

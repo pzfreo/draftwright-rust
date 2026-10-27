@@ -437,8 +437,10 @@ fn unsupported_recesses_and_rounding_have_separate_impacts() {
     // again (4.219, its #84), so that advisory goes: (12, 2) -> (11, 2). #226: a line within
     // 0.5 mm of a label is a label_crowded notice: (11, 2) -> (12, 3). #213: unexplained faces
     // 22 and 23 meet at a concave edge, a cut neither sized nor located: shape_not_recognised,
-    // incomplete (11, 4) -> (12, 5).
-    assert_review_summary("mfcadpp/1000.step", [(12, 5), (1, 1), (0, 0), (12, 3)]);
+    // incomplete (11, 4) -> (12, 5). #226: the 2 × 2.81 pocket and HEX 1.935 A/F leaders end on
+    // the dashed outlines of recesses their views see only hidden, two leader_to_hidden_edge
+    // warnings: readability (0, 0) -> (2, 1).
+    assert_review_summary("mfcadpp/1000.step", [(12, 5), (1, 1), (2, 1), (12, 3)]);
 }
 #[test]
 fn informational_hole_bottom_and_recovery_remain_advisory() {
@@ -446,6 +448,8 @@ fn informational_hole_bottom_and_recovery_remain_advisory() {
     // layout_replanned notice; the remaining informational findings stay advisory. #226: the
     // 2.4 A/F dimension within 0.5 mm of the section arrowhead is a label_crowded notice.
     // #213: the two shallow concentric recesses on its top face (0.33 deep) are cuts neither
-    // sized nor located: shape_not_recognised, incomplete (1, 1) -> (3, 2).
-    assert_review_summary("gramel/string_post.step", [(3, 2), (1, 1), (0, 0), (3, 3)]);
+    // sized nor located: shape_not_recognised, incomplete (1, 1) -> (3, 2). #226: its leader
+    // ends on the flat the plan sees only hidden, under the flange: leader_to_hidden_edge,
+    // readability (0, 0) -> (1, 1).
+    assert_review_summary("gramel/string_post.step", [(3, 2), (1, 1), (1, 1), (3, 3)]);
 }

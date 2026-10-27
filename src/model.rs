@@ -4041,7 +4041,7 @@ fn plan_recovered_once(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid
     );
     crate::sheets::furnish(&mut plan);
     crate::fixes::retain_local_layout(&mut plan);
-    crate::dims::contacts::report(&mut plan);
+    crate::dims::contacts::report(&prepared, &mut plan);
     note_final_conflicts(&mut plan);
     Ok(plan)
 }
@@ -4671,7 +4671,7 @@ fn plan_once(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     );
     crate::sheets::furnish(&mut plan);
     crate::fixes::retain_local_layout(&mut plan);
-    crate::dims::contacts::report(&mut plan);
+    crate::dims::contacts::report(&prepared, &mut plan);
     note_final_conflicts(&mut plan);
     Ok(plan)
 }
