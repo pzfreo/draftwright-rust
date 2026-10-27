@@ -2670,6 +2670,24 @@ fn clear_linear_ordered(
         if (recess_context && !recess_corridor && !label_conflict)
             || (!label_conflict && (!recess_corridor || before == (0, 0)))
         {
+            // A settled location's witness may still reach its station across
+            // another feature inside the body. Without a corridor repair, begin it
+            // beyond the near face on the same lane, as the repair itself would:
+            // this only removes ink, so no other item can gain a contact.
+            if recess_context
+                && !semantic_pmi
+                && new_native
+                && old_location(i)
+                && before.0 > 0
+                && let Some(near_face) =
+                    near_face_start(&LinearStroke::new(p), frames[view].outline(), side)
+            {
+                let mut shortened = p.clone();
+                near_face.write(&mut shortened);
+                if crossings(&shortened).0 < before.0 {
+                    placed[i] = Some(shortened);
+                }
+            }
             continue;
         }
         // Prefer the least obstructed of the opposite strip's first eight lanes.
@@ -2827,31 +2845,12 @@ fn clear_linear_ordered(
                         }
                     }
                     if recess_context && !semantic_pmi && new_native {
-                        let normal = usize::from(c.rotation == 0.0);
-                        let out = if matches!(target, Side::Below | Side::Left) {
-                            -1.0
-                        } else {
-                            1.0
-                        };
                         // Keep the projected coordinate, but begin its finite
                         // witness beyond the near side of the projected body when
                         // its original support would traverse a recess. This is the
                         // same perpendicular coordinate with a longer start gap;
                         // no measured station or arrow is shifted sideways.
-                        let outline = frames[view].outline();
-                        let face = outline[normal + if out > 0.0 { 2 } else { 0 }];
-                        let mut near_face = c;
-                        for line in near_face.lines.iter_mut().take(2) {
-                            let from = face + out * GAP;
-                            if out * (from - line[0][normal]) > 0.0 {
-                                line[0][normal] = from;
-                            }
-                        }
-                        if near_face
-                            .lines
-                            .iter()
-                            .take(2)
-                            .all(|l| out * (l[1][normal] - l[0][normal]) > 1.0)
+                        if let Some(near_face) = near_face_start(&c, frames[view].outline(), target)
                         {
                             strokes.push(near_face);
                         }
@@ -3337,6 +3336,31 @@ fn clear_linear_ordered(
 // A linear trial has exactly two witnesses, one dimension line and two arrows.
 // Keep rejected trials inline; allocate public Placed vectors only for the
 // survivors that need text alternatives or can become the selected result.
+/// The same witnesses, begun beyond the near side of the projected body toward *target*;
+/// `None` when a witness would then be too short. No station or arrow moves.
+fn near_face_start(c: &LinearStroke, outline: [f64; 4], target: Side) -> Option<LinearStroke> {
+    let normal = usize::from(c.rotation == 0.0);
+    let out = if matches!(target, Side::Below | Side::Left) {
+        -1.0
+    } else {
+        1.0
+    };
+    let face = outline[normal + if out > 0.0 { 2 } else { 0 }];
+    let mut near_face = *c;
+    for line in near_face.lines.iter_mut().take(2) {
+        let from = face + out * GAP;
+        if out * (from - line[0][normal]) > 0.0 {
+            line[0][normal] = from;
+        }
+    }
+    near_face
+        .lines
+        .iter()
+        .take(2)
+        .all(|l| out * (l[1][normal] - l[0][normal]) > 1.0)
+        .then_some(near_face)
+}
+
 #[derive(Clone, Copy)]
 struct LinearStroke {
     lines: [[P2; 2]; 3],
@@ -5390,6 +5414,38 @@ mod tests {
         );
         assert!(sides.iter().all(|s| *s == Some(Side::Below)));
         assert_eq!(lane, [4, 3, 0, 1, 2]);
+    }
+
+    #[test]
+    fn a_near_face_start_moves_only_the_witness_starts_beyond_the_body() {
+        // FTC-08's 141.827 slot location: a vertical dimension left of the plan view, whose
+        // second witness starts at the slot end inside the body (outline x 60..240).
+        let c = LinearStroke {
+            lines: [
+                [[58., 10.], [20., 10.]],
+                [[220., 80.], [20., 80.]],
+                [[22., 10.], [22., 80.]],
+            ],
+            arrows: [[[22., 10.], [22., 12.7]], [[22., 80.], [22., 77.3]]],
+            label_at: [21., 45.],
+            rotation: 90.,
+            label_box: [19., 40., 21., 50.],
+        };
+        let outline = [60., 0., 240., 100.];
+        let near = near_face_start(&c, outline, Side::Left).unwrap();
+        assert_eq!(
+            near.lines[0], c.lines[0],
+            "a start already beyond the face stays"
+        );
+        assert_eq!(near.lines[1][0], [60. - GAP, 80.]);
+        assert_eq!(near.lines[1][1], c.lines[1][1]);
+        assert_eq!(near.lines[2], c.lines[2]);
+        assert_eq!(near.arrows, c.arrows);
+        assert_eq!(near.label_box, c.label_box);
+        // A witness that would no longer leave the face by a millimetre is no stroke.
+        let mut short = c;
+        short.lines[1][1][0] = 60. - GAP - 0.5;
+        assert!(near_face_start(&short, outline, Side::Left).is_none());
     }
 
     #[test]
