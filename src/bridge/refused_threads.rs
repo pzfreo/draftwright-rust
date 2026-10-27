@@ -38,7 +38,10 @@ pub(crate) fn complete(part: &Part, doc: &mut RecognitionDocument) {
             (a.len() == 3).then_some(())?;
             Some([a[0].as_f64()?, a[1].as_f64()?, a[2].as_f64()?])
         };
-        let axis = &r.parameters["axis"];
+        let (Some(axis), Some(reason)) = (r.parameters.get("axis"), r.parameters.get("reason"))
+        else {
+            continue;
+        };
         let (Some(on), Some(direction)) = (
             point(&axis["point"]),
             point(&axis["direction"]).and_then(geom::unit),
@@ -48,7 +51,7 @@ pub(crate) fn complete(part: &Part, doc: &mut RecognitionDocument) {
         let Some(mut parameters) = measure(part, on, direction, &r.faces) else {
             continue;
         };
-        parameters.insert("refused".into(), r.parameters["reason"].clone());
+        parameters.insert("refused".into(), reason.clone());
         r.id = format!("modelled_threads/{next}");
         next += 1;
         r.family = "modelled_threads".into();
