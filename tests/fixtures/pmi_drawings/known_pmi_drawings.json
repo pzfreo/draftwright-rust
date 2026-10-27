@@ -9529,6 +9529,56 @@
  },
  {
   "field": "drawing",
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "port": "dimension:#16423",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "note",
+     "rides_on": null,
+     "text": "",
+     "view": "front"
+    }
+   ]
+  },
+  "record": "dimension:0:1:4:108",
+  "rust": {
+   "codes": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: a leadered note in the front view whose whole text is a lone symbol (the private-use glyph U+F055 of the authoring system's font), printed as an empty box with no size or depth; the port's: not drawn, refused (pmi_not_lowered, a warning). The common label is a fragment of a callout whose sizes the file states in its own dimension records; alone it states nothing."
+ },
+ {
+  "field": "drawing",
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "port": "dimension:#16482",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "note",
+     "rides_on": null,
+     "text": "⌴",
+     "view": "front"
+    }
+   ]
+  },
+  "record": "dimension:0:1:4:110",
+  "rust": {
+   "codes": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: a leadered note in the front view whose whole text is a lone symbol ('⌴'), printed as an empty box with no size or depth; the port's: not drawn, refused (pmi_not_lowered, a warning). The common label is a fragment of a callout whose sizes the file states in its own dimension records; alone it states nothing."
+ },
+ {
+  "field": "drawing",
   "file": "nist_stc_09_asme1_ap242-e4.stp",
   "port": "dimension:#10143",
   "python": {

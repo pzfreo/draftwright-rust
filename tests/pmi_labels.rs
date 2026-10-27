@@ -130,6 +130,40 @@ fn common_labels_are_drawn_with_leaders_and_searchable() {
     );
 }
 
+/// ftc07's `⌴` and private-use U+F055 common labels are fragments of callouts whose sizes the
+/// file states elsewhere: drawn alone they print an empty box, so they are refused with why (a
+/// warning: the lone symbol states nothing), while its named labels are still drawn.
+#[test]
+fn a_lone_symbol_label_is_refused_not_drawn_as_an_empty_box() {
+    let (_, a) = analysed("nist_ftc_07_asme1_ap242-e2");
+    let plan = cache::default_plan(&a, true);
+    let mut texts: Vec<&str> = plan
+        .gdt
+        .iter()
+        .filter(|g| g.kind == "label")
+        .map(|g| g.cells[0].as_str())
+        .collect();
+    texts.sort();
+    assert_eq!(texts, ["F1.1", "F1.2"]);
+    for label in plan.gdt.iter().map(|g| g.label.as_str()) {
+        assert!(label.chars().any(char::is_alphanumeric), "{label:?}");
+    }
+    for source in ["dimension:#16482", "dimension:#16423"] {
+        let refused: Vec<_> = plan
+            .problems
+            .iter()
+            .filter(|p| p.code == "pmi_not_lowered" && p.refs.iter().any(|r| r == source))
+            .collect();
+        assert_eq!(refused.len(), 1, "{source}");
+        assert_eq!(refused[0].severity, "warning");
+        assert!(
+            refused[0].message.contains("lone symbol"),
+            "{}",
+            refused[0].message
+        );
+    }
+}
+
 #[test]
 fn surface_labels_attach_at_their_edges_midpoints() {
     let (_, a) = analysed("nist_ctc_01_asme1_ap242-e1");

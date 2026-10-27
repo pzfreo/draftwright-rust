@@ -3822,6 +3822,24 @@
   "evidence": "Neither drawing states it: draftwright refuses it (authored_dim_source_unresolved: 'authored dimension 'ø0.438 ±0.01 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple…') and so does the port's drawing. draftwright's lint is silent because its build already reported the omission (authored_dim_source_unresolved, one of pmi_coverage.py's _EXPLAINED_OMISSION_CODES); the port's lint cannot read the plan's problems (R1), so the omission is reported by the plan and again here. Whether lint should skip an omission the build explained is a recorded maintainer question (docs/next-session.md, PMI stage 3). port: \"AP242 source dimension:#15883 reached a drawing item (pmi:dimension:#15883) but produced no annotation\""
  },
  {
+  "code": "pmi_not_lowered",
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "python": null,
+  "rust": "warning",
+  "source": "dimension:#16423",
+  "verdict": "rust-correct",
+  "evidence": "The port refuses this common label, whose whole text is a lone symbol (the private-use glyph U+F055 of the authoring system's font) with no letter or digit (pmi_not_lowered, a warning): drawn alone it printed an empty box with a leader and no size or depth. It is a fragment of a callout whose sizes the file states in its own dimension records; draftwright draws XCAF's text as given."
+ },
+ {
+  "code": "pmi_not_lowered",
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "python": null,
+  "rust": "warning",
+  "source": "dimension:#16482",
+  "verdict": "rust-correct",
+  "evidence": "The port refuses this common label, whose whole text is a lone symbol ('⌴') with no letter or digit (pmi_not_lowered, a warning): drawn alone it printed an empty box with a leader and no size or depth. It is a fragment of a callout whose sizes the file states in its own dimension records; draftwright draws XCAF's text as given."
+ },
+ {
   "code": "pmi_not_extracted",
   "file": "nist_ftc_10_asme1_ap242-e2.stp",
   "python": null,

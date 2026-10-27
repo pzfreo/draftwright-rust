@@ -8,6 +8,15 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Fixed
 
+- **A PMI label that is a lone symbol is no longer drawn as an empty box.** CTC-04's side view
+  and FTC-07's plan carried leadered labels of a lone `⌴`, and FTC-07 a private-use glyph
+  (U+F055) of its authoring system's font: AP242 common labels that are fragments of callouts
+  whose sizes the file states elsewhere, printed as empty boxes with no size or depth. A label
+  whose text has no letter or digit is now refused with why (`pmi_not_lowered`, a warning: the
+  lone symbol states nothing its features' own dimensions do not). On the 30 quality parts and
+  the 35 dw-examples drawings, only CTC-04 (one label) and FTC-07 (two) change; FTC-07 has four
+  fewer leader crossings.
+
 - **A PMI angle prints its unit.** An AP242 angular dimension printed its record's label, whose
   unit is only its kind, so CTC-01's right V-notch read `60 ±0.5` (as if millimetres) beside the
   left notch's `60°`. Every value of a drawn PMI angle, its deviations and limits included, now
