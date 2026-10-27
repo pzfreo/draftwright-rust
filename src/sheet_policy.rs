@@ -2095,7 +2095,10 @@ mod tests {
         let a4 = &p.sheet_candidates[0];
         assert_eq!((a4.size.as_str(), a4.max), ("A4", 1));
         assert!(
-            a4.outcome.contains("(0 hard, 0 drops; ") && a4.outcome.contains("leader_on_extension"),
+            a4.outcome.ends_with(
+                "(0 hard, 0 drops; annotation_outside_area, extension_through_feature, \
+                 leader_on_extension)"
+            ),
             "{}",
             a4.outcome
         );

@@ -16,9 +16,14 @@ All notable changes to draftwright-rust are recorded here, in the style of
   now applies to every view, still only when every drawn footprint is proven inside the frame:
   the bracket is drawn at 2:1 on A4 and the hanger at 1:2 on A4 (and the gear-blank test part
   at 5:1 on A4 rather than A3). An enlargement that adds a crossing of two dimension lines is
-  now held to the same ratchet as one that adds a line through material, so a plate's authored
-  diagonal keeps 1:1 rather than crossing its overall width at 2:1. The other 29 quality parts
-  and 34 dw-examples drawings plan identically.
+  now held to the same ratchet as one that adds a line through material, so the authored
+  vertex-to-vertex diagonal on the `plate.step` test part keeps 1:1 rather than crossing its
+  60 mm overall width at 2:1 (`authored_aligned_span_clears_dimension_lines_extensions_and_arrowheads`).
+  The other 29 quality parts and 34 dw-examples drawings plan identically. Not changed by this
+  fix, because their scale has other causes: NIST STC-09 (its front view's stacked baseline lanes
+  rule out A4–A2 at any scale, and a GD&T corridor pass takes A1 from 1:2 to 1:5), NIST FTC-08
+  and STC-06 (no candidate on any paper is valid; layout density), and the 2020×50 V-slot (A4 2:1
+  is set aside for one added leader through material; left for a decision).
 
 ## 0.2.0 (2026-10-27)
 

@@ -641,25 +641,52 @@ fn r5_first_usable_single_sheet_precedes_further_paper_and_sheets() {
 }
 
 #[test]
-fn r5_an_unhelpful_prefix_does_not_spend_an_extra_sheet() {
+fn r5_a_helpful_prefix_spends_the_second_sheet_to_reach_the_floor() {
+    // Until #163 the 10:1 trial on the allocated sheets was refused for an empty band past the
+    // border, so one sheet at 5:1 was kept, below the authored floor. Judged by its ink, moving
+    // the isometric and the section reaches the floor, so the second sheet is spent.
     let a = analysed("gramel/string_post.step");
     let s = spec(
         json!({"sheet":{"size":"A3"},"sheets":{"max":2,"smallest_scale":"10:1"},"hole_table":"never"}),
     );
     let p = model::plan_recovered(&a, &s).unwrap();
-    assert!(p.sheet.basis.contains("step 2:"));
-    // A second sheet is spent only when it helps. Until #163 the 10:1 trial on the allocated
-    // sheets was refused for an empty band past the border, so the prefix did not help and
-    // one sheet at 5:1 was kept, below the authored floor. Judged by its ink, the allocation
-    // now reaches the floor within the two sheets allowed.
-    assert!(p.sheets.len() <= 1);
+    assert!(
+        p.sheet.basis.contains("step 2: 0 hard findings"),
+        "{}",
+        p.sheet.basis
+    );
+    assert_eq!(p.sheets.len(), 1);
     assert_eq!(p.sheet.scale, "10:1", "{}", p.sheet.basis);
     assert!(
         !p.problems.iter().any(
             |p| p.code == "sheet_below_smallest_scale" || p.code == "layout_recovery_exhausted"
         )
     );
-    assert!(p.views.iter().all(|v| v.sheet <= 2));
+    for v in &p.views {
+        let second = ["v:iso", "v:section_aa"].contains(&v.id.as_str());
+        assert_eq!(v.sheet, if second { 2 } else { 1 }, "{}", v.id);
+    }
+}
+
+#[test]
+fn r5_an_unhelpful_prefix_does_not_spend_an_extra_sheet() {
+    // With the section kept on sheet 1, the only prefix moves the isometric, which leaves the
+    // drawing at 5:1 with the same finding: the second sheet does not help and is not spent.
+    let a = analysed("gramel/string_post.step");
+    let s = spec(json!({
+        "sheet":{"size":"A3"},"sheets":{"max":2,"smallest_scale":"10:1"},"hole_table":"never",
+        "views":{"section_aa":{"sheet":1}}
+    }));
+    let p = model::plan_recovered(&a, &s).unwrap();
+    assert!(p.sheet.basis.contains("step 1:"), "{}", p.sheet.basis);
+    assert_eq!(p.sheet.scale, "5:1");
+    assert!(p.sheets.is_empty());
+    assert!(
+        p.problems
+            .iter()
+            .any(|p| p.code == "sheet_below_smallest_scale")
+    );
+    assert!(p.views.iter().all(|v| v.sheet == 1));
 }
 
 #[test]
