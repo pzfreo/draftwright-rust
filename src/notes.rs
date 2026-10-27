@@ -119,6 +119,22 @@ pub(crate) fn reconcile(
             .join(" ")
             .to_lowercase()
     };
+    if let Some(text) = assembly_note(analysis) {
+        if omitted(ASSEMBLY_NOTE) {
+            inactive.push(undrawn(
+                ASSEMBLY_NOTE,
+                &text,
+                format!("{ASSEMBLY_BASIS}; omitted by the spec"),
+                State::OmittedByUser,
+                false,
+            ));
+        } else {
+            active.push(NoteSpec {
+                id: ASSEMBLY_NOTE.into(),
+                text,
+            });
+        }
+    }
     for (i, n) in spec.notes.iter().enumerate() {
         let matches: Vec<_> = model_notes
             .iter()
@@ -161,6 +177,44 @@ pub(crate) fn reconcile(
     (active, inactive, problems)
 }
 
+/// The automatic note saying that only an assembly's principal part is drawn (#219's
+/// `assembly_principal_drawn`): the sheet's title names the assembly, so without it a reader
+/// takes the one part for the whole. `annotations/n:assembly/omit` leaves it out, and
+/// `annotations/n:assembly/text` words it.
+pub(crate) const ASSEMBLY_NOTE: &str = "n:assembly";
+const ASSEMBLY_BASIS: &str = "automatic: the file is an assembly whose principal part, holding the others within its box, is drawn alone, so the sheet says which part it shows and that the others are not shown";
+
+/// The text of [`ASSEMBLY_NOTE`], when only an assembly's principal part is drawn: the part by
+/// name, and the others by name (up to three) or by count.
+pub(crate) fn assembly_note(analysis: &Analysis) -> Option<String> {
+    let k = analysis.binding.part_index.filter(|_| analysis.principal)?;
+    let name = |p: &crate::model::FilePart| {
+        let n = p.name.trim();
+        if n.is_empty() {
+            format!("PART {}", p.part)
+        } else {
+            n.to_uppercase()
+        }
+    };
+    let drawn = analysis.parts.iter().find(|p| p.part == k)?;
+    let others: Vec<String> = analysis
+        .parts
+        .iter()
+        .filter(|p| p.part != k)
+        .map(name)
+        .collect();
+    let rest = match others.len() {
+        0 => return None,
+        1..=3 => others.join(", "),
+        n => format!("{n} OTHER PARTS"),
+    };
+    Some(format!(
+        "ASSEMBLY OF {} PARTS: ONLY {} SHOWN; {rest} NOT SHOWN",
+        analysis.parts.len(),
+        name(drawn)
+    ))
+}
+
 /// Restore the original Spec list paths after PMI insertion and duplicate suppression.
 pub(crate) fn provenance(
     notes: &mut [PlannedNote],
@@ -175,6 +229,12 @@ pub(crate) fn provenance(
             );
         } else if let Some(i) = spec.notes.iter().position(|n| n.id == note.id) {
             note.basis = spec_basis(&note.id, i, note.number);
+        } else if note.id == ASSEMBLY_NOTE {
+            note.default = true;
+            note.basis = format!(
+                "{ASSEMBLY_BASIS}; general note {} in the {TITLE} block before the spec's notes",
+                note.number
+            );
         }
     }
 }
