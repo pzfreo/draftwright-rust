@@ -2572,8 +2572,7 @@ pub(crate) fn established_drawing(analysis: &Analysis, spec: &Spec) -> Result<Pl
             "prepared-established-drawing",
             key.clone(),
             || {
-                let mut reference = analysis.clone();
-                reference.features.retain(|f| f.kind != "section_recess");
+                let reference = crate::lint::slots::without_recesses(analysis);
                 let mut base = Spec {
                     hole_table: spec.hole_table,
                     pmi: spec.pmi,

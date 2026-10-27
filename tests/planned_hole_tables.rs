@@ -348,11 +348,7 @@ fn a_bare_pin_on_a_table_covered_location_does_not_restore_the_ladder() {
 #[test]
 fn non_hole_pins_keep_the_settled_schedule_and_isometric_frame() {
     let Some(corpus) = corpus::dir() else { return };
-    let (_, mut analysis) =
-        cache::native(&Path::new(&corpus).join("nist/nist_ftc_08_asme1_rc.stp"));
-    // The pins name slot 4's own location: its congruent twin (slot 2) would otherwise share one
-    // slot callout with it and locate it by its centre, so slot 4 is split from the callout.
-    corpus::split_slot(&mut analysis, "f:slot:4");
+    let (_, analysis) = cache::native(&Path::new(&corpus).join("nist/nist_ftc_08_asme1_rc.stp"));
     let base = cache::default_plan(&analysis, true);
     assert!(!tables(&base).as_array().unwrap().is_empty());
     let ops: Vec<_> = [

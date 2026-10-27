@@ -183,11 +183,54 @@ pub fn alone(f: &Feature) -> bool {
     f.parameters.get(ALONE).and_then(Value::as_bool) == Some(true)
 }
 
+/// The record field a keyhole slot carries in an Analysis whose circular seats were left out
+/// ([`without_recesses`]), so it is still read as one ([`keyed`]).
+const KEYHOLE: &str = "keyhole_slot";
+
+/// Whether slot *f* is a keyhole: a circular seat through it, at the middle of its length, opens
+/// it sideways (nist_ftc_08, nist_stc_08). The seat's axis and callout carry that compound; the
+/// slot keeps its own items, out of any slot callout.
+pub fn keyed(analysis: &Analysis, f: &Feature) -> bool {
+    if f.parameters.get(KEYHOLE).and_then(Value::as_bool) == Some(true) {
+        return true;
+    }
+    let Ok(o) = outline(analysis, f) else {
+        return false;
+    };
+    let mid = 0.5 * (o.ends[0] + o.ends[1]);
+    super::channels::seats(analysis)
+        .into_iter()
+        .filter_map(|(_, s)| s.ok())
+        .any(|s| {
+            s.run_axis == o.deep
+                && (s.centre[o.long] - mid).abs() <= FULL_ROUND
+                && (s.centre[o.wide] - o.centre).abs() <= 0.5 * o.width + s.radius
+        })
+}
+
+/// *analysis* without its section recesses (the established route templates' comparison scope),
+/// its keyhole slots still marked as such ([`KEYHOLE`]), so their slots are grouped as in the
+/// drawing itself.
+pub fn without_recesses(analysis: &Analysis) -> Analysis {
+    let keyholes: Vec<String> = analysis
+        .features
+        .iter()
+        .filter(|f| f.kind == "slot" && keyed(analysis, f))
+        .map(|f| f.id.clone())
+        .collect();
+    let mut out = analysis.clone();
+    out.features.retain(|f| f.kind != "section_recess");
+    for f in out.features.iter_mut().filter(|f| keyholes.contains(&f.id)) {
+        f.parameters.insert(KEYHOLE.into(), Value::Bool(true));
+    }
+    out
+}
+
 /// Whether lone slot *f* is dimensioned with congruent lone slots by one slot callout, and so
 /// located by its centre: only full-round obrounds are; a slot split from the callout ([`alone`])
-/// is in no group.
+/// or a keyhole ([`keyed`]) is in no group.
 pub fn grouped(analysis: &Analysis, f: &Feature) -> bool {
-    if alone(f) || !full_round(f) {
+    if alone(f) || !full_round(f) || keyed(analysis, f) {
         return false;
     }
     let Some(k) = congruence(analysis, f) else {
@@ -195,8 +238,9 @@ pub fn grouped(analysis: &Analysis, f: &Feature) -> bool {
     };
     let (_, lone) = split(analysis);
     lone.iter().any(|g| g.id == f.id) && {
-        lone.iter()
-            .any(|g| g.id != f.id && !alone(g) && congruence(analysis, g) == Some(k))
+        lone.iter().any(|g| {
+            g.id != f.id && !alone(g) && !keyed(analysis, g) && congruence(analysis, g) == Some(k)
+        })
     }
 }
 

@@ -20,14 +20,20 @@ All notable changes to draftwright-rust are recorded here, in the style of
   location at its centre only when such a callout states it. gantry-plate's two long slots get
   `2× SLOT 5 × 25` in place of `2× 5`, `2× 25` and two `2× R2.5`, and nema17-mount-bracket's get
   `2× SLOT 4 × 34`. Straight slots (windows with blended corners, CTC-04's) and single slots are
-  dimensioned as before; `features/<id>/split` on a slot keeps it out of the callout. A grouped
-  slot whose centre stands on a hole's, pattern's or circular seat's location line is located by
-  that line (ARCH0009-6: a seat's location now displaces a coincident slot position, FTC-08's
-  keyhole slots, and is never displaced itself), and review and the location audit credit it.
-  11 of the 65 quality and dw-examples plans change, all with congruent obround slots;
-  nema17-bracket and gantry-plate now fit A4 1:1 (were A3 2:1). With fewer items the sheet choice
-  moves on four: nema17-mount-bracket A3 1:1 → A4 1:2, NIST STC-08 (dw-examples) A1 1:1 → A2
-  1:5, CTC-03 A3 1:5 → A1 1:2 and FTC-09 A1 1:1 → A2 1:2.
+  dimensioned as before, and so are keyhole slots (a circular seat opening the slot at its
+  middle, FTC-08's and STC-08's), whose seat callout and axis carry the compound;
+  `features/<id>/split` on a slot keeps it out of the callout. A grouped slot whose centre stands
+  on a hole's, pattern's or seat's location line is located by that line (ARCH0009-6), and review
+  and the location audit credit it.
+- **Sheet choice keeps profile-corner angles.** A smaller candidate that leaves out a corner angle
+  the automatic baseline draws is refused, as one that drops a hole item is: smaller paper is not
+  bought by losing it. nema17-mount-bracket keeps its two `135°` corners on A3 1:1.
+- Plans change on 8 of the 65 quality and dw-examples parts, all with congruent obround slots.
+  nema17-bracket and gantry-plate now fit A4 1:1 (were A3 2:1); FTC-09 moves from A1 1:1 to A2
+  1:2. Known cost: on CTC-03 (both the corpus and the dw-examples file) the slot callout's label
+  takes the datum corner the hole table's origin mark needs, so the table no longer fits at A3
+  1:5: the corpus part moves to A1 1:2 with its table, the dw-examples drawing stays on A3 1:5
+  with individual hole dimensions.
 
 ## 0.2.0 (2026-10-27)
 

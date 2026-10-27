@@ -1,1 +1,15 @@
-[]
+[
+  {
+    "part": "nist/nist_ftc_08_asme1_rc.stp",
+    "view": "plan",
+    "label": "31.75",
+    "rotation": 90,
+    "items": [
+      "d:f:slot:2/slot_length.length",
+      "d:f:slot:4/slot_length.length"
+    ],
+    "verdict": "identical-features",
+    "draftwright": "m_slot1_length '31.8' and m_slot2_length '31.8' in the plan, one per slot (y = -46.4 and +46.4).",
+    "reason": "Two slots of the same 31.75 length at mirrored positions: their lengths lie on different spans, each its own dimension; draftwright's slot width coalescing (`_slot_shared_width_key`) needs the same view, width axis and the same two width edges, which these do not share; the port's `share` (src/dims/mod.rs) applies the same one-span rule, extended to slot lengths and boss heights. Default nominal precision now preserves the modelled hundredths; these same item IDs and distinct physical spans remain repeated."
+  }
+]

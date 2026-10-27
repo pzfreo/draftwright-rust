@@ -1104,3 +1104,39 @@ fn a_slot_split_by_the_spec_is_dimensioned_on_its_own() {
     assert_eq!(own("slot_end_radius.radius"), Some("2× R3"));
     assert!(own("slot_length.length").is_some());
 }
+
+/// nist_ftc_08's two keyhole slots (15.24 × 31.75, full-round, each opened at its middle by a
+/// circular seat) are congruent but not called out together: the seat's axis and callout carry
+/// the compound, and each slot keeps its own length, end radius and low-end location. That holds
+/// in the recess-free Analysis the established route templates plan (nist_stc_08's hole table
+/// came from it).
+#[test]
+fn keyhole_slots_are_not_called_out_together() {
+    let Some(dir) = corpus::dir() else { return };
+    let a = model::analyse_native(&dir.join("nist/nist_ftc_08_asme1_rc.stp"))
+        .unwrap()
+        .1;
+    let keyholes = ["f:slot:2", "f:slot:4"];
+    let bare = draftwright::lint::slots::without_recesses(&a);
+    assert!(bare.features.iter().all(|f| f.kind != "section_recess"));
+    for analysis in [&a, &bare] {
+        for id in keyholes {
+            let f = analysis.features.iter().find(|f| f.id == id).unwrap();
+            assert!(draftwright::lint::slots::keyed(analysis, f), "{id}");
+            assert!(!draftwright::lint::slots::grouped(analysis, f), "{id}");
+        }
+    }
+    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    assert!(plan.dimensions.iter().all(|d| !d.label.contains("SLOT")));
+    for id in keyholes {
+        for parameter in ["slot_length.length", "slot_end_radius.radius"] {
+            assert!(
+                plan.dimensions.iter().any(|d| d
+                    .measurements
+                    .iter()
+                    .any(|m| m.feature == id && m.parameter == parameter)),
+                "{id} {parameter}"
+            );
+        }
+    }
+}

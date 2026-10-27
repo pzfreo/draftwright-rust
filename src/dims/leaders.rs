@@ -3198,8 +3198,7 @@ fn refine_uncached(
             // scale, whatever the candidate's dimension spacing.
             crate::dims::with_compact(false, || {
                 crate::planning::memo(analysis, "bare-leader-reference", key, || {
-                    let mut base = analysis.clone();
-                    base.features.retain(|f| f.kind != "section_recess");
+                    let base = crate::lint::slots::without_recesses(analysis);
                     let mut recipe = crate::model::Spec::default();
                     recipe.sheet.size = Some(sheet.size.clone());
                     recipe.sheet.scale = Some(sheet.scale.clone());
@@ -7645,11 +7644,9 @@ mod tests {
             );
             return;
         };
-        let mut a = crate::model::analyse_native(&corpus.join("nist/nist_ftc_08_asme1_rc.stp"))
+        let a = crate::model::analyse_native(&corpus.join("nist/nist_ftc_08_asme1_rc.stp"))
             .unwrap()
             .1;
-        // As above: its two congruent keyhole slots each keep their own radius leader.
-        split_slot(&mut a, "f:slot:4");
         let plan = crate::model::plan_recovered(&a, &crate::model::Spec::default()).unwrap();
         let wants = super::super::wants(&a).0;
         let baseline: serde_json::Value =

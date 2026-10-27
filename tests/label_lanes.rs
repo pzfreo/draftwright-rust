@@ -223,14 +223,9 @@ fn precise_labels_keep_their_span_after_the_final_inventory_settles() {
     }
     let mut spec = Spec::default();
     spec.sheet.size = Some("A1".into()); // Keep the complete inventory for precision checks.
-    let Some(dir) = corpus::dir() else { return };
-    let mut a = model::analyse_native(&dir.join("nist/nist_ftc_08_asme1_rc.stp"))
-        .unwrap()
-        .1;
-    // Its congruent keyhole slots, called out together, leave its fillets room for full
-    // precision: slot 4 is split from their callout, keeping the crowding this case reads.
-    corpus::split_slot(&mut a, "f:slot:4");
-    let p = model::plan_recovered(&a, &spec).unwrap();
+    let Some(p) = plan_with("nist/nist_ftc_08_asme1_rc.stp", &spec) else {
+        return;
+    };
     let slot = p
         .dimensions
         .iter()

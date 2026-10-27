@@ -24,7 +24,9 @@
 //! radii (the callout implies full-round ends), and each is located by its centre (along its
 //! length as well as across it), so the group reads off centre-to-centre. A straight slot (a
 //! window with blended corners) or an obround whose ends are not full-round is dimensioned on its
-//! own, as is a slot the spec splits from the callout (`features/<id>/split`).
+//! own, as are a keyhole (a circular seat opening the slot at its middle, whose axis and callout
+//! carry the compound: `lint::slots::keyed`) and a slot the spec splits from the callout
+//! (`features/<id>/split`).
 //!
 //! A **slot pattern** (quiddity's `SlotArray` or `SlotGrid`, a `slot_pattern` feature naming its
 //! member slots) is called out once, as draftwright's `render_slot_patterns` does, in the view that
@@ -413,8 +415,11 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     // recognised. A straight slot (a window with blended corners) is no `SLOT` to a reader.
     let mut congruent: Vec<(Congruent, Vec<usize>)> = Vec::new();
     for (i, s) in slots.iter().enumerate() {
-        if !full_round(s) || crate::lint::slots::alone(s.feature) {
-            continue; // not an obround, or split from the callout by the spec: on its own
+        if !full_round(s)
+            || crate::lint::slots::alone(s.feature)
+            || crate::lint::slots::keyed(analysis, s.feature)
+        {
+            continue; // not an obround, split from the callout by the spec, or a keyhole
         }
         let k = congruence(s);
         match congruent.iter_mut().find(|(c, _)| *c == k) {
