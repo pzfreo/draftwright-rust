@@ -359,6 +359,47 @@ fn end_radius_want(
     }
 }
 
+/// A slot location placed as *p* that also conveys coincident slots' locations (one span, one
+/// dimension: their centres on the same line, *others*) has its extension line start at whichever
+/// of those centres lies nearest its dimension line, on the line the centres share: congruent
+/// slots in a row are located centre to centre, and the witness from the far slot would cross the
+/// near ones to reach the dimension (nema17-bracket's rows). The dimension states each of them.
+pub(super) fn nearest_witness<'a>(
+    w: &Want,
+    mut p: super::Placed,
+    others: impl Iterator<Item = &'a Shape>,
+    frame: &super::placement::Frame,
+) -> super::Placed {
+    if !w.measurements.iter().all(|m| {
+        matches!(
+            m.parameter.as_str(),
+            "location_slot.length" | "location_slot_across.length"
+        )
+    }) {
+        return p;
+    }
+    let (Shape::Linear { b_edge: false, .. }, Some(line)) = (&w.shape, p.lines.get_mut(1)) else {
+        return p;
+    };
+    // The page coordinate the witness runs along (k), and which way it runs to the dimension.
+    let k = usize::from((line[1][1] - line[0][1]).abs() > (line[1][0] - line[0][0]).abs());
+    let out = (line[1][k] - line[0][k]).signum();
+    let end = line[1][k];
+    let start = others
+        .filter_map(|o| match o {
+            Shape::Linear { b, .. } => Some(frame.page(*b)),
+            _ => None,
+        })
+        .filter(|q| (q[1 - k] - line[0][1 - k]).abs() <= 1e-6)
+        .map(|q| q[k] + out * super::GAP)
+        .filter(|&from| out * (from - line[0][k]) > 0.0 && out * (end - from) > 0.0)
+        .max_by(|x, y| (out * x).total_cmp(&(out * y)));
+    if let Some(from) = start {
+        line[0][k] = from;
+    }
+    p
+}
+
 fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     let analysis = cx.analysis;
     let [lo, _] = analysis.envelope;

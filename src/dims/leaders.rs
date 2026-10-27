@@ -653,6 +653,13 @@ fn boss_profile(w: &Want) -> bool {
         && matches!(&w.shape, Shape::Callout { sites, .. } if !sites.is_empty() && sites.iter().all(|(_, r)| *r == 0.0))
 }
 
+/// A slot callout (`N× SLOT W × L`, `dims::slots`): its leader may land on any of its slots, so
+/// a feature its leader crosses weighs double, as a recess callout's does, so the leader reaches
+/// another of them rather than crossing a neighbouring feature to the nearest (FTC-09's slot 3).
+fn slot_callout(w: &Want) -> bool {
+    matches!(w.shape, Shape::Callout { .. }) && w.terms.get(1).is_some_and(|t| t == "SLOT")
+}
+
 type Site = (P2, f64, Option<crate::arc::Span>);
 
 /// One callout's job: its view's outline, its sites on the page (centre, radius), its label's ink
@@ -674,6 +681,8 @@ struct Job<'a> {
     /// what an angle off the silhouette may not buy ([`Candidate::astray`]).
     model: Option<&'a SegmentIndex>,
     corridors: bool,
+    /// A slot callout ([`slot_callout`]): a crossed feature weighs double.
+    slot: bool,
     directed: bool,
     short_profile: bool,
     inward: bool,
@@ -1227,6 +1236,7 @@ fn place_with_obstacles_uncached(
                     && !semantic_pmi
                     && !crate::planning::lookup::<bool>(analysis, "established-route-policy", &[])
                         .unwrap_or(false),
+                slot: slot_callout(w),
                 corridors: boss_profile(w)
                     || w.measurements
                         .iter()
@@ -1302,6 +1312,10 @@ fn place_with_obstacles_uncached(
         for (k, &c) in selected.iter().enumerate() {
             let a = &inv[k][c];
             count += a.hard - a.furniture_hard + a.crossings - a.furniture_text + a.outside;
+            // A slot callout's crossed feature is a defect too ([`slot_callout`]).
+            if jobs[k].1.slot {
+                count += jobs[k].1.footprints.crossing_count([a.tip, a.elbow]) as u32;
+            }
             for (j, &other) in selected.iter().enumerate().take(k) {
                 count += conflict(a, &inv[j][other]);
             }
@@ -1326,9 +1340,19 @@ fn place_with_obstacles_uncached(
     for (k, (_, job)) in jobs.iter().enumerate() {
         let b = &baseline[k][baseline_choice[k]];
         let ceiling = b.hard + b.crossings + b.outside;
+        // A slot callout's crossed feature is a crossing like any other ([`slot_callout`]): a
+        // route crossing a line instead of the baseline's feature stays a candidate.
+        let features = if job.slot {
+            job.footprints.crossing_count([b.tip, b.elbow]) as u32
+        } else {
+            0
+        };
         inventories[k].retain(|c| {
-            c.feature_crossings <= b.feature_crossings
-                && c.hard - c.furniture_hard + c.crossings - c.furniture_text + c.outside <= ceiling
+            c.feature_crossings <= b.feature_crossings.max(features)
+                && c.hard - c.furniture_hard + c.crossings - c.furniture_text
+                    + c.outside
+                    + if job.slot { c.feature_crossings } else { 0 }
+                    <= ceiling + features
         });
         let right = b.end[0] > b.elbow[0];
         // Invariant: The incumbent route passed the same feasibility check before refinement.
@@ -1395,8 +1419,10 @@ fn place_with_obstacles_uncached(
         inventories[k].push(prior);
     }
     if semantic_pmi {
-        for inv in &mut inventories {
-            for c in inv {
+        // A slot callout is new to these drawings, so it has no legacy route to keep: its
+        // leader still counts the features it crosses ([`slot_callout`]).
+        for (inv, (_, job)) in inventories.iter_mut().zip(&jobs) {
+            for c in inv.iter_mut().filter(|_| !job.slot) {
                 c.aware = false;
             }
         }
@@ -1745,6 +1771,7 @@ pub(crate) fn settle_after_furniture(
             directed: false,
             // Enable the existing bounded corridor retry for a newly contacted route.
             corridors: !compact,
+            slot: slot_callout(w),
             short_profile: boss_profile(w),
             inward: false,
             edge_attachment: true,
@@ -2571,6 +2598,7 @@ pub(crate) fn settle_radius_leaders(
             silhouette: None,
             model: model.as_ref().map(|m| &m.as_ref().0),
             corridors: false,
+            slot: false,
             directed: false,
             short_profile: false,
             inward: false,
@@ -3495,6 +3523,7 @@ fn refine_uncached(
                 })
                 .flatten(),
             directed,
+            slot: slot_callout(w),
             corridors: boss_profile(w)
                 || w.measurements
                     .iter()
@@ -6053,7 +6082,7 @@ fn measure_at_bounds(
         grazing: u32::from(grazing),
         astray: 0,
         feature_crossings: 0,
-        recess: job.corridors && !job.short_profile,
+        recess: (job.corridors && !job.short_profile) || job.slot,
         directed: job.directed,
         inside,
         features_measured: false,
@@ -6350,6 +6379,7 @@ pub fn clear_routes(
         profile_proof: None,
         directed: false,
         corridors: false,
+        slot: false,
         steer: std::cell::Cell::new(None),
         ink_min: ink.min,
         ink_max: ink.max,
@@ -7151,6 +7181,7 @@ pub(super) fn settled_routes(
         silhouette: want.and_then(|w| grazing(&frame, w)),
         model: model.as_ref(),
         corridors: false,
+        slot: false,
         directed: false,
         short_profile: false,
         profile_proof: None,

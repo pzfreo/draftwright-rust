@@ -1799,13 +1799,17 @@ impl Setting {
 }
 
 /// A bounded presentation decision, made before the final lanes are allocated.
-#[derive(Default)]
+#[derive(Clone, Default)]
 pub(crate) struct Selection {
     pub tables: Vec<HoleTable>,
     pub scale: f64,
     pub page: [f64; 2],
     pub iso: Option<PlannedView>,
     pub replaced: BTreeSet<String>,
+    /// Whether the dimensions laid out with the schedules keep off the places their origin
+    /// marks need ([`origin_reservations`]): set for a second attempt, when a slot callout took
+    /// such a place in the first ([`slot_callout_takes_origin`]).
+    pub reserve_origins: bool,
     dimensions: Vec<PlannedDimension>,
     aliases: Vec<crate::dims::Omitted>,
 }
@@ -2594,6 +2598,235 @@ pub(crate) fn install(analysis: &Analysis, plan: &mut Plan, selection: &Selectio
     true
 }
 
+/// A view's model ink on the page, which schedule tags and the origin mark keep clear of: its
+/// projected boundary edges with the side-on silhouettes of its bores, and the projected
+/// envelopes of curved side faces.
+fn model_ink(
+    analysis: &Analysis,
+    view: &PlannedView,
+    frame: &Frame,
+    read: &BTreeMap<&str, holes::Hole<'_>>,
+) -> (Vec<Segment>, Vec<Rect>) {
+    let mut edge_segments: Vec<_> = analysis
+        .principal_profiles
+        .iter()
+        .flat_map(|s| &s.boundary_segments)
+        .map(|e| [frame.page(e[0]), frame.page(e[1])])
+        .collect();
+    // Side-on bores have tangent silhouettes which are not B-rep boundary edges.
+    for h in read.values() {
+        let Some(depth) = h.depth else {
+            continue;
+        };
+        let a = frame.page(h.at);
+        let b = frame.page(std::array::from_fn(|k| h.at[k] + depth * h.direction[k]));
+        let d = [b[0] - a[0], b[1] - a[1]];
+        let length = d[0].hypot(d[1]);
+        if length < 1e-6 {
+            continue;
+        }
+        let r = opening_diameter(h) * frame.s * 0.5;
+        let offset = [-r * d[1] / length, r * d[0] / length];
+        for sign in [-1.0, 1.0] {
+            edge_segments.push([
+                [a[0] + sign * offset[0], a[1] + sign * offset[1]],
+                [b[0] + sign * offset[0], b[1] + sign * offset[1]],
+            ]);
+        }
+    }
+    // A curved side face can have a silhouette between its boundary edges. Keep tags
+    // off that face's projected envelope; end-on revolution faces use their rims above.
+    let curved: Vec<Rect> = analysis
+        .principal_profiles
+        .iter()
+        .flat_map(|s| &s.curved_faces)
+        .filter(|f| {
+            f.axis.is_none_or(|a| {
+                a.iter()
+                    .zip(view.direction)
+                    .map(|(x, y)| x * y)
+                    .sum::<f64>()
+                    .abs()
+                    < 0.999
+            })
+        })
+        .map(|f| {
+            (0..8)
+                .map(|i| frame.page(std::array::from_fn(|k| f.bounds[(i >> k) & 1][k])))
+                .fold(
+                    [
+                        f64::INFINITY,
+                        f64::INFINITY,
+                        f64::NEG_INFINITY,
+                        f64::NEG_INFINITY,
+                    ],
+                    |b, p| {
+                        [
+                            b[0].min(p[0]),
+                            b[1].min(p[1]),
+                            b[2].max(p[0]),
+                            b[3].max(p[1]),
+                        ]
+                    },
+                )
+        })
+        .collect();
+    (edge_segments, curved)
+}
+
+/// Where the schedule's X/Y origin mark stands, a short leader from the datum corner *origin*: the
+/// first position around it, nearest first, whose mark lies inside the frame of a *page*-sized
+/// sheet, whose axes its leader does not cross, and which *clear* accepts (given the position and
+/// the mark's box).
+fn origin_mark(
+    origin: [f64; 2],
+    page: [f64; 2],
+    clear: impl Fn([f64; 2], Rect) -> bool,
+) -> Option<[f64; 2]> {
+    (0..160).find_map(|step| {
+        let distance = 12.0 + (step / 8) as f64 * 2.0;
+        let angle = (step % 8) as f64 * std::f64::consts::TAU / 8.0;
+        let at = [
+            origin[0] + distance * angle.cos(),
+            origin[1] + distance * angle.sin(),
+        ];
+        let bounds = origin_box(at);
+        (bounds[0] >= crate::layout::FRAME
+            && bounds[1] >= crate::layout::FRAME
+            && bounds[2] <= page[0] - crate::layout::FRAME
+            && bounds[3] <= page[1] - crate::layout::FRAME
+            && !crosses(
+                [origin, at],
+                [at[0] + 8.5, at[1] - 1.5, at[0] + 11.5, at[1] + 1.5],
+            )
+            && !crosses(
+                [origin, at],
+                [at[0] - 1.5, at[1] + 8.5, at[0] + 1.5, at[1] + 11.5],
+            )
+            && clear(at, bounds))
+        .then_some(at)
+    })
+}
+
+/// The origin mark's box at *at*: its `0`, its X and Y axes and their letters.
+fn origin_box(at: [f64; 2]) -> Rect {
+    [at[0] - 2.0, at[1] - 2.0, at[0] + 12.0, at[1] + 12.0]
+}
+
+/// The place each selected schedule's origin mark takes when nothing but its view's model and
+/// centre-line ink is in the way: the first position [`install_at`]'s search tries that is clear
+/// of them, before any annotation is placed. (The view, the datum corner and the mark's position
+/// on the page, per schedule.)
+fn origin_places(
+    analysis: &Analysis,
+    selection: &Selection,
+    page: [f64; 2],
+    views: &[PlannedView],
+) -> Vec<(String, String, [f64; 2], [f64; 2])> {
+    let read: BTreeMap<_, _> = holes::read(analysis)
+        .into_iter()
+        .filter_map(|(f, h)| Some((f.id.as_str(), h.ok()?)))
+        .collect();
+    let mut out = Vec::new();
+    for t in &selection.tables {
+        let (Some(view), Some(origin)) = (
+            views.iter().find(|v| Some(&v.id) == t.view.as_ref()),
+            t.origin,
+        ) else {
+            continue;
+        };
+        let frame = Frame::new(analysis, view);
+        let (edges, curved) = model_ink(analysis, view, &frame, &read);
+        let centrelines: Vec<Segment> = view
+            .line_work
+            .iter()
+            .filter(|w| w.kind != "cutting_plane")
+            .flat_map(crate::centrelines::segments)
+            .collect();
+        let origin = frame.page(origin);
+        if let Some(at) = origin_mark(origin, page, |_, bounds| {
+            curved.iter().all(|q| !overlap(bounds, *q))
+                && edges
+                    .iter()
+                    .chain(&centrelines)
+                    .all(|l| !crosses(*l, bounds))
+        }) {
+            out.push((t.id.clone(), view.id.clone(), origin, at));
+        }
+    }
+    out
+}
+
+/// Whether a slot callout (`N× SLOT W × L`, `dims::slots`) laid out with the schedules of a plan
+/// that failed to install them takes the place a schedule's origin mark needs ([`origin_places`]).
+/// Its wide label seeks the free space a datum corner leaves once the hole callouts go to the
+/// schedule (CTC-03), so that plan is laid out again with the place reserved
+/// ([`origin_reservations`]). Other failures keep the original dimensions as before.
+pub(crate) fn slot_callout_takes_origin(
+    analysis: &Analysis,
+    plan: &Plan,
+    selection: &Selection,
+) -> bool {
+    origin_places(analysis, selection, plan.sheet.page, &plan.views)
+        .into_iter()
+        .any(|(_, view, origin, at)| {
+            let mark = origin_box(at);
+            plan.dimensions.iter().any(|d| {
+                d.view == view
+                    && d.terms.get(1).is_some_and(|t| t == "SLOT")
+                    && d.placed.as_ref().is_some_and(|p| {
+                        overlap(mark, p.label_box)
+                            || crosses([origin, at], p.label_box)
+                            || p.lines.iter().any(|l| crosses(*l, mark))
+                    })
+            })
+        })
+}
+
+/// The places the selected schedules' origin marks need ([`origin_places`]), when the selection
+/// reserves them, as fixed obstacles for the dimensions laid out with the schedules: a callout's
+/// leader and label keep off them, so the schedule does not fail for want of its origin.
+pub(crate) fn origin_reservations(
+    analysis: &Analysis,
+    selection: &Selection,
+    page: [f64; 2],
+    views: &[PlannedView],
+) -> Vec<PlannedDimension> {
+    if !selection.reserve_origins {
+        return Vec::new();
+    }
+    origin_places(analysis, selection, page, views)
+        .into_iter()
+        .map(|(table, view, origin, at)| {
+            let label_box = origin_box(at);
+            PlannedDimension {
+                reference: false,
+                determined_by: Vec::new(),
+                region: None,
+                id: format!("{table}/origin"),
+                kind: "callout".into(),
+                view,
+                value: 0.0,
+                label: "0".into(),
+                terms: vec!["0".into()],
+                measurements: Vec::new(),
+                default: true,
+                from_spec: Vec::new(),
+                basis: "the schedule's origin mark, reserved before the dimensions are placed"
+                    .into(),
+                state: crate::items::State::Shown,
+                placed: Some(crate::dims::Placed {
+                    lines: vec![[origin, at]],
+                    arrows: Vec::new(),
+                    label_at: [label_box[0], label_box[1]],
+                    rotation: 0.0,
+                    label_box,
+                }),
+            }
+        })
+        .collect()
+}
+
 fn install_at(analysis: &Analysis, plan: &mut Plan, selection: &Selection) -> bool {
     // Removing ladders must not withdraw the room already needed by a semantic frame or datum.
     // If this presentation cannot keep them in their bands, retain the complete original plan.
@@ -2696,33 +2929,7 @@ fn install_at(analysis: &Analysis, plan: &mut Plan, selection: &Selection) -> bo
                 labels.push([at[0] - 1.5, at[1] - 1.5, at[0] + 1.5, at[1] + 1.5]);
             }
         }
-        let mut edge_segments: Vec<_> = analysis
-            .principal_profiles
-            .iter()
-            .flat_map(|s| &s.boundary_segments)
-            .map(|e| [frame.page(e[0]), frame.page(e[1])])
-            .collect();
-        // Side-on bores have tangent silhouettes which are not B-rep boundary edges.
-        for h in read.values() {
-            let Some(depth) = h.depth else {
-                continue;
-            };
-            let a = frame.page(h.at);
-            let b = frame.page(std::array::from_fn(|k| h.at[k] + depth * h.direction[k]));
-            let d = [b[0] - a[0], b[1] - a[1]];
-            let length = d[0].hypot(d[1]);
-            if length < 1e-6 {
-                continue;
-            }
-            let r = opening_diameter(h) * frame.s * 0.5;
-            let offset = [-r * d[1] / length, r * d[0] / length];
-            for sign in [-1.0, 1.0] {
-                edge_segments.push([
-                    [a[0] + sign * offset[0], a[1] + sign * offset[1]],
-                    [b[0] + sign * offset[0], b[1] + sign * offset[1]],
-                ]);
-            }
-        }
+        let (edge_segments, curved) = model_ink(analysis, view, &frame, &read);
         let mut annotation_lines: Vec<_> = plan
             .dimensions
             .iter()
@@ -2739,43 +2946,6 @@ fn install_at(analysis: &Analysis, plan: &mut Plan, selection: &Selection) -> bo
                 .filter(|w| w.kind != "cutting_plane")
                 .flat_map(crate::centrelines::segments),
         );
-        // A curved side face can have a silhouette between its boundary edges. Keep tags
-        // off that face's projected envelope; end-on revolution faces use their rims above.
-        let curved: Vec<Rect> = analysis
-            .principal_profiles
-            .iter()
-            .flat_map(|s| &s.curved_faces)
-            .filter(|f| {
-                f.axis.is_none_or(|a| {
-                    a.iter()
-                        .zip(view.direction)
-                        .map(|(x, y)| x * y)
-                        .sum::<f64>()
-                        .abs()
-                        < 0.999
-                })
-            })
-            .map(|f| {
-                (0..8)
-                    .map(|i| frame.page(std::array::from_fn(|k| f.bounds[(i >> k) & 1][k])))
-                    .fold(
-                        [
-                            f64::INFINITY,
-                            f64::INFINITY,
-                            f64::NEG_INFINITY,
-                            f64::NEG_INFINITY,
-                        ],
-                        |b, p| {
-                            [
-                                b[0].min(p[0]),
-                                b[1].min(p[1]),
-                                b[2].max(p[0]),
-                                b[3].max(p[1]),
-                            ]
-                        },
-                    )
-            })
-            .collect();
         let fixed = fixed_obstacles(analysis, plan, view, Some(&t));
         // Every scheduled hole of this view on the page: a tag must name its own hole, so
         // it is judged against the others' rims as well as against clearance.
@@ -3026,23 +3196,11 @@ fn install_at(analysis: &Analysis, plan: &mut Plan, selection: &Selection) -> bo
         // X/Y origin, drawn at the view's datum corner, with short coordinate axes.
         // Invariant: Schedule selection requires a resolved origin.
         let origin = frame.page(t.origin.unwrap());
-        let mut position = None;
-        for step in 0..160 {
-            let distance = 12.0 + (step / 8) as f64 * 2.0;
-            let angle = (step % 8) as f64 * std::f64::consts::TAU / 8.0;
-            let at = [
-                origin[0] + distance * angle.cos(),
-                origin[1] + distance * angle.sin(),
-            ];
-            let bounds = [at[0] - 2.0, at[1] - 2.0, at[0] + 12.0, at[1] + 12.0];
-            if bounds[0] >= crate::layout::FRAME
-                && bounds[1] >= crate::layout::FRAME
-                && bounds[2] <= plan.sheet.page[0] - crate::layout::FRAME
-                && bounds[3] <= plan.sheet.page[1] - crate::layout::FRAME
-                && labels
-                    .iter()
-                    .chain(fixed_obstacles(analysis, plan, view, Some(&t)).iter())
-                    .all(|b| !overlap(bounds, *b))
+        let position = origin_mark(origin, plan.sheet.page, |at, bounds| {
+            labels
+                .iter()
+                .chain(fixed.iter())
+                .all(|b| !overlap(bounds, *b))
                 && curved.iter().all(|q| !overlap(bounds, *q))
                 && edge_segments
                     .iter()
@@ -3051,19 +3209,7 @@ fn install_at(analysis: &Analysis, plan: &mut Plan, selection: &Selection) -> bo
                     .all(|l| !crosses(*l, bounds))
                 && leaders.iter().all(|l| !segments_cross(*l, [origin, at]))
                 && labels.iter().all(|b| !crosses([origin, at], *b))
-                && !crosses(
-                    [origin, at],
-                    [at[0] + 8.5, at[1] - 1.5, at[0] + 11.5, at[1] + 1.5],
-                )
-                && !crosses(
-                    [origin, at],
-                    [at[0] - 1.5, at[1] + 8.5, at[0] + 1.5, at[1] + 11.5],
-                )
-            {
-                position = Some(at);
-                break;
-            }
-        }
+        });
         let Some(at) = position else {
             return false;
         };

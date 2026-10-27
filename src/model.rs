@@ -4330,6 +4330,30 @@ fn retain_dropped_location(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
     }
 }
 
+/// Plans the hole schedules' presentation with *plan* and installs the schedules
+/// ([`crate::hole_table::install`]). Where they find no clear place because a slot callout took
+/// the place an origin mark needs, the presentation is planned once more with that place reserved
+/// before the dimensions are laid out ([`crate::hole_table::slot_callout_takes_origin`], CTC-03).
+/// `None` when the schedules are not installed.
+fn install_schedules(
+    analysis: &Analysis,
+    selection: &crate::hole_table::Selection,
+    plan: impl Fn(&crate::hole_table::Selection) -> Result<Plan, Invalid>,
+) -> Result<Option<Plan>, Invalid> {
+    let mut scheduled = plan(selection)?;
+    let first = scheduled.clone();
+    if crate::hole_table::install(analysis, &mut scheduled, selection) {
+        return Ok(Some(scheduled));
+    }
+    if !crate::hole_table::slot_callout_takes_origin(analysis, &first, selection) {
+        return Ok(None);
+    }
+    let mut reserved = selection.clone();
+    reserved.reserve_origins = true;
+    let mut scheduled = plan(&reserved)?;
+    Ok(crate::hole_table::install(analysis, &mut scheduled, &reserved).then_some(scheduled))
+}
+
 fn recover_tables(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, Invalid> {
     // Establish the ordinary recovered geometry before changing presentation. A table must
     // not undo a scale recovery (nor spend one merely because its ladder has disappeared).
@@ -4353,23 +4377,28 @@ fn recover_tables(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan,
         at.sheet.size = Some(baseline.sheet.size.clone());
         at.sheet.scale = Some(scale_name(baseline.sheet.scale_factor));
     }
-    let mut scheduled = plan_with_presentation(
-        analysis,
-        &at,
-        false,
-        replanned,
-        None,
-        ViewPolicy {
-            complete: true,
-            require_detail: false,
-        },
-        Some(&selection),
-    )?;
-    if replanned {
-        scheduled.spec = spec.clone();
-        scheduled.sheet.default = true;
-    }
-    if crate::hole_table::install(analysis, &mut scheduled, &selection) {
+    let installed = install_schedules(analysis, &selection, |selection| {
+        plan_with_presentation(
+            analysis,
+            &at,
+            false,
+            replanned,
+            None,
+            ViewPolicy {
+                complete: true,
+                require_detail: false,
+            },
+            Some(selection),
+        )
+        .map(|mut scheduled| {
+            if replanned {
+                scheduled.spec = spec.clone();
+                scheduled.sheet.default = true;
+            }
+            scheduled
+        })
+    })?;
+    if let Some(mut scheduled) = installed {
         // A genuine geometry recovery still belongs to the final plan; a resolved ladder's
         // exhausted-loss message does not. Preserve the successful recovery's trace.
         scheduled.problems.extend(
@@ -4501,21 +4530,21 @@ fn plan_escalated_uncached(
                 p.problems.push(Problem { id:"p:hole_table_unavailable:sheet".into(), code:"hole_table_unavailable".into(), severity:"warning".into(), message:"A hole table needs holes located in X and Y from a datum corner. This part has no holes located that way; use the individual hole dimensions shown instead.".into(), subjects:callouts, ..Default::default() });
             }
             if !selection.tables.is_empty() {
-                let mut scheduled =
+                let mut scheduled = install_schedules(analysis, &selection, |selection| {
                     plan_with_presentation(
-                    analysis,
-                    spec,
-                    beyond_lanes,
-                    automatic_pair || internal,
-                    candidate_arrangement,
-                    ViewPolicy { complete: true, require_detail: require_automatic },
-                    Some(&selection),
-                )?;
-                let mut installed = crate::hole_table::install(analysis, &mut scheduled, &selection);
+                        analysis,
+                        spec,
+                        beyond_lanes,
+                        automatic_pair || internal,
+                        candidate_arrangement,
+                        ViewPolicy { complete: true, require_detail: require_automatic },
+                        Some(selection),
+                    )
+                })?;
                 // Measured source corridors may outgrow the estimated sheet. An explicit
                 // schedule request still deserves a transaction on larger automatic paper,
                 // at the same scale, before falling back to the original dimensions.
-                if !installed
+                if scheduled.is_none()
                     && spec.hole_table == crate::hole_table::Setting::Always
                     && spec.sheet.size.is_none()
                     && !crate::placement_intent::has_pins(spec)
@@ -4526,21 +4555,22 @@ fn plan_escalated_uncached(
                     for (name, ..) in layout::PAGES.iter().skip(first + 1) {
                         let mut larger = spec.clone();
                         larger.sheet.size = Some((*name).into());
-                        let mut candidate = plan_with_presentation(
-                            analysis, &larger, beyond_lanes, automatic_pair,
-                            candidate_arrangement, ViewPolicy { complete: true, require_detail: require_automatic }, Some(&selection),
-                        )?;
-                        if crate::hole_table::install(analysis, &mut candidate, &selection) {
+                        let candidate = install_schedules(analysis, &selection, |selection| {
+                            plan_with_presentation(
+                                analysis, &larger, beyond_lanes, automatic_pair,
+                                candidate_arrangement, ViewPolicy { complete: true, require_detail: require_automatic }, Some(selection),
+                            )
+                        })?;
+                        if let Some(mut candidate) = candidate {
                             candidate.spec.clone_from(&p.spec);
                             candidate.sheet.default = true;
                             candidate.sheet.basis += "; larger automatic paper retains the requested schedule and measured corridors";
-                            scheduled = candidate;
-                            installed = true;
+                            scheduled = Some(candidate);
                             break;
                         }
                     }
                 }
-                if installed {
+                if let Some(scheduled) = scheduled {
                     p = scheduled;
                 } else if spec.hole_table == crate::hole_table::Setting::Always || findings(&p).dropped > 0 {
                     // A failed optional compaction is not a new drawing problem when
@@ -6252,7 +6282,7 @@ fn plan_with_presentation(
             &notes_given,
             &radius_notes,
             &inactive,
-            presentation.is_some(),
+            presentation.map(|p| p.reserve_origins),
         ))
         // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
         .expect("resolved candidate inputs serialize")
@@ -6347,6 +6377,12 @@ fn plan_with_presentation(
     crate::sheets::line_work(analysis, spec, &mut views);
     let mut furniture = crate::centrelines::obstacles(&views);
     furniture.extend(fixed.iter().cloned());
+    if let Some(p) = presentation {
+        // Only a second attempt reserves them (`install_schedules`).
+        furniture.extend(crate::hole_table::origin_reservations(
+            analysis, p, sheet.page, &views,
+        ));
+    }
     let ((mut dimensions, mut omitted, mut more), mut inventory) = crate::dims::plan_inventory(
         analysis,
         spec,

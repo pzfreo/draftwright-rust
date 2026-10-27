@@ -1056,6 +1056,24 @@ fn congruent_lone_slots_are_dimensioned_as_slots_located_by_their_centres() {
         "{}",
         along[0].basis
     );
+    // Its witness starts at whichever centre is nearest its dimension line, so it crosses no
+    // other slot, on either side of the view.
+    for side in ["left", "right"] {
+        let spec: Spec = serde_json::from_value(serde_json::json!({
+            "dimensions": {along[0].id.as_str(): {"place": {"side": side}}}
+        }))
+        .unwrap();
+        let sided = model::plan(&a, &spec).unwrap();
+        assert!(
+            !sided
+                .problems
+                .iter()
+                .any(|p| p.code == "extension_through_feature"
+                    && p.subjects.first() == Some(&along[0].id)),
+            "{side}: {:#?}",
+            sided.problems
+        );
+    }
     assert_eq!(
         across(&plan),
         [("35", 1), ("60", 1), ("85", 1)].map(|(l, n)| (l.to_string(), n))
@@ -1139,4 +1157,29 @@ fn keyhole_slots_are_not_called_out_together() {
             );
         }
     }
+}
+
+/// NIST FTC-09: its two congruent slots' callout reaches one of them clear of the wide slot
+/// beside them. The part's semantic PMI keeps the other leaders' established routing, which does
+/// not count a crossed feature; the slot callout is new and still does (`dims::leaders`).
+#[test]
+fn ftc09_slot_callout_leader_crosses_no_other_feature() {
+    let Some(corpus) = corpus::dir() else {
+        eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
+        return;
+    };
+    let (_, a) = model::analyse_native(&corpus.join("nist/nist_ftc_09_asme1_rd.stp")).unwrap();
+    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let callout = plan
+        .dimensions
+        .iter()
+        .find(|d| d.label == "2× SLOT 6.35 × 25.4")
+        .expect("the slot callout");
+    drawn(&plan, callout);
+    let crossings: Vec<_> = plan
+        .problems
+        .iter()
+        .filter(|p| p.code == "leader_through_feature" && p.subjects.first() == Some(&callout.id))
+        .collect();
+    assert!(crossings.is_empty(), "{crossings:#?}");
 }

@@ -496,6 +496,45 @@ fn held_labels_do_not_remove_the_canonical_schedule() {
     }
 }
 
+/// NIST CTC-03: its two obround slots' `2× SLOT` callout, laid out with the plan view's schedule,
+/// once took the datum corner the schedule's X/Y origin mark needs, so the schedule failed at A3
+/// 1:5 and the part went to A1. The presentation is planned again with the mark's place reserved:
+/// the drawing keeps A3 1:5 with its schedule, and no annotation label stands on the origin mark.
+#[test]
+fn a_slot_callout_leaves_the_schedule_origin_its_corner() {
+    let Some(corpus) = corpus::dir() else { return };
+    let (_, analysis) = cache::native(&corpus.join("nist/nist_ctc_03_asme1_rc.stp"));
+    let plan = cache::default_plan(&analysis, true);
+    assert_eq!(
+        (plan.sheet.size.as_str(), plan.sheet.scale.as_str()),
+        ("A3", "1:5")
+    );
+    assert!(!tables(&plan).as_array().unwrap().is_empty());
+    let slot = plan
+        .dimensions
+        .iter()
+        .find(|d| d.label == "2× SLOT 19.05 × 107.95")
+        .expect("the slot callout");
+    assert!(slot.placed.is_some(), "{slot:?}");
+    let origin = plan
+        .balloons
+        .iter()
+        .find(|b| b.id.ends_with("/origin"))
+        .expect("the schedule's origin mark");
+    let [x, y] = origin.at;
+    let mark = [x - 2.0, y - 2.0, x + 12.0, y + 12.0];
+    for d in &plan.dimensions {
+        if let Some(p) = &d.placed {
+            let b = p.label_box;
+            assert!(
+                b[2] <= mark[0] || b[0] >= mark[2] || b[3] <= mark[1] || b[1] >= mark[3],
+                "{} stands on the origin mark",
+                d.label
+            );
+        }
+    }
+}
+
 #[test]
 fn the_cgb245_view_pin_reproducer_keeps_its_schedule() {
     let Some(corpus) = corpus::dir() else { return };

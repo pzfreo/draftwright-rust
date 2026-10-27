@@ -129,12 +129,24 @@ All notable changes to draftwright-rust are recorded here, in the style of
 - **Sheet choice keeps profile-corner angles.** A smaller candidate that leaves out a corner angle
   the automatic baseline draws is refused, as one that drops a hole item is: smaller paper is not
   bought by losing it. nema17-mount-bracket keeps its two `135°` corners on A3 1:1.
-- Plans change on 8 of the 65 quality and dw-examples parts, all with congruent obround slots.
-  nema17-bracket and gantry-plate now fit A4 1:1 (were A3 2:1); FTC-09 moves from A1 1:1 to A2
-  1:2. Known cost: on CTC-03 (both the corpus and the dw-examples file) the slot callout's label
-  takes the datum corner the hole table's origin mark needs, so the table no longer fits at A3
-  1:5: the corpus part moves to A1 1:2 with its table, the dw-examples drawing stays on A3 1:5
-  with individual hole dimensions.
+- **A slot callout keeps off the hole table's origin and off its neighbours.** On NIST CTC-03 the
+  `2× SLOT` label, laid out with the plan view's hole table, took the datum corner the table's
+  X/Y origin mark needs, so the table failed at A3 1:5. When a slot callout takes that place, the
+  table presentation is planned once more with the mark's place reserved before the dimensions
+  (`hole_table::origin_reservations`); other table failures keep the original dimensions as
+  before. A slot callout's leader counts the features it crosses even on a part with semantic
+  PMI, whose other leaders keep their established routing, so FTC-09's no longer runs through
+  the wide slot beside its two slots. A location that also conveys coincident slots' locations
+  starts its extension line at whichever of their centres is nearest its dimension line, so the
+  witness of a row of slots does not cross the near ones (nema17-bracket, gantry-plate, CTC-03).
+- Plans change on 8 of the 65 quality and dw-examples parts, all with congruent obround slots:
+  nema17-bracket now fits A4 1:1 (was A3 2:1); gantry-plate, nema17-mount-bracket, NIST STC-09,
+  cgb245 and the corpus CTC-03 and FTC-09 keep their sheets; dw-examples' CTC-03 keeps A3 1:5
+  and regains its hole table (dimensioned singly since the cited-datum change above).
+  `extension_through_feature`: nema17-bracket 10 to 11 (its `5` goes to the left, crossing the
+  flange's edge-on holes, where the right would share a dimension line), gantry-plate 28 to 30,
+  CTC-03 1 and 4 to 0, cgb245 5 to 1. FTC-09 trades its slot leader through a slot for one
+  crossing of an extension line.
 
 ## 0.2.0 (2026-10-27)
 
