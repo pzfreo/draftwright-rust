@@ -1,4 +1,5 @@
-//! Non-right convex corners on the foremost camera-facing outer profile of each body.
+//! Non-right convex corners on the foremost camera-facing outer profile of each body (and of
+//! each plate), notch flanks excepted.
 //! Python's profile_angles.py: supplied ordered supports establish adjacency; inner wires,
 //! back faces, concave and right corners never issue automatic requirements.
 use super::{LintIssue, Mark, holes};
@@ -89,6 +90,23 @@ pub struct Corner {
     pub ends: [P3; 2],
 }
 impl Corner {
+    /// Whether each of its two edges (towards `ends[0]`, then `ends[1]`) runs along a principal
+    /// direction of its view.
+    pub fn principal_edges(&self) -> [bool; 2] {
+        [
+            principal(self.axis, (self.ends[0], self.vertex)),
+            principal(self.axis, (self.vertex, self.ends[1])),
+        ]
+    }
+
+    /// Its two edges' IDs, in the order of [`Corner::principal_edges`].
+    pub fn edge_ids(&self) -> [&str; 2] {
+        let mut parts = self.feature.rsplitn(3, ':');
+        let second = parts.next().unwrap_or_default();
+        let first = parts.next().unwrap_or_default();
+        [first, second]
+    }
+
     pub fn degrees(&self) -> f64 {
         let (u, v) = (
             unit(sub(self.first, self.vertex)),
@@ -282,6 +300,9 @@ pub fn undefined_stations(c: &Corner, located: &dyn Fn(usize, f64) -> bool) -> V
 
 /// Every non-reference linear dimension drawn, re-measured from its two witnesses through its
 /// view's recorded transform ([`super::location::ink_span`]): the spans that locate stations.
+/// A counted profile station (`2× v`, [`crate::dims::profile_angles`]) from one side of the
+/// part's box states its mirror from the other side too; no other counted dimension does (a
+/// pattern pitch or slot width touching a box side states no mirrored station).
 pub fn drawn_spans(a: &Analysis, drawing: &crate::output::Drawing) -> Vec<(usize, f64, f64)> {
     let text = |name: &str| {
         drawing
@@ -295,8 +316,8 @@ pub fn drawn_spans(a: &Analysis, drawing: &crate::output::Drawing) -> Vec<(usize
         .items
         .iter()
         .filter(|d| d.kind == crate::output::Kind::Dimension && d.elbow.is_none())
-        .filter(|d| text(&d.name).is_some_and(|t| !t.trim_start().starts_with('(')))
         .filter_map(|d| {
+            let body = text(&d.name).filter(|t| !t.trim_start().starts_with('('))?;
             let view = drawing
                 .annotations
                 .iter()
@@ -304,7 +325,16 @@ pub fn drawn_spans(a: &Analysis, drawing: &crate::output::Drawing) -> Vec<(usize
                 .view
                 .clone()?;
             let frame = drawing.sheet.frames.get(view.trim_start_matches("v:"))?;
-            super::location::ink_span(a, frame, &d.lines)
+            let span = super::location::ink_span(a, frame, &d.lines)?;
+            let counted =
+                body.trim_start().starts_with("2×") && d.name.contains("/profile_location_");
+            Some((span, counted))
+        })
+        .flat_map(|((k, p, q), counted)| {
+            let [lo, hi] = [a.envelope[0][k], a.envelope[1][k]];
+            let side = |v: f64| (v - lo).abs() < 1e-3 || (v - hi).abs() < 1e-3;
+            let mirror = (counted && (side(p) || side(q))).then_some((k, lo + hi - p, lo + hi - q));
+            std::iter::once((k, p, q)).chain(mirror)
         })
         .collect()
 }
@@ -359,6 +389,63 @@ pub fn defined_by_drawing(
         .collect()
 }
 
+/// Whether *c*'s edges are located once its angle is stated: a principal edge by its offset, an
+/// oblique edge by both coordinates of at least one of its ends. Two angles alone fix an edge's
+/// direction, never where it lies (#217).
+pub fn located_with_angle(c: &Corner, located: &dyn Fn(usize, f64) -> bool) -> bool {
+    let plane: Vec<usize> = (0..3).filter(|&k| k != c.axis).collect();
+    [(c.ends[0], c.vertex), (c.vertex, c.ends[1])]
+        .into_iter()
+        .all(|(p, q)| {
+            let d = unit(sub(flat(q, c.axis), flat(p, c.axis)));
+            match plane.iter().find(|&&k| d[k].abs() >= 1. - 1e-9) {
+                Some(&k) => {
+                    let m = plane[usize::from(plane[0] == k)];
+                    located(m, p[m])
+                }
+                None => [p, q]
+                    .iter()
+                    .any(|r| plane.iter().all(|&k| located(k, r[k]))),
+            }
+        })
+}
+
+/// The corners the drawing's linear dimensions neither fix nor locate for an angle (see
+/// [`located_with_angle`]): even a stated angle leaves their edges unplaced.
+pub fn unlocated_by_drawing(a: &Analysis, drawing: &crate::output::Drawing) -> Vec<Corner> {
+    let corners = requirements(a);
+    if corners.is_empty() {
+        return corners;
+    }
+    let spans = drawn_spans(a, drawing);
+    let roots = super::location::roots(a);
+    let located = |k: usize, v: f64| rooted_at(&roots[k], &spans, k, v);
+    corners
+        .into_iter()
+        .filter(|c| !located_with_angle(c, &located))
+        .collect()
+}
+
+/// A corner whose angle is drawn but whose edges no linear dimension places (#217).
+pub fn unlocated(a: &Analysis, c: &Corner) -> LintIssue {
+    let mut finding = super::uncovered(
+        a,
+        "profile_corner_unlocated",
+        &c.feature,
+        "profile_angle.location",
+        format!(
+            "Outer-profile corner {} is not located: its angle fixes the edge's direction, not \
+             where the edge lies.",
+            c.feature
+        ),
+    );
+    finding.fix = Some(
+        "Locate the corner's stations with linear dimensions (the profile's `linear` choice)."
+            .into(),
+    );
+    finding
+}
+
 pub fn requirements(a: &Analysis) -> Vec<Corner> {
     let candidates: Vec<_> = a
         .outer_profiles
@@ -375,11 +462,20 @@ pub fn requirements(a: &Analysis) -> Vec<Corner> {
             .then_some((s, axis, side))
         })
         .collect();
+    // A plate's face shows its own true shape (#217: a bent bracket's base plate behind the
+    // motor plate's end face): only a nearer face of the same plate hides it.
+    let plate = |face: usize| {
+        a.features
+            .iter()
+            .find(|f| f.kind == "plate" && f.faces.contains(&face))
+    };
     let mut out = Vec::new();
     for &(s, axis, side) in &candidates {
+        let own = plate(s.face);
         if candidates.iter().any(|&(other, k, _)| {
             k == axis
                 && other.body_faces == s.body_faces
+                && own.is_none_or(|p| p.faces.contains(&other.face))
                 && side * (other.profile.origin[axis] - s.profile.origin[axis]) > 1e-6
         }) {
             continue;
@@ -388,6 +484,11 @@ pub fn requirements(a: &Analysis) -> Vec<Corner> {
         if polygon {
             continue;
         }
+        // A notch's flanks are stated by the notch's own angle and location (CTC-01's V-slots).
+        let notched: Vec<usize> = super::notch_evidence::from_profile(a, s)
+            .iter()
+            .flat_map(|n| n.id.split(":e").skip(1).filter_map(|e| e.parse().ok()))
+            .collect();
         let p = &s.profile;
         let n = p.supports.len();
         for (i, first) in p.supports.iter().enumerate() {
@@ -436,6 +537,12 @@ pub fn requirements(a: &Analysis) -> Vec<Corner> {
                 }
                 (*a0, b1)
             };
+            if [i, j]
+                .iter()
+                .any(|&k| s.edges.get(k).is_some_and(|e| notched.contains(e)))
+            {
+                continue;
+            }
             let lines = [(*a0, *a1), (b0, b1)];
             let tangent = lines.map(|l| common_tangent(a, s, axis, l));
             if tangent.iter().any(|&t| t) && (0..2).all(|k| tangent[k] || principal(axis, lines[k]))

@@ -6,6 +6,40 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### Changed
+
+- **A cut corner is located by its legs, and an angle with no position is reported (#217).** Two
+  angles fix an edge's direction, not where it lies: dw-examples' l-plate-5-holes printed `135°` at
+  both ends of its 45° cut and neither leg. A cut across a corner of principal edges now gets its
+  missing stations, each from the nearer side of the box, instead of angles (the l-plate gets `20`
+  and `20`; the NEMA 17 bracket's motor-plate chamfers `2× 4` and `4`, where two of their angles
+  had been dropped; 10049's cut is located). A plate's face is now hidden only by a nearer face of
+  the same plate, so the bracket's base-plate chamfers, behind the motor plate's end face and never
+  reported, get `2× 4` and `4` too; a notch's flank corners are left to the notch (CTC-01's plate
+  adds nothing; 1013's `2× 113.974°` and 10020's `100.614°` beside their notches go). The counted
+  angle needs a regular polygon: FTC-08's and STC-08's chamfered-rectangle octagon loses `8× 135°`
+  for its stations (`profile_corners: angle` keeps the counted angle). Two equal stations from
+  opposite sides of the box are stated once, `2× v`, and lint reads a counted station as locating
+  its mirror: the symmetric octagon gets four (`2× 12.827`, `2× 33.902`, `2× 11.938`, `2× 33.013`),
+  not eight in repeated pairs; FTC-08 stays on A1 1:2 and STC-08 on A1 1:1 (where its
+  established scale cap leaves nothing valid, the hole-table search runs once more without the
+  cap), at a cost on STC-08 of one more `annotation_leader_crossing` (4 to 5), two more
+  `extension_through_feature` (7 to 9), one `extension_off_centreline` and one `label_crowded`.
+  A settled location whose witness would cross a feature now starts it beyond the near face, as a
+  corridor repair would: FTC-08's `141.827` slot location stays clear of the 12.7 slot, and CTC-02
+  rc (3) and mfcadpp/1004 (1) lose their `extension_through_feature` findings. vslot-2020x50's slot
+  openings get `2× 1.8`, `2× 5.15` and `2× 6.95` for their sixteen angles and move from A4 1:1
+  (five leader crossings) to A3 2:1. FTC-08's fillet callout reads `8× R1.524`, not `8× R1.5` (the
+  new route loses the established one-decimal text; the retention check in `tests/label_lanes.rs`
+  now uses mfcadpp/1004); l-plate-5-holes and FTC-08 each gain one `label_crowded`.
+  `profile_corners: linear`, or naming one station in the Spec, states each station on its own. A
+  45° corner chamfer gets its leg stations, not a chamfer callout (the issue's alternative, left
+  for later). Other corners are unchanged and stay unlocated (shf08's slanted top shows neither
+  angle nor station, its planned angles being dropped, as on 0.2.0; corner-bracket-2020 too);
+  lint now reports `profile_corner_unlocated` where no linear dimension places a drawn angle's
+  edge (CTC-03 2, cgb207 1, 10046 1, 10060 2), and 10007 and 10060 gain plate-face corners whose
+  angles find no clear place (`angular_requirement_missing`).
+
 ### Fixed
 
 - **A rectangle of holes is no longer called out as a bolt circle (#223).** quiddity accepts a
