@@ -41,10 +41,18 @@ fn session() -> Session {
         draftwright::pmi_lowering::Glyph::Datum { letter, .. } if letter == "A")
         })
         .unwrap();
+    // The cross hole's position frame keeps its leader in the side view, as it had when this
+    // case was written: since #224 it attaches to the hole's callout where the view's area can
+    // grow into vacant paper, which the starting layout has and the relaid one does not.
+    let position = items
+        .iter()
+        .find(|g| g.id.starts_with("pmi:geometric_tolerance.position:f7:"))
+        .unwrap();
     let spec = serde_json::from_value(serde_json::json!({
         "annotations": {
             b.id.clone(): { "place": { "view": "front", "side": "right", "lane": 0 } },
-            a.id.clone(): { "place": { "view": "front", "side": "below", "lane": 0 } }
+            a.id.clone(): { "place": { "view": "front", "side": "below", "lane": 0 } },
+            position.id.clone(): { "place": { "view": "side", "side": "above" } }
         },
         "dimensions": {
             "d:envelope/height.length": { "place": { "side": "right", "lane": 1 } },

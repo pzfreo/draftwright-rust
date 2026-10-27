@@ -86,14 +86,15 @@ fn ctc_02_frames_and_datum_symbols_are_inside_their_bands_and_on_the_sheet() {
         .map(|g| g.id.as_str())
         .collect();
     assert!(outside.is_empty(), "past their areas: {outside:?}");
-    // J stands left of the front view, inside the sheet's drawing area. E stood there too until
-    // #224 attached it to its hole's B1 tag in the plan, which sees the hole end-on (with the
-    // plan's width dimension above the view since #234, F's place beneath its B2 tag is past
-    // the plan's area, so F stays on its surface in the front view instead).
+    // J and E stood left of the front view until #224 attached them to their holes' tags in the
+    // plan, which sees the holes end-on: E above its B1 tag, J left of its D3 tag, and F beneath
+    // its B2 tag, the plan's area growing into vacant paper to hold it. Each stays inside the
+    // sheet's drawing area.
     let drawable = 10.0;
     for (id, side) in [
         ("datum:#75", ("v:plan", "above")),
-        ("datum:#78", ("v:front", "left")),
+        ("datum:#78", ("v:plan", "left")),
+        ("datum:#76", ("v:plan", "below")),
     ] {
         let g = plan.gdt.iter().find(|g| g.source == id).unwrap();
         assert_eq!((g.view.as_str(), g.side.as_str()), side);

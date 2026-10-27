@@ -4876,7 +4876,13 @@ fn plan_with_presentation(
                 // interior/GD&T repair, rather than an intermediate paper trial.
                 crate::dims::callout_routes::prefer_interior(analysis, base, &mut finished, None);
                 crate::dims::callout_routes::finish(analysis, base, &mut finished);
+                // The pinned plan starts from these frames and attaches its hole glyphs again,
+                // so it takes their reservations before attaching grew them (#224).
+                let areas: Vec<_> = finished.views.iter().map(|v| v.area).collect();
                 crate::dims::hole_marks::attach(analysis, base, &mut finished);
+                for (v, area) in finished.views.iter_mut().zip(areas) {
+                    v.area = area;
+                }
                 crate::dims::gdt::cited_undrawn(&mut finished);
                 Ok(finished)
             } else {
