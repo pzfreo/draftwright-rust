@@ -9,23 +9,25 @@ All notable changes to draftwright-rust are recorded here, in the style of
 ## 0.2.0 (2026-10-27)
 
 Now on quiddity-rust **v0.2.1** (previously `0.2.0-alpha.2`), which changes no library code from
-v0.2.1-alpha.1. Since 0.1.0: `draftwright diff` carries a drawing to a new revision of its part
-and reports what changed, and the command line is attached to each release for Linux, macOS and
-Windows. quiddity's face accounting and its annular grooves, V channels and semicircular blind
-slots are read and drawn; a recognisable shape that quiddity leaves unexplained is a warning
+v0.2.1-alpha.1. Since 0.1.0: `draftwright diff` carries a drawing to a new revision of its part and
+reports what changed, and the command line is attached to each release for Linux, macOS and Windows.
+quiddity's face accounting and its annular grooves, V channels and semicircular blind slots are read
+and drawn; a recognisable shape that quiddity leaves unexplained is a warning
 (`shape_not_recognised`); a plan or side view no dimension needs is left out. Inch-authored PMI
-prints as millimetres, coincident copies of a body and assemblies with no part chosen draw one
-part, surface models no longer inflate the envelope, and a part slightly off the file's axes is
-squared to them. Hole datums and frames attach to their holes' callouts, bolt circles are called
-out as one, angular dimensions have unbroken arcs near their corners, round parts state each
-size once, and review now reports crowded labels and leaders to hidden edges, along centre lines
-or across their view. Over the 94 corpus parts and the 23 PMI fixtures, against 0.1.0: leader
-crossings fall from 840 to 691, leaders and extension lines through features from 434 to 392,
-warnings of the kinds 0.1.0 reported from 2138 to 1954, and claimed faces rise from 6210 to
-6873; errors (226) and unlocated features (209) are unchanged. STC-09 AP242 has 115 fewer leader
-crossings, FTC-10 AP242 20 fewer lines through features, CTC-02 AP242 13 fewer and 10 fewer
-crossings. Ten MFCAD parts besides those listed below get a larger scale on the same paper, and
-GRM-03 goes from A3 10:1 to A4 5:1.
+prints as millimetres, a thread quiddity refuses is no longer drawn as a counterbore, coincident
+copies of a body and assemblies with no part chosen draw one part, surface models no longer inflate
+the envelope, and a part slightly off the file's axes is squared to them. Hole datums and frames
+attach to their holes' callouts, bolt circles are called out as one, angular dimensions have
+unbroken arcs near their corners, round parts state each size once, and review now reports crowded
+labels and leaders to hidden edges, along centre lines or across their view. Over the 94 corpus
+parts and the 23 PMI fixtures, against 0.1.0: leader crossings fall from 840 to 691, leaders and
+extension lines through features from 434 to 392, warnings of the kinds 0.1.0 reported on them from
+2138 to 1954, and claimed faces rise from 6210 to 6873; errors (226) and unlocated features (209)
+are unchanged. STC-09 AP242 has 115 fewer leader crossings, FTC-10 AP242 20 fewer lines through
+features, CTC-02 AP242 13 fewer and 10 fewer crossings. Ten MFCAD parts besides those listed below
+get a larger scale on the same paper, and GRM-03 goes from A3 10:1 to A4 5:1. Drawings still report
+what they do not state; dense parts are not yet as clean as Python draftwright's (see **Known
+regressions** and the README's "Known limitations").
 
 **Speed.** Instructions retired for `draftwright plan`, this release against 0.1.0 (median of
 three interleaved runs each): 0.73× on FTC-08, 0.97× on CTC-01, 1.008× on string_post and 1.058×
@@ -39,20 +41,27 @@ and cgb243) and the 23 PMI fixtures. New kinds of finding are not counted as reg
 review findings added by #224 and #226 (`leader_to_hidden_edge` 107, `leader_along_centreline`
 40, `extension_off_centreline` 32, `frame_datum_not_drawn` 26, `leader_across_view` 23,
 `label_section_furniture_overlap` 15, and 141 `label_crowded` notices) report what 0.1.0 already
-drew.
+drew. Also by design: the three CTC-01 drawings report their rectangular through notches as one
+`features_not_recognised` (0.1.0: `unclaimed_geometry`), and STC-09's `2X R` and `4X R` labels
+are now `pmi_not_lowered` (#214).
 
 - 10033: A3 2:1 (0.1.0: A4 1:1), with one leader crossing (0.1.0: none).
-- Holdout 274: A3 2:1 (0.1.0: A4 1:1); its findings are unchanged.
+- Holdout 274: A3 2:1 (0.1.0: A4 1:1); its warnings are unchanged.
 - Holdout 196: A3 1:1 (0.1.0: A3 2:1).
 - Holdout 483: A4 1:1 (0.1.0: A4 2:1), with one leader crossing and one `detail_unplaceable`
   (0.1.0: none).
 - 10092: A4 2:1 (0.1.0: A4 1:1), but with one leader crossing and one `annotation_over_view`
   (0.1.0: none).
+- 10060: A4 2:1 (0.1.0: A4 1:1), its leader crossing traded for a `detail_unplaceable`.
 - 10127: A4 1:1 (0.1.0: 1:2), but 3 leaders through features (0.1.0: none; its unplaceable
-  detail is gone). Holdout 317: A4 1:1 (0.1.0: 1:2), but 3 leaders through features (0.1.0: 1).
+  detail is gone). Holdout 317: A4 1:1 (0.1.0: 1:2), but 3 leaders through features (0.1.0: 1)
+  and one hole location too close to read (`layout_recovery_exhausted`).
 - 10101 and 1013: one extension line through a feature each (0.1.0: none); 10138: 2 leaders
-  through features (0.1.0: 1); cgb243: 5 (0.1.0: 4).
+  through features (0.1.0: 1) and its 98.995° corner no longer dimensioned
+  (`angular_dimension_dropped`); cgb243: 5 leaders through features (0.1.0: 4).
 - FTC-10 rb: 46 extension lines through features (0.1.0: 43).
+- FTC-10 AP242: 62 extension lines through features (0.1.0: 59) and one more leader through
+  text, though its leaders through features fall from 55 to 34.
 - 28 of the 94 corpus parts still claim 1–3 fewer faces than alpha.14 (0.1.0: 58 parts, 1–6
   fewer), string_post (14, alpha.14: 16) and GRM-03 among them; CTC-01 and FTC-06 are recovered.
 
@@ -62,14 +71,14 @@ Still open from 0.1.0:
 - FTC-06: A2 1:5 (alpha.12: A1 1:2).
 - FTC-10 rb: two A2 sheets (alpha.12: one A1).
 - 10119: A4 1:1 (alpha.12: 2:1).
-- FTC-07 AP242: 12 unlocated features, its 4 polygonal bosses among them; 28 extension lines
-  through features (0.1.0: 26, alpha.12: 14); now on A1 1:1 (0.1.0: A2 1:2, alpha.14: A1 1:1)
-  with 37 leader crossings (0.1.0: 40, alpha.14: 33).
+- FTC-07 AP242: 12 unlocated features, its 4 polygonal bosses among them; 28 extension lines through
+  features (0.1.0: 26, alpha.12: 14) and 6 leaders through features (0.1.0: 4); now on A1 1:1
+  (0.1.0: A2 1:2, alpha.14: A1 1:1) with 37 leader crossings (0.1.0: 40, alpha.14: 33).
 - string_post: the random-pin cell (seed 1, 8 pins) that puts the hole centreline on the title
   block's scale note (#206), still listed in `tools/known-pin-failures.json`.
 
-Fixed since 0.1.0: the CTC-01 merge fixture is back to 21 warnings (alpha.12: 21); cgb241's
-`2× R23` is led from the blend again, 34 mm (alpha.12: 37 mm); cgb217 has 7 undimensioned
+Fixed since 0.1.0: the CTC-01 merge fixture is back to 21 warnings (alpha.12: 21); cgb241's `2× R23`
+is led from the blend again, 37 mm as in alpha.12 (0.1.0: 71 mm); cgb217 has 7 undimensioned
 features (0.1.0: 15, alpha.13: 7).
 
 ### Added
@@ -77,15 +86,16 @@ features (0.1.0: 15, alpha.13: 7).
 - **The `draftwright` command line for Linux (x86_64), macOS (Apple Silicon) and Windows
   (x86_64), attached to each release** (`.github/workflows/cli.yml`), each built, tried on a
   revision and checksummed.
-- **`draftwright diff old.step new.step --spec s.json -o dir`: what changed between two
-  revisions of a part, and its drawing carried to the new one (ADR R3).** quiddity's correspondence matches the two parts, and every
-  `f:<kind>:<n>` and `face:<n>` in the Spec is rebound to what it named: an entry is carried,
-  renamed (removing a hole renumbers the holes after it), or set aside with its original kept,
-  as *orphaned* (its feature is gone) or *ambiguous* (symmetric repeats; the candidates are
-  listed, none is guessed). The new revision is drawn with the carried Spec and compared with the
-  old drawing: changed features, dimensions and notes, new problems, and each view's visible
-  edges in the part's own coordinates. It writes a report (JSON, and Markdown for a pull request
-  comment), the carried Spec, and the new drawing marked up in colour (`src/revision.rs`).
+- **`draftwright diff old.step new.step --spec s.json -o dir`: what changed between two revisions of
+  a part, and its drawing carried to the new one (ADR R3).** quiddity's correspondence matches the
+  two parts, and every `f:<kind>:<n>` and `face:<n>` in the Spec is rebound to what it named: an
+  entry is carried, renamed (removing a hole renumbers the holes after it), or set aside with its
+  original kept, as *orphaned* (its feature is gone) or *ambiguous* (symmetric repeats; the
+  candidates are listed, none is guessed). The new revision is drawn with the carried Spec and
+  compared with the old drawing: changed features, dimensions and notes, new problems, and each
+  view's visible edges in the part's own coordinates. It writes a report (JSON, and Markdown for a
+  pull request comment), the carried Spec, and the new drawing marked up in colour
+  (`src/revision.rs`).
 
 ### Changed
 
@@ -103,42 +113,42 @@ features (0.1.0: 15, alpha.13: 7).
   stays the info-level count. On the 30 quality parts only findings change. Not covered: faces
   that recognition claims but no dimension states, such as shf08 and sk08's clamp slits and
   shf08's stem and shoulder, which stay silent.
-- **quiddity's annular grooves, V channels and semicircular blind slots are read and drawn
-  (#233),** no longer reported as `features_not_recognised`. A semicircular blind slot is called
-  out as a round-bottom open slot (`ROUND-BOTTOM OPEN SLOT W × L × D DEEP`) and located across
-  its width by its centre line. A V channel states `A° V × D DEEP` and its trough's location,
-  and an annular groove `⌀OD × ⌀ID ↧ D` and its centre's, unless the profile V-notch on its
-  flanks, or the hole and boss on its walls, already state it, as on CTC-01, holdout 408 and 419
-  and the corpus grooves checked (1008, 10077, 10098). A Spec that omits one of those stating
-  dimensions (the hole's or boss's diameter, the notch's angle or depth) brings back the groove's
-  or channel's own callout, so its sizes are never lost. Lint checks each family's sizes
-  (`annular_groove_requirement_*`, `v_channel_requirement_*`,
-  `semicircular_blind_slot_requirement_*`), reading a wall hole's and boss's printed diameters
-  and depth as the groove's; a notch-stated channel is checked by the notch's own lint. 10092
-  moves from A4 1:1 to A3 2:1 (one new `annotation_leader_crossing` and two `label_crowded`, its
+- **quiddity's annular grooves, V channels and semicircular blind slots are read and drawn (#233),**
+  no longer reported as `features_not_recognised`. A semicircular blind slot is called out as a
+  round-bottom open slot (`ROUND-BOTTOM OPEN SLOT W × L × D DEEP`) and located across its width by
+  its centre line. A V channel states `A° V × D DEEP` and its trough's location, and an annular
+  groove `⌀OD × ⌀ID ↧ D` and its centre's, unless the profile V-notch on its flanks, or the hole and
+  boss on its walls, already state it, as on CTC-01, holdout 408 and 419 and the corpus grooves
+  checked (1008, 10077, 10098). A Spec that omits one of those stating dimensions (the hole's or
+  boss's diameter, the notch's angle or depth) brings back the groove's or channel's own callout, so
+  its sizes are never lost. Lint checks each family's sizes (`annular_groove_requirement_*`,
+  `v_channel_requirement_*`, `semicircular_blind_slot_requirement_*`), reading a wall hole's and
+  boss's printed diameters and depth as the groove's; a notch-stated channel is checked by the
+  notch's own lint. 10092 moves from A4 1:1 to A4 2:1 in this release (one new
+  `annotation_leader_crossing`, one `annotation_over_view` and two `label_crowded`, its
   `detail_unplaceable` gone), holdout 196 from A3 2:1 to A3 1:1 and 483 from A4 2:1 to 1:1 (new
   `detail_unplaceable` and `annotation_leader_crossing`); 1013's slot location gains
-  `extension_through_feature` and `label_section_furniture_overlap`; 10098 loses its 78.046°
-  profile angle, the supplement of the 101.954° on the same edge, to its V channel's locations.
-  Rectangular through notches (CTC-01's two) stay unrecognised: drawn, they cost CTC-01 its 1:5
-  scale or add leader crossings. The quality parts are otherwise unchanged.
-- **A plan or side view that no dimension needs is left out (#222).** On a part that is not
-  turned, the plan or side view on which the drawing with every view shown places no
-  dimension, so that all it would add is its outline (often a strip of hidden lines), is
-  dropped, unless it is a prism's profile or looks along a cylinder. The decision is read from
-  that drawing itself, after every routing preference and added statement (a profile angle,
-  a thickness moved for readable witnesses). At most one view goes, the plan first, never the
-  front, and never one carrying PMI, section A–A's cutting plane or anything the spec refers to
-  it; the kept views' basis says why. Leaving it out never takes larger paper or more sheets
-  than the drawing with it shown: then the view is kept, and the sheet basis says so (MFCAD
-  10092 stays A4 1:1 rather than A3 5:1). Naming the view (`views/plan: {}`) keeps it, in a
-  pinned drawing's unpinned frame too; naming any principal view, or authored dimensions or a
-  dimension scheme, turns the rule off. vslot-2020x50 and MFCAD 10020, 10046, 10060, 10156,
-  10167, 1017 and 10245 go from 1:1 to 2:1 in the room freed (10156 and 10167 lose warnings;
-  10060 trades a leader crossing for an unplaceable prismatic-steps detail, and 10101 gains an
-  extension through a feature at its unchanged 2:1); l-plate-5-holes, retaining-ring, shf08,
-  MFCAD 10038 and FTC-09 lose their empty plan. The rest of the 30 quality parts are unchanged.
-  The title-block fixture tb_stepped now fits A4, as draftwright's sheet, instead of A3.
+  `extension_through_feature` and `label_section_furniture_overlap`; 10098 loses its 78.046° profile
+  angle, the supplement of the 101.954° on the same edge, to its V channel's locations. Rectangular
+  through notches (CTC-01's two) stay unrecognised: drawn, they cost CTC-01 its 1:5 scale or add
+  leader crossings. The quality parts are otherwise unchanged.
+- **A plan or side view that no dimension needs is left out (#222).** On a part that is not turned,
+  the plan or side view on which the drawing with every view shown places no dimension, so that all
+  it would add is its outline (often a strip of hidden lines), is dropped, unless it is a prism's
+  profile or looks along a cylinder. The decision is read from that drawing itself, after every
+  routing preference and added statement (a profile angle, a thickness moved for readable
+  witnesses). At most one view goes, the plan first, never the front, and never one carrying PMI,
+  section A–A's cutting plane or anything the spec refers to it; the kept views' basis says why.
+  Leaving it out never takes larger paper or more sheets than the drawing with it shown: then the
+  view is kept, and the sheet basis says so (MFCAD 10092 kept its plan view rather than go to A3; it
+  is on A4 2:1 in this release). Naming the view (`views/plan: {}`) keeps it, in a pinned drawing's
+  unpinned frame too; naming any principal view, or authored dimensions or a dimension scheme, turns
+  the rule off. vslot-2020x50 and MFCAD 10020, 10046, 10060, 10156, 10167, 1017 and 10245 go from
+  1:1 to 2:1 in the room freed (10156 and 10167 lose warnings; 10060 trades a leader crossing for an
+  unplaceable prismatic-steps detail, and 10101 gains an extension through a feature at its
+  unchanged 2:1); l-plate-5-holes, retaining-ring, shf08, MFCAD 10038 and FTC-09 lose their empty
+  plan. The rest of the 30 quality parts are unchanged. The title-block fixture tb_stepped now fits
+  A4, as draftwright's sheet, instead of A3.
 - On quiddity-rust **v0.2.1** (first taken as v0.2.1-alpha.1; the release changes no library
   code from it). The reader accepts its new `rectangular_through_notches`
   family (not drawn yet), so CTC-01's two V-slot notches and their rounded
@@ -154,8 +164,8 @@ features (0.1.0: 15, alpha.13: 7).
   recognised steps change the layout of 10033 (now A3 2:1, with one leader crossing a dimension
   line), 10127 and holdout 119. FTC-10 rb gains 3 and FTC-07 AP242 2 extension lines through
   features, and the FTC-10 AP242 drawing one leader through text. The three new families
-  (annular grooves, V channels, semicircular blind slots) are read but not yet drawn; they are
-  reported as `features_not_recognised`.
+  (annular grooves, V channels, semicircular blind slots) were read but not yet drawn,
+  reported as `features_not_recognised`; #233 above draws them.
 
 ### Fixed
 
@@ -240,8 +250,8 @@ features (0.1.0: 15, alpha.13: 7).
   place and the arc moves inside it, so the ink reaches no further. Where the unbroken arc
   meets something the break used to skip, the angle takes a later place: CTC-01's "60°" and
   CTC-03's "2× 135°" step out 1–2 mm, and FTC-08 rc's "8× 135°" goes to another of its
-  corners, its arc across a slot outline. The vslot "45°" still sits away from its corner,
-  its diagonal extension line across the "10" extension line; that part of #227 stays open.
+  corners, its arc across a slot outline. The vslot "45°", which still sat away from its
+  corner, is brought to it by the entry above.
 - **An assembly with no part chosen no longer dimensions its other bodies as one part's
   features (#219).** The whole file was drawn as one part: dw-examples' GT2 pulley stated its two
   set screws as "ø3" bosses, "HEX 2.000 A/F × 2.5 DEEP" sockets, "4× C0.25" and "6× 120°", and
@@ -295,26 +305,23 @@ features (0.1.0: 15, alpha.13: 7).
   free-direction slot reads "SLOT 2 WIDE × 4.5 LONG", without the internal "ORIENTED", and a gap
   open at both ends (the retaining ring's) reads "GAP 1.64 WIDE", its length being the wall it
   cuts, which lint no longer asks for.
-- **Review reports annotation contacts it used to pass as clear (#226).** Placement keeps
-  labels and lines only just clear of each other, box to box, so text 0.03–0.4 mm from a line
-  or a section letter was never reported. The finished drawing is now checked once more, after
-  its final leader-route repair (`src/dims/contacts.rs`): `label_crowded` (info) for text within
-  0.5 mm of another label, of other line-work or of a section's arrowhead or letter
-  (t8-housing-bracket's 15 against letter A, nema-17-bracket's 31 against the 20.5 and 30
-  extension lines, nema17-mount-bracket's R0.5 under the 50 line, lm8uu's groove shoulder against
-  2× C0.25); `label_section_furniture_overlap` for a line through a section mark (t8's 15
-  through the A arrowhead; a label over a mark stays lint's); `extension_off_centreline`
-  (warning) for an extension line 0.01–0.5 mm beside a centre line, which reads as locating that
-  centre (nema17-mount-bracket's 28.85, STC-07's 12.7, 210.006 and 2× 9.297); and
-  `leader_along_centreline` (warning) for a leader within 6° and 2 mm of a centre line over more
-  than 5 mm (608zz, lm8uu, lm10uu, hirth-joint, sprocket, gt2-pulley and STC-07 bores). None moves an annotation or chooses
+- **Review reports annotation contacts it used to pass as clear (#226).** Placement keeps labels and
+  lines only just clear of each other, box to box, so text 0.03–0.4 mm from a line or a section
+  letter was never reported. The finished drawing is now checked once more, after its final
+  leader-route repair (`src/dims/contacts.rs`): `label_crowded` (info) for text within 0.5 mm of
+  another label, of other line-work or of a section's arrowhead or letter (t8-housing-bracket's 15
+  against letter A, nema-17-bracket's 31 against the 20.5 and 30 extension lines,
+  nema17-mount-bracket's R0.5 under the 50 line, lm8uu's groove shoulder against 2× C0.25);
+  `label_section_furniture_overlap` for a line through a section mark (t8's 15 through the A
+  arrowhead; a label over a mark stays lint's); `extension_off_centreline` (warning) for an
+  extension line 0.01–0.5 mm beside a centre line, which reads as locating that centre
+  (nema17-mount-bracket's 28.85, STC-07's 12.7, 210.006 and 2× 9.297); and `leader_along_centreline`
+  (warning) for a leader within 6° and 2 mm of a centre line over more than 5 mm (608zz, lm8uu,
+  lm10uu, hirth-joint, sprocket, gt2-pulley and STC-07 bores). None moves an annotation or chooses
   paper: layouts are unchanged. When a later repair changes the selected candidate's
-  annotation-conflict count, the sheet basis says what the finished drawing has
-  (nema-17-bracket: 1 counted, 0 left), so the basis agrees with the plan's problems. Still
-  not reported, so #226 stays open: a long leader crossing its own view (gt2-pulley's
-  43.8 mm HEX 2.000 A/F leader; length alone does not single it out, GRM-03, STC-07 and FTC-08
-  each have a longer clean leader), nema17-mount-bracket's R0.5 leader ending on a hidden
-  corner, and linkrods' 0.625 and 0.75 standing beside the boss they do not locate.
+  annotation-conflict count, the sheet basis says what the finished drawing has (nema-17-bracket: 1
+  counted, 0 left), so the basis agrees with the plan's problems. Leaders to hidden edges and across
+  their view are reported by the next entry.
 - **Review reports leaders that end on hidden edges or run across their own view (#226).** The
   final contact check also reads each callout leader against its view's physical edges
   (`src/dims/contacts.rs`, with the interior router's edge proof): `leader_to_hidden_edge`
@@ -329,8 +336,8 @@ features (0.1.0: 15, alpha.13: 7).
   view from its tip would cross (cgb245's two 2× R3 slot leaders, CTC-02's ⌀40 counterbores
   and 6× R18, CTC-03's 2× R9.52, CTC-05's ø304.8). Length alone does not single these out: a
   bore leader whose every way out crosses the same rings (gt2-pulley's ⌀5 THRU) is not
-  reported. gt2-pulley's HEX 2.000 A/F leader named in the #235 entry no longer appears on
-  current output (main or this change), so it was not judged. Layouts are unchanged: neither moves a leader, and a feature seen only hidden keeps
+  reported. gt2-pulley's 43.8 mm HEX 2.000 A/F leader no longer appears, so it was not
+  judged. Layouts are unchanged: neither moves a leader, and a feature seen only hidden keeps
   its callout where it is. Still open on #226: linkrods' 0.625 and 0.75 standing beside the
   boss they do not locate.
 - **Coincident copies of a body no longer multiply every count (#212).** A STEP holding the same
