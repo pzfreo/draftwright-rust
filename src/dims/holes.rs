@@ -92,7 +92,7 @@ impl Hole<'_> {
             }
         }
         if self.both {
-            t.push("BOTH SIDES".into());
+            t.push(crate::callouts::BOTH_SIDES.into());
         }
         if let Some(c) = self.countersink {
             t.extend(["⌵".into(), format!("⌀{}", fmt(c.diameter))]);

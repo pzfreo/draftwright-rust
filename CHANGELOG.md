@@ -123,12 +123,11 @@ All notable changes to draftwright-rust are recorded here, in the style of
   the Hirth joint, FTC-11, cgb203, GRM-03 and FTC-06 lose that finding, and STC-06 one of its
   three (leader crossings 23 to 21). A mark sized to the callout's own recess (CTC-02's
   `⌀40 THRU ⌴SF ⌀120 ↧ 8`) and another hole's mark on the same line keep their old weighing, so
-  CTC-02 plans as before. The 30 quality parts' FTC-10 now fits one A2 sheet at 1:2 (two at 1:1
-  before): its two-line `BOTH SIDES` callout clears the one required drop that refused 1:2, and
-  its review is otherwise unchanged but for one `leader_along_centreline` beside a neighbouring
-  hole's mark. LM10UU's two-line callout leaves its drawing as it was but reports the automatic
-  baseline's `detail_unplaceable` (a turned-chain detail it never draws), which main's
-  preference replan hid.
+  CTC-02 plans as before. `BOTH SIDES` rides on the requirement's last line: the 48 mm wrap
+  applies to the requirement, so LM10UU's callout and the corpus FTC-10's stay one line (FTC-10
+  keeps A2 1:1 on two sheets; a two-line callout took it to one sheet at 1:2) and STC-10's
+  wrapped one ends `10 BOTH SIDES`. LM10UU's longer label runs past its view's area over empty
+  paper (`annotation_outside_area`, info).
 
 ## 0.2.0 (2026-10-27)
 

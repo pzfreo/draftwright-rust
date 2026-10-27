@@ -1096,6 +1096,25 @@ fn callout_wrapping_measures_real_ink_and_preserves_words_and_forced_breaks() {
     assert_eq!(draftwright::callouts::wrap(&word), word);
 }
 
+/// A trailing BOTH SIDES qualifies the requirement before it: the 48 mm wrap applies to the
+/// requirement, and the qualifier rides on its last line (#104: LM10UU's and the corpus FTC-10's
+/// callouts stay one line; STC-10's wrapped one ends `10 BOTH SIDES`).
+#[test]
+fn both_sides_rides_on_the_requirements_last_line() {
+    let terms = |s: &str| s.split(' ').map(str::to_string).collect::<Vec<_>>();
+    let both = draftwright::callouts::BOTH_SIDES.to_string();
+    let mut short = terms("⌀10 THRU ⌴SF ⌀16.4 ↧ 1.4");
+    short.push(both.clone());
+    assert_eq!(draftwright::callouts::wrap(&short), short);
+    let mut long = terms("4× ⌀7 ±0.25 THRU ⌴ ⌀10 ↧ 10");
+    let alone = draftwright::callouts::wrap(&long);
+    long.push(both.clone());
+    let wrapped = draftwright::callouts::wrap(&long);
+    let lines = draftwright::callouts::lines(&wrapped);
+    assert_eq!(lines.len(), draftwright::callouts::lines(&alone).len());
+    assert_eq!(lines.last().unwrap().last(), Some(&both));
+}
+
 #[test]
 fn auto_moves_a_three_line_knurl_to_its_complete_source_note() {
     let (part, a) = analysed("bolt_thread_knurl");
