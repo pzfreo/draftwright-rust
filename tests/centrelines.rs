@@ -810,3 +810,74 @@ fn holes_beside_planar_sides_are_located_from_the_box() {
         );
     }
 }
+
+/// `bearing-608zz.step.gz` (dw-examples): the ⌀8 bore lies on the axis of the ø22 round face,
+/// which is the end view's whole outline. Its centre lines locate it; a location from the ø22's
+/// tangent only repeats half the diameter, so none is drawn (#104). The callout says why, and
+/// lint still finds the bore located and marked.
+#[test]
+fn a_bore_concentric_with_a_round_outline_is_not_located_from_its_tangent() {
+    let (a, p, d) = drawing(
+        &Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts/bearing-608zz.step.gz"),
+    );
+    let located: Vec<_> = p
+        .dimensions
+        .iter()
+        .filter(|d| d.id.contains("/location.length."))
+        .map(|d| (&d.id, &d.label))
+        .collect();
+    assert!(located.is_empty(), "{located:?}");
+    let bore = p
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:f:hole:1/bore.diameter")
+        .unwrap();
+    assert!(
+        bore.basis
+            .contains("on the axis of the part's round outline"),
+        "{}",
+        bore.basis
+    );
+    assert!(!work(&p, "cross").is_empty());
+    let found = draftwright::lint::lint(&a, &d);
+    assert!(
+        !found
+            .iter()
+            .any(|i| i.code == "feature_not_located" || i.code == "feature_no_centermark"),
+        "{:?}",
+        found.iter().map(|i| &i.code).collect::<Vec<_>>()
+    );
+
+    // The Spec's origin keeps the box sides.
+    let spec: Spec =
+        serde_json::from_value(serde_json::json!({"origin": {"x": "min", "y": "min", "z": "min"}}))
+            .unwrap();
+    let p = model::plan_recovered(&a, &spec).unwrap();
+    assert!(
+        p.dimensions
+            .iter()
+            .any(|d| d.id.starts_with("d:f:hole:1/location.length."))
+    );
+}
+
+/// `bearing-lm10uu.step.gz` (dw-examples): every circle of the end view shares the bore's centre
+/// lines, which run on past its rim to the ø19's. A leader to the ⌀10 bore leaves at an angle,
+/// not down a centre line beyond the bore's own overrun, which reads as that line (#104).
+#[test]
+fn a_leader_to_a_coaxial_bore_leaves_its_centre_lines() {
+    let (_, p, _) = drawing(
+        &Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts/bearing-lm10uu.step.gz"),
+    );
+    assert!(
+        p.dimensions
+            .iter()
+            .any(|d| d.id == "d:f:hole:1/bore.diameter" && d.placed.is_some())
+    );
+    let along: Vec<_> = p
+        .problems
+        .iter()
+        .filter(|q| q.code == "leader_along_centreline")
+        .map(|q| &q.message)
+        .collect();
+    assert!(along.is_empty(), "{along:?}");
+}

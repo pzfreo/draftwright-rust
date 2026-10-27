@@ -46,6 +46,9 @@ struct Hole<'a> {
     axis: usize,
     /// Whether its axis is inclined to every principal axis, so no standard view sees it end-on.
     inclined: bool,
+    /// Whether its counterbore or spotface is cut at both mouths of the through hole
+    /// ([`both_mouths`]), so its callout says `BOTH SIDES`.
+    both: bool,
 }
 
 impl<'a> std::ops::Deref for Hole<'a> {
@@ -87,6 +90,9 @@ impl Hole<'_> {
             if let Some(depth) = r.depth {
                 t.extend(["↧".into(), fmt(depth)]);
             }
+        }
+        if self.both {
+            t.push("BOTH SIDES".into());
         }
         if let Some(c) = self.countersink {
             t.extend(["⌵".into(), format!("⌀{}", fmt(c.diameter))]);
@@ -138,6 +144,48 @@ fn hole<'a>(read: Result<holes::Hole<'a>, String>) -> Result<Hole<'a>, String> {
         read,
         axis,
         inclined,
+        both: false,
+    })
+}
+
+/// Whether through hole *h*'s counterbore or spotface is cut at both its mouths: the part has a
+/// second cylinder of that recess's diameter and depth on its axis at the far mouth, where the
+/// bore ends (no nearer than the recess and the bore's depth from the opening, and adjoining
+/// that end). quiddity records a recess found identically at both mouths of a hole whose ends
+/// it cannot tell apart once, on the end it presents (`HoleRecord`), so the record alone reads
+/// as one recess (lm10uu's ø16.4 ↧ 1.4 at both ends, #104). A like recess of another hole
+/// farther along the same line (ctc-02's spotfaces at the two ends of its long body) is not.
+fn both_mouths(analysis: &Analysis, h: &Hole) -> bool {
+    let (Some(ink), Some(r), Some((k, sign)), true) = (
+        analysis.edge_ink.as_ref(),
+        h.counterbore.or(h.spotface),
+        h.principal,
+        h.through,
+    ) else {
+        return false;
+    };
+    let (Some(sunk), Some(bore)) = (r.depth, h.depth) else {
+        return false;
+    };
+    let (u, v) = in_view(k);
+    let tol = 1e-3;
+    // The bore's far end lies at least this far from the opening, and at most one recess depth
+    // farther (when the bore starts below the recess's floor).
+    let end = sunk + bore;
+    ink.curved.iter().any(|c| {
+        c.cylinder.as_ref().is_some_and(|y| {
+            let along = |x: f64| (x - h.at[k]) * f64::from(sign);
+            let (a, b) = (along(c.bounds[0][k]), along(c.bounds[1][k]));
+            let (near, far) = (a.min(b), a.max(b));
+            y.axis[k].abs() > 1.0 - 1e-6
+                && (y.origin[u] - h.at[u]).abs() < ON_AXIS
+                && (y.origin[v] - h.at[v]).abs() < ON_AXIS
+                && (2.0 * y.radius - r.diameter).abs() < tol
+                && ((far - near) - sunk).abs() < tol
+                && near > sunk + tol
+                && near <= end + sunk + tol
+                && far >= end - tol
+        })
     })
 }
 
@@ -229,7 +277,8 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     let mut holes: Vec<Hole> = Vec::new();
     for (f, read) in holes::read(analysis) {
         match hole(read) {
-            Ok(h) => {
+            Ok(mut h) => {
+                h.both = both_mouths(analysis, &h);
                 let bottom = h.bottom;
                 if !matches!(bottom, Some("through" | "flat" | "drill_point")) {
                     // Called out blind to its recognised depth, as draftwright does, but the
@@ -500,8 +549,8 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     // The holes left: identical ones grouped and counted (ARCH0008-2). A hole that carries an
     // AP242 thread keeps a callout of its own (draftwright: identical threads on distinct owners
     // keep two annotations, ISSUE-1298-a).
-    // (requirement, the threaded hole's own ID), members.
-    type Group<'a> = ((Vec<i64>, Option<&'a str>), Vec<usize>);
+    // (requirement, the threaded hole's own ID, recessed at both mouths), members.
+    type Group<'a> = ((Vec<i64>, Option<&'a str>, bool), Vec<usize>);
     let mut groups: Vec<Group> = Vec::new();
     for (i, h) in holes.iter().enumerate() {
         if taken.contains(&i) {
@@ -509,7 +558,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         }
         let threaded =
             (!manufacturing.on(&h.feature.id).is_empty()).then_some(h.feature.id.as_str());
-        let req = (h.requirement(), threaded);
+        let req = (h.requirement(), threaded, h.both);
         match groups.iter_mut().find(|g| g.0 == req) {
             Some(g) => g.1.push(i),
             None => groups.push((req, vec![i])),
@@ -572,6 +621,9 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             .iter()
             .find_map(|m| declined.get(m))
             .map_or(String::new(), |d| format!("; {d}"));
+        if first.both {
+            note += "; its recess is cut alike at both mouths, so the callout says BOTH SIDES";
+        }
         let seen = if first.inclined {
             "most nearly end-on"
         } else {
@@ -767,12 +819,41 @@ fn round_origin(analysis: &Analysis, view: usize, k: usize) -> Option<(String, P
     found
 }
 
+/// Whether one round face about *axis*, seen along world axis *view*, is the part's outline on
+/// both box sides along *k*: its tangents are the box's low and high sides (its faces together,
+/// when the cylinder is split).
+fn round_whole(analysis: &Analysis, view: usize, k: usize, axis: P3) -> bool {
+    let Some(ink) = analysis.edge_ink.as_ref() else {
+        return false;
+    };
+    let [lo, hi] = analysis.envelope;
+    let (u, v) = in_view(view);
+    let reach = ink
+        .curved
+        .iter()
+        .filter(|c| {
+            c.cylinder.as_ref().is_some_and(|y| {
+                y.axis[view].abs() > 1.0 - 1e-6
+                    && (y.origin[u] - axis[u]).abs() < ON_AXIS
+                    && (y.origin[v] - axis[v]).abs() < ON_AXIS
+                    && (y.origin[k] - y.radius - lo[k]).abs() < 1e-4
+                    && (y.origin[k] + y.radius - hi[k]).abs() < 1e-4
+            })
+        })
+        .fold([f64::INFINITY, f64::NEG_INFINITY], |r, c| {
+            [r[0].min(c.bounds[0][k]), r[1].max(c.bounds[1][k])]
+        });
+    (reach[0] - lo[k]).abs() < 1e-4 && (reach[1] - hi[k]).abs() < 1e-4
+}
+
 /// Re-roots hole and hole-pattern locations measured from a box side that is only a round
 /// face's tangent ([`round_origin`]) on that round feature's axis (#223: linkrods' holes were
 /// located 0.75 and 4.625 from a ø1.5 boss's tangent, and the 3.875 between their centres was
 /// never stated). A feature on that axis is not located again: the dimensions from its centre
-/// state it, as draftwright's location backstop reads a witness on a hole's centre. An axis is
-/// left from the box when nothing stands off the round axis, when the Spec names its
+/// state it, as draftwright's location backstop reads a witness on a hole's centre. When nothing
+/// stands off the round axis, its features are not located at all if the round face is the
+/// part's whole outline along that axis ([`round_whole`], #104), and are left from the box
+/// otherwise. An axis is left from the box when the Spec names its
 /// `origin/<axis>` (`min` keeps the box side), or when the part carries PMI, whose datums own
 /// its origins.
 pub(super) fn round_origins(analysis: &Analysis, spec: &crate::model::Spec, wants: &mut Vec<Want>) {
@@ -834,6 +915,35 @@ pub(super) fn round_origins(analysis: &Analysis, spec: &crate::model::Spec, want
             })
             .collect();
         if off.is_empty() {
+            // The round face is the part's whole outline along *k* (a disc or ring seen end-on,
+            // 608zz's bore in its ø22): what stands on its axis is concentric with the outline,
+            // which the centre lines show, and a location from its tangent only repeats half the
+            // outline's diameter (#104).
+            if round_whole(analysis, view, k, axis) {
+                let concentric: BTreeSet<String> = on
+                    .iter()
+                    .flat_map(|&i| wants[i].measurements.iter().map(|m| m.feature.clone()))
+                    .collect();
+                let mut i = 0;
+                wants.retain(|_| {
+                    i += 1;
+                    !on.contains(&(i - 1))
+                });
+                let note = format!(
+                    "; it is on the axis of the part's round outline, which the centre lines locate, so it is not located in {} from that outline's tangent",
+                    AXES[k]
+                );
+                for w in wants.iter_mut().filter(|w| {
+                    matches!(w.shape, Shape::Callout { .. })
+                        && w.measurements
+                            .iter()
+                            .any(|m| concentric.contains(&m.feature))
+                }) {
+                    if !w.basis.ends_with(&note) {
+                        w.basis += &note;
+                    }
+                }
+            }
             continue;
         }
         let stated: Vec<Measurement> = on

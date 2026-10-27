@@ -6115,11 +6115,19 @@ fn measure_fixed(c: &mut Candidate, job: &Job, fixed: &Fixed) {
         let meets = if let Some(&global) = fixed.furniture.get(i) {
             // The shaft only: a short shelf beside a stroke's end is not a run along it. A
             // radial leader leaving its own hole along that hole's centre mark is its
-            // attachment, not travel along another feature's line.
-            beside = crate::centrelines::runs_beside(segs[0], *f)
-                && !(fixed.crosses.contains(i)
-                    && !job.corridors
-                    && through(*f, nearest(&job.sites, tip).0));
+            // attachment, not travel along another feature's line, within the mark's overrun
+            // past the rim. A mark shared with the larger circles round a coaxial bore (a turned
+            // part's end view) runs on, and beyond that overrun a leader that the finished
+            // drawing's check reads as running along it ([`super::contacts::along_centreline`])
+            // is weighed as beside it (#104).
+            let own = (fixed.crosses.contains(i) && !job.corridors)
+                .then(|| nearest(&job.sites, tip))
+                .filter(|site| through(*f, site.0));
+            beside = if let Some(site) = own {
+                beyond(segs[0], site).is_some_and(|s| super::contacts::along_centreline(s, *f))
+            } else {
+                crate::centrelines::runs_beside(segs[0], *f)
+            };
             collinear = lines.iter().any(|s| s.collinear(*f));
             beside
                 || collinear
@@ -6503,6 +6511,27 @@ impl Line {
 }
 
 /// Whether the line of segment *s* passes within a micrometre of *p*.
+/// The part of shaft *s* (from its tip) beyond its circular site's own centre-mark overrun
+/// ([`crate::centrelines::overrun`]), if any.
+fn beyond(s: [P2; 2], site: Site) -> Option<[P2; 2]> {
+    let (c, r) = (site.0, site.1 + crate::centrelines::overrun(site.1));
+    let d = [s[1][0] - s[0][0], s[1][1] - s[0][1]];
+    let f = [s[0][0] - c[0], s[0][1] - c[1]];
+    let a = d[0] * d[0] + d[1] * d[1];
+    let b = 2.0 * (f[0] * d[0] + f[1] * d[1]);
+    let disc = b * b - 4.0 * a * (f[0] * f[0] + f[1] * f[1] - r * r);
+    if a < 1e-18 {
+        return None;
+    }
+    // Where the shaft leaves the circle of radius *r*, going away from its tip.
+    let t = if disc < 0.0 {
+        0.0
+    } else {
+        ((-b + disc.sqrt()) / (2.0 * a)).max(0.0)
+    };
+    (t < 1.0).then(|| [[s[0][0] + t * d[0], s[0][1] + t * d[1]], s[1]])
+}
+
 fn through(s: [P2; 2], p: P2) -> bool {
     let u = [s[1][0] - s[0][0], s[1][1] - s[0][1]];
     let n = u[0].hypot(u[1]);
