@@ -26,7 +26,7 @@ All notable changes to draftwright-rust are recorded here, in the style of
   for its stations (`profile_corners: angle` keeps the counted angle). Two equal stations from
   opposite sides of the box are stated once, `2× v`, and lint reads a counted station as locating
   its mirror: the symmetric octagon gets four (`2× 12.827`, `2× 33.902`, `2× 11.938`, `2× 33.013`),
-  not eight in repeated pairs; FTC-08 stays on A1 1:2 (dw-examples' copy on A2 1:5) and STC-08
+  not eight in repeated pairs; FTC-08 stays at 1:2 (dw-examples' copy on A2 1:5) and STC-08
   on A1 1:1 with its hole table: where a first estimate places no table and its established scale
   cap leaves nothing valid, the search runs once more without the cap, as it already did for a
   table (without it, STC-08 with the cited datums drawn went to A2 1:5 with no table and 51
@@ -34,11 +34,20 @@ All notable changes to draftwright-rust are recorded here, in the style of
   `extension_off_centreline`. Where a linear solve leaves two dimensions on one dimension line, it
   is solved once more with the new recess witnesses kept off the lines of the settled locations
   that yielded to them (a yielded location comes back where it was and may find no other clear
-  lane), and taken where fewer lines are shared: dw-examples' FTC-08 had `49.124` on `64.999`'s
-  line and `141.834` on `157.709`'s; it now has none (main: one, `225.654` on `215.494`'s), with
-  `annotation_leader_crossing` 81 to 71, `leader_through_feature` 38 to 32 and
-  `extension_through_feature` 25 to 20, but `annotation_overlap` 2 to 5,
-  `annotation_ink_overlap` 4 to 7 and `extension_off_centreline` 1 to 4 on its crowded plan view.
+  lane), and taken where fewer lines are shared. On a part with section recesses every station
+  reserves its lane when the sheet is laid out, not only one on an open side: the recess locations
+  yield to the callouts and come back around them, so a strip left a station short overflowed
+  across the view into the callouts' place (dw-examples' FTC-08 piled `2× ø10.16 × 3.429 LONG`
+  and `4× ⌀5.410 THRU` on `157.709`, `49.124` and `136.754` right of its plan view). The plan
+  view now stands clear of its left-hand locations, which all stay on that side, and FTC-08 has
+  no overlapping labels or shared lines (main: two overlapping pairs, `225.654` on `215.494`'s
+  line and `2× ⌀6.147` on `2× ⌀6.35`), with `annotation_leader_crossing` 81 to 67 and
+  `leader_through_feature` 38 to 35, but the left baseline's long witnesses cost
+  `extension_through_feature` 25 to 32, `annotation_ink_overlap` 4 to 12 (seven of them witnesses
+  running through the `192.23` and `158.75` slot labels), `extension_off_centreline` 1 to 3 and
+  two `leader_across_view`. The FTC-08 quality part goes from A1 1:2 to A2 1:2 and loses its
+  `detail_unplaceable`, with one more `label_crowded`; no other quality part or dw-example
+  changes with this reservation.
   A settled location whose witness would cross a feature now starts it beyond the near face, as a
   corridor repair would: FTC-08's `141.827` slot location stays clear of the 12.7 slot, and CTC-02
   rc (3) and mfcadpp/1004 (1) lose their `extension_through_feature` findings. vslot-2020x50's slot
