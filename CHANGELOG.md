@@ -17,10 +17,10 @@ All notable changes to draftwright-rust are recorded here, in the style of
   both mouths of a through hole, which its record states once, is called out `BOTH SIDES`
   (LM10UU's `⌀10 THRU ⌴SF ⌀16.4 ↧ 1.4`, FTC-10's and STC-10's `4× ⌀7 THRU ⌴ ⌀10 ↧ 10`); a like
   recess of another hole farther along the same line is not counted. A leader to a bore whose
-  centre lines run on to larger coaxial circles is no longer free to run down them past the
-  bore's own overrun: the router weighs such a run as beside the line, by the same reading as
-  review's `leader_along_centreline`, which leaves 608ZZ, LM10UU, the Hirth joint, CTC-02,
-  STC-06, cgb203, GRM-03 and FTC-06.
+  centre lines run on to larger coaxial circles is no longer free to run down or beside them:
+  the router weighs a leader that review's `leader_along_centreline` reads as that line (within
+  6° and 2 mm of it over more than 5 mm) as beside it, which leaves 608ZZ, LM10UU, LM8UU, the
+  GT2 pulley, the sprocket, the Hirth joint, CTC-02, STC-06, FTC-11, cgb203, GRM-03 and FTC-06.
 
 ## 0.2.0 (2026-10-27)
 

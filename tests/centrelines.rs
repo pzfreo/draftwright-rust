@@ -881,3 +881,24 @@ fn a_leader_to_a_coaxial_bore_leaves_its_centre_lines() {
         .collect();
     assert!(along.is_empty(), "{along:?}");
 }
+
+/// `lm8uu.step.gz` (dw-examples): the end view's ⌀12.4 bore shares its centre lines with the ø15
+/// and groove circles. Its leader kept 1.5–2 mm beside the vertical one for 9.5 mm, which review
+/// reads as that line, while the router's beside test looked only 1 mm off it (#104).
+#[test]
+fn a_leader_beside_a_coaxial_bores_centre_line_moves_off_it() {
+    let (_, p, _) =
+        drawing(&Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts/lm8uu.step.gz"));
+    assert!(
+        p.dimensions
+            .iter()
+            .any(|d| d.id == "d:f:hole:1/bore.diameter" && d.placed.is_some())
+    );
+    let along: Vec<_> = p
+        .problems
+        .iter()
+        .filter(|q| q.code == "leader_along_centreline")
+        .map(|q| &q.message)
+        .collect();
+    assert!(along.is_empty(), "{along:?}");
+}

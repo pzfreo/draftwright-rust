@@ -25,7 +25,7 @@ const SAME_LINE: f64 = 0.01;
 /// ⌀8 THRU leader, 5.2° off its axis, reads as it; gt2-pulley's two leaders fanning onto a rim
 /// either side of an axis, about 8° off it, read as their own lines.
 const ALONG_ANGLE: f64 = 6.0 * std::f64::consts::PI / 180.0;
-const ALONG_GAP: f64 = 2.0;
+pub(super) const ALONG_GAP: f64 = 2.0;
 const ALONG_LENGTH: f64 = 5.0;
 /// A callout leader at least this long, page mm, that crosses at least [`EXTRA_LINES`] more of
 /// its view's lines (visible or hidden) than the clearest straight way out of the view from its
