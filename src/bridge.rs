@@ -820,9 +820,66 @@ fn square_on_axes(q: &QHolePattern) -> Option<f64> {
         .then(|| round(2.0 * r))
 }
 
+/// How far a bolt circle's members may stray from one radius (mm) and from even angular spacing
+/// (degrees): modelling precision, not quiddity's recognition tolerance (2% of the radius, 4% of
+/// the spacing), under which a 19.85 × 20 rectangle reads as four holes evenly on a circle (#223).
+const CIRCLE_RADIUS_TOL: f64 = 0.01;
+const CIRCLE_SPACING_TOL_DEG: f64 = 0.05;
+
+/// Whether quiddity's bolt circle has its members on one circle about their centroid and evenly
+/// spaced round it, to modelling precision ([`CIRCLE_RADIUS_TOL`], [`CIRCLE_SPACING_TOL_DEG`]),
+/// seen along the first member's drilling axis.
+fn evenly_on_circle(q: &QHolePattern) -> bool {
+    use haecceity::geom::{cross, dot, sub, unit};
+    let Some(at) = q
+        .holes
+        .iter()
+        .map(|h| holes::point(h.get("location")))
+        .collect::<Option<Vec<_>>>()
+    else {
+        return false;
+    };
+    let Some(axis) = q
+        .holes
+        .first()
+        .and_then(|h| unit(holes::point(h.get("axis"))?))
+    else {
+        return false;
+    };
+    let seed = if axis[0].abs() < 0.9 {
+        [1.0, 0.0, 0.0]
+    } else {
+        [0.0, 1.0, 0.0]
+    };
+    let Some(u) = unit(cross(axis, seed)) else {
+        return false;
+    };
+    let v = cross(axis, u);
+    let n = at.len() as f64;
+    let c = [0, 1, 2].map(|k| at.iter().map(|p| p[k]).sum::<f64>() / n);
+    let d: Vec<[f64; 2]> = at
+        .iter()
+        .map(|p| [dot(sub(*p, c), u), dot(sub(*p, c), v)])
+        .collect();
+    let radii: Vec<f64> = d.iter().map(|p| p[0].hypot(p[1])).collect();
+    let r = radii.iter().sum::<f64>() / n;
+    if d.len() < 3 || radii.iter().any(|x| (x - r).abs() > CIRCLE_RADIUS_TOL) {
+        return false;
+    }
+    let mut angles: Vec<f64> = d.iter().map(|p| p[1].atan2(p[0]).to_degrees()).collect();
+    angles.sort_by(f64::total_cmp);
+    let even = 360.0 / n;
+    let wrap = 360.0 - (angles[angles.len() - 1] - angles[0]);
+    angles
+        .windows(2)
+        .map(|w| w[1] - w[0])
+        .chain([wrap])
+        .all(|g| (g - even).abs() <= CIRCLE_SPACING_TOL_DEG)
+}
+
 /// quiddity's hole patterns, each with its members found among *features* (the holes whose
 /// records quiddity lists, matched as [`hole_pattern`] matches them). A pattern whose member is
-/// not one of the holes is refused.
+/// not one of the holes is refused; a bolt circle not [`evenly_on_circle`] is dropped.
 fn hole_patterns(qs: &[QHolePattern], features: &[Feature]) -> Result<Vec<HolePattern>, String> {
     let at = |r: &Map<String, Value>| (r.get("location").cloned(), r.get("diameter").cloned());
     let mut out = Vec::new();
@@ -841,8 +898,14 @@ fn hole_patterns(qs: &[QHolePattern], features: &[Feature]) -> Result<Vec<HolePa
         faces.dedup();
         let has = |k: &str| q.rest.contains_key(k);
         let mut parameters = q.rest.clone();
-        let arrangement = if has("diameter") {
+        let arrangement = if has("diameter") && evenly_on_circle(q) {
             "bolt_circle"
+        } else if has("diameter") {
+            // quiddity's circle is only near even (a 19.85 × 20 rectangle passes its tolerance):
+            // "EQ SP ON ⌀D BC" would place the holes where they are not, about a centre that is
+            // no feature (#223). Its holes stay loose, each located by its own coordinates. The
+            // Spec's `pattern` can still declare a bolt circle.
+            continue;
         } else if let Some(diameter) = square_on_axes(q) {
             // A square of four turned 45° has its holes on the axes through its centre, evenly
             // spaced on one circle: a bolt circle of four, stated by its diameter, not a lattice
@@ -1014,7 +1077,7 @@ fn hole_pattern(
 
 #[cfg(test)]
 mod tests {
-    use super::{QHolePattern, kind, square_on_axes};
+    use super::{QHolePattern, evenly_on_circle, kind, square_on_axes};
 
     /// Every family in draftwright's family table (`family_table.py`), with `-` as `_`.
     #[test]
@@ -1090,5 +1153,53 @@ mod tests {
         assert_eq!(square_on_axes(&kite), None);
         let one_axis = rectangle([[18.0, 20.0], [2.0, 20.0], [18.0, 20.0], [2.0, 20.0]]);
         assert_eq!(square_on_axes(&one_axis), None);
+    }
+
+    fn circle(holes: &[[f64; 2]]) -> QHolePattern {
+        serde_json::from_value(serde_json::json!({
+            "holes": holes.iter().map(|[x, y]| serde_json::json!({
+                "location": [x, y, 3.0], "axis": [0.0, 0.0, -1.0],
+            })).collect::<Vec<_>>(),
+            "center": [0.0, 0.0, 3.0], "diameter": 1.0,
+        }))
+        .unwrap()
+    }
+
+    /// A bolt circle holds its holes on one radius and evenly round it to modelling precision,
+    /// not to quiddity's recognition tolerance (#223).
+    #[test]
+    fn a_bolt_circle_is_even_to_modelling_precision() {
+        let on = |r: f64, deg: f64| {
+            let a = deg.to_radians();
+            [5.0 + r * a.cos(), -2.0 + r * a.sin()]
+        };
+        // dw-examples' gantry plate: four holes on a 19.85 × 20 rectangle, 89.6° and 90.4° apart.
+        let gantry = circle(&[[-19.85, 10.0], [0.0, 10.0], [-19.85, -10.0], [0.0, -10.0]]);
+        assert!(!evenly_on_circle(&gantry));
+        let square = circle(&[on(8.0, 0.0), on(8.0, 90.0), on(8.0, 180.0), on(8.0, 270.0)]);
+        assert!(evenly_on_circle(&square));
+        let six: Vec<_> = (0..6)
+            .map(|i| on(30.0, 15.0 + 60.0 * f64::from(i)))
+            .collect();
+        assert!(evenly_on_circle(&circle(&six)));
+        let mut turned = six.clone();
+        turned[2] = on(30.0, 135.0 + 0.1);
+        assert!(
+            !evenly_on_circle(&circle(&turned)),
+            "one hole 0.1° off even spacing"
+        );
+        let mut outward = six.clone();
+        outward[4] = on(30.05, 255.0);
+        assert!(
+            !evenly_on_circle(&circle(&outward)),
+            "one hole 0.05 mm off the radius"
+        );
+        let noisy: Vec<_> = (0..6)
+            .map(|i| on(30.0 + 1e-4 * f64::from(i), 15.0 + 60.0 * f64::from(i)))
+            .collect();
+        assert!(
+            evenly_on_circle(&circle(&noisy)),
+            "modelling noise stays a bolt circle"
+        );
     }
 }

@@ -210,9 +210,10 @@ fn parallel_rows_on_the_same_stations_show_one_pitch() {
         ("f:hole_pattern:2", "f:hole_pattern:5", "4× 75"),
         ("f:hole_pattern:3", "f:hole_pattern:6", "2× 75"),
         // quiddity-rust 0.1.1 (accepted for alpha.13) no longer finds the 49.5 linear array
-        // (alpha.8's f:hole_pattern:9, faces 462…), so the 48 rows on faces 470… and 510…
-        // are numbered 9 and 11 (were 10 and 12), and the row on 510… now carries the pitch.
-        ("f:hole_pattern:11", "f:hole_pattern:9", "4× 48"),
+        // (alpha.8's f:hole_pattern:9, faces 462…), and since #223 the bridge drops quiddity's
+        // four uneven three-hole "bolt circles", so the 48 rows on faces 470… and 510… are
+        // numbered 7 and 9 (were 9 and 11), and the row on 470…, first by ID, carries the pitch.
+        ("f:hole_pattern:7", "f:hole_pattern:9", "4× 48"),
     ] {
         let d = claiming(&plan, one, "pitch.length");
         assert_eq!(d.label, label);

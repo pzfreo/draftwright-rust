@@ -198,15 +198,37 @@ fn blind_and_through_holes_are_separate_requirements() {
 }
 
 /// ISSUE-1596-a: a bolt circle of fewer than five holes is no evidence of a circle; its holes are
-/// still drawn, counted and located.
+/// still drawn, counted and located. The plate's four holes, a 40 × 20 rectangle, are squared to
+/// 20 × 20 about the same centre wherever quiddity records them: since #223 the bridge refuses an
+/// uneven circle before this rule is reached (as the plate's own rectangle is, below).
 #[test]
 fn a_four_hole_bolt_circle_is_not_trusted() {
+    fn square(v: &mut Value) {
+        match v {
+            Value::Object(m) => {
+                for (k, x) in m.iter_mut() {
+                    let z = x.get(2).and_then(Value::as_f64);
+                    if k == "location" && z.is_some_and(|z| z.abs() == 20.0) {
+                        x[2] = json!(z.unwrap() / 2.0);
+                    } else {
+                        square(x);
+                    }
+                }
+            }
+            Value::Array(a) => a.iter_mut().for_each(square),
+            _ => {}
+        }
+    }
     let mut json = recognition("plate");
     let p = &mut json["quiddity"]["derived"]["hole_patterns"][0];
     let o = p.as_object_mut().unwrap();
     o.remove("width");
     o.remove("height");
     o.insert("diameter".into(), json!(44.721));
+    let (_, uneven) = analysed_with("plate", &json);
+    assert!(uneven.recognition.as_ref().unwrap().patterns.is_empty());
+    json["quiddity"]["derived"]["hole_patterns"][0]["diameter"] = json!(28.284);
+    square(&mut json);
     let (_, a) = analysed_with("plate", &json);
     assert_eq!(
         a.recognition.as_ref().unwrap().patterns[0].arrangement,
@@ -227,7 +249,7 @@ fn a_four_hole_bolt_circle_is_not_trusted() {
             .filter(|d| d.id.contains("/location."))
             .count(),
         4,
-        "x at 10 and 50, y at 10 and 30"
+        "two x and two y positions"
     );
 }
 
