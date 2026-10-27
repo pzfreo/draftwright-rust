@@ -2003,10 +2003,6 @@ fn cylinder_geometry(part: &Part, r: &Record, value: f64, g: &mut Geometry) {
         return;
     }
     let noun = if radius { "radius" } else { "diameter" };
-    if !r.edges.is_empty() {
-        g.reasons
-            .push(format!("one {noun} reference is not a face"));
-    }
     for &f in &r.faces {
         match cylinder(part, f) {
             Ok(c) => {
@@ -2016,6 +2012,16 @@ fn cylinder_geometry(part: &Part, r: &Record, value: f64, g: &mut Geometry) {
             }
             Err(why) => g.reasons.push(why.replace("diameter", noun)),
         }
+    }
+    // A rim edge of a referenced cylinder names that cylinder again (NIST STC-10's hole sizes
+    // reference each hole's face and its rim); any other edge is no size reference.
+    if !r
+        .edges
+        .iter()
+        .all(|&e| g.cylinders.iter().any(|c| edge_on_cylinder(part, e, c)))
+    {
+        g.reasons
+            .push(format!("one {noun} reference is not a face"));
     }
     if let [Some(target)] = g.targets.as_slice() {
         let mut d = target.direction;
@@ -2102,6 +2108,27 @@ fn cylinder_geometry(part: &Part, r: &Record, value: f64, g: &mut Geometry) {
                 .push("the radius's face has no proven point at its parameter centre".into());
         }
     }
+}
+
+/// Whether every point that stands in for edge *e* lies on cylinder *c*, within its extent (to
+/// 1e-4 mm).
+fn edge_on_cylinder(part: &Part, e: usize, c: &Cylinder) -> bool {
+    part.edges.get(e).is_some_and(|edge| {
+        edge.samples
+            .iter()
+            .chain([&edge.start, &edge.end])
+            .all(|p| {
+                let d: [f64; 3] = [0, 1, 2].map(|i| p[i] - c.origin[i]);
+                let t: f64 = (0..3).map(|i| d[i] * c.direction[i]).sum();
+                let off = (0..3)
+                    .map(|i| (d[i] - t * c.direction[i]).powi(2))
+                    .sum::<f64>()
+                    .sqrt();
+                (off - c.radius).abs() <= 1e-4
+                    && c.interval[0] - 1e-4 <= t
+                    && t <= c.interval[1] + 1e-4
+            })
+    })
 }
 
 /// Geometrically identical cylinders (one face XCAF repeats in a group): draftwright coalesces

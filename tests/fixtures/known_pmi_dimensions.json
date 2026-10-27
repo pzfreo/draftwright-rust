@@ -1298,6 +1298,120 @@
   "evidence": "draftwright found no owner and drew it standalone ('⌀6 ±0.15') beside the callout that already states that hole's size. The port's cylinders match the callout's holes (axis lines, axis, diameter), so by draftwright's rule the callout takes the band and states the size once: '4× ⌀6 ±0.15 THRU ⌴SF ⌀10 ↧ 1.8 (2×2)'. Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
  },
  {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:90",
+  "port": "dimension:#296",
+  "field": "outcome",
+  "python": {
+   "detail": [
+    "authored_dim_source_unresolved",
+    "pmi_not_extracted"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "detail": "8× ⌀2.5 ±0.15 THRU",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "The hole's references are its cylindrical face and a rim edge of that face. draftwright refuses the record (pmi_not_extracted: 'one diameter reference is not a face'; with it authored_dim_source_unresolved). Every point of the edge lies on the referenced cylinder within its extent, so it names the same hole again and adds nothing to measure; the port reads the size from the cylinders (pmi_lowering cylinder_geometry, edge_on_cylinder), matches them to the recognised hole callout of those holes (same axis line and diameter) and states it there and in its hole table rows. An edge off the referenced cylinders still refuses (tests/pmi_dimensions.rs a_hole_size_naming_its_rim_edge_reaches_its_callout_and_schedule)."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:99",
+  "port": "dimension:#305",
+  "field": "outcome",
+  "python": {
+   "detail": [
+    "authored_dim_source_unresolved",
+    "pmi_not_extracted"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "detail": "3× ⌀3.5 G6 THRU",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "The hole's references are its cylindrical face and a rim edge of that face. draftwright refuses the record (pmi_not_extracted: 'one diameter reference is not a face'; with it authored_dim_source_unresolved). Every point of the edge lies on the referenced cylinder within its extent, so it names the same hole again and adds nothing to measure; the port reads the size from the cylinders (pmi_lowering cylinder_geometry, edge_on_cylinder), matches them to the recognised hole callout of those holes (same axis line and diameter) and states it there and in its hole table rows. An edge off the referenced cylinders still refuses (tests/pmi_dimensions.rs a_hole_size_naming_its_rim_edge_reaches_its_callout_and_schedule). Its class stated without limits is printed as the class alone on the uniquely matched recognised bore callout (symbolic_bore), the default fit presentation (deviations are a Spec option)."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:100",
+  "port": "dimension:#306",
+  "field": "outcome",
+  "python": {
+   "detail": [
+    "authored_dim_source_unresolved",
+    "pmi_not_extracted"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "detail": "3× ⌀3.5 G6 THRU",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "The hole's references are its cylindrical face and a rim edge of that face. draftwright refuses the record (pmi_not_extracted: 'one diameter reference is not a face'; with it authored_dim_source_unresolved). Every point of the edge lies on the referenced cylinder within its extent, so it names the same hole again and adds nothing to measure; the port reads the size from the cylinders (pmi_lowering cylinder_geometry, edge_on_cylinder), matches them to the recognised hole callout of those holes (same axis line and diameter) and states it there and in its hole table rows. An edge off the referenced cylinders still refuses (tests/pmi_dimensions.rs a_hole_size_naming_its_rim_edge_reaches_its_callout_and_schedule). Its class stated without limits is printed as the class alone on the uniquely matched recognised bore callout (symbolic_bore), the default fit presentation (deviations are a Spec option)."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:103",
+  "port": "dimension:#309",
+  "field": "outcome",
+  "python": {
+   "detail": [
+    "authored_dim_source_unresolved",
+    "pmi_not_extracted"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "detail": "3× ⌀3.5 G6 THRU",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "The hole's references are its cylindrical face and a rim edge of that face. draftwright refuses the record (pmi_not_extracted: 'one diameter reference is not a face'; with it authored_dim_source_unresolved). Every point of the edge lies on the referenced cylinder within its extent, so it names the same hole again and adds nothing to measure; the port reads the size from the cylinders (pmi_lowering cylinder_geometry, edge_on_cylinder), matches them to the recognised hole callout of those holes (same axis line and diameter) and states it there and in its hole table rows. An edge off the referenced cylinders still refuses (tests/pmi_dimensions.rs a_hole_size_naming_its_rim_edge_reaches_its_callout_and_schedule). Its class stated without limits is printed as the class alone on the uniquely matched recognised bore callout (symbolic_bore), the default fit presentation (deviations are a Spec option)."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:104",
+  "port": "dimension:#310",
+  "field": "outcome",
+  "python": {
+   "detail": [
+    "authored_dim_source_unresolved",
+    "pmi_not_extracted"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "detail": "3× ⌀3.5 ±0.2 THRU",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "The hole's references are its cylindrical face and a rim edge of that face. draftwright refuses the record (pmi_not_extracted: 'one diameter reference is not a face'; with it authored_dim_source_unresolved). Every point of the edge lies on the referenced cylinder within its extent, so it names the same hole again and adds nothing to measure; the port reads the size from the cylinders (pmi_lowering cylinder_geometry, edge_on_cylinder), matches them to the recognised hole callout of those holes (same axis line and diameter) and states it there and in its hole table rows. An edge off the referenced cylinders still refuses (tests/pmi_dimensions.rs a_hole_size_naming_its_rim_edge_reaches_its_callout_and_schedule)."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:113",
+  "port": "dimension:#319",
+  "field": "outcome",
+  "python": {
+   "detail": [
+    "authored_dim_source_unresolved",
+    "pmi_not_extracted"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "detail": "4× ⌀7 ±0.25 THRU ⌴ ⌀10 ↧\n10",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "The hole's references are its cylindrical face and a rim edge of that face. draftwright refuses the record (pmi_not_extracted: 'one diameter reference is not a face'; with it authored_dim_source_unresolved). Every point of the edge lies on the referenced cylinder within its extent, so it names the same hole again and adds nothing to measure; the port reads the size from the cylinders (pmi_lowering cylinder_geometry, edge_on_cylinder), matches them to the recognised hole callout of those holes (same axis line and diameter) and states it there and in its hole table rows. An edge off the referenced cylinders still refuses (tests/pmi_dimensions.rs a_hole_size_naming_its_rim_edge_reaches_its_callout_and_schedule)."
+ },
+ {
   "field": "outcome",
   "file": "spool_fits.step",
   "port": "dimension:#6333",
