@@ -1405,11 +1405,11 @@
    "outcome": "refused"
   },
   "rust": {
-   "detail": "4× ⌀7 ±0.25 THRU ⌴ ⌀10 ↧\n10",
+   "detail": "4× ⌀7 ±0.25 THRU ⌴ ⌀10 ↧\n10 BOTH SIDES",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "The hole's references are its cylindrical face and a rim edge of that face. draftwright refuses the record (pmi_not_extracted: 'one diameter reference is not a face'; with it authored_dim_source_unresolved). Every point of the edge lies on the referenced cylinder within its extent, so it names the same hole again and adds nothing to measure; the port reads the size from the cylinders (pmi_lowering cylinder_geometry, edge_on_cylinder), matches them to the recognised hole callout of those holes (same axis line and diameter) and states it there and in its hole table rows. An edge off the referenced cylinders still refuses (tests/pmi_dimensions.rs a_hole_size_naming_its_rim_edge_reaches_its_callout_and_schedule)."
+  "evidence": "The hole's references are its cylindrical face and a rim edge of that face. draftwright refuses the record (pmi_not_extracted: 'one diameter reference is not a face'; with it authored_dim_source_unresolved). Every point of the edge lies on the referenced cylinder within its extent, so it names the same hole again and adds nothing to measure; the port reads the size from the cylinders (pmi_lowering cylinder_geometry, edge_on_cylinder), matches them to the recognised hole callout of those holes (same axis line and diameter) and states it there and in its hole table rows. An edge off the referenced cylinders still refuses (tests/pmi_dimensions.rs a_hole_size_naming_its_rim_edge_reaches_its_callout_and_schedule). The callout says BOTH SIDES: each ⌀7 bore (z 0-75) has its ⌀10 ↧ 10 counterbore at both ends (z 0-10 and 65-75), as FTC-10's (#104)."
  },
  {
   "field": "outcome",

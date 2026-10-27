@@ -116,10 +116,19 @@ All notable changes to draftwright-rust are recorded here, in the style of
   both mouths of a through hole, which its record states once, is called out `BOTH SIDES`
   (LM10UU's `⌀10 THRU ⌴SF ⌀16.4 ↧ 1.4`, FTC-10's and STC-10's `4× ⌀7 THRU ⌴ ⌀10 ↧ 10`); a like
   recess of another hole farther along the same line is not counted. A leader to a bore whose
-  centre lines run on to larger coaxial circles is no longer free to run down or beside them:
-  the router weighs a leader that review's `leader_along_centreline` reads as that line (within
-  6° and 2 mm of it over more than 5 mm) as beside it, which leaves 608ZZ, LM10UU, LM8UU, the
-  GT2 pulley, the sprocket, the Hirth joint, CTC-02, STC-06, FTC-11, cgb203, GRM-03 and FTC-06.
+  centre mark runs on to a larger coaxial circle than the callout's own outermost one (its
+  counterbore or spotface, else its bore) is no longer free to run down or beside it: the router
+  weighs a leader that review's `leader_along_centreline` reads as that line (within 6° and 2 mm
+  of it over more than 5 mm) as beside it. 608ZZ, LM10UU, LM8UU, the GT2 pulley, the sprocket,
+  the Hirth joint, FTC-11, cgb203, GRM-03 and FTC-06 lose that finding, and STC-06 one of its
+  three (leader crossings 23 to 21). A mark sized to the callout's own recess (CTC-02's
+  `⌀40 THRU ⌴SF ⌀120 ↧ 8`) and another hole's mark on the same line keep their old weighing, so
+  CTC-02 plans as before. The 30 quality parts' FTC-10 now fits one A2 sheet at 1:2 (two at 1:1
+  before): its two-line `BOTH SIDES` callout clears the one required drop that refused 1:2, and
+  its review is otherwise unchanged but for one `leader_along_centreline` beside a neighbouring
+  hole's mark. LM10UU's two-line callout leaves its drawing as it was but reports the automatic
+  baseline's `detail_unplaceable` (a turned-chain detail it never draws), which main's
+  preference replan hid.
 
 ## 0.2.0 (2026-10-27)
 

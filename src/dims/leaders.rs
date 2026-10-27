@@ -686,8 +686,21 @@ struct Job<'a> {
     ink_min: P2,
     ink_max: P2,
     stroke_pad: f64,
+    /// The page radius of the callout's own outermost circle (its counterbore, spotface or
+    /// countersink, else its bore), [`own_reach`]: a centre mark past its overrun is shared.
+    reach: f64,
     /// Below, above, left, right: the distance past that edge clear of the strip's dimensions.
     beyond: [f64; 4],
+}
+
+/// The page radius of a callout's own outermost circle: the largest diameter it states (a
+/// counterbore, spotface or countersink round its bore), at the view's *scale*.
+fn own_reach(measurements: &[super::Measurement], scale: f64) -> f64 {
+    measurements
+        .iter()
+        .filter(|m| m.parameter.ends_with(".diameter"))
+        .map(|m| m.value / 2. * scale)
+        .fold(0., f64::max)
 }
 
 /// Compound requirements need paper around their extra signs and smaller stacked figures.
@@ -1241,6 +1254,7 @@ fn place_with_obstacles_uncached(
                 } else {
                     stroke_clearance(&w.terms)
                 },
+                reach: own_reach(&w.measurements, f.scale()),
                 beyond,
             },
         ));
@@ -1756,6 +1770,7 @@ pub(crate) fn settle_after_furniture(
             ink_min: ink.min,
             ink_max: ink.max,
             stroke_pad: stroke_clearance(&d.terms),
+            reach: own_reach(&w.measurements, frame.scale()),
             beyond: [CLEAR; 4],
         };
         let others: Vec<_> = items
@@ -2584,6 +2599,7 @@ pub(crate) fn settle_radius_leaders(
             ink_min: ink.min,
             ink_max: ink.max,
             stroke_pad: stroke_clearance(&d.terms),
+            reach: 0.0,
             beyond: [CLEAR; 4],
         };
         let others: Vec<_> = items
@@ -3469,6 +3485,7 @@ fn refine_uncached(
                 .and_then(|e| e.place.as_ref())
                 .and_then(crate::placement_intent::side_hint),
             stroke_pad: stroke_clearance(&w.terms),
+            reach: own_reach(&w.measurements, frame.scale()),
             view,
             footprints: &footprints[view],
             outline: frame.outline(),
@@ -6116,12 +6133,23 @@ fn measure_fixed(c: &mut Candidate, job: &Job, fixed: &Fixed) {
         if !segment_near(*f, wide) {
             return;
         }
-        let own = fixed.furniture.contains_key(i)
-            && fixed.crosses.contains(i)
-            && !job.sites.is_empty()
-            && through(*f, nearest(&job.sites, tip).0);
+        // A centre mark through the hole's centre, its own or another hole's on the same line,
+        // is where a radial leader attaches. Its own (the cross centred there) shared with a
+        // larger coaxial circle than the callout's own outermost one ([`Job::reach`]) runs on
+        // past that circle's overrun (#104).
+        let site = (fixed.crosses.contains(i) && !job.sites.is_empty())
+            .then(|| nearest(&job.sites, tip))
+            .filter(|s| through(*f, s.0));
+        let shared = fixed.furniture.contains_key(i)
+            && site.is_some_and(|(c, r, _)| {
+                let mid = [(f[0][0] + f[1][0]) / 2., (f[0][1] + f[1][1]) / 2.];
+                let reach = job.reach.max(r);
+                (mid[0] - c[0]).hypot(mid[1] - c[1]) < 1e-3
+                    && (f[1][0] - f[0][0]).hypot(f[1][1] - f[0][1]) / 2.
+                        > reach + crate::centrelines::overrun(reach) + 1e-3
+            });
         let close = segment_near(*f, near);
-        if !close && !own {
+        if !close && !shared {
             return;
         }
         // Exact collinear travel stays hard; a shaft's near-parallel travel is weighted
@@ -6133,15 +6161,15 @@ fn measure_fixed(c: &mut Candidate, job: &Job, fixed: &Fixed) {
             beside
         } else if let Some(&global) = fixed.furniture.get(i) {
             // The shaft only: a short shelf beside a stroke's end is not a run along it. A
-            // radial leader leaving its own hole along that hole's centre mark is its
-            // attachment, not travel along another feature's line, within the mark's overrun
-            // past the rim. A mark shared with the larger circles round a coaxial bore (a turned
-            // part's end view) runs on, and a shaft the finished drawing's check reads as running
-            // along it ([`super::contacts::along_centreline`]) is weighed as beside it; that
-            // check's length exceeds the overrun, so a mark ending there never trips it (#104).
-            // A corridor route keeps its closer test on its own mark as well.
-            beside = (own && super::contacts::along_centreline(segs[0], *f))
-                || ((!own || job.corridors) && crate::centrelines::runs_beside(segs[0], *f));
+            // radial leader leaving its hole along a centre mark through the hole's centre is
+            // its attachment, not travel along another feature's line, outside a corridor
+            // route. A shared mark runs on, though, and a shaft the finished drawing's check
+            // reads as running along it ([`super::contacts::along_centreline`]) is weighed as
+            // beside it; that check's length exceeds an overrun, so a mark ending at its own
+            // never trips it.
+            beside = (shared && super::contacts::along_centreline(segs[0], *f))
+                || (crate::centrelines::runs_beside(segs[0], *f)
+                    && !(site.is_some() && !job.corridors));
             collinear = lines.iter().any(|s| s.collinear(*f));
             beside
                 || collinear
@@ -6377,6 +6405,7 @@ pub fn clear_routes(
         ink_min: ink.min,
         ink_max: ink.max,
         stroke_pad: stroke_clearance(&d.terms),
+        reach: own_reach(&w.measurements, f.scale()),
         beyond: [CLEAR; 4],
     };
     let rest = || {
@@ -7184,6 +7213,7 @@ pub(super) fn settled_routes(
         ink_min,
         ink_max,
         stroke_pad: stroke_clearance(&d.terms).max(LABEL_PAD),
+        reach: want.map_or(0.0, |w| own_reach(&w.measurements, frame.scale())),
         beyond: [CLEAR; 4],
     };
     let mut fixed = Fixed::new(
@@ -7295,6 +7325,26 @@ pub(super) fn settled_routes(
 
 #[cfg(test)]
 mod tests {
+    /// A counterbore or spotface is the callout's own outermost circle: a centre mark sized to
+    /// it (CTC-02's ⌀40 THRU ⌴SF ⌀120) is the hole's own, not a coaxial circle's (#104).
+    #[test]
+    fn own_reach_is_the_largest_stated_diameter_at_scale() {
+        use super::*;
+        let m = |parameter: &str, value: f64| crate::dims::Measurement {
+            feature: "f:hole:1".into(),
+            parameter: parameter.into(),
+            value,
+        };
+        let spotfaced = [
+            m("bore.diameter", 40.0),
+            m("spotface.diameter", 120.0),
+            m("spotface.depth", 8.0),
+        ];
+        assert!((own_reach(&spotfaced, 0.2) - 12.0).abs() < 1e-9);
+        assert!((own_reach(&[m("bore.diameter", 8.0)], 2.0) - 8.0).abs() < 1e-9);
+        assert_eq!(own_reach(&[m("blend.radius", 5.0)], 1.0), 0.0);
+    }
+
     #[test]
     fn refinement_grid_keeps_duplicate_strokes_and_boundary_contacts() {
         use super::*;
