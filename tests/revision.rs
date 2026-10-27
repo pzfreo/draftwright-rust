@@ -4,7 +4,7 @@
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
-use draftwright::revision::{Revised, revise};
+use draftwright::revision::{Revised, diff};
 use serde_json::{Value, json};
 
 fn pair(case: &str) -> (PathBuf, PathBuf) {
@@ -17,7 +17,7 @@ fn pair(case: &str) -> (PathBuf, PathBuf) {
 
 fn revised(case: &str, spec: Value) -> Revised {
     let (old, new) = pair(case);
-    revise(&old, &new, None, &spec).unwrap_or_else(|e| panic!("{case}: {e:?}"))
+    diff(&old, &new, None, &spec).unwrap_or_else(|e| panic!("{case}: {e:?}"))
 }
 
 fn spec(dimensions: Value) -> Value {
@@ -198,7 +198,7 @@ fn a_turned_part_carries_everything_and_says_so() {
 #[test]
 fn the_same_file_has_nothing_to_report() {
     let (old, _) = pair("hole_moved");
-    let r = revise(
+    let r = diff(
         &old,
         &old,
         None,
@@ -225,7 +225,7 @@ fn the_command_line_writes_the_report_and_the_marked_drawing() {
     .unwrap();
     let out = Command::new(env!("CARGO_BIN_EXE_draftwright"))
         .args([
-            "revise",
+            "diff",
             old.to_str().unwrap(),
             new.to_str().unwrap(),
             "--spec",
@@ -266,7 +266,7 @@ fn the_command_line_writes_the_report_and_the_marked_drawing() {
 #[test]
 fn an_entry_the_old_revision_already_refused_does_not_ask_for_a_decision() {
     let (old, _) = pair("hole_moved");
-    let r = revise(
+    let r = diff(
         &old,
         &old,
         None,

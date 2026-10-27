@@ -60,7 +60,7 @@ draftwright render part.step --spec part.drawing.json -o out
 draftwright render part.step -o out --formats svg,pdf,png --dpi 150
                                                        # choose the formats; PNG at --dpi
 draftwright review part.step --spec part.drawing.json  # the drawing as SVG text, with problems and lint
-draftwright revise old.step new.step --spec part.drawing.json -o changes
+draftwright diff old.step new.step --spec part.drawing.json -o changes
                                                        # the Spec carried to a new revision of the
                                                        # part (ADR R3), its drawing, and what changed
 
@@ -83,7 +83,7 @@ library (`api::analyse(step, None)` and the rest) are not switched to native rec
 there, no `features` still means no features, and Python's JSON is passed as `features`.
 `api::analyse_from` and its siblings take `Features::Native` for the command line's choice.
 
-`revise` matches the two revisions with quiddity's correspondence and carries the Spec to the
+`diff` matches the two revisions with quiddity's correspondence and carries the Spec to the
 new one: an entry naming a feature or face that renumbered is renamed, and one whose feature is
 gone (*orphaned*) or cannot be told apart from its repeats (*ambiguous*) is set aside, kept in
 the report, never deleted or guessed. It then draws the new revision with the carried Spec and
