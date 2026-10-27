@@ -6,7 +6,7 @@ fully-annotated engineering drawings from STEP B-rep. No OpenCascade: geometry c
 kernel, and features from the Rust port of quiddity, both in
 [quiddity-rust](https://github.com/pzfreo/quiddity-rust).
 
-**Status: 0.1.0** (2026-10-25, on quiddity-rust `0.2.0-alpha.2`). Alpha 1's
+**Status: 0.2.0** (2026-10-27, on quiddity-rust `0.2.1`). Alpha 1's
 gates are in `docs/alpha1.md`; what changed is in `CHANGELOG.md`. It is an
 early release: every drawing reports what it does not state, but drawings are not yet as clean as Python
 draftwright's on dense parts (see "Known limitations"). The port is checked against
