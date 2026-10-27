@@ -111,6 +111,17 @@ edited.
   and is drawn as a label; the drawing-wide requirements are the sheet's (below); a thread or
   knurl carries its cylinders (`geometry.cylinders`) and is printed on its owner's callout
   (below).
+- **A part slightly off the axes** (#216; no schema bump, `squared` is optional and absent for
+  a part on the file's axes). When the part's own frame (quiddity's `infer_part_frame`) lies
+  more than 0.01° and at most 2° off the file's axes, as a library or exported model often
+  does, the part is turned about its centre of mass onto the file axes it is nearest before
+  anything is read from it, so its envelope, features and views are its own, not a tilted
+  box's. `squared` records the angle and the placement applied, every later read of the file
+  for that Analysis applies it again, and `plan` reports `part_squared_to_axes` (info). A file
+  that carries PMI is never squared: its frames, datums and sites are placed and measured in
+  the file's axes. A part further off its axes is drawn in the file's axes as before. The
+  frame is worked out only when some plane normal or cylinder axis is off the file's axes. No
+  Spec field turns squaring off yet: the Analysis is made before any Spec is read.
 - **Assemblies: one chosen part** (draftwright-rust #8, slice 3; no schema bump, every field is
   optional and absent for a file of one part, whose Analysis is byte-identical). A STEP file's
   distinct parts are listed by `draftwright parts part.step` (serve/MCP `parts`):

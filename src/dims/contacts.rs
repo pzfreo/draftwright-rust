@@ -1,13 +1,14 @@
 //! Contacts on the finished drawing that the placement collision check
 //! ([`super::placement`]) passes as clear but a reader sees as touching or as one line (#226):
 //! text closer than [`TEXT_CLEAR`] to another item's text or line-work, an annotation on a
-//! section's arrowhead or letter, an extension line just beside a centre line, and a leader
-//! running along a centre line. Judged once on the selected drawing, after its final route
-//! repair, so they report what is printed without changing paper choice or placement.
+//! section's arrowhead or letter, an extension line just beside a centre line, a leader
+//! running along a centre line, a leader ending on an edge its view shows hidden, and a long
+//! leader running across its own view. Judged once on the selected drawing, after its final
+//! route repair, so they report what is printed without changing paper choice or placement.
 use super::placement::{boxes_overlap, crosses, ink_through};
 use super::{Placed, PlannedDimension};
 use crate::centrelines::LineWork;
-use crate::model::{Plan, PlannedView, Problem};
+use crate::model::{Analysis, Plan, PlannedView, Problem};
 use crate::output::{Curve, P};
 
 /// The least clear space a label keeps from another item's label or line-work, and from a
@@ -26,19 +27,34 @@ const SAME_LINE: f64 = 0.01;
 const ALONG_ANGLE: f64 = 6.0 * std::f64::consts::PI / 180.0;
 const ALONG_GAP: f64 = 2.0;
 const ALONG_LENGTH: f64 = 5.0;
+/// A callout leader at least this long, page mm, that crosses at least [`EXTRA_LINES`] more of
+/// its view's lines (visible or hidden) than the clearest straight way out of the view from its
+/// tip, among [`RAYS`] directions, runs across the view to a label it could have had nearby.
+/// cgb245's two 2× R3 leaders, 25 and 27 mm long, cross seven and eight more lines of its plan
+/// on their way across it; a fillet leader in a dense view crossing a few edges within 11 mm
+/// (ftc-08's 8× R1.524) stays local, as does gt2-pulley's ⌀5 THRU, whose every way out of the
+/// flange crosses the same eleven lines.
+const LONG_LEADER: f64 = 15.0;
+const EXTRA_LINES: usize = 4;
+const RAYS: usize = 72;
+/// Crossings are counted from this far along a leader from its tip, page mm, so the edge the
+/// tip lands on is not one of them.
+const TIP_GAP: f64 = 0.3;
 
 /// The finding codes this pass owns. `label_section_furniture_overlap` shares lint's code
 /// (`crate::lint::structural`), which reports a label overlapping a mark; this pass reports
 /// line-work through a mark under it, and ink within [`TEXT_CLEAR`] of one as `label_crowded`.
-const CODES: [&str; 4] = [
+const CODES: [&str; 6] = [
     "label_crowded",
     "label_section_furniture_overlap",
     "extension_off_centreline",
     "leader_along_centreline",
+    "leader_to_hidden_edge",
+    "leader_across_view",
 ];
 
 /// A label box *b* grown by [`TEXT_CLEAR`] on every side; an empty box stays empty.
-fn clear_box(b: [f64; 4]) -> [f64; 4] {
+pub(super) fn clear_box(b: [f64; 4]) -> [f64; 4] {
     if b[2] <= b[0] || b[3] <= b[1] {
         return b;
     }
@@ -55,9 +71,10 @@ fn named(d: &PlannedDimension) -> String {
 }
 
 /// Replace this pass's findings on *plan* with those of its current ink.
-pub(crate) fn report(plan: &mut Plan) {
+pub(crate) fn report(analysis: &Analysis, plan: &mut Plan) {
     plan.problems.retain(|p| !CODES.contains(&p.code.as_str()));
-    let found = contacts(plan);
+    let mut found = contacts(plan);
+    found.extend(leader_ends(analysis, plan));
     plan.problems.extend(found);
     plan.status = crate::completeness::status(&plan.problems);
 }
@@ -127,6 +144,84 @@ fn within(v0: f64, v1: f64, lo: f64, hi: f64) -> [f64; 2] {
     }
     let (a, b) = ((lo - v0) / slope, (hi - v0) / slope);
     [a.min(b).max(0.0), a.max(b).min(1.0)]
+}
+
+/// Callout leaders against their view's physical edges: a tip on an edge a nearer face hides,
+/// and a long shaft crossing [`EXTRA_LINES`] more of the view's lines than the clearest way out
+/// of the view from its tip would. A view without the router's edge proof (a section, the
+/// isometric, a view with no planar face square to it) is not judged.
+fn leader_ends(analysis: &Analysis, plan: &Plan) -> Vec<Problem> {
+    let mut out = Vec::new();
+    let proofs = super::interior::callout_proofs(analysis, &plan.views);
+    for v in &plan.views {
+        let Some(proof) = proofs.get(&v.id) else {
+            continue;
+        };
+        for d in plan
+            .dimensions
+            .iter()
+            .filter(|d| d.view == v.id && d.kind == "callout")
+        {
+            let Some(&shaft) = d.placed.as_ref().and_then(|p| p.lines.first()) else {
+                continue;
+            };
+            let tip = shaft[0];
+            if proof.hidden_tip(v, tip) {
+                out.push(problem(
+                    "leader_to_hidden_edge",
+                    &d.id,
+                    vec![d.id.clone(), v.id.clone()],
+                    format!(
+                        "The leader of {} ends on an edge {} shows hidden, so it points at dashed line-work.",
+                        named(d),
+                        crate::wording::view(&v.id)
+                    ),
+                ));
+            }
+            let length = (shaft[1][0] - tip[0]).hypot(shaft[1][1] - tip[1]);
+            if length < LONG_LEADER {
+                continue;
+            }
+            // Crossings are counted from just off the tip, clear of the edge it lands on.
+            let from = |u: P| [tip[0] + TIP_GAP * u[0], tip[1] + TIP_GAP * u[1]];
+            let u = [
+                (shaft[1][0] - tip[0]) / length,
+                (shaft[1][1] - tip[1]) / length,
+            ];
+            let crossed = proof.lines_crossed(v, [from(u), shaft[1]]);
+            if crossed < EXTRA_LINES {
+                continue;
+            }
+            let a = v.area;
+            let reach = [[a[0], a[1]], [a[2], a[1]], [a[0], a[3]], [a[2], a[3]]]
+                .iter()
+                .map(|c| (c[0] - tip[0]).hypot(c[1] - tip[1]))
+                .fold(0.0, f64::max)
+                + 1.0;
+            let least = (0..RAYS)
+                .map(|k| {
+                    let t = k as f64 * std::f64::consts::TAU / RAYS as f64;
+                    let u = [t.cos(), t.sin()];
+                    proof
+                        .lines_crossed(v, [from(u), [tip[0] + reach * u[0], tip[1] + reach * u[1]]])
+                })
+                .min()
+                .unwrap_or(0);
+            if crossed >= least + EXTRA_LINES {
+                out.push(problem(
+                    "leader_across_view",
+                    &d.id,
+                    vec![d.id.clone(), v.id.clone()],
+                    format!(
+                        "The leader of {} runs {length:.1} mm across {}, crossing {crossed} of its lines where a leader leaving the other way would cross {least}.",
+                        named(d),
+                        crate::wording::view(&v.id)
+                    ),
+                ));
+            }
+        }
+    }
+    out
 }
 
 fn contacts(plan: &Plan) -> Vec<Problem> {
@@ -326,16 +421,19 @@ fn near_length(shaft: [P; 2], off: [f64; 2], along: [f64; 2]) -> f64 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::model::{Analysis, Spec};
+    use crate::model::Spec;
 
-    fn plan() -> Plan {
-        let analysis: Analysis = serde_json::from_value(serde_json::json!({
+    fn analysis() -> Analysis {
+        serde_json::from_value(serde_json::json!({
             "schema": crate::model::ANALYSIS_SCHEMA,
             "binding":{"source_sha256":"", "part":"plate", "face_count":0, "loader":"test"},
             "envelope":[[0,0,0],[100,60,10]], "iso_bounds":[0,0,100,60]
         }))
-        .unwrap();
-        let mut plan = crate::model::plan(&analysis, &Spec::default()).unwrap();
+        .unwrap()
+    }
+
+    fn plan() -> Plan {
+        let mut plan = crate::model::plan(&analysis(), &Spec::default()).unwrap();
         plan.gdt.clear();
         plan
     }
@@ -502,8 +600,8 @@ mod tests {
         assert!(found(&p).is_empty());
         // Re-reporting replaces the earlier findings rather than repeating them.
         p.dimensions = vec![touching];
-        report(&mut p);
-        report(&mut p);
+        report(&analysis(), &mut p);
+        report(&analysis(), &mut p);
         assert_eq!(
             p.problems
                 .iter()

@@ -36,6 +36,13 @@
 //! LONG`. Every other section recess stays reported as not dimensioned. A blind slot opens at the
 //! part's edge, which fixes its position along its run; across its width it is located by its
 //! centre line as a through slot is (beyond draftwright, which does not locate it).
+//!
+//! quiddity's **semicircular blind slots** (`SemicircularBlindSlot`, #233), open at one end and
+//! along their mouth, their floor a half-round between straight sides, are called out as the
+//! round-bottom blind slots are, in the view that looks into them: `ROUND-BOTTOM OPEN SLOT W × L
+//! × D DEEP` (no flat floor: the width is the floor's diameter). Each is located across its width
+//! by its centre line, as a blind slot is; its open end fixes it along its run. One whose opening
+//! or width is along no axis of the part is reported (`feature_not_dimensioned`).
 
 use std::collections::{BTreeMap, BTreeSet};
 
@@ -49,7 +56,7 @@ use crate::bridge::Feature;
 use crate::bridge::holes::principal;
 
 pub(super) const PLANNER: Planner = Planner {
-    kinds: &["slot", "slot_pattern"],
+    kinds: &["slot", "slot_pattern", "semicircular_blind_slot"],
     wants,
 };
 
@@ -472,6 +479,19 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     {
         out.push(b.want());
         across.push((b.feature.id.clone(), b.centre, b.wide, end_on(b.deep)));
+    }
+    for f in analysis
+        .features
+        .iter()
+        .filter(|f| f.kind == "semicircular_blind_slot")
+    {
+        match semicircular(&cx.frame, f) {
+            Ok((want, centre, wide, view)) => {
+                out.push(want);
+                across.push((f.id.clone(), centre, wide, view));
+            }
+            Err(why) => problems.push(super::grooves::not_dimensioned(f, &why)),
+        }
     }
     located_across(cx, across, &mut out, &mut problems);
     (out, problems)
@@ -1008,7 +1028,6 @@ impl Blind<'_> {
             parameter: parameter.into(),
             value,
         };
-        let words = |s: &str| s.split(' ').map(String::from).collect::<Vec<_>>();
         let (terms, measurements, basis) = if self.round {
             let flat = self.width - 2.0 * self.depth;
             let mut t = words("ROUND-BOTTOM OPEN SLOT");
@@ -1061,4 +1080,75 @@ impl Blind<'_> {
             },
         }
     }
+}
+
+/// A callout's words, as its terms.
+fn words(s: &str) -> Vec<String> {
+    s.split(' ').map(String::from).collect()
+}
+
+/// A semicircular blind slot's callout, with the point its centre line is located by, the axis
+/// across it and the view that carries them, or why it cannot be stated.
+fn semicircular(frame: &QFrame, f: &Feature) -> Result<(Want, P3, usize, &'static str), String> {
+    let p = &f.parameters;
+    let number = |name: &str| super::grooves::size(f, name);
+    let dir = |name: &str| -> Result<P3, String> {
+        let d = point(p.get(name)).ok_or_else(|| format!("its record gives no {name}"))?;
+        Ok(crate::bridge::holes::dir_to_part(&frame.0, d))
+    };
+    let (axis, opening) = (dir("axis")?, dir("opening")?);
+    let across = super::angular::cross(axis, opening);
+    let (Some(deep), Some(wide)) = (principal(opening), principal(across)) else {
+        return Err(
+            "its opening or width is not along x, y or z, so no standard view shows it".into(),
+        );
+    };
+    let at = frame.point(point(p.get("at")).ok_or("its record gives no at")?);
+    let id = &f.id;
+    let m = |parameter: &str, value: f64| Measurement {
+        feature: id.clone(),
+        parameter: parameter.into(),
+        value,
+    };
+    let radius = number("radius")?;
+    let length = number("length")?;
+    let depth = radius
+        + p.get("straight_height")
+            .and_then(Value::as_f64)
+            .filter(|h| *h >= 0.0)
+            .ok_or("its record gives no straight height")?;
+    let width = 2.0 * radius;
+    let view = end_on(deep);
+    let mut terms = words("ROUND-BOTTOM OPEN SLOT");
+    terms.extend([
+        fmt(width),
+        "×".into(),
+        fmt(length),
+        "×".into(),
+        fmt(depth),
+        "DEEP".into(),
+    ]);
+    let wall = |s: f64| {
+        let mut c = at;
+        c[wide] += s * radius;
+        (c, 0.0)
+    };
+    let want = Want {
+        id: want_id(id, "semicircular_blind_slot_width.length"),
+        views: vec![view],
+        value: width,
+        terms,
+        measurements: vec![
+            m("semicircular_blind_slot_width.length", width),
+            m("semicircular_blind_slot_length.length", length),
+            m("semicircular_blind_slot_depth.length", depth),
+        ],
+        turning: None,
+        basis: "a semicircular blind slot open at an edge: its width (its half-round floor's diameter), length and depth, in one callout in the view that looks into it".into(),
+        shape: Shape::Callout {
+            arcs: Vec::new(),
+            sites: vec![wall(-1.0), wall(1.0)],
+        },
+    };
+    Ok((want, at, wide, view))
 }

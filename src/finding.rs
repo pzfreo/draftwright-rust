@@ -20,6 +20,7 @@ enum Group {
     Requirement,
     Crossing,
     Source,
+    Shape,
 }
 
 struct Classification {
@@ -58,6 +59,8 @@ catalogue! {
     "annotation_over_title_block" => Readability, Code, "Annotation ink overlaps the title block.";
     "annotation_over_view" => Readability, Code, "An annotation overlaps view geometry.";
     "annotation_overlap" => Readability, Code, "Annotation labels overlap each other.";
+    "annular_groove_requirement_missing" => Incomplete, Requirement, "The drawing does not state this required feature parameter.";
+    "annular_groove_requirement_unverifiable" => Incomplete, Requirement, "The drawing does not prove this required feature parameter.";
     "assembly_drawn_whole" => Advisory, Code, "The complete assembly was selected for drawing.";
     "assembly_principal_drawn" => Advisory, Code, "The assembly's largest part, holding the others, was drawn alone; the others are not drawn.";
     "authored_dimension_invalid" => Decision, Code, "The authored dimension needs a valid user definition.";
@@ -151,11 +154,13 @@ catalogue! {
     "label_vs_measured" => Incomplete, Code, "The printed label does not state the measured requirement.";
     "layout_recovery_exhausted" => Readability, Code, "No recovery removed all reported layout defects.";
     "layout_replanned" => Advisory, Code, "A successful sheet or scale recovery is reported.";
+    "leader_across_view" => Readability, Code, "A long leader crosses more of its own view's lines than a leader leaving the other way would.";
     "leader_along_centreline" => Readability, Code, "A leader runs along a centre line, so the two read as one line.";
     "leader_centerline_overlap" => Readability, Code, "A leader overlaps a centreline.";
     "leader_crosses_silhouette" => Advisory, Code, "The informational audit reports leader re-entry into the silhouette.";
     "leader_line_through_text" => Readability, Code, "A leader runs through text.";
     "leader_through_feature" => Readability, Code, "A leader crosses feature material on its way to its target.";
+    "leader_to_hidden_edge" => Readability, Code, "A leader ends on an edge its view shows hidden.";
     "legibility_floor_breached" => Readability, Code, "The selected geometry scale is below the requested legibility floor.";
     "location_on_datum" => Advisory, Code, "The datum already states this zero location.";
     "location_ref_dropped" => Incomplete, Code, "A required drawing item was dropped before it could be stated.";
@@ -180,6 +185,7 @@ catalogue! {
     "page_fit_uncertain" => Readability, Code, "The composed view and annotation zones may not fit.";
     "paired_ramp_step_requirement_missing" => Incomplete, Requirement, "The drawing does not state this required feature parameter.";
     "paired_ramp_step_requirement_unverifiable" => Incomplete, Requirement, "The drawing does not prove this required feature parameter.";
+    "part_squared_to_axes" => Advisory, Code, "The part lay a fraction of a degree off the file's axes and is drawn square, in its own frame.";
     "passage_requirement_unsupported" => Incomplete, Requirement, "No supported drawing grammar states this feature requirement.";
     "pinned_item_not_drawn" => Decision, Code, "The requested pin targets an item that is not drawn.";
     "pinned_reference_chain_changed" => Decision, Code, "The authored pin conflicts with the recovered reference chain.";
@@ -237,6 +243,9 @@ catalogue! {
     "section_not_shown" => Incomplete, Code, "The requested section is not shown.";
     "section_recess_recognition_refused" => Incomplete, Code, "Refused recess recognition leaves the recess requirements unstated.";
     "section_recess_requirement_unsupported" => Incomplete, Requirement, "No supported drawing grammar states this feature requirement.";
+    "semicircular_blind_slot_requirement_missing" => Incomplete, Requirement, "The drawing does not state this required feature parameter.";
+    "semicircular_blind_slot_requirement_unverifiable" => Incomplete, Requirement, "The drawing does not prove this required feature parameter.";
+    "shape_not_recognised" => Incomplete, Shape, "A recognisable shape among unexplained faces is neither sized nor located.";
     "sheet_assignment_unused" => Advisory, Code, "A sheet assignment has no corresponding drawing item.";
     "sheet_below_smallest_scale" => Readability, Code, "The sheet uses views below the requested legibility scale.";
     "sheet_label_replaced" => Advisory, Code, "Automatic document numbering replaces the authored sheet label.";
@@ -276,6 +285,8 @@ catalogue! {
     "turned_step_requirement_unverifiable" => Incomplete, Requirement, "The drawing does not prove this required feature parameter.";
     "unclaimed_geometry" => Advisory, Code, "Unclaimed faces can be ordinary stock faces, not missing requirements.";
     "unrecognised_defining_geometry" => Incomplete, Code, "The drawing does not define the unrecognised principal geometry.";
+    "v_channel_requirement_missing" => Incomplete, Requirement, "The drawing does not state this required feature parameter.";
+    "v_channel_requirement_unverifiable" => Incomplete, Requirement, "The drawing does not prove this required feature parameter.";
     "view_annotation_inside_extents" => Advisory, Code, "An annotation inside a view extent is informational.";
     "view_annotation_overlap" => Readability, Code, "An annotation overlaps a view boundary or view geometry.";
     "view_on_title_block" => Readability, Code, "A view overlaps the title block.";
@@ -358,6 +369,10 @@ pub fn labels(
             .chain(subjects.iter().filter_map(|s| source_kind(s)))
             .collect(),
         Some(Group::Crossing) => kinds.into_iter().map(String::from).collect(),
+        Some(Group::Shape) => sources
+            .iter()
+            .filter_map(|s| s.strip_prefix("shape:").map(String::from))
+            .collect(),
         _ => BTreeSet::new(),
     };
     let group = if cause.is_empty() {

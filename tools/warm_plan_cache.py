@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Fill a plan cache with the native analysis and default plan of each of the 66 survey inputs.
+"""Fill a plan cache with the native analysis and default plan of each of the 68 survey inputs.
 
 CI's test shards and quality-pins measurements analyse and plan these parts under the default
 Spec again and again; the lint job does each once with this commit's executable, and the

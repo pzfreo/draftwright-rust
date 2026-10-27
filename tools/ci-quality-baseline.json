@@ -136,7 +136,7 @@
     },
     "10060": {
       "hidden_on_visible": 0,
-      "ink": 1,
+      "ink": 0,
       "line_through_feature": 0,
       "off_sheet": 0,
       "repeated_label": 0,
@@ -393,7 +393,7 @@
     ],
     "10020": [
       "A4",
-      "1:1",
+      "2:1",
       1
     ],
     "10033": [
@@ -413,7 +413,7 @@
     ],
     "10046": [
       "A4",
-      "1:1",
+      "2:1",
       1
     ],
     "10047": [
@@ -428,7 +428,7 @@
     ],
     "10060": [
       "A4",
-      "1:1",
+      "2:1",
       1
     ],
     "10063": [
@@ -437,9 +437,9 @@
       1
     ],
     "GRM-03_thumbwheel_drive_screw": [
-      "A3",
-      "10:1",
-      2
+      "A4",
+      "5:1",
+      1
     ],
     "GRM-05_depth_lock_bolt": [
       "A4",
@@ -504,7 +504,7 @@
     "nist_ftc_08_asme1_rc": [
       "A1",
       "1:2",
-      2
+      1
     ],
     "nist_ftc_09_asme1_rd": [
       "A1",
@@ -514,7 +514,7 @@
     "nist_ftc_10_asme1_rb": [
       "A2",
       "1:1",
-      1
+      2
     ],
     "sm-hanger": [
       "A3",
@@ -528,6 +528,6 @@
     ]
   },
   "source": "Recorded from the complete quality.py --record audit",
-  "source_commit": "7faada0cc4a1be58d03b5b74fc3fa319c4678c18",
-  "verified_binary_sha256": "24bba209680fc8ea01723f4bc4055e06d38e1d17d7cdafb5a1743bc443a3bf87"
+  "source_commit": "684b8708ae8184cb2e567c09879ddb94154d3e39",
+  "verified_binary_sha256": "84189fba88723aa7dd094151bcdb3c4c7e12b22793e11848cc4b51976922ef1d"
 }

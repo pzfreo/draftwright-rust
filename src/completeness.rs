@@ -225,12 +225,25 @@ pub fn report(analysis: &Analysis, plan: &mut Plan) {
             stated.extend(members.iter().filter_map(|m| m.as_str()));
         }
     }
+    // The measurements drawn, for a feature another's dimensions state (#233).
+    let said: BTreeSet<(&str, &str)> = plan
+        .dimensions
+        .iter()
+        .filter(|d| d.placed.is_some() || matches!(d.state, State::Covered { .. }))
+        .flat_map(|d| &d.measurements)
+        .chain(plan.hole_tables.iter().flat_map(|t| &t.covered))
+        .map(|m| (m.feature.as_str(), m.parameter.as_str()))
+        .collect();
     let bands = crate::lint::turned::bands(analysis);
     let unplanned: Vec<String> = analysis
         .features
         .iter()
         .filter(|f| {
             if stated.contains(f.id.as_str()) || crate::dims::undrafted(f) {
+                return false;
+            }
+            let by = crate::dims::stated_by(analysis, f);
+            if !by.is_empty() && by.iter().all(|(o, p)| said.contains(&(o.as_str(), *p))) {
                 return false;
             }
             if f.kind == "boss"
@@ -264,8 +277,12 @@ pub fn report(analysis: &Analysis, plan: &mut Plan) {
         faces: analysis.binding.face_count,
         unplanned_features: unplanned.len(),
     };
-    plan.problems
-        .retain(|p| p.code != "unclaimed_geometry" && !p.id.starts_with("p:feature_unplanned:"));
+    plan.problems.retain(|p| {
+        !matches!(
+            p.code.as_str(),
+            "unclaimed_geometry" | "shape_not_recognised"
+        ) && !p.id.starts_with("p:feature_unplanned:")
+    });
     for p in &mut plan.problems {
         if matches!(
             p.code.as_str(),
@@ -289,6 +306,8 @@ pub fn report(analysis: &Analysis, plan: &mut Plan) {
             subjects: unclaimed, ..Default::default()
         });
     }
+    let shapes = crate::unexplained::problems(analysis, &plan.spec, &claimed);
+    plan.problems.extend(shapes);
     for id in unplanned {
         if !plan.problems.iter().any(|p| {
             p.subjects.contains(&id)

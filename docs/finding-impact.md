@@ -19,7 +19,8 @@ for both ordinary ink and `ink_is_leader: true` (leader through text). No messag
 
 `group` is an opaque deterministic key: code plus a cause where needed. Broad feature-gap codes
 use the structural feature kind from `f:<kind>:<identity>` subjects, requirement codes use sorted
-requirement roles, PMI codes use typed source kinds, and leader crossings use sorted stroke kinds.
+requirement roles, PMI codes use typed source kinds, leader crossings use sorted stroke kinds, and
+`shape_not_recognised` uses its `shape:<kind>` ref (protrusion, cut, chamfer, step or teeth).
 Other codes already name their cause and group by code. Occurrence IDs, prose, positions and list order never enter a key.
 Thus four section-recess grammar gaps share a group, while a different feature kind does not;
 extension-through-feature repeats share one group. Unknown externally supplied codes serialize
@@ -54,6 +55,8 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `annotation_over_title_block` | readability | Annotation ink overlaps the title block. |
 | `annotation_over_view` | readability | An annotation overlaps view geometry. |
 | `annotation_overlap` | readability | Annotation labels overlap each other. |
+| `annular_groove_requirement_missing` | incomplete | The drawing does not state this required feature parameter. |
+| `annular_groove_requirement_unverifiable` | incomplete | The drawing does not prove this required feature parameter. |
 | `assembly_drawn_whole` | advisory | The complete assembly was selected for drawing. |
 | `assembly_principal_drawn` | advisory | The assembly's largest part, holding the others, was drawn alone; the others are not drawn. |
 | `authored_dimension_invalid` | decision | The authored dimension needs a valid user definition. |
@@ -147,11 +150,13 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `label_vs_measured` | incomplete | The printed label does not state the measured requirement. |
 | `layout_recovery_exhausted` | readability | No recovery removed all reported layout defects. |
 | `layout_replanned` | advisory | A successful sheet or scale recovery is reported. |
+| `leader_across_view` | readability | A long leader crosses more of its own view's lines than a leader leaving the other way would. |
 | `leader_along_centreline` | readability | A leader runs along a centre line, so the two read as one line. |
 | `leader_centerline_overlap` | readability | A leader overlaps a centreline. |
 | `leader_crosses_silhouette` | advisory | The informational audit reports leader re-entry into the silhouette. |
 | `leader_line_through_text` | readability | A leader runs through text. |
 | `leader_through_feature` | readability | A leader crosses feature material on its way to its target. |
+| `leader_to_hidden_edge` | readability | A leader ends on an edge its view shows hidden. |
 | `legibility_floor_breached` | readability | The selected geometry scale is below the requested legibility floor. |
 | `location_on_datum` | advisory | The datum already states this zero location. |
 | `location_ref_dropped` | incomplete | A required drawing item was dropped before it could be stated. |
@@ -176,6 +181,7 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `page_fit_uncertain` | readability | The composed view and annotation zones may not fit. |
 | `paired_ramp_step_requirement_missing` | incomplete | The drawing does not state this required feature parameter. |
 | `paired_ramp_step_requirement_unverifiable` | incomplete | The drawing does not prove this required feature parameter. |
+| `part_squared_to_axes` | advisory | The part lay a fraction of a degree off the file's axes and is drawn square, in its own frame. |
 | `passage_requirement_unsupported` | incomplete | No supported drawing grammar states this feature requirement. |
 | `pinned_item_not_drawn` | decision | The requested pin targets an item that is not drawn. |
 | `pinned_reference_chain_changed` | decision | The authored pin conflicts with the recovered reference chain. |
@@ -233,6 +239,9 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `section_not_shown` | incomplete | The requested section is not shown. |
 | `section_recess_recognition_refused` | incomplete | Refused recess recognition leaves the recess requirements unstated. |
 | `section_recess_requirement_unsupported` | incomplete | No supported drawing grammar states this feature requirement. |
+| `semicircular_blind_slot_requirement_missing` | incomplete | The drawing does not state this required feature parameter. |
+| `semicircular_blind_slot_requirement_unverifiable` | incomplete | The drawing does not prove this required feature parameter. |
+| `shape_not_recognised` | incomplete | A recognisable shape among unexplained faces is neither sized nor located. |
 | `sheet_assignment_unused` | advisory | A sheet assignment has no corresponding drawing item. |
 | `sheet_below_smallest_scale` | readability | The sheet uses views below the requested legibility scale. |
 | `sheet_label_replaced` | advisory | Automatic document numbering replaces the authored sheet label. |
@@ -272,6 +281,8 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `turned_step_requirement_unverifiable` | incomplete | The drawing does not prove this required feature parameter. |
 | `unclaimed_geometry` | advisory | Unclaimed faces can be ordinary stock faces, not missing requirements. |
 | `unrecognised_defining_geometry` | incomplete | The drawing does not define the unrecognised principal geometry. |
+| `v_channel_requirement_missing` | incomplete | The drawing does not state this required feature parameter. |
+| `v_channel_requirement_unverifiable` | incomplete | The drawing does not prove this required feature parameter. |
 | `view_annotation_inside_extents` | advisory | An annotation inside a view extent is informational. |
 | `view_annotation_overlap` | readability | An annotation overlaps a view boundary or view geometry. |
 | `view_on_title_block` | readability | A view overlaps the title block. |

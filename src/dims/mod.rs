@@ -223,7 +223,11 @@ fn chosen_views(
                 )
             } else {
                 (
-                    "left out as the turned part's repeated profile",
+                    if idle_dropped() == Some(v) {
+                        "left out as adding only its outline"
+                    } else {
+                        "left out as the turned part's repeated profile"
+                    },
                     format!(
                         "Keep the view (set views/{v} to {{}}) or remove the dimension's view."
                     ),
@@ -281,6 +285,9 @@ const _: () = assert!(
 
 thread_local! {
     static COMPACT: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+    /// The plan or side view [`idle_view`] leaves out, when decided for the whole Analysis
+    /// ([`with_idle_view`]).
+    static IDLE_VIEW: std::cell::Cell<Option<Option<&'static str>>> = const { std::cell::Cell::new(None) };
 }
 
 /// Whether the plan being made uses compact dimension spacing.
@@ -327,6 +334,18 @@ pub(crate) fn with_compact<T>(compact: bool, run: impl FnOnce() -> T) -> T {
         }
     }
     let _restore = Restore(COMPACT.replace(compact));
+    run()
+}
+/// Run *run* with [`idle_view`]'s choice given: the established reference drawing plans a
+/// reduced Analysis (no native recesses), where a view the drawing needs could look idle.
+pub(crate) fn with_idle_view<T>(dropped: Option<&'static str>, run: impl FnOnce() -> T) -> T {
+    struct Restore(Option<Option<&'static str>>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            IDLE_VIEW.set(self.0);
+        }
+    }
+    let _restore = Restore(IDLE_VIEW.replace(Some(dropped)));
     run()
 }
 /// The gap between a label's terms (draftwright's callout recipe), a label's baseline above its
@@ -732,7 +751,7 @@ pub(crate) fn has_new_native_recess_dimensions(analysis: &Analysis) -> bool {
 }
 
 pub(crate) fn has_recess_dimensions(analysis: &Analysis) -> bool {
-    let (canonical, established, comparison, _, _) = crate::planning::policy_key(analysis);
+    let (canonical, established, comparison, ..) = crate::planning::policy_key(analysis);
     crate::planning::memo(
         analysis,
         "recess-presence",
@@ -806,6 +825,9 @@ fn wants_uncached(
                 );
             }
         }
+    }
+    if cx.turned.is_none() {
+        holes::round_origins(analysis, spec, &mut out);
     }
     flats::share_locations(&cx, &mut out);
     // A planner may dimension some records of a kind it does not claim (the section recesses
@@ -920,6 +942,82 @@ const UNDRAFTED: &[(&str, Disposition, DispositionReason)] = &[
         DispositionReason::ConsumerSemanticsDeferred,
     ),
 ];
+
+/// The dimensions that state *f* in place of its own (#233), as (feature, parameter): an annular
+/// groove's wall hole and boss, a V channel's profile V-notch. Empty for any other.
+pub(crate) fn stated_by(
+    analysis: &Analysis,
+    f: &crate::bridge::Feature,
+) -> Vec<(String, &'static str)> {
+    match f.kind.as_str() {
+        "annular_groove" => crate::lint::grooves::annular_owners(analysis, f)
+            .unwrap_or_default()
+            .into_iter()
+            .map(|(_, o, p)| (o, p))
+            .collect(),
+        "v_channel" => {
+            crate::lint::notch_evidence::channel_owner(&crate::notches::requirements(analysis), f)
+                .map(|n| vec![(n.clone(), "notch.angle"), (n, "notch_depth.length")])
+                .unwrap_or_default()
+        }
+        _ => Vec::new(),
+    }
+}
+
+/// A groove or channel left to the dimensions that state it ([`stated_by`]) is called out on its
+/// own when the spec omits any of them, so steering those dimensions never loses its sizes.
+fn restate(analysis: &Analysis, spec: &Spec, wants: &mut Vec<Want>, problems: &mut Vec<Problem>) {
+    let omits = |w: &Want| spec.dimensions.get(&w.id).is_some_and(|d| d.omit);
+    if spec.dimension_source != DimensionSource::Auto || !wants.iter().any(omits) {
+        return;
+    }
+    let drawn = |(o, p): &(String, &str)| {
+        wants.iter().any(|w| {
+            !omits(w)
+                && w.measurements
+                    .iter()
+                    .any(|m| m.feature == *o && m.parameter == *p)
+        })
+    };
+    let lost: Vec<_> = analysis
+        .features
+        .iter()
+        .filter(|f| {
+            let by = stated_by(analysis, f);
+            !by.is_empty() && !by.iter().all(drawn)
+        })
+        .collect();
+    if lost.is_empty() {
+        return;
+    }
+    let frame = QFrame(analysis.recognition.as_ref().map_or(
+        [[0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]],
+        |r| r.frame,
+    ));
+    let cx = Context {
+        analysis,
+        turned: turned::turned(analysis, &frame),
+        frame,
+    };
+    let mut own = Vec::new();
+    for f in lost {
+        let ws = if f.kind == "annular_groove" {
+            grooves::annular(&cx, f)
+        } else {
+            notches::channel(&cx, f)
+        };
+        match ws {
+            Ok(ws) => own.extend(ws),
+            Err(why) => problems.push(grooves::not_dimensioned(f, &why)),
+        }
+    }
+    // The origins' own problems are reported with the default wants.
+    let _ = pmi_policy::origins(analysis, spec, &mut own);
+    if pmi_policy::carries(analysis) || !spec.origin.is_empty() {
+        own.retain(|w| !pmi_policy::on_origin(w));
+    }
+    wants.extend(own);
+}
 
 pub(crate) fn undrafted(f: &crate::bridge::Feature) -> bool {
     UNDRAFTED
@@ -1072,7 +1170,7 @@ pub(crate) fn inspection_datum(a: &Analysis) -> Option<(usize, f64)> {
 }
 
 pub(crate) fn detail_levels(a: &Analysis) -> Vec<(String, f64)> {
-    let (canonical, established, comparison, _, _) = crate::planning::policy_key(a);
+    let (canonical, established, comparison, ..) = crate::planning::policy_key(a);
     crate::planning::memo(
         a,
         "detail-linear-levels",
@@ -1269,6 +1367,195 @@ pub(crate) fn reduction_preserves_requirements(
                     .iter()
                     .any(|v| carries(w, v) && !spec.views.get(*v).is_some_and(|v| v.omit))
         })
+}
+
+/// The principal view a part that is not turned leaves out because it adds nothing (#222): the
+/// plan or side view on which the drawing with every view shown places no dimension, so that
+/// all it would show is its outline (often a strip of hidden lines), unless it is a prism's
+/// profile ([`prism_axis`]) or looks along a cylinder (the only view showing it round). At most
+/// one is left out, the plan first, and never the front. The spec keeps it by naming it
+/// (`views/<name>`), as for a turned part's dropped view; one it omits, refers a dimension,
+/// annotation or view to, or that carries PMI or section A–A's cutting plane is kept. None for
+/// a turned part ([`crate::demand::turned_views`], whose shape this returns: the kept views,
+/// the dropped one and why).
+pub(crate) fn idle_view(
+    analysis: &Analysis,
+    spec: &Spec,
+    demand: &crate::demand::Demand,
+) -> Option<([&'static str; 2], &'static str, String)> {
+    let [allowed, ..] = idle_spec(spec);
+    if crate::demand::turned_views(demand).is_some() || !allowed {
+        return None;
+    }
+    let v = match IDLE_VIEW.get() {
+        Some(given) => given?,
+        None => idle_decision(analysis, spec).dropped?,
+    };
+    let other = if v == "plan" { "side" } else { "plan" };
+    Some((
+        ["front", other],
+        v,
+        format!(
+            "no dimension needs the {v} view (the front and {other} views carry them all) and it would add only its outline (naming views/{v} keeps it)"
+        ),
+    ))
+}
+
+/// [`idle_view`]'s decision for an Analysis and spec, and the paper the drawing with every view
+/// shown takes at its first choice (the size's place in [`crate::layout::PAGES`] and the sheet
+/// count), which leaving the view out must not exceed ([`crate::sheet_policy`]).
+#[derive(Clone, Copy, Default)]
+pub(crate) struct IdleDecision {
+    pub dropped: Option<&'static str>,
+    pub paper: Option<(usize, usize)>,
+}
+
+/// Decide [`idle_view`] from the drawing itself (review of #222): the candidate view is left
+/// out only when the planner's first drawing with it shown (the spec naming it, before the
+/// sheet recovery) places no dimension on it, after every routing preference and added
+/// statement such as a profile angle. That drawing is planned in its own scope, so it leaves
+/// nothing behind for the drawing being made.
+pub(crate) fn idle_decision(analysis: &Analysis, spec: &Spec) -> IdleDecision {
+    let Some(v) = idle_candidate(analysis, spec) else {
+        return IdleDecision::default();
+    };
+    let mut named = spec.clone();
+    named.sheet.size = None;
+    named.sheet.scale = None;
+    named.sheet.dimension_spacing = None;
+    named.views.insert(v.into(), Default::default());
+    // Omitting or pinning an item never changes the views: decide on the drawing without them.
+    for d in named.dimensions.values_mut() {
+        d.omit = false;
+        d.place = None;
+    }
+    for a in named.annotations.values_mut() {
+        a.place = None;
+    }
+    // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
+    let key = serde_json::to_vec(&named).expect("planning inputs serialize");
+    crate::planning::memo(analysis, "idle-view", key, || {
+        let shown = crate::planning::isolated(analysis, || {
+            with_compact(false, || {
+                crate::model::plan_escalated(analysis, &crate::model::migrate(&named, analysis)?)
+            })
+        });
+        let Ok(shown) = shown else {
+            return IdleDecision::default();
+        };
+        let page = crate::layout::PAGES
+            .iter()
+            .position(|p| p.0 == shown.sheet.size)
+            .unwrap_or(usize::MAX);
+        IdleDecision {
+            dropped: (!shown.dimensions.iter().any(|d| d.view == format!("v:{v}"))).then_some(v),
+            paper: Some((page, 1 + shown.sheets.len())),
+        }
+    })
+}
+
+/// Run *run* with [`idle_view`] decided once for *spec*, so every plan it makes, the
+/// established reference among them, leaves out the same view. Already decided: unchanged.
+pub(crate) fn idle_decided<T>(analysis: &Analysis, spec: &Spec, run: impl FnOnce() -> T) -> T {
+    if IDLE_VIEW.get().is_some() {
+        return run();
+    }
+    with_idle_view(idle_decision(analysis, spec).dropped, run)
+}
+
+/// The view [`idle_view`] has been decided to leave out in the plan being made, if any.
+pub(crate) fn idle_dropped() -> Option<&'static str> {
+    IDLE_VIEW.get().flatten()
+}
+
+/// [`idle_view`]'s decision as given for the plan being made: None when not yet decided.
+pub(crate) fn idle_given() -> Option<Option<&'static str>> {
+    IDLE_VIEW.get()
+}
+
+/// The view [`idle_decision`] tries: the first of plan and side that carries no PMI, section
+/// A–A's cutting plane or anything the spec refers to it, and is neither a prism's profile nor
+/// a view along a cylinder.
+fn idle_candidate(analysis: &Analysis, spec: &Spec) -> Option<&'static str> {
+    let [allowed, plan_kept, side_kept] = idle_spec(spec);
+    let demand = crate::demand::read(analysis);
+    if crate::demand::turned_views(&demand).is_some() || !allowed {
+        return None;
+    }
+    let referred = |v: &str| if v == "plan" { plan_kept } else { side_kept };
+    let pmi = crate::pmi_lowering::views(analysis);
+    let axis = prism_axis(analysis);
+    let round = |v: &str| {
+        analysis.edge_ink.as_ref().is_some_and(|ink| {
+            ink.curved
+                .iter()
+                .filter_map(|c| c.cylinder.as_ref())
+                .any(|c| (0..3).any(|k| (c.axis[k].abs() - 1.0).abs() < 1e-6 && end_on(k) == v))
+        })
+    };
+    ["plan", "side"].into_iter().find(|v| {
+        !pmi.contains(v)
+            && !(demand.section.is_some() && *v == "plan")
+            && !referred(v)
+            && axis.is_none_or(|k| end_on(k) != *v)
+            && !round(v)
+    })
+}
+
+/// What [`idle_view`] reads from the spec: whether it may leave a view out at all (no principal
+/// view named, dimensions automatic, no scheme), and whether the spec refers a dimension,
+/// annotation or view to the plan, and to the side view, which keeps it.
+pub(crate) fn idle_spec(spec: &Spec) -> [bool; 3] {
+    let referred = |v: &str| {
+        spec.dimensions.values().any(|d| {
+            d.view.as_deref() == Some(v)
+                || d.place.as_ref().and_then(|p| p.view.as_deref()) == Some(v)
+        }) || spec
+            .annotations
+            .values()
+            .any(|a| a.place.as_ref().and_then(|p| p.view.as_deref()) == Some(v))
+            || spec.views.values().any(|s| {
+                s.detail
+                    .as_ref()
+                    .is_some_and(|d| d.from.as_deref() == Some(v))
+                    || s.place.as_ref().is_some_and(|p| p.relative_to == v)
+            })
+    };
+    [
+        spec.dimension_source != DimensionSource::Authored
+            && spec.dimension_schemes.is_empty()
+            && !NAMES.iter().any(|v| spec.views.contains_key(*v)),
+        referred("plan"),
+        referred("side"),
+    ]
+}
+
+/// The axis the part is a prism, or a stack of prisms, along (a plate, an extrusion, a boss on a
+/// plate), whose view along it is the part's profile: every edge lies square to it or along it,
+/// every plane faces along it or square to it, and every curved face is a cylinder along it.
+/// None without the Analysis's edge ink.
+fn prism_axis(analysis: &Analysis) -> Option<usize> {
+    let ink = analysis.edge_ink.as_ref()?;
+    let tol = 2.0 * crate::model::projected_ink::GRID;
+    let flat = |e: &[[f64; 3]], ks: &[usize]| {
+        ks.iter()
+            .all(|&k| e.iter().all(|p| (p[k] - e[0][k]).abs() <= tol))
+    };
+    (0..3).find(|&k| {
+        let across: Vec<usize> = (0..3).filter(|&j| j != k).collect();
+        let square = |c: f64| c.abs() < 1e-6 || (c.abs() - 1.0).abs() < 1e-6;
+        !ink.edges.is_empty()
+            && ink
+                .edges
+                .iter()
+                .all(|e| e.is_empty() || flat(e, &[k]) || flat(e, &across))
+            && ink.planes.iter().all(|f| square(f.normal[k]))
+            && ink.curved.iter().all(|c| {
+                c.cylinder
+                    .as_ref()
+                    .is_some_and(|c| (c.axis[k].abs() - 1.0).abs() < 1e-6)
+            })
+    })
 }
 
 /// Paper-space room for unpinned, side-only callouts. Keep the same labels as the solver,
@@ -1926,7 +2213,7 @@ pub(crate) fn authored_placement_clear(spec: &Spec, dims: &[PlannedDimension]) -
 /// A slot chain must have room for its arrows and its own text between its ends.
 /// New recess annotations reserve extra paper rather than reducing these existing chains.
 pub(crate) fn recess_chain_scale(analysis: &Analysis) -> f64 {
-    let (canonical, established, comparison, _, _) = crate::planning::policy_key(analysis);
+    let (canonical, established, comparison, ..) = crate::planning::policy_key(analysis);
     crate::planning::memo(
         analysis,
         "recess-readable-scale",
@@ -3842,10 +4129,18 @@ fn plan_inventory_ordered(
             ));
         }
         if !dropped.is_empty() {
-            why.push(format!(
-                "the {} view is left out as the turned part's repeated profile",
-                named(&dropped)
-            ));
+            why.push(if dropped.iter().all(|v| idle_dropped() == Some(*v)) {
+                format!(
+                    "the {} view is left out as adding only its outline (set views/{} to {{}} to keep it)",
+                    named(&dropped),
+                    dropped[0]
+                )
+            } else {
+                format!(
+                    "the {} view is left out as the turned part's repeated profile",
+                    named(&dropped)
+                )
+            });
         }
         if !along.is_empty() {
             why.push(format!(
@@ -4402,12 +4697,16 @@ pub fn render(
 }
 
 /// Where a feature or pattern sits in the part's frame: a hole's point on its axis, a fillet's or
-/// chamfer's `at`, a pattern's centre (its members' mean), for comparing with draftwright's
-/// feature keys.
+/// chamfer's `at`, an annular groove's floor centre, a pattern's centre (its members' mean), for
+/// comparing with draftwright's feature keys.
 pub fn feature_origin(analysis: &Analysis, id: &str) -> Option<P3> {
     let frame = QFrame(analysis.recognition.as_ref()?.frame);
     if let Some(f) = analysis.features.iter().find(|f| f.id == id) {
-        let at = f.parameters.get("location").or(f.parameters.get("at"));
+        let at = f
+            .parameters
+            .get("location")
+            .or(f.parameters.get("at"))
+            .or(f.parameters.get("floor_center"));
         return point(at).map(|l| frame.point(l));
     }
     let p = analysis
@@ -5330,5 +5629,216 @@ mod tests {
             [("d:f:boss:2/boss_height.length".into(), "2× 5".into(), 2)]
         );
         assert_eq!(omitted[0].0, "d:f:boss:1/boss_height.length");
+    }
+
+    /// An Analysis of a 100 × 60 × 20 block with *features* (kind, faces, record), in the
+    /// part's frame.
+    fn block(features: &[(&str, &[usize], serde_json::Value)]) -> Analysis {
+        let mut n = BTreeMap::<&str, usize>::new();
+        let features: Vec<_> = features
+            .iter()
+            .map(|(kind, faces, record)| {
+                let i = n.entry(kind).or_default();
+                *i += 1;
+                serde_json::json!({
+                    "id": format!("f:{kind}:{i}"), "kind": kind, "faces": faces,
+                    "parameters": record,
+                    "fingerprint": { "version": "test", "family": "test", "subtype": "test",
+                                     "sizes": {}, "position": [0.0, 0.0, 0.0], "neighbourhood": [] },
+                })
+            })
+            .collect();
+        serde_json::from_value(serde_json::json!({
+            "schema": "draftwright.analysis/2",
+            "binding": { "source_sha256": "", "part": "test", "face_count": 20, "loader": "test" },
+            "envelope": [[0.0, 0.0, 0.0], [100.0, 60.0, 20.0]],
+            "features": features,
+            "iso_bounds": [0.0, 0.0, 0.0, 0.0],
+            "recognition": { "recogniser": "test",
+                             "frame": [[0.0, 0.0, 0.0], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0], [0.0, 0.0, 1.0]] },
+        }))
+        .unwrap()
+    }
+
+    /// Each want of feature *id*: its ID's parameter, views, terms and measured parameters.
+    fn own(wants: &[Want], id: &str) -> Vec<(String, Vec<&'static str>, String, Vec<String>)> {
+        wants
+            .iter()
+            .filter(|w| w.measurements.iter().any(|m| m.feature == id))
+            .map(|w| {
+                (
+                    w.id.rsplit_once('/').unwrap().1.to_string(),
+                    w.views.clone(),
+                    w.terms.join(" "),
+                    w.measurements.iter().map(|m| m.parameter.clone()).collect(),
+                )
+            })
+            .collect()
+    }
+
+    /// #233: an annular groove is called out down its axis and located, unless the hole and boss
+    /// on its walls state it, which then credit it.
+    #[test]
+    fn an_annular_groove_is_called_out_unless_its_walls_state_it() {
+        let groove = serde_json::json!({
+            "axis": [0.0, 0.0, 1.0], "floor_center": [30.0, 20.0, 18.0],
+            "inner_radius": 1.0, "outer_radius": 1.5, "depth": 2.0,
+        });
+        let a = block(&[("annular_groove", &[3, 4, 5], groove.clone())]);
+        let (wants, problems, _) = wants_uncached(&a, &Spec::default());
+        let mut got = own(&wants, "f:annular_groove:1");
+        got.sort();
+        assert_eq!(
+            got,
+            [
+                (
+                    "annular_groove_outer.diameter".to_string(),
+                    vec!["plan"],
+                    "⌀3 × ⌀2 ↧ 2".to_string(),
+                    vec![
+                        "annular_groove_outer.diameter".to_string(),
+                        "annular_groove_inner.diameter".into(),
+                        "annular_groove_depth.length".into()
+                    ]
+                ),
+                (
+                    "location.length.x".into(),
+                    vec!["plan"],
+                    "30".into(),
+                    vec!["location.length.x".into()]
+                ),
+                (
+                    "location.length.y".into(),
+                    vec!["plan"],
+                    "20".into(),
+                    vec!["location.length.y".into()]
+                ),
+            ]
+        );
+        assert!(
+            problems
+                .iter()
+                .all(|p| !p.subjects.contains(&"f:annular_groove:1".to_string()))
+        );
+        assert!(stated_by(&a, &a.features[0]).is_empty());
+
+        let walled = block(&[
+            ("annular_groove", &[3, 4, 5], groove),
+            (
+                "boss",
+                &[5],
+                serde_json::json!({"axis": [0.0, 0.0, 1.0], "diameter": 2.0, "height": 2.0, "location": [30.0, 20.0, 18.0]}),
+            ),
+            (
+                "hole",
+                &[3],
+                serde_json::json!({"axis": [0.0, 0.0, 1.0], "diameter": 3.0, "depth": 2.0, "location": [30.0, 20.0, 20.0]}),
+            ),
+        ]);
+        let (wants, ..) = wants_uncached(&walled, &Spec::default());
+        assert!(own(&wants, "f:annular_groove:1").is_empty());
+        let by = stated_by(&walled, &walled.features[0]);
+        assert_eq!(
+            by,
+            [
+                ("f:hole:1".to_string(), "bore.diameter"),
+                ("f:hole:1".into(), "bore.depth"),
+                ("f:boss:1".into(), "boss.diameter")
+            ]
+        );
+        // Omitting a wall's diameter restores the groove's own callout, so the size is not lost.
+        let id = wants
+            .iter()
+            .find(|w| {
+                w.measurements
+                    .iter()
+                    .any(|m| m.feature == "f:boss:1" && m.parameter == "boss.diameter")
+            })
+            .unwrap()
+            .id
+            .clone();
+        let spec: Spec =
+            serde_json::from_value(serde_json::json!({"dimensions": {id: {"omit": true}}}))
+                .unwrap();
+        let (steered, ..) = pmi_policy::wants(&walled, &spec);
+        assert_eq!(own(&steered, "f:annular_groove:1").len(), 3);
+        let (default, ..) = pmi_policy::wants(&walled, &Spec::default());
+        assert!(own(&default, "f:annular_groove:1").is_empty());
+    }
+
+    /// #233: a V channel is called out along its run and its trough located across it; one
+    /// whose run is along no axis is reported.
+    #[test]
+    fn a_v_channel_states_its_angle_depth_and_trough() {
+        let channel = |axis: [f64; 3]| {
+            serde_json::json!({
+                "axis": axis, "opening": [0.0, 0.0, 1.0], "at": [40.0, 30.0, 15.0],
+                "length": 60.0, "width": 5.773503, "depth": 5.0, "included_angle_degrees": 60.0,
+            })
+        };
+        let a = block(&[("v_channel", &[7, 8], channel([0.0, 1.0, 0.0]))]);
+        let (wants, ..) = wants_uncached(&a, &Spec::default());
+        assert_eq!(
+            own(&wants, "f:v_channel:1"),
+            [
+                (
+                    "v_channel.angle".to_string(),
+                    vec!["front"],
+                    "60° V × 5 DEEP".to_string(),
+                    vec![
+                        "v_channel.angle".to_string(),
+                        "v_channel_depth.length".into()
+                    ]
+                ),
+                // Along its principal opening, the mouth's face and the depth fix it.
+                (
+                    "location.length.x".into(),
+                    vec!["front"],
+                    "40".into(),
+                    vec!["location.length.x".into()]
+                ),
+            ]
+        );
+        let oblique = block(&[("v_channel", &[7, 8], channel([0.6, 0.8, 0.0]))]);
+        let (wants, problems, _) = wants_uncached(&oblique, &Spec::default());
+        assert!(own(&wants, "f:v_channel:1").is_empty());
+        assert!(
+            problems
+                .iter()
+                .any(|p| p.code == "feature_not_dimensioned" && p.subjects == ["f:v_channel:1"])
+        );
+    }
+
+    /// #233: a semicircular blind slot is called out as a round-bottom open slot and located
+    /// across its width.
+    #[test]
+    fn a_semicircular_blind_slot_is_a_round_bottom_open_slot() {
+        let slot = serde_json::json!({
+            "axis": [-1.0, 0.0, 0.0], "opening": [0.0, 0.0, 1.0], "at": [95.0, 25.0, 17.0],
+            "length": 10.0, "radius": 2.0, "straight_height": 4.0,
+        });
+        let a = block(&[("semicircular_blind_slot", &[9, 10, 11, 12], slot)]);
+        let (wants, ..) = wants_uncached(&a, &Spec::default());
+        assert_eq!(
+            own(&wants, "f:semicircular_blind_slot:1"),
+            [
+                (
+                    "semicircular_blind_slot_width.length".to_string(),
+                    vec!["plan"],
+                    "ROUND-BOTTOM OPEN SLOT 4 × 10 × 6 DEEP".to_string(),
+                    vec![
+                        "semicircular_blind_slot_width.length".to_string(),
+                        "semicircular_blind_slot_length.length".into(),
+                        "semicircular_blind_slot_depth.length".into()
+                    ]
+                ),
+                (
+                    "location_slot_across.length".into(),
+                    vec!["plan"],
+                    "25".into(),
+                    vec!["location_slot_across.length".into()]
+                ),
+            ]
+        );
     }
 }

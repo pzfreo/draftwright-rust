@@ -171,6 +171,7 @@ fn source_available(a: &Analysis, spec: &Spec, source: &str) -> bool {
             && !spec.views.get(kept[0]).is_some_and(|v| v.omit)
             && !crate::pmi_lowering::views(a).contains(dropped)
     });
+    let reduction = reduction.or_else(|| crate::dims::idle_view(a, spec, &demand));
     if reduction.is_some_and(|r| r.1 == source) {
         return false;
     }

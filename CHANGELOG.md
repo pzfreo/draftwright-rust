@@ -23,8 +23,58 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Changed
 
+- **A recognisable shape among the faces quiddity leaves unexplained is a warning (#213),
+  `shape_not_recognised`, impact `incomplete`, naming its faces, kind and place:** a protrusion
+  (nema17-mount-bracket's gussets, corner-bracket-2020's tongues, sm-hanger's tabs), a cut, a
+  chamfer on a cylinder's edge with its size (shf08, sk08 and t8-flange-nut's hole and
+  thread-entry chamfers), a turned step or land with its shoulder ø (FTC-11's ø57 step) or a
+  periodic pattern of teeth or notches with its count (sprocket-iso606-z08's 8, gt2-pulley's
+  20). Congruent shapes share one warning with their count (CTC-04's thirty 3 × 45° hole
+  chamfers). Shapes are read from the part's topology when it is analysed
+  (`unexplained_shapes`). The Spec withdraws a warning by declaring the feature
+  (`feature_declarations`), by a leader note or feature control frame on one of its faces
+  (`faces`), or, for teeth, by an authored gear on their axis (`gears`). `unclaimed_geometry`
+  stays the info-level count. On the 30 quality parts only findings change. Not covered: faces
+  that recognition claims but no dimension states, such as shf08 and sk08's clamp slits and
+  shf08's stem and shoulder, which stay silent.
+- **quiddity's annular grooves, V channels and semicircular blind slots are read and drawn
+  (#233),** no longer reported as `features_not_recognised`. A semicircular blind slot is called
+  out as a round-bottom open slot (`ROUND-BOTTOM OPEN SLOT W × L × D DEEP`) and located across
+  its width by its centre line. A V channel states `A° V × D DEEP` and its trough's location,
+  and an annular groove `⌀OD × ⌀ID ↧ D` and its centre's, unless the profile V-notch on its
+  flanks, or the hole and boss on its walls, already state it, as on CTC-01, holdout 408 and 419
+  and the corpus grooves checked (1008, 10077, 10098). A Spec that omits one of those stating
+  dimensions (the hole's or boss's diameter, the notch's angle or depth) brings back the groove's
+  or channel's own callout, so its sizes are never lost. Lint checks each family's sizes
+  (`annular_groove_requirement_*`, `v_channel_requirement_*`,
+  `semicircular_blind_slot_requirement_*`), reading a wall hole's and boss's printed diameters
+  and depth as the groove's; a notch-stated channel is checked by the notch's own lint. 10092
+  moves from A4 1:1 to A3 2:1 (one new `annotation_leader_crossing` and two `label_crowded`, its
+  `detail_unplaceable` gone), holdout 196 from A3 2:1 to A3 1:1 and 483 from A4 2:1 to 1:1 (new
+  `detail_unplaceable` and `annotation_leader_crossing`); 1013's slot location gains
+  `extension_through_feature` and `label_section_furniture_overlap`; 10098 loses its 78.046°
+  profile angle, the supplement of the 101.954° on the same edge, to its V channel's locations.
+  Rectangular through notches (CTC-01's two) stay unrecognised: drawn, they cost CTC-01 its 1:5
+  scale or add leader crossings. The quality parts are otherwise unchanged.
+- **A plan or side view that no dimension needs is left out (#222).** On a part that is not
+  turned, the plan or side view on which the drawing with every view shown places no
+  dimension, so that all it would add is its outline (often a strip of hidden lines), is
+  dropped, unless it is a prism's profile or looks along a cylinder. The decision is read from
+  that drawing itself, after every routing preference and added statement (a profile angle,
+  a thickness moved for readable witnesses). At most one view goes, the plan first, never the
+  front, and never one carrying PMI, section A–A's cutting plane or anything the spec refers to
+  it; the kept views' basis says why. Leaving it out never takes larger paper or more sheets
+  than the drawing with it shown: then the view is kept, and the sheet basis says so (MFCAD
+  10092 stays A4 1:1 rather than A3 5:1). Naming the view (`views/plan: {}`) keeps it, in a
+  pinned drawing's unpinned frame too; naming any principal view, or authored dimensions or a
+  dimension scheme, turns the rule off. vslot-2020x50 and MFCAD 10020, 10046, 10060, 10156,
+  10167, 1017 and 10245 go from 1:1 to 2:1 in the room freed (10156 and 10167 lose warnings;
+  10060 trades a leader crossing for an unplaceable prismatic-steps detail, and 10101 gains an
+  extension through a feature at its unchanged 2:1); l-plate-5-holes, retaining-ring, shf08,
+  MFCAD 10038 and FTC-09 lose their empty plan. The rest of the 30 quality parts are unchanged.
+  The title-block fixture tb_stepped now fits A4, as draftwright's sheet, instead of A3.
 - On quiddity-rust **v0.2.1-alpha.1**. The reader accepts its new `rectangular_through_notches`
-  family (not drawn yet, like `v_channels`), so CTC-01's two V-slot notches and their rounded
+  family (not drawn yet), so CTC-01's two V-slot notches and their rounded
   channels are reported as unrecognised features instead of 3 unclaimed faces. Golden's
   30-degree slots are recognised in the plate's file axes and claim all four walls, as Python
   quiddity does. The 30-part quality table and the random-pin cells are unchanged.
@@ -41,6 +91,37 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Fixed
 
+- **A part a fraction of a degree off the file's axes is drawn square, in its own frame
+  (#216).** dw-examples' DIN 471 M10 retaining ring lies about 1.09° off them, so it was drawn
+  as a tilted box: 1.147 thick instead of 1, 12.309 × 14.550 instead of 12.298 × 14.537, a
+  slanted plan rectangle, and its holes and boss unlocated as inclined to every axis. When
+  quiddity's part frame is within 2° of the file's axes, the part is now turned onto them
+  about its centre of mass before it is read (`squared` in the Analysis), and the plan says so
+  (info `part_squared_to_axes`). The ring now gets its true sizes, its three holes and boss
+  located, and its flats and gap recognised. A part on the file's axes, or further off them, or
+  whose file carries PMI (placed in the file's axes), is unchanged: the 30 quality parts' plans
+  are identical.
+- **Hole datums and frames attach where their place runs into vacant paper (#224).** A view's
+  reserved area, tightened to the settled ink, refused a place just past it even with empty
+  paper beyond, so on NIST CTC-01 datum B stayed edge-on in the front view (its ⌀35 callout's
+  other side is blocked by the 4× R25 leader), and on CTC-02 datum F stayed there with a leader
+  crossing seven dimensions and two holes. That area now grows to hold an attached datum or
+  frame where it stays inside the margins, off the title block and clear of every other view's
+  area. CTC-01's B and C now both stand beneath their callouts in the plan view; CTC-02's F
+  stands beneath its B2 tag and J beside D3, mirroring H (9 fewer findings); CTC-04's datum B
+  leaves its leader across seven dimensions; STC-09's ⟂ and two position frames stack over their
+  holes' `3× ⌀7.137` callout (net 103 fewer findings; two touching frames in the stack now
+  `label_crowded`). A pinned drawing replays the frames as they were before attaching, so a bare
+  pin still holds the attached ink. The area grows only into paper no view, table, notes block
+  or caption holds, so a relayout that leaves no such paper (applying fixes in the editor can)
+  returns a frame to its leader: the spindle's f7 position frame then shows main's
+  `leader_through_feature` again (`src/dims/hole_marks.rs`).
+- **A leader exactly at the 75 mm limit is now legal on every platform (#236).** The route
+  sweep's longest reach is the limit, and its `cos`, `sin` and `hypot` round differently in the
+  last bit on x86-64 Linux and Apple Silicon, so FTC-07 AP242's all-over profile-surface frame
+  took a 75 mm route on macOS that was "too long" on CI (19 leader-to-dimension-line crossings
+  there, 15 here). A leader now meets the limit within 1e-6 mm. The 34 quality and AP242 plans
+  are unchanged on macOS.
 - **A thread recognition refused is no longer drawn as a counterbore (#218).** quiddity refuses
   dw-examples' T8 flange nut thread (`inconsistent_diameters`) yet also reported a hole on its
   flanks, printed `⌀6.5 THRU ⌴ ⌀8.3 ↧ 14.8` in a 15 mm part. No hole, nor its pattern, is now
@@ -61,6 +142,27 @@ All notable changes to draftwright-rust are recorded here, in the style of
   a groove callout ending where the 19.4 step's extension line leaves the outline even after
   the finishing pass (the leader placer finds no other route), and gt2-pulley, whose extra side
   view, kept only for a radial hole, needs 303 mm across.
+- **A profile corner's angle is drawn near its corner (#227).** Its arc still started at the
+  radius that left the label's width between the arrowheads, from when the label broke the arc,
+  so an acute corner's arc began far out: vslot-2020x50's "45°" at 18 mm from its vertex, below
+  and left of the profile. With the label outside the arc, a profile corner's arc now starts at
+  the least radius that carries both arrowheads and keeps the label inside the sector, clear of
+  both extension lines, and it prefers a place whose label is 0.5 mm clear of other ink
+  (`label_crowded`), taking a crowded one only when no other is clear (`src/dims/angular.rs`).
+  Its arrowheads never lie across another item's line, and its ink keeps out of the span that
+  an off-span linear label settles back into. The triangle fixture's "45°" arc goes from 18 mm
+  to 8 mm, and it and the trapezoid fixture now state their 63.435° corners; hex-standoff-m3's
+  "6× 120°" moves in from 14 mm to 12 mm. vslot-2020x50's "45°" keeps its corner and moves in
+  from 18 mm to 10 mm, and a "135°" (6 mm) is added; its arc and witness line cross the lower
+  lip, as the "45°"'s witness line already did. The "135°" takes the left-hand place "8× C2.661"
+  had, so that callout moves up beside "⌀4.2 THRU" and the two are crowded (two notices).
+  10046 states one more corner and moves its other two nearer their corners. 10049 states its
+  109.428° corner (r 15 mm) instead of its 160.572° (r 13 mm). CTC-03, FTC-08 and cgb207's
+  angles move by under 1 mm. PMI and notch angles keep the wider radius: the recess callouts do
+  not yet route around a notch arc brought in, and 10020's 21° notch then went from A4 1:1 to
+  A3 2:1. Placing a profile angle now passes over items whose ink is far from a candidate, so
+  planning costs about what it did or less: against main, 0.42× the instructions on
+  vslot-2020x50, 0.91× on 10046, 0.83× on FTC-08, and 1.09× on 10049.
 - **Angular dimensions are drawn with an unbroken dimension arc (#227).** The arc was broken
   around an inline label, and at the smallest radius that left room for the arrowheads all that
   showed of it was the two arrowheads (dw-examples' hex-standoff-m3 "6× 120°" and
@@ -90,8 +192,15 @@ All notable changes to draftwright-rust are recorded here, in the style of
   pitch circle drawn (t8-flange-nut, t8-housing-bracket). The Spec's `split` still dissolves it.
   A grid located by its centre now draws a centre mark there when no hole or boss stands on it
   (t8-housing-bracket's 2×2, NIST CTC-01); none is drawn where a hole table locates the holes.
-  Still open from #223: a hole beside a round boss (dw-examples' linkrods) is located from the
-  boss's tangent edge, not its axis.
+- **A hole beside a round end is located from that end's axis, not its tangent (#223).** Where
+  the part's box side is only the tangent of a round face (no plane lies on it) and a hole or
+  boss stands on that face's axis, the other holes and hole patterns are located from the axis,
+  and the feature on it is located by those dimensions' witnesses on its centre. dw-examples'
+  linkrods: the ⌀0.440 hole is 3.875 and 0.125 from the ⌀1.034 hole in the ø1.5 boss, not 4.625
+  and 0.625 from the boss's tangents, and two extension lines through features go; shf08: its
+  ⌀8 and far ⌀5.5 holes are 16.25 and 32.5 from the near ⌀5.5 hole in the R5.25 end. A hole
+  table still states every hole from its corner. The Spec's `origin/<axis>` (`min`) keeps the box
+  side; parts that carry PMI keep their datums' origins.
 - **Frames and datum symbols on holes attach to the holes' size callout or table tag (#224).** A
   datum on a hole was drawn edge-on, on the hole's hidden silhouette, and a frame's leader ended
   at the centre of its faces, often on blank material. Once the drawing is finished, a frame whose
@@ -138,6 +247,24 @@ All notable changes to draftwright-rust are recorded here, in the style of
   43.8 mm HEX 2.000 A/F leader; length alone does not single it out, GRM-03, STC-07 and FTC-08
   each have a longer clean leader), nema17-mount-bracket's R0.5 leader ending on a hidden
   corner, and linkrods' 0.625 and 0.75 standing beside the boss they do not locate.
+- **Review reports leaders that end on hidden edges or run across their own view (#226).** The
+  final contact check also reads each callout leader against its view's physical edges
+  (`src/dims/contacts.rs`, with the interior router's edge proof): `leader_to_hidden_edge`
+  (warning) when the tip lies on an edge only where a nearer planar face covers it, so it points
+  at dashed line-work (nema17-mount-bracket's R0.5, GRM-03's ⌀1.6 blind hole, string post's
+  2.4 A/F, CTC-02's 6× R18, CTC-04's counterbores and R13, FTC-06's bosses
+  and 4× ⌀7.137 counterbore pattern, and pockets, holes and ramps seen
+  only hidden on 8 of the first 12 MFCAD parts in `tools/quality_parts.txt`); and
+  `leader_across_view` (warning) when a leader at least 15 mm long crosses four or more edges of
+  its view (visible or hidden, coincident ones once; a cylinder's side-on silhouette is not
+  counted) beyond the fewest a straight way out of the
+  view from its tip would cross (cgb245's two 2× R3 slot leaders, CTC-02's ⌀40 counterbores
+  and 6× R18, CTC-03's 2× R9.52, CTC-05's ø304.8). Length alone does not single these out: a
+  bore leader whose every way out crosses the same rings (gt2-pulley's ⌀5 THRU) is not
+  reported. gt2-pulley's HEX 2.000 A/F leader named in the #235 entry no longer appears on
+  current output (main or this change), so it was not judged. Layouts are unchanged: neither moves a leader, and a feature seen only hidden keeps
+  its callout where it is. Still open on #226: linkrods' 0.625 and 0.75 standing beside the
+  boss they do not locate.
 - **Coincident copies of a body no longer multiply every count (#212).** A STEP holding the same
   solid several times on top of itself (a FreeCAD export of a body and its `Pad`) was drawn
   whole, each feature once per copy: dw-examples' gantry plate printed "24× ⌀5.1 THRU" for 12

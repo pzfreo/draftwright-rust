@@ -41,6 +41,8 @@ mod fit_label_layout;
 mod hole_marks;
 #[path = "../hole_tables.rs"]
 mod hole_tables;
+#[path = "../leader_ends.rs"]
+mod leader_ends;
 #[path = "../planned_hole_tables.rs"]
 mod planned_hole_tables;
 #[path = "../plate_coverage.rs"]

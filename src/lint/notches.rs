@@ -1,6 +1,64 @@
 //! Re-read notch support geometry; printed nominals, never tolerance digits, prove claims.
+//!
+//! quiddity's V channels (`v_channel`, #233) state their included angle and depth
+//! (`v_channel.angle`, `v_channel_depth.length`), judged by [`parameters::coverage`]. One whose
+//! flanks a profile V-notch includes is the notch's: the notch's own requirements above check it.
+use super::parameters::{self, Wanted, fmt};
 use super::{LintIssue, Mark, holes};
+use crate::bridge::Feature;
 use crate::model::Analysis;
+
+/// The V channels' requirements, the included angle then the depth of each, but those of a
+/// channel a profile V-notch states.
+pub fn channel_wanted(a: &Analysis) -> Vec<Wanted<'_>> {
+    let notches = super::notch_evidence::requirements(a);
+    let mut out = Vec::new();
+    for f in a.features.iter().filter(|f| {
+        f.kind == "v_channel" && super::notch_evidence::channel_owner(&notches, f).is_none()
+    }) {
+        let angle = parameters::size(f, "included_angle_degrees");
+        out.push(Wanted {
+            feature: f,
+            parameter: "v_channel.angle".into(),
+            callout: angle
+                .as_ref()
+                .map_or("its included angle".into(), |v| format!("{}° V", fmt(*v))),
+            values: angle.map(|v| vec![v]),
+        });
+        let depth = parameters::size(f, "depth");
+        out.push(Wanted {
+            feature: f,
+            parameter: "v_channel_depth.length".into(),
+            callout: depth
+                .as_ref()
+                .map_or("its depth".into(), |v| format!("{} DEEP", fmt(*v))),
+            values: depth.map(|v| vec![v]),
+        });
+    }
+    out
+}
+
+/// The V channel coverage findings.
+pub(super) fn channel_coverage(a: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
+    let noun = |f: &Feature| {
+        let mut s = format!("V channel {}", f.id);
+        if let (Ok(angle), Ok(depth)) = (
+            parameters::size(f, "included_angle_degrees"),
+            parameters::size(f, "depth"),
+        ) {
+            s += &format!(" {}° × {} deep", fmt(angle), fmt(depth));
+        }
+        s
+    };
+    parameters::coverage(
+        "v_channel",
+        &channel_wanted(a),
+        marks,
+        noun,
+        "the channel's callout (included angle and depth), in the view along its run",
+    )
+}
+
 pub(super) fn coverage(a: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     let mut out = Vec::new();
     for n in super::notch_evidence::requirements(a) {

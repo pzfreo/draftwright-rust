@@ -675,3 +675,138 @@ fn linework_overrides_leave_sections_and_cutting_plane_rules_intact() {
     assert!(work(&p, "cross").is_empty());
     assert!(work(&p, "axis").is_empty());
 }
+
+/// `linkrods.step.gz` (OCCT sample data): a ø1.5 boss's round face is the part's left and front
+/// box sides. Its ⌀0.440 hole is located from the ⌀1.034 hole's axis on that boss (3.875 and
+/// 0.125), not 4.625 and 0.625 from the boss's tangents, and the ⌀1.034 hole is located by
+/// those dimensions' witnesses on its centre; `origin/<axis>: min` keeps the box sides (#223).
+#[test]
+fn a_hole_beside_a_round_boss_is_located_from_its_axis() {
+    use std::io::Read;
+    let mut bytes = Vec::new();
+    flate2::read::GzDecoder::new(
+        std::fs::File::open(
+            Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts/linkrods.step.gz"),
+        )
+        .unwrap(),
+    )
+    .read_to_end(&mut bytes)
+    .unwrap();
+    let (part, a) = cache::analysed("linkrods.step", &bytes, true, || {
+        model::analyse_native_step(Path::new("linkrods.step"), &bytes).unwrap()
+    });
+    let font = Font::new(api::MONO.to_vec()).unwrap();
+    let at = |id: &str| {
+        let f = a.features.iter().find(|f| f.id == id).unwrap();
+        draftwright::bridge::holes::Hole::read(f, &draftwright::bridge::holes::frame(&a))
+            .unwrap()
+            .at
+    };
+    let (origin, beside) = (at("f:hole:1"), at("f:hole:2"));
+    let locations = |p: &model::Plan| -> Vec<(String, f64, Vec<String>)> {
+        p.dimensions
+            .iter()
+            .filter(|d| d.id.contains("/location.length."))
+            .map(|d| {
+                let claims = d
+                    .measurements
+                    .iter()
+                    .map(|m| format!("{} {}", m.feature, m.parameter))
+                    .collect();
+                (d.id.clone(), d.value, claims)
+            })
+            .collect()
+    };
+
+    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let found = locations(&p);
+    assert_eq!(found.len(), 2, "{found:?}");
+    for (k, axis) in ["x", "y"].iter().enumerate() {
+        let (_, value, claims) = found
+            .iter()
+            .find(|(id, ..)| *id == format!("d:f:hole:2/location.length.{axis}"))
+            .unwrap();
+        assert!(
+            (value - (beside[k] - origin[k]).abs()).abs() < 1e-6,
+            "{axis}: {value}"
+        );
+        assert!(claims.contains(&format!("f:hole:1 location.length.{axis}")));
+    }
+    let d = model::render(&part, &a, &p, &font).unwrap();
+    assert!(
+        !draftwright::lint::lint(&a, &d)
+            .iter()
+            .any(|i| i.code == "feature_not_located"),
+    );
+
+    // A schedule states coordinates from the box corner, not the distances from the axis.
+    let spec: Spec = serde_json::from_value(serde_json::json!({"hole_table": "always"})).unwrap();
+    let p = model::plan_recovered(&a, &spec).unwrap();
+    let rows: Vec<_> = p.hole_tables.iter().flat_map(|t| &t.rows).collect();
+    assert!(!rows.is_empty());
+    for r in &rows {
+        let hole = if r.feature == "f:hole:1" {
+            origin
+        } else {
+            beside
+        };
+        for (k, axis) in ["x", "y"].iter().enumerate() {
+            let m = r
+                .measurements
+                .iter()
+                .find(|m| m.parameter == format!("location.length.{axis}"))
+                .unwrap_or_else(|| panic!("{r:?}"));
+            let corner = hole[k] - a.envelope[0][k];
+            assert!(
+                (m.value - corner).abs() < 1e-6,
+                "{} {axis}: {}",
+                r.feature,
+                m.value
+            );
+            // The cells are the tag, the callout, then `X` and `Y`.
+            let cell: f64 = r.cells[2 + k].parse().unwrap();
+            assert!((cell - corner).abs() < 1e-3, "{} {axis}: {r:?}", r.feature);
+        }
+    }
+
+    // The Spec's origin keeps the box sides.
+    let spec: Spec =
+        serde_json::from_value(serde_json::json!({"origin": {"x": "min", "y": "min"}})).unwrap();
+    let p = model::plan_recovered(&a, &spec).unwrap();
+    let found = locations(&p);
+    assert_eq!(found.len(), 4, "{found:?}");
+    for (id, value, _) in &found {
+        let k = if id.ends_with('x') { 0 } else { 1 };
+        let hole = if id.starts_with("d:f:hole:1/") {
+            origin
+        } else {
+            beside
+        };
+        assert!(
+            (value - (hole[k] - a.envelope[0][k])).abs() < 1e-6,
+            "{id}: {value}"
+        );
+    }
+}
+
+/// A hole beside planar box sides is still located from them: `plate.step`'s sides are faces
+/// (#223).
+#[test]
+fn holes_beside_planar_sides_are_located_from_the_box() {
+    let (_, p, _) =
+        drawing(&Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts/plate.step"));
+    let located: Vec<_> = p
+        .dimensions
+        .iter()
+        .filter(|d| d.id.contains("/location.length."))
+        .collect();
+    assert!(!located.is_empty());
+    for d in located {
+        assert!(
+            !d.basis.contains("from the axis of"),
+            "{}: {}",
+            d.id,
+            d.basis
+        );
+    }
+}
