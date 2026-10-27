@@ -38,6 +38,7 @@ mod flats;
 pub mod holes;
 pub mod native;
 pub mod recess_patterns;
+pub(crate) mod refused_threads;
 
 pub const RECOGNITION_FORMAT: &str = "draftwright.recognition/1";
 pub const FINGERPRINT_VERSION: &str = "draftwright-bridge/2";
