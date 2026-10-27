@@ -286,7 +286,15 @@ fn each_axis_of_a_location_is_its_own_measurement() {
         }
     }
 
-    let analysis = &fixtures().iter().find(|p| p.0 == "boss_circle").unwrap().1;
+    // boss_circle's four lower holes squared onto their circle in quiddity's records: as made
+    // they are a 24.3 × 24.38 rectangle, which since #223 is no bolt circle.
+    let (part, mut squared) = model::analyse(&fixture("parts/boss_circle.step")).unwrap();
+    let json = std::fs::read_to_string(fixture("recognition/boss_circle.json"))
+        .unwrap()
+        .replace("-32.103747339", "-32.063747339")
+        .replace("-7.7237473394", "-7.7637473394");
+    model::recognise(&part, &mut squared, &json).unwrap();
+    let analysis = &squared;
     let ids = |plan: &Plan| -> BTreeSet<String> {
         plan.dimensions.iter().map(|d| d.id.clone()).collect()
     };

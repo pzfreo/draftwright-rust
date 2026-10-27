@@ -6,6 +6,21 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### Fixed
+
+- **A rectangle of holes is no longer called out as a bolt circle (#223).** quiddity accepts a
+  bolt circle whose holes are up to 2% off one radius and 4% off even spacing, so dw-examples'
+  gantry plate called four ⌀5.1 holes on a 19.85 × 20 rectangle "4× ⌀5.1 THRU EQ SP ON ø28.18 BC",
+  located by a centre that is no feature (22.825, 0.075 from a hole at 22.75) and marked with
+  radial crosses. A bolt circle now needs its holes on one radius within 0.01 mm and evenly spaced
+  within 0.05°; otherwise its holes are loose, each located by its own coordinates. The gantry
+  plate now calls "7× ⌀5.1 THRU" and goes from A3 2:1 to A4 1:1. CTC-02's four three-hole
+  "circles" (already dimensioned singly) change only their stated basis; the `boss_circle` test
+  part's 24.3 × 24.38 rectangle (0.19° off even) now prints "6× ⌀2.4 THRU" located singly, where
+  it printed "4× ⌀2.4 THRU EQ SP ON ø34.42 BC" as Python draftwright does, and its tests check
+  the boss rule on the four squared. t8-flange-nut and t8-housing-bracket keep their bolt
+  circles. The Spec's `pattern` can still declare one.
+
 ## 0.2.0 (2026-10-27)
 
 Now on quiddity-rust **v0.2.1** (previously `0.2.0-alpha.2`), which changes no library code from

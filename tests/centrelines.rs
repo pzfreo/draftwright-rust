@@ -166,6 +166,46 @@ fn a_square_of_four_on_the_axes_is_a_bolt_circle() {
     );
 }
 
+/// `rect_near_circle.step`: dw-examples' gantry plate's twelve Ø5.1 holes on a 65.5 × 65.5 × 3
+/// plate, made in build123d (`Box(65.5, 65.5, 3)`, `Hole(2.55)`): four on a 19.85 × 20 rectangle
+/// at x = -19.85 and 0, y = ±10, three more on y = 0 and a column of five at x = 19.85. quiddity
+/// reports the four as a bolt circle (89.6° and 90.4° apart, within its 4%). They are not one:
+/// no "EQ SP … BC" callout, no pitch circle, and every hole is located (#223).
+#[test]
+fn a_rectangle_near_a_circle_is_not_a_bolt_circle() {
+    let (a, p, d) = drawing(
+        &Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts/rect_near_circle.step"),
+    );
+    let patterns = &a.recognition.as_ref().unwrap().patterns;
+    assert!(
+        patterns.iter().all(|p| p.arrangement != "bolt_circle"),
+        "{patterns:?}"
+    );
+    assert!(
+        !p.dimensions.iter().any(|d| d.label.contains("BC")),
+        "a bolt-circle callout"
+    );
+    assert!(work(&p, "pitch_circle").is_empty());
+    let holes = a.features.iter().filter(|f| f.kind == "hole").count();
+    let called: usize = p
+        .dimensions
+        .iter()
+        .filter(|d| {
+            d.measurements
+                .iter()
+                .any(|m| m.parameter == "bore.diameter")
+        })
+        .filter_map(|d| d.label.split('×').next()?.trim().parse::<usize>().ok())
+        .sum();
+    assert_eq!(called, holes, "every hole is counted in a callout");
+    assert!(
+        !draftwright::lint::lint(&a, &d)
+            .iter()
+            .any(|i| i.code.starts_with("hole_requirement_missing")
+                || i.code.starts_with("hole_pattern_requirement"))
+    );
+}
+
 /// A grid located by its centre marks that centre, where `plate.step` has no hole; where a hole
 /// table locates the holes instead, no mark is drawn (#223).
 #[test]

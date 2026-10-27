@@ -625,8 +625,9 @@ fn the_ports_own_callouts_touch_their_targets() {
             .collect();
         assert_eq!(planned, linted, "{name}");
     }
-    // Nine across the fixtures and string_post (a counted callout names several holes).
-    assert!(holes >= 9, "{holes} hole callouts checked");
+    // Eight across the fixtures and string_post (a counted callout names several holes):
+    // boss_circle's six holes are one callout since #223 (its 24.3 × 24.38 "circle" was two).
+    assert!(holes >= 8, "{holes} hole callouts checked");
     if std::env::var("DRAFTWRIGHT_CORPUS").is_ok() {
         assert!(blends >= 1, "{blends} blend callouts checked");
     }

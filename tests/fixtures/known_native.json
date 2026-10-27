@@ -1,16 +1,6 @@
 [
   {
     "set": "parts",
-    "part": "boss_circle",
-    "subject": "f:hole_pattern:1",
-    "field": "parameters.named_dimensions",
-    "python": "{\"adjacent_center_spacing\":24.3,\"bolt_circle_diameter\":34.42,\"direction\":\"circumferential\"}",
-    "rust": "-",
-    "verdict": "equivalent",
-    "evidence": "Python's document enrichment restates sizes both records carry: bolt_circle_diameter is the diameter and adjacent_center_spacing the chord between neighbours (D sin(pi/n), rounded), center_spacing is the pitch and direction the direction (checked for every entry). The native document never carries named_dimensions (quiddity-rust src/recognition.rs), and draftwright reads them only into a feature fingerprint's sizes; hole patterns have no fingerprint."
-  },
-  {
-    "set": "parts",
     "part": "plate",
     "subject": "f:hole_pattern:1",
     "field": "parameters.angle",
@@ -2238,16 +2228,6 @@
     "rust": "[206]",
     "verdict": "rust-wrong",
     "evidence": "Python's bridge gives the hole its constituent faces; the native document (quiddity-rust/recognition/2) carries only the defining ones. The other face, 209, is a plane of area 4.524 (pi x 1.2^2): the flat floor of this D2.4, 1.5 deep blind hole (bottom flat on both sides). quiddity-rust finds it as the hole occurrence's context (holes::discover), but recognition::document drops the context, so the native feature lacks a face that belongs to it, and its fingerprint's position and neighbourhood change with it. Fix: the document carries constituent faces (a quiddity-rust schema change), as for the other parts' holes."
-  },
-  {
-    "set": "pads",
-    "part": "whistle_frame_reference",
-    "subject": "f:hole_pattern:1",
-    "field": "parameters.named_dimensions",
-    "python": "{\"adjacent_center_spacing\":24.3,\"bolt_circle_diameter\":34.42,\"direction\":\"circumferential\"}",
-    "rust": "-",
-    "verdict": "equivalent",
-    "evidence": "Python's document enrichment restates sizes both records carry: bolt_circle_diameter is the diameter (34.42, the diagonal of the members' 24.3 x 24.375 rectangle) and adjacent_center_spacing the nearer neighbours' spacing, 24.3, and direction that the spacing is circumferential, as for boss_circle's pattern. The native document never carries named_dimensions (quiddity-rust src/recognition.rs), and draftwright reads them only into a feature fingerprint's sizes; hole patterns have no fingerprint."
   },
   {
     "set": "pads",
