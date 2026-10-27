@@ -150,8 +150,15 @@ All notable changes to draftwright-rust are recorded here, in the style of
   pitch circle drawn (t8-flange-nut, t8-housing-bracket). The Spec's `split` still dissolves it.
   A grid located by its centre now draws a centre mark there when no hole or boss stands on it
   (t8-housing-bracket's 2×2, NIST CTC-01); none is drawn where a hole table locates the holes.
-  Still open from #223: a hole beside a round boss (dw-examples' linkrods) is located from the
-  boss's tangent edge, not its axis.
+- **A hole beside a round end is located from that end's axis, not its tangent (#223).** Where
+  the part's box side is only the tangent of a round face (no plane lies on it) and a hole or
+  boss stands on that face's axis, the other holes and hole patterns are located from the axis,
+  and the feature on it is located by those dimensions' witnesses on its centre. dw-examples'
+  linkrods: the ⌀0.440 hole is 3.875 and 0.125 from the ⌀1.034 hole in the ø1.5 boss, not 4.625
+  and 0.625 from the boss's tangents, and two extension lines through features go; shf08: its
+  ⌀8 and far ⌀5.5 holes are 16.25 and 32.5 from the near ⌀5.5 hole in the R5.25 end. A hole
+  table still states every hole from its corner. The Spec's `origin/<axis>` (`min`) keeps the box
+  side; parts that carry PMI keep their datums' origins.
 - **Frames and datum symbols on holes attach to the holes' size callout or table tag (#224).** A
   datum on a hole was drawn edge-on, on the hole's hidden silhouette, and a frame's leader ended
   at the centre of its faces, often on blank material. Once the drawing is finished, a frame whose
