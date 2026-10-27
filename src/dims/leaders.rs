@@ -7589,10 +7589,13 @@ mod tests {
             );
             return;
         };
-        let a = crate::model::analyse_native(&corpus.join("cadgenbench_inputs/cgb245.step"))
+        let mut a = crate::model::analyse_native(&corpus.join("cadgenbench_inputs/cgb245.step"))
             .unwrap()
             .1;
         assert!(a.features.iter().all(|f| f.kind != "section_recess"));
+        // Its two obround slots are congruent, so a slot callout would state their ends: one is
+        // split from the callout, so each keeps its own radius leader.
+        split_slot(&mut a, "f:slot:2");
         let plan = crate::model::plan_recovered(&a, &crate::model::Spec::default()).unwrap();
         let id = "d:f:slot:1/slot_end_radius.radius";
         let d = plan.dimensions.iter().find(|d| d.id == id).unwrap();
@@ -7617,6 +7620,16 @@ mod tests {
         assert_eq!(p.lines[1][0][1], p.lines[1][1][1]);
     }
 
+    /// Splits slot *id* from its congruent slots' callout, as `features/<id>/split` does, so it
+    /// and its twin are dimensioned singly, each radius leader its own (`dims::slots`).
+    fn split_slot(a: &mut crate::model::Analysis, id: &str) {
+        let f = a.features.iter_mut().find(|f| f.id == id).unwrap();
+        f.parameters.insert(
+            crate::lint::slots::ALONE.into(),
+            serde_json::Value::Bool(true),
+        );
+    }
+
     #[test]
     fn refined_slot_radius_leaders_point_towards_the_arc_centre() {
         let corpus = std::env::var_os("DRAFTWRIGHT_CORPUS")
@@ -7632,9 +7645,11 @@ mod tests {
             );
             return;
         };
-        let a = crate::model::analyse_native(&corpus.join("nist/nist_ftc_08_asme1_rc.stp"))
+        let mut a = crate::model::analyse_native(&corpus.join("nist/nist_ftc_08_asme1_rc.stp"))
             .unwrap()
             .1;
+        // As above: its two congruent keyhole slots each keep their own radius leader.
+        split_slot(&mut a, "f:slot:4");
         let plan = crate::model::plan_recovered(&a, &crate::model::Spec::default()).unwrap();
         let wants = super::super::wants(&a).0;
         let baseline: serde_json::Value =

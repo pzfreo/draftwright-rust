@@ -1122,7 +1122,13 @@ fn issue_1187_a_retained_leader_crossings_have_no_clear_route() {
 }
 
 fn retained_leader_crossings_have_no_clear_route(path: &Path) {
-    let (_, analysis) = model::analyse_native(path).unwrap();
+    let (_, mut analysis) = model::analyse_native(path).unwrap();
+    if path.ends_with("cgb245.step") {
+        // Its two congruent obround slots, called out together, take the slot radius leaders
+        // that kept crossings here: slot 2 is split from their callout to keep the historical
+        // routing fixture, whose crossings make this check not vacuous.
+        corpus::split_slot(&mut analysis, "f:slot:2");
+    }
     let plan = model::plan_recovered(
         &analysis,
         &Spec {

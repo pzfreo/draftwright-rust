@@ -1028,7 +1028,11 @@ type Kept = (Want, bool, Option<&'static str>, Vec<&'static str>);
 const SAME_SPAN: f64 = 1e-6;
 
 /// What each [`rank`] locates, for the bases.
-const NAMED: [&str; 3] = ["slot position", "boss location", "hole or pattern location"];
+const NAMED: [&str; 3] = [
+    "slot position",
+    "boss or seat location",
+    "hole or pattern location",
+];
 
 /// A location's rank among coincident ones (ARCH0009-6), higher surviving, or `None` for an item
 /// that is no location from the part's box. draftwright's corridor dedup ranks a hole or pattern
@@ -1036,7 +1040,9 @@ const NAMED: [&str; 3] = ["slot position", "boss location", "hole or pattern loc
 /// pattern's `location_slot_pattern`, as `render_locations` takes every z location but
 /// `location_slot`) above a slot position line (`_slots.py`, `precedence=1 if is_pos`). It
 /// locates no boss; the port's boss location ranks between them: a hole down the same point
-/// states it as well, and it is a located feature rather than a slot's position line.
+/// states it as well, and it is a located feature rather than a slot's position line. A circular
+/// seat's axis (`seat_location`) ranks with a boss: a slot whose centre it shares (nist_ftc_08's
+/// keyhole slots) is located by it; the seat's own line is never displaced.
 fn rank(analysis: &Analysis, w: &Want) -> Option<u8> {
     let lead = w.measurements.first()?;
     // These requirements retain every role through share_statements, including shared
@@ -1053,6 +1059,8 @@ fn rank(analysis: &Analysis, w: &Want) -> Option<u8> {
         Some(if boss { 1 } else { 2 })
     } else if p.starts_with("location_slot_pattern.length.") {
         Some(2)
+    } else if p.starts_with("seat_location.location.") {
+        Some(1)
     } else if matches!(p, "location_slot.length" | "location_slot_across.length") {
         Some(0)
     } else {
@@ -1130,6 +1138,14 @@ fn merge(
         let mut conveyed = Vec::new();
         for &i in losers {
             let w = &kept[i].0;
+            // A seat's location is its circular channel's requirement, which only its own line
+            // states: it displaces a coincident slot position but is never displaced itself.
+            if w.measurements
+                .first()
+                .is_some_and(|m| m.parameter.starts_with("seat_location."))
+            {
+                continue;
+            }
             let why = if top > rank(w) {
                 format!(
                     "a {} outranks a {}",
@@ -1155,10 +1171,12 @@ fn merge(
             conveyed.push(w.id.clone());
             gone.insert(i);
         }
-        kept[*winner].0.basis += &format!(
-            "; one span, one dimension: it also conveys the coincident {} (ARCH0009-6)",
-            conveyed.join(", ")
-        );
+        if !conveyed.is_empty() {
+            kept[*winner].0.basis += &format!(
+                "; one span, one dimension: it also conveys the coincident {} (ARCH0009-6)",
+                conveyed.join(", ")
+            );
+        }
     }
     let mut i = 0;
     kept.retain(|_| {

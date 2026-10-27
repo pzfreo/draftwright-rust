@@ -926,9 +926,23 @@ fn recovered_ctc02_keeps_counted_radius_leaders_on_trimmed_arcs() {
 /// onto a larger sheet at the same geometry scale.
 #[test]
 fn recovered_ftc09_keeps_a1_and_perpendicular_witnesses() {
-    let Some((a, plan, drawing)) = native_drawing("nist/nist_ftc_09_asme1_rd.stp", true) else {
+    let corpus = std::env::var("DRAFTWRIGHT_CORPUS")
+        .unwrap_or_else(|_| "/Users/paul/repos/quiddity/tests/corpus".into());
+    let path = Path::new(&corpus).join("nist/nist_ftc_09_asme1_rd.stp");
+    if !path.is_file() {
+        assert!(std::env::var("DRAFTWRIGHT_CORPUS_REQUIRED").is_err());
         return;
-    };
+    }
+    let (part, mut a) = cache::native(&path);
+    // Its congruent slots 1 and 2, called out together, drop the slot radius leader whose
+    // crowding made this case: slot 2 is split from their callout (`features/<id>/split`).
+    let slot = a.features.iter_mut().find(|f| f.id == "f:slot:2").unwrap();
+    slot.parameters.insert(
+        draftwright::lint::slots::ALONE.into(),
+        serde_json::Value::Bool(true),
+    );
+    let plan = cache::default_plan(&a, true);
+    let drawing = model::render(&part, &a, &plan, &font()).unwrap();
     assert_eq!(
         (plan.sheet.size.as_str(), plan.sheet.scale.as_str()),
         ("A1", "1:1")

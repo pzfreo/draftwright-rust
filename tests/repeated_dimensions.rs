@@ -249,7 +249,10 @@ fn slots_sharing_a_width_across_one_span_state_it_once_counted() {
         eprintln!("SKIPPED (corpus part): the corpus is not found; set DRAFTWRIGHT_CORPUS");
         return;
     };
-    let a = native(&dir, "cadgenbench_inputs/cgb245.step");
+    let mut a = native(&dir, "cadgenbench_inputs/cgb245.step");
+    // The two are congruent, so one slot callout would state both: the second is split from
+    // the callout, so each keeps its own size dimensions and the shared width is tested.
+    corpus::split_slot(&mut a, "f:slot:2");
     let plan = model::plan(&a, &Spec::default()).unwrap();
     let d = claiming(&plan, "f:slot:1", "slot_width.length");
     assert_eq!(d.label, "2× 6");
@@ -272,9 +275,9 @@ fn slots_sharing_a_width_across_one_span_state_it_once_counted() {
 }
 
 /// CTC-03's two identical obround slots stand side by side, their widths on different spans:
-/// the width is stated once, counted (`2× 19.05`), as their length is across their one span
-/// (`2× 107.95`), so no size label repeats in the plan. Each slot keeps its own end-radius
-/// callout (`2× R9.52`, the two ends of that slot).
+/// they are dimensioned as slots, one `2× SLOT 19.05 × 107.95` callout claiming both widths and
+/// both lengths, so no size label repeats in the plan. Their ends are full-round (R9.52 recorded,
+/// half the 19.05 width to quiddity's rounding), which the callout implies: no `2× R9.52`.
 #[test]
 fn identical_slots_share_one_width_counted() {
     let Some(dir) = corpus::dir() else {
@@ -283,21 +286,18 @@ fn identical_slots_share_one_width_counted() {
     };
     let a = native(&dir, "nist/nist_ctc_03_asme1_rc.stp");
     let plan = model::plan(&a, &Spec::default()).unwrap();
-    for (parameter, label) in [
-        ("slot_width.length", "2× 19.05"),
-        ("slot_length.length", "2× 107.95"),
-    ] {
+    for parameter in ["slot_width.length", "slot_length.length"] {
         let d = claiming(&plan, "f:slot:1", parameter);
-        assert_eq!(d.label, label);
+        assert_eq!(d.label, "2× SLOT 19.05 × 107.95");
         assert!(d.placed.is_some(), "{}", d.id);
         assert_eq!(claiming(&plan, "f:slot:2", parameter).id, d.id);
     }
-    for slot in ["f:slot:1", "f:slot:2"] {
-        assert_eq!(
-            claiming(&plan, slot, "slot_end_radius.radius").label,
-            "2× R9.52"
-        );
-    }
+    assert!(
+        plan.dimensions
+            .iter()
+            .flat_map(|d| &d.measurements)
+            .all(|m| m.parameter != "slot_end_radius.radius")
+    );
     let issues = lint::check(&a, &marks(&plan));
     assert!(
         !issues

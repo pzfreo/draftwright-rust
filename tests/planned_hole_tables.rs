@@ -348,7 +348,11 @@ fn a_bare_pin_on_a_table_covered_location_does_not_restore_the_ladder() {
 #[test]
 fn non_hole_pins_keep_the_settled_schedule_and_isometric_frame() {
     let Some(corpus) = corpus::dir() else { return };
-    let (_, analysis) = cache::native(&Path::new(&corpus).join("nist/nist_ftc_08_asme1_rc.stp"));
+    let (_, mut analysis) =
+        cache::native(&Path::new(&corpus).join("nist/nist_ftc_08_asme1_rc.stp"));
+    // The pins name slot 4's own location: its congruent twin (slot 2) would otherwise share one
+    // slot callout with it and locate it by its centre, so slot 4 is split from the callout.
+    corpus::split_slot(&mut analysis, "f:slot:4");
     let base = cache::default_plan(&analysis, true);
     assert!(!tables(&base).as_array().unwrap().is_empty());
     let ops: Vec<_> = [
@@ -499,7 +503,10 @@ fn held_labels_do_not_remove_the_canonical_schedule() {
 #[test]
 fn the_cgb245_view_pin_reproducer_keeps_its_schedule() {
     let Some(corpus) = corpus::dir() else { return };
-    let (_, analysis) = cache::native(&corpus.join("cadgenbench_inputs/cgb245.step"));
+    let (_, mut analysis) = cache::native(&corpus.join("cadgenbench_inputs/cgb245.step"));
+    // The reproducer pins slot 1's own length: its congruent twin is split from the slot
+    // callout, so the two are not called out together and slot 1 keeps that dimension.
+    corpus::split_slot(&mut analysis, "f:slot:2");
     let base = cache::default_plan(&analysis, true);
     assert!(!tables(&base).as_array().unwrap().is_empty());
     let ordinary = model::plan_recovered(&analysis, &setting("never")).unwrap();

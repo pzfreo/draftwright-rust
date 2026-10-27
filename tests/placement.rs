@@ -26,7 +26,7 @@ mod facts;
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 
-use draftwright::api::{self, Features};
+use draftwright::api;
 use draftwright::dims::{self, PlannedDimension};
 use draftwright::model::{self, Analysis, DimensionSource, DimensionSpec, Plan, Spec};
 use draftwright::output::{Curve, Item};
@@ -1129,9 +1129,15 @@ fn a_location_that_fits_on_neither_side_shares_a_held_lane() {
         ("nist/nist_ftc_08_asme1_rc.stp", &[][..]),
         ("nist/nist_ftc_09_asme1_rd.stp", &["1@front", "3@front"][..]),
     ] {
-        let plan = api::plan_from(
-            &dir.join(file),
-            Features::Native,
+        let (_, mut analysis) = model::analyse_native(&dir.join(file)).unwrap();
+        if !slots.is_empty() {
+            // FTC-09's slots 1 and 2 are congruent, so one slot callout would state them and
+            // each would be located by its centre: slot 2 is split from the callout, so slot 1
+            // keeps the low-end location and length whose lanes this test reads.
+            corpus::split_slot(&mut analysis, "f:slot:2");
+        }
+        let plan = api::plan_analysed(
+            &analysis,
             &Spec {
                 hole_table: draftwright::hole_table::Setting::Never,
                 // Exercise the existing lateral-tier mechanism on its original

@@ -1,26 +1,5 @@
 [
   {
-    "part": "cgb245",
-    "callout": "d:f:hole:3/bore.diameter",
-    "crossing": "line:d:f:hole:1/location.length.y",
-    "verdict": "rust-wrong",
-    "reason": "On cgb245 the plan's y location d:f:hole:1/location.length.y (156.4), which kept a lane off the sheet before drawing quality 3 (the layout keeps the isometric off the views' bands, docs/quality-2026-10-09.md), now falls through to the strip right of the plan, and its extension line from the hole near the plan's left edge runs across the view to it, through this callout's leader (known_placement.json's cgb245 annotation_leader_crossing). A placement residual: the location is drawn on the side away from its feature."
-  },
-  {
-    "part": "cgb245",
-    "callout": "d:f:slot:2/slot_end_radius.radius",
-    "crossing": "line:d:f:slot:3/slot_width.length",
-    "verdict": "rust-wrong",
-    "reason": "On cgb245 the plan's slot width d:f:slot:3/slot_width.length (7.0), a vertical dimension, now stays in its own strip left of the plan: since stream d-quality-merged-lanes the items merged away (each conveyed by a coincident dimension) share their survivor's lane, as draftwright's corridor dedup places no displaced duplicate, so that strip has room for it, where before it fell through to the strip right of the plan, nearer its slot. Its extension lines now run from the slot across the view to the left, through this callout's leader; the joint assignment took the fewest crossings its bounded inventory offers. The strips (dims::placement::strip) take no account of which side a feature is nearer; reported as annotation_leader_crossing."
-  },
-  {
-    "part": "cgb245 (native)",
-    "callout": "d:f:hole:3/bore.diameter",
-    "crossing": "line:d:f:slot:3/slot_length.length",
-    "verdict": "equivalent",
-    "reason": "Interior callout routing moves this leader off the y location d:f:hole:1/location.length.y it crossed before; it now crosses one extension line of the neighbouring slot's length instead. One advisory extension-line crossing for another."
-  },
-  {
     "part": "ctc04 (native)",
     "callout": "d:f:hole_pattern:10/bore.diameter",
     "crossing": "line:d:f:hole:11/location.length.x",

@@ -136,7 +136,10 @@ fn stc09_slot_length_stays_beside_its_peer_and_gdt_corridors() {
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("stc09.stp");
     std::fs::write(&path, step).unwrap();
-    let a = model::analyse_native(&path).unwrap().1;
+    let mut a = model::analyse_native(&path).unwrap().1;
+    // Its slots 1 and 2 are congruent, so one slot callout would state them: slot 2 is split
+    // from the callout, so slot 1 keeps the length that is slot 3's peer here.
+    corpus::split_slot(&mut a, "f:slot:2");
     let p = model::plan_recovered(&a, &Spec::default()).unwrap();
     let placed = |id: &str| {
         p.dimensions
@@ -220,9 +223,14 @@ fn precise_labels_keep_their_span_after_the_final_inventory_settles() {
     }
     let mut spec = Spec::default();
     spec.sheet.size = Some("A1".into()); // Keep the complete inventory for precision checks.
-    let Some(p) = plan_with("nist/nist_ftc_08_asme1_rc.stp", &spec) else {
-        return;
-    };
+    let Some(dir) = corpus::dir() else { return };
+    let mut a = model::analyse_native(&dir.join("nist/nist_ftc_08_asme1_rc.stp"))
+        .unwrap()
+        .1;
+    // Its congruent keyhole slots, called out together, leave its fillets room for full
+    // precision: slot 4 is split from their callout, keeping the crowding this case reads.
+    corpus::split_slot(&mut a, "f:slot:4");
+    let p = model::plan_recovered(&a, &spec).unwrap();
     let slot = p
         .dimensions
         .iter()

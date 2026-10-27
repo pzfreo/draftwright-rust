@@ -11,6 +11,13 @@
 //! ([`location`]); a slot whose long axis lies along no axis of the part has a location that
 //! cannot be checked.
 //!
+//! Lone obround slots that are congruent (the same width, length and full-round ends, seen through
+//! the same axis: [`grouped`]) are dimensioned together by one `N× SLOT W × L` callout
+//! (`dims::slots`; `features/<id>/split` keeps a slot out), and
+//! each is located by its centre along its long axis rather than its low end. An obround's end
+//! radius that is half its width is stated by a slot callout (`SLOT` and the width) that claims
+//! the slot's width: such a callout leaves no separate radius to find (the same for a pattern).
+//!
 //! A slot that is a member of a recognised slot pattern (quiddity's `SlotArray` or `SlotGrid`, a
 //! `slot_pattern` feature whose faces include the slot's) is the pattern's, not a lone slot,
 //! as in Python. The pattern has its own requirements ([`pattern_wanted`];
@@ -36,8 +43,18 @@ use crate::model::Analysis;
 const AXES: [&str; 3] = ["x", "y", "z"];
 
 /// A slot's location: the part's axis its long axis lies along, and the offset of its low end
-/// along it from the part's box (the Analysis's envelope), or why it cannot be read.
+/// along it from the part's box (the Analysis's envelope), or of its centre for a slot the
+/// planner calls out with its congruent slots ([`grouped`]); or why it cannot be read.
 pub fn location(analysis: &Analysis, f: &Feature) -> Result<(&'static str, f64), String> {
+    location_to(analysis, f, grouped(analysis, f))
+}
+
+/// [`location`] to the slot's centre when *centre*, else to its low end.
+fn location_to(
+    analysis: &Analysis,
+    f: &Feature,
+    centre: bool,
+) -> Result<(&'static str, f64), String> {
     let p = &f.parameters;
     let long = p
         .get("long_axis")
@@ -57,8 +74,11 @@ pub fn location(analysis: &Analysis, f: &Feature) -> Result<(&'static str, f64),
     // half its length, where the record agrees with it). quiddity rounds `lo`, `hi` and `length`
     // to 0.01 mm each, so the recorded `lo` and that end can round apart on a 0.005 tie (cgb245:
     // 95.96 recorded, 95.9648 from the centre); lint judges the end the drawing states.
+    let together = centre;
     let low = match outline(analysis, f) {
+        Ok(o) if o.long == k && together => 0.5 * (o.ends[0] + o.ends[1]),
         Ok(o) if o.long == k => o.ends[0],
+        _ if together => 0.5 * (ends[0] + ends[1]),
         _ => ends[0].min(ends[1]),
     };
     Ok((AXES[k], low - analysis.envelope[0][k]))
@@ -139,6 +159,86 @@ pub fn outline(analysis: &Analysis, f: &Feature) -> Result<Outline, String> {
     })
 }
 
+/// What makes lone slots congruent, so the planner calls them out together (`dims::slots`'s
+/// `congruence`): the axis they pass through, their width and length, and their end radius.
+type Congruent = (usize, i64, i64, Option<i64>);
+
+fn congruence(analysis: &Analysis, f: &Feature) -> Option<Congruent> {
+    let o = outline(analysis, f).ok()?;
+    let key = crate::bridge::holes::size_key;
+    Some((
+        o.deep,
+        key(o.width),
+        key(parameters::size(f, "length").ok()?),
+        o.end_radius.map(key),
+    ))
+}
+
+/// The record field a slot split from its congruent slots' callout carries
+/// (`features/<id>/split`, [`crate::recognition_corrections`]): it is dimensioned on its own.
+pub const ALONE: &str = "split_from_slot_callout";
+
+/// Whether slot *f* was split from its congruent slots' callout ([`ALONE`]).
+pub fn alone(f: &Feature) -> bool {
+    f.parameters.get(ALONE).and_then(Value::as_bool) == Some(true)
+}
+
+/// Whether lone slot *f* is dimensioned with congruent lone slots by one slot callout, and so
+/// located by its centre: only full-round obrounds are; a slot split from the callout ([`alone`])
+/// is in no group.
+pub fn grouped(analysis: &Analysis, f: &Feature) -> bool {
+    if alone(f) || !full_round(f) {
+        return false;
+    }
+    let Some(k) = congruence(analysis, f) else {
+        return false;
+    };
+    let (_, lone) = split(analysis);
+    lone.iter().any(|g| g.id == f.id) && {
+        lone.iter()
+            .any(|g| g.id != f.id && !alone(g) && congruence(analysis, g) == Some(k))
+    }
+}
+
+/// How far twice an end radius may differ from the width and the ends still be full-round:
+/// quiddity rounds both to 0.01 mm (nist_ctc_03's 19.05 wide slots record R9.52, not 9.525).
+pub const FULL_ROUND: f64 = 0.016;
+
+/// Whether slot *f*'s ends are full-round: its end radius half its width, to [`FULL_ROUND`].
+fn full_round(f: &Feature) -> bool {
+    matches!(
+        (parameters::size(f, "width"), parameters::size(f, "end_radius")),
+        (Ok(w), Ok(r)) if (2.0 * r - w).abs() <= FULL_ROUND
+    )
+}
+
+/// Whether a slot callout (`SLOT` in its text) claims *owner*'s width.
+fn slot_callout_claims(owner: &str, marks: &[Mark]) -> bool {
+    marks.iter().any(|m| {
+        m.text.split_whitespace().any(|t| t == "SLOT")
+            && m.claims
+                .iter()
+                .any(|c| c.feature == owner && c.parameter == "slot_width.length")
+    })
+}
+
+/// Whether slot *f*'s ends are full-round (its end radius half its width) and a slot callout
+/// claiming *owner*'s width (the slot's own, or its pattern's) states them: `SLOT` and the width,
+/// so no separate radius is wanted.
+fn slot_callout_states_ends(owner: &str, f: &Feature, marks: &[Mark]) -> bool {
+    let Ok(w) = parameters::size(f, "width") else {
+        return false;
+    };
+    full_round(f)
+        && marks.iter().any(|m| {
+            m.text.split_whitespace().any(|t| t == "SLOT")
+                && super::holes::states(&m.text, w)
+                && m.claims
+                    .iter()
+                    .any(|c| c.feature == owner && c.parameter == "slot_width.length")
+        })
+}
+
 /// The member slots of slot pattern *p*: the `slot` features inside its faces.
 pub fn members<'a>(analysis: &'a Analysis, p: &Feature) -> Vec<&'a Feature> {
     analysis
@@ -201,7 +301,12 @@ pub fn wanted(analysis: &Analysis) -> Vec<Wanted<'_>> {
             feature: f,
             parameter: "location_slot.length".into(),
             callout: at.as_ref().map_or("its location".into(), |(axis, v)| {
-                format!("its low end {} from the part's {axis} edge", fmt(*v))
+                let at = if grouped(analysis, f) {
+                    "centre"
+                } else {
+                    "low end"
+                };
+                format!("its {at} {} from the part's {axis} edge", fmt(*v))
             }),
             values: at.map(|(_, v)| vec![v]),
         });
@@ -356,6 +461,66 @@ pub fn pattern_wanted<'a>(
     Ok(out)
 }
 
+/// A grouped slot's centre ([`grouped`]) can stand on another feature's location line (a hole's
+/// or pattern's `location….<axis>`, a seat's `seat_location.location.<axis>`, another slot's
+/// `location_slot_across.length`): the planner omits the slot's location as conveyed by that line
+/// (`dims::holes::consolidate`, ARCH0009-6). A mark in the slot's view claiming such a location on
+/// the slot's axis, and stating its distance, claims the slot's `location_slot.length` too, for
+/// every rule ([`super::lint`]: coverage, and the location network's routes).
+pub(crate) fn conveyed_locations(analysis: &Analysis, marks: &mut [Mark]) {
+    const PARAMETER: &str = "location_slot.length";
+    let (_, lone) = split(analysis);
+    let at: Vec<(&str, (&str, f64), usize)> = lone
+        .iter()
+        .filter(|f| grouped(analysis, f))
+        .filter_map(|f| {
+            Some((
+                f.id.as_str(),
+                location(analysis, f).ok()?,
+                outline(analysis, f).ok()?.deep,
+            ))
+        })
+        .collect();
+    if at.is_empty() {
+        return;
+    }
+    // The view that looks along each axis (the planner's `end_on`: lint reads no plan).
+    let view = |deep: usize| format!("v:{}", ["side", "front", "plan"][deep]);
+    // The axis a claimed location measures along, when the claim names one.
+    let axis_of = |c: &crate::output::Claim| -> Option<&'static str> {
+        if c.parameter == "location_slot_across.length" {
+            let g = lone.iter().find(|f| f.id == c.feature)?;
+            return Some(AXES[outline(analysis, g).ok()?.wide]);
+        }
+        let (stem, axis) = c.parameter.rsplit_once('.')?;
+        let axis = AXES.iter().find(|a| **a == axis)?;
+        (stem.starts_with("location") || stem.starts_with("seat_location")).then_some(*axis)
+    };
+    for m in marks {
+        let conveyed: Vec<&str> = at
+            .iter()
+            .filter(|(id, (axis, d), deep)| {
+                m.view.as_deref() == Some(view(*deep).as_str())
+                    && super::holes::states(&m.text, *d)
+                    && m.claims
+                        .iter()
+                        .any(|c| c.feature != *id && axis_of(c) == Some(axis))
+                    && !m
+                        .claims
+                        .iter()
+                        .any(|c| c.feature == *id && c.parameter == PARAMETER)
+            })
+            .map(|(id, ..)| *id)
+            .collect();
+        for id in conveyed {
+            m.claims.push(crate::output::Claim {
+                feature: id.into(),
+                parameter: PARAMETER.into(),
+            });
+        }
+    }
+}
+
 /// One span, one dimension (ARCH0009-6, `dims::holes::consolidate`): the planner draws one
 /// position line for lone slots whose low ends lie the same distance from the part's box on the
 /// same axis (within 1e-6 mm, its `SAME_SPAN`), seen through the same axis (its same view); the
@@ -431,9 +596,31 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
         }
         s
     };
+    let mut lone = wanted(analysis);
+    lone.retain(|w| {
+        w.parameter != "slot_end_radius.radius"
+            || !slot_callout_states_ends(&w.feature.id, w.feature, marks)
+    });
+    // The drawing says where a slot is located from: by its centre when a slot callout states
+    // its size (as the planner draws a group), else by its low end (a sheet that dimensions it
+    // singly, Python draftwright's among them).
+    for w in lone
+        .iter_mut()
+        .filter(|w| w.parameter == "location_slot.length")
+    {
+        let centre = slot_callout_claims(&w.feature.id, marks);
+        if centre != grouped(analysis, w.feature) {
+            let at = location_to(analysis, w.feature, centre);
+            w.callout = at.as_ref().map_or("its location".into(), |(axis, v)| {
+                let from = if centre { "centre" } else { "low end" };
+                format!("its {from} {} from the part's {axis} edge", fmt(*v))
+            });
+            w.values = at.map(|(_, v)| vec![v]);
+        }
+    }
     let mut issues = parameters::coverage(
         "slot",
-        &wanted(analysis),
+        &lone,
         &shared,
         noun,
         "a linear dimension or radius callout, in the view that sees the slot's outline",
@@ -441,7 +628,14 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     let (patterns, _) = split(analysis);
     for p in patterns {
         let why = match pattern_wanted(analysis, p) {
-            Ok(wanted) => {
+            Ok(mut wanted) => {
+                // A pattern's member's full-round ends are stated by the pattern's slot callout.
+                if members(analysis, p)
+                    .first()
+                    .is_some_and(|m| slot_callout_states_ends(&p.id, m, marks))
+                {
+                    wanted.retain(|w| w.parameter != "slot_end_radius.radius");
+                }
                 let noun = |f: &Feature| {
                     let mut s = format!("slot pattern {}", f.id);
                     if let Some(n) = f.parameters.get("slots").and_then(Value::as_array) {
@@ -642,23 +836,25 @@ mod tests {
         assert_eq!(unverified("95.960"), ["slot_requirement_unverifiable"]);
     }
 
-    /// #228, nema17-bracket's slots 1 and 3: two lone slots whose low ends lie 10 from the part's
-    /// x face, both seen along z, are located by one dimension (ARCH0009-6) that claims only the
-    /// first; it states the second's location too. A slot whose low end is elsewhere, or one cut
-    /// through y (another view), is not stated by it, nor is a line whose text misstates the span.
+    /// #228: two lone slots whose low ends lie 10 from the part's x face, both seen along z, are
+    /// located by one dimension (ARCH0009-6) that claims only the first; it states the second's
+    /// location too. A slot whose low end is elsewhere, or one cut through y (another view), is
+    /// not stated by it, nor is a line whose text misstates the span. The slots differ in length,
+    /// so none is called out with congruent slots ([`grouped`]) and located by its centre.
     #[test]
     fn one_position_line_states_every_slot_on_its_span() {
-        let slot = |lo: f64, wide: &str, w: f64, d: [f64; 2]| {
-            json!({ "width": 4.5, "length": 7.5, "end_radius": 2.25, "long_axis": "x",
-                    "width_axis": wide, "lo": lo, "hi": lo + 7.5, "w_center": w,
+        let slot = |lo: f64, length: f64, wide: &str, w: f64, d: [f64; 2]| {
+            json!({ "width": 4.5, "length": length, "end_radius": 2.25, "long_axis": "x",
+                    "width_axis": wide, "lo": lo, "hi": lo + length, "w_center": w,
                     "d_lo": d[0], "d_hi": d[1] })
         };
         let a = part(&[
-            ("slot", &[0], slot(10.0, "y", 20.0, [0.0, 10.0])),
-            ("slot", &[1], slot(10.0, "y", 60.0, [0.0, 10.0])),
-            ("slot", &[2], slot(12.0, "y", 80.0, [0.0, 10.0])),
-            ("slot", &[3], slot(10.0, "z", 5.0, [40.0, 50.0])),
+            ("slot", &[0], slot(10.0, 7.5, "y", 20.0, [0.0, 10.0])),
+            ("slot", &[1], slot(10.0, 8.5, "y", 60.0, [0.0, 10.0])),
+            ("slot", &[2], slot(12.0, 9.5, "y", 80.0, [0.0, 10.0])),
+            ("slot", &[3], slot(10.0, 10.5, "z", 5.0, [40.0, 50.0])),
         ]);
+        assert!(a.features.iter().all(|f| !grouped(&a, f)));
         let missing = |text: &str| -> Vec<String> {
             let marks = [Mark {
                 name: "m:f:slot:1:location_slot.length".into(),
@@ -691,6 +887,142 @@ mod tests {
                 "slot_requirement_missing f:slot:4"
             ]
         );
+    }
+
+    /// nema17-bracket: congruent lone slots (4.5 × 7.5, ends R2.25, seen along z), however each
+    /// runs, are dimensioned together by one `N× SLOT W × L` callout and located by their
+    /// centres. Their full-round ends are stated by the callout that claims their width; a width
+    /// alone does not state them. A slot of another length, or seen through another axis, is not
+    /// in the group and keeps its low-end location.
+    #[test]
+    fn congruent_slots_are_located_by_their_centres_and_a_slot_callout_states_their_ends() {
+        let slot = |long: &str, wide: &str, lo: f64, length: f64, w: f64, d: [f64; 2]| {
+            json!({ "width": 4.5, "length": length, "end_radius": 2.25, "long_axis": long,
+                    "width_axis": wide, "lo": lo, "hi": lo + length, "w_center": w,
+                    "d_lo": d[0], "d_hi": d[1] })
+        };
+        let a = part(&[
+            ("slot", &[0], slot("y", "x", 10.0, 7.5, 10.0, [0.0, 3.0])),
+            ("slot", &[1], slot("x", "y", 16.25, 7.5, 5.0, [0.0, 3.0])),
+            ("slot", &[2], slot("x", "y", 40.0, 9.5, 50.0, [0.0, 3.0])),
+            ("slot", &[3], slot("x", "z", 60.0, 7.5, 5.0, [40.0, 50.0])),
+        ]);
+        let together: Vec<bool> = a.features.iter().map(|f| grouped(&a, f)).collect();
+        assert_eq!(together, [true, true, false, false]);
+        let at = |i: usize| location(&a, &a.features[i]).map(|(k, v)| (k, fmt(v)));
+        assert_eq!(at(0), Ok(("y", "13.75".into())));
+        assert_eq!(at(1), Ok(("x", "20".into())));
+        assert_eq!(at(2), Ok(("x", "40".into())));
+        let mark = |name: &str, text: &str, claims: &[(&str, &str)]| Mark {
+            name: name.into(),
+            view: Some("v:plan".into()),
+            text: text.into(),
+            claims: claims
+                .iter()
+                .map(|(f, p)| Claim {
+                    feature: (*f).into(),
+                    parameter: (*p).into(),
+                })
+                .collect(),
+        };
+        let group = |text: &str| {
+            mark(
+                "d:f:slot:1/slot_width.length",
+                text,
+                &[
+                    ("f:slot:1", "slot_width.length"),
+                    ("f:slot:2", "slot_width.length"),
+                    ("f:slot:1", "slot_length.length"),
+                    ("f:slot:2", "slot_length.length"),
+                ],
+            )
+        };
+        let found = |marks: &[Mark]| -> Vec<String> {
+            coverage(&a, marks)
+                .into_iter()
+                .filter(|i| ["f:slot:1", "f:slot:2"].contains(&i.subjects[0].as_str()))
+                .map(|i| {
+                    format!(
+                        "{} {} {}",
+                        i.code, i.subjects[0], i.requirements[0].parameter
+                    )
+                })
+                .collect()
+        };
+        let located = [
+            mark("a", "13.75", &[("f:slot:1", "location_slot.length")]),
+            mark("b", "20", &[("f:slot:2", "location_slot.length")]),
+        ];
+        let mut marks = located.to_vec();
+        marks.push(group("2× SLOT 4.5 × 7.5"));
+        assert_eq!(found(&marks), Vec::<String>::new());
+        // The low end no longer locates a grouped slot.
+        marks[0].text = "10".into();
+        assert_eq!(
+            found(&marks),
+            ["slot_requirement_unverifiable f:slot:1 location_slot.length"]
+        );
+        // A counted width and length state the size but not the ends, and a sheet without a slot
+        // callout locates each slot by its low end (as draftwright's does), not its centre.
+        let mut marks = located.to_vec();
+        marks.push(group("2× 4.5 7.5"));
+        assert_eq!(
+            found(&marks),
+            [
+                "slot_requirement_missing f:slot:1 slot_end_radius.radius",
+                "slot_requirement_unverifiable f:slot:1 location_slot.length",
+                "slot_requirement_missing f:slot:2 slot_end_radius.radius",
+                "slot_requirement_unverifiable f:slot:2 location_slot.length"
+            ]
+        );
+    }
+
+    /// gantry-plate: a grouped slot's centre stands on a hole row's location line, so the planner
+    /// omits the slot's location as conveyed by the hole's (ARCH0009-6); that line, in the slot's
+    /// view, on its axis and stating its distance, locates it. One on another axis, in another
+    /// view, or stating another distance does not.
+    #[test]
+    fn a_grouped_slots_centre_on_another_features_location_line_is_located_by_it() {
+        let slot = |w: f64| {
+            json!({ "width": 5.0, "length": 25.0, "end_radius": 2.5, "long_axis": "x",
+                    "width_axis": "y", "lo": 20.25, "hi": 45.25, "w_center": w,
+                    "d_lo": 0.0, "d_hi": 3.0 })
+        };
+        let a = part(&[("slot", &[0], slot(12.75)), ("slot", &[1], slot(52.75))]);
+        let missing = |view: &str, text: &str, parameter: &str| -> Vec<String> {
+            let claim = |feature: &str, parameter: &str| Claim {
+                feature: feature.into(),
+                parameter: parameter.into(),
+            };
+            let mut marks = [
+                Mark {
+                    name: "d:f:hole:1/location.length.x".into(),
+                    view: Some(view.into()),
+                    text: text.into(),
+                    claims: vec![claim("f:hole:1", parameter)],
+                },
+                Mark {
+                    name: "d:f:slot:1/slot_width.length".into(),
+                    view: Some("v:plan".into()),
+                    text: "2× SLOT 5 × 25".into(),
+                    claims: vec![
+                        claim("f:slot:1", "slot_width.length"),
+                        claim("f:slot:2", "slot_width.length"),
+                    ],
+                },
+            ];
+            conveyed_locations(&a, &mut marks);
+            coverage(&a, &marks)
+                .into_iter()
+                .filter(|i| i.requirements[0].parameter == "location_slot.length")
+                .map(|i| i.subjects[0].clone())
+                .collect()
+        };
+        assert!(missing("v:plan", "32.75", "location.length.x").is_empty());
+        let both = ["f:slot:1", "f:slot:2"];
+        assert_eq!(missing("v:plan", "32.75", "location.length.y"), both);
+        assert_eq!(missing("v:front", "32.75", "location.length.x"), both);
+        assert_eq!(missing("v:plan", "20.25", "location.length.x"), both);
     }
 
     /// LINT-slot_coverage-slot_pattern: a linear array of three obround slots has its member's

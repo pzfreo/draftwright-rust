@@ -1510,10 +1510,16 @@ pub fn effective<'a>(a: &'a Analysis, s: &Spec) -> Result<Cow<'a, Analysis>, Inv
             } else if fi.is_some_and(|i| out.features[i].kind == "slot_pattern") {
                 // Invariant: The preceding is_some_and checked fi and its slot_pattern kind.
                 out.features.remove(fi.unwrap());
+            } else if let Some(i) = fi.filter(|&i| out.features[i].kind == "slot") {
+                // A lone slot split from the congruent slots' callout is dimensioned on its own
+                // (`dims::slots`, `lint::slots::grouped`).
+                out.features[i]
+                    .parameters
+                    .insert(crate::lint::slots::ALONE.into(), Value::Bool(true));
             } else {
                 return Err(invalid(
                     &format!("features/{id}/split"),
-                    "only a recognised hole or slot pattern can be split",
+                    "only a recognised hole or slot pattern, or a slot, can be split",
                 ));
             }
         } else if f.suppress {

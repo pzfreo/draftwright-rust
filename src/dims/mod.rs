@@ -4762,6 +4762,10 @@ pub(crate) fn callout_members(
     id: &str,
     view: &str,
 ) -> Vec<crate::session::CalloutMember> {
+    // The plan was made from the corrected inventory (a slot split from its congruent slots'
+    // callout keeps its own radius callout), so its members are read from it too.
+    let corrected = crate::recognition_corrections::effective(analysis, spec).ok();
+    let analysis = corrected.as_deref().unwrap_or(analysis);
     let (mut wants, ..) = pmi_policy::wants(analysis, spec);
     callouts::apply(analysis, spec, &mut wants);
     if schemes::apply(analysis, spec, &mut wants).is_err()
