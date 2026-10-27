@@ -2607,31 +2607,6 @@
  },
  {
   "file": "nist_ctc_02_asme1_ap242-e2.stp",
-  "record": "datum:0:1:4:43",
-  "port": "datum:#79",
-  "field": "drawing",
-  "python": {
-   "drawn": [
-    {
-     "boxed": false,
-     "kind": "datum_ref",
-     "rides_on": null,
-     "text": "D",
-     "view": "front"
-    }
-   ]
-  },
-  "rust": {
-   "codes": [
-    "pmi_not_lowered"
-   ],
-   "outcome": "refused"
-  },
-  "verdict": "undetermined",
-  "evidence": "draftwright's drawing: 'D' (datum ref, front view); the port's: not drawn, refused (pmi_not_lowered). As known_pmi_lowering.json (lowered, undetermined): haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity nonconformance on #79 (datum_feature): the datum feature identifies no face; its datum's usage does (§6.5.1 puts it on the datum feature): read as the); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read."
- },
- {
-  "file": "nist_ctc_02_asme1_ap242-e2.stp",
   "record": "datum:0:1:4:44",
   "port": "datum:#75",
   "field": "drawing",
@@ -6325,6 +6300,32 @@
   },
   "verdict": "rust-correct",
   "evidence": "draftwright states '0.500 ±0.008 INCH' (dimension, side view); the port states '12.7 ±0.2032' (dimension, side view). The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+ },
+ {
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "record": "datum_definition:#8312",
+  "port": "datum:#8313",
+  "field": "drawing",
+  "python": {
+   "codes": [
+    "pmi_not_extracted",
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "datum_ref",
+     "rides_on": null,
+     "text": "B",
+     "view": "side"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: not drawn, refused; the port's: 'B' (datum ref, side view). Datum B's faces are the part's two opposite planes y = ±152.4, so it is the median plane of the 304.8 width: draftwright refuses it (datum reference faces are not coplanar) and the frames citing B cannot be read. The port draws it as ISO 5459 draws a datum on a feature of size, its triangle on an extension line of the width's own AP242 size dimension (304.8 ±0.254, between exactly those faces), in line with the dimension line (src/dims/size_datums.rs)."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",

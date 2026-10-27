@@ -253,3 +253,114 @@ fn hole_datums_attach_where_their_view_area_can_grow() {
         }
     }
 }
+
+const STC06: &str = "nist_stc_06_asme1_ap242-e3.stp.gz";
+
+/// The identity of *letter*'s datum on *a*.
+fn datum_id(a: &Analysis, letter: &str) -> String {
+    let Some(draftwright::pmi::Reading::Read(report)) = &a.pmi else {
+        panic!("PMI read");
+    };
+    let ids = report.identities();
+    let r = report
+        .records
+        .iter()
+        .find(|r| r.category == draftwright::pmi::Category::Datum && r.label == letter)
+        .unwrap();
+    ids.id(&r.source_id).unwrap().to_string()
+}
+
+/// A datum on a width's two opposite planes is the width's median plane: STC-06's datum B, which
+/// twelve frames cite, stands on an extension line of its 304.8 size dimension, in line with the
+/// dimension line (ISO 5459), not on either face; no frame then lacks it, and the refusal that
+/// left it undrawn is gone. `annotations/<id>/omit` leaves it out.
+#[test]
+fn a_width_datum_stands_on_its_size_dimension() {
+    let a = nist(STC06);
+    let b = datum_id(&a, "B");
+    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let datum = plan.gdt.iter().find(|g| g.id == b).expect("datum B drawn");
+    assert_eq!(datum.state, draftwright::items::State::Shown);
+    assert!(datum.basis.contains("median plane"), "{}", datum.basis);
+    let p = datum.placed.as_ref().unwrap();
+    let size = plan
+        .dimensions
+        .iter()
+        .find(|d| d.view == datum.view && d.label.starts_with("304.8"))
+        .expect("its size dimension in the datum's view");
+    let s = size.placed.as_ref().unwrap();
+    // The triangle's base is on one of the dimension's arrow tips (where its dimension line meets
+    // its extension line), and the symbol's line runs along the dimension line, outward.
+    let tips: Vec<[f64; 2]> = s.arrows.iter().map(|a| a[0]).collect();
+    let tip = tips
+        .iter()
+        .find(|t| (t[0] - p.tip[0]).abs() < 1e-6 && (t[1] - p.tip[1]).abs() < 1e-6)
+        .expect("the triangle on an arrow tip");
+    let other = tips.iter().find(|t| *t != tip).unwrap();
+    for line in &p.lines {
+        for q in line {
+            assert!(
+                (q[1] - tip[1]).abs() < 1e-6,
+                "in line with the dimension line"
+            );
+            assert!(
+                (q[0] - tip[0]) * (tip[0] - other[0]) >= -1e-6,
+                "outward: {line:?}"
+            );
+        }
+    }
+    let own: Vec<_> = plan
+        .problems
+        .iter()
+        .filter(|q| q.code.starts_with("annotation_") && q.subjects.contains(&b))
+        .collect();
+    assert!(own.is_empty(), "{own:#?}");
+    assert!(
+        !plan
+            .problems
+            .iter()
+            .any(|q| q.code == "frame_datum_not_drawn" && q.refs.contains(&"datum B".into()))
+    );
+    assert!(
+        !plan
+            .problems
+            .iter()
+            .any(|q| q.code == "pmi_not_lowered" && q.refs.first() == Some(&datum.source))
+    );
+
+    let mut spec = Spec::default();
+    spec.annotations.insert(
+        b.clone(),
+        serde_json::from_value(serde_json::json!({"omit": true})).unwrap(),
+    );
+    let omitted = model::plan_recovered(&a, &spec).unwrap();
+    assert!(
+        !omitted
+            .gdt
+            .iter()
+            .any(|g| g.id == b && g.state == draftwright::items::State::Shown)
+    );
+}
+
+/// A datum feature that names no face of its own, which the reader reads as its datum's usage's
+/// faces (a nonconformance it reads through), is drawn on those faces, the reading in its basis:
+/// CTC-02's datum D.
+#[test]
+fn a_datum_read_through_a_nonconformance_is_drawn() {
+    let a = nist("nist_ctc_02_asme1_ap242-e2.stp.gz");
+    let d = datum_id(&a, "D");
+    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let datum = plan
+        .gdt
+        .iter()
+        .find(|g| g.id == d)
+        .expect("datum D lowered");
+    assert_eq!(datum.state, draftwright::items::State::Shown);
+    assert!(datum.basis.contains("read as"), "{}", datum.basis);
+    assert!(
+        !plan
+            .problems
+            .iter()
+            .any(|q| q.code == "frame_datum_not_drawn" && q.refs.contains(&"datum D".into()))
+    );
+}

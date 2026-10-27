@@ -70,6 +70,7 @@ pub mod gdt;
 mod grooves;
 pub(crate) mod hole_marks;
 mod holes;
+pub(crate) mod size_datums;
 pub(crate) use holes::grid_lattice;
 pub(crate) mod interior;
 mod label_lanes;

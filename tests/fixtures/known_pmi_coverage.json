@@ -1233,7 +1233,7 @@
   "rust": "error",
   "source": "datum:#79",
   "verdict": "undetermined",
-  "evidence": "As known_pmi_lowering.json's 'lowered' difference for datum:0:1:4:43 (port datum:#79): haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity nonconformance on #79 (datum_feature): the datum feature identifies no face; its datum's usage does (§6.5.1 puts it on the datum feature): read as the); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read. port: \"haecceity nonconformance on #79 (datum_feature): the datum feature identifies no face; its datum's usage does (§6.5.1 puts it on the datum feature): read as the datum feature's faces\""
+  "evidence": "haecceity reports a nonconformance on #79 (datum_feature): the datum feature identifies no face; its datum's usage does (§6.5.1 puts it on the datum feature), read as the datum feature's faces, so the census marks the source as not fully represented. The port now lowers and draws datum D on those faces (known_pmi_lowering.json's site difference for datum:0:1:4:43); draftwright draws XCAF's reading and states nothing. Whether the file's datum is complete needs the construct read. port: \"haecceity nonconformance on #79 (datum_feature): the datum feature identifies no face; its datum's usage does (§6.5.1 puts it on the datum feature): read as the datum feature's faces\""
  },
  {
   "code": "pmi_not_extracted",
@@ -2350,15 +2350,6 @@
   "source": "geometric_tolerance:#82",
   "verdict": "undetermined",
   "evidence": "As known_pmi_lowering.json's 'lowered' difference for geometric_tolerance:0:1:4:78 (port geometric_tolerance:#82): haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity nonconformance on #497 (composite_shape_aspect): a composite_shape_aspect stating 'multiple elements' or 'pattern of features' (§6.4: composite_group_); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read. port: \"haecceity nonconformance on #497 (composite_shape_aspect): a composite_shape_aspect stating 'multiple elements' or 'pattern of features' (§6.4: composite_group_shape_aspect); read as that group\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_ctc_02_asme1_ap242-e2.stp",
-  "python": null,
-  "rust": "error",
-  "source": "datum:#79",
-  "verdict": "undetermined",
-  "evidence": "As known_pmi_lowering.json's 'lowered' difference for datum:0:1:4:43 (port datum:#79): haecceity reports an instance this record is read from that it does not model or that does not conform, so the port cannot vouch for the record's support and does not draw it (pmi_not_lowered: haecceity nonconformance on #79 (datum_feature): the datum feature identifies no face; its datum's usage does (§6.5.1 puts it on the datum feature): read as the); draftwright draws XCAF's reading. Whether that frame is complete needs the construct read. port: \"PMI datum:#79 (D) is not drawn: haecceity nonconformance on #79 (datum_feature): the datum feature identifies no face; its datum's usage does (§6.5.1 puts it on the datum feature): read as the datum …\""
  },
  {
   "code": "pmi_not_lowered",
@@ -9508,6 +9499,18 @@
   "source": "dimension:#9270",
   "verdict": "rust-correct",
   "evidence": "The file qualifies the dimension with a modifier the port does not carry (statistical, controlled radius, reference); drawn without it the dimension would state a different requirement, so the port reports it; draftwright reads it without the modifier and lowers it, and its own drawing does not state it either (its pmi_not_rendered). draftwright: \"AP242 source dimension:0:1:4:11 reached typed drafting IR but produced no annotation\""
+ },
+ {
+  "code": "pmi_not_lowered",
+  "file": "nist_stc_06_asme1_ap242-e3.stp",
+  "python": {
+   "id": "datum_definition:#8312",
+   "severity": "error"
+  },
+  "rust": null,
+  "source": "datum:#8313",
+  "verdict": "rust-correct",
+  "evidence": "Datum B's faces are the part's two opposite planes y = ±152.4 (faces 15 and 16), so the datum is the median plane of the 304.8 width, not either face: draftwright refuses it (\"datum reference faces are not coplanar\"), and twelve frames citing B could not be read. The port draws it as ISO 5459 draws a datum on a feature of size: its triangle on an extension line of the width's own size dimension (the AP242 304.8 ±0.254 between exactly those faces), in line with the dimension line (src/dims/size_datums.rs); the frames then read in full (frame_datum_not_drawn 13 to 1)."
  },
  {
   "code": "pmi_not_extracted",

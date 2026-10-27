@@ -1119,6 +1119,7 @@ fn replay_pins(
     crate::dims::callout_routes::prefer_interior(effective.as_ref(), base, &mut held, None);
     crate::dims::callout_routes::finish(effective.as_ref(), base, &mut held);
     crate::dims::hole_marks::attach(effective.as_ref(), base, &mut held);
+    crate::dims::size_datums::attach(effective.as_ref(), base, &mut held);
     crate::dims::gdt::cited_undrawn(&mut held);
     let mut plan = if only_bare_pins(&intent, base, &held) {
         // A bare pin holds the selected finished ink, including peers on every

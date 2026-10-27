@@ -1108,7 +1108,11 @@ fn control_frame(r: &Record, centre: [f64; 3]) -> Result<Lowered, Vec<String>> {
 /// A datum as a datum feature symbol (`build_pmi_features`' datum branch and `datum`), or why it
 /// is not one.
 fn datum(r: &Record, centre: [f64; 3]) -> Result<Lowered, Vec<String>> {
-    let mut reasons = blockers(r);
+    // A nonconformance the reader read through (a datum feature naming no face of its own, read
+    // as its datum's usage's faces) says how the datum was read, not that it is lost: it goes to
+    // the basis, and the faces decide.
+    let (read_through, mut reasons): (Vec<String>, Vec<String>) =
+        blockers(r).into_iter().partition(|b| read_through(b));
     if r.label.trim().is_empty() {
         reasons.push("the datum has no letter".into());
     }
@@ -1136,8 +1140,18 @@ fn datum(r: &Record, centre: [f64; 3]) -> Result<Lowered, Vec<String>> {
             at.view,
             at.side,
             at.how
-        ),
+        ) + &read_through
+            .iter()
+            .map(|b| format!("; {}", crate::pmi::reader_reason(b)))
+            .collect::<String>(),
     })
+}
+
+/// Whether blocker *b* is a reader nonconformance the reader read through as its detail states
+/// (`…: read as …`, `…; read as …`), losing nothing.
+pub fn read_through(b: &str) -> bool {
+    b.starts_with("haecceity nonconformance on ")
+        && (b.contains(": read as ") || b.contains("; read as "))
 }
 
 /// Who authored record *r*, for its basis: the STEP's AP242 PMI, or the Spec
