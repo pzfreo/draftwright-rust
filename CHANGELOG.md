@@ -107,6 +107,35 @@ All notable changes to draftwright-rust are recorded here, in the style of
   and STC-06 (no candidate on any paper is valid; layout density), and the 2020×50 V-slot (A4 2:1
   is set aside for one added leader through material; left for a decision).
 
+### Changed
+
+- **Congruent slots are dimensioned as slots.** dw-examples' nema17-bracket pieced each of its
+  six 4.5 × 7.5 slots together from a counted width, three counted lengths, six `2× R2.25`
+  leaders and locations mixing slot ends and centres. Lone obround slots that are congruent (the
+  same width, length and full-round ends, seen through the same axis, whichever way each runs)
+  now get one `6× SLOT 4.5 × 7.5` callout, its leader to a slot end, and each is located by its
+  centre along its length as well as across it, so the group reads centre to centre. A full-round
+  end radius (half the width, to quiddity's 0.01 mm rounding) is no longer called out, for slot
+  patterns too (gantry-plate's `6× SLOT 3 × 9.5` loses its `2× R1.5`): the slot callout implies it,
+  and review accepts it only from a `SLOT` callout claiming the width, and judges a slot's
+  location at its centre only when such a callout states it. gantry-plate's two long slots get
+  `2× SLOT 5 × 25` in place of `2× 5`, `2× 25` and two `2× R2.5`, and nema17-mount-bracket's get
+  `2× SLOT 4 × 34`. Straight slots (windows with blended corners, CTC-04's) and single slots are
+  dimensioned as before, and so are keyhole slots (a circular seat opening the slot at its
+  middle, FTC-08's and STC-08's), whose seat callout and axis carry the compound;
+  `features/<id>/split` on a slot keeps it out of the callout. A grouped slot whose centre stands
+  on a hole's, pattern's or seat's location line is located by that line (ARCH0009-6), and review
+  and the location audit credit it.
+- **Sheet choice keeps profile-corner angles.** A smaller candidate that leaves out a corner angle
+  the automatic baseline draws is refused, as one that drops a hole item is: smaller paper is not
+  bought by losing it. nema17-mount-bracket keeps its two `135°` corners on A3 1:1.
+- Plans change on 8 of the 65 quality and dw-examples parts, all with congruent obround slots.
+  nema17-bracket and gantry-plate now fit A4 1:1 (were A3 2:1); FTC-09 moves from A1 1:1 to A2
+  1:2. Known cost: on CTC-03 (both the corpus and the dw-examples file) the slot callout's label
+  takes the datum corner the hole table's origin mark needs, so the table no longer fits at A3
+  1:5: the corpus part moves to A1 1:2 with its table, the dw-examples drawing stays on A3 1:5
+  with individual hole dimensions.
+
 ## 0.2.0 (2026-10-27)
 
 Now on quiddity-rust **v0.2.1** (previously `0.2.0-alpha.2`), which changes no library code from

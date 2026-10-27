@@ -370,10 +370,14 @@ fn pinning_every_callout_at_its_reported_offset_moves_nothing(file: &str) {
 #[test]
 fn offset_members_expose_the_projected_arc_span() {
     let Some(corpus) = corpus::dir() else { return };
+    // Its two obround slots are congruent: one is split from their slot callout, so slot 1
+    // keeps the radius leader whose arc span this test reads.
+    let spec: Spec =
+        serde_json::from_value(json!({"features": {"f:slot:2": {"split": true}}})).unwrap();
     let s = Session::open(
         &corpus.join("cadgenbench_inputs/cgb245.step"),
         api::Features::Native,
-        Spec::default(),
+        spec,
     )
     .unwrap();
     let id = "d:f:slot:1/slot_end_radius.radius";
@@ -548,12 +552,19 @@ fn a_retained_session_scope_plans_an_offset_pin_and_its_bare_pin_alike() {
 /// side view, pinned right of the front at its gap (the pins-1-1 quality cell), re-routed
 /// two slot radius callouts; one then took the hole schedule's origin-mark position, so
 /// the schedule was withdrawn for its 35-dimension ladder. Unchanged callouts keep their
-/// canonical routes as incumbents in a pin replay too.
+/// canonical routes as incumbents in a pin replay too. Its two slots are congruent, so a slot
+/// callout would now state their ends: one is split from it (in both drawings), so the two slot
+/// radius callouts of this case remain.
 #[test]
 fn pinning_a_view_at_its_own_place_keeps_the_ctc03_schedule() {
     let Some(dir) = corpus::dir() else { return };
     let part = dir.join("nist/nist_ctc_03_asme1_rc.stp");
-    let base = Session::open(&part, api::Features::Native, Spec::default()).unwrap();
+    let open = |spec: Spec| {
+        let (p, mut a) = draftwright::model::analyse_native(&part).unwrap();
+        corpus::split_slot(&mut a, "f:slot:2");
+        Session::new(p, a, spec).unwrap()
+    };
+    let base = open(Spec::default());
     let canonical = base.plan();
     let front = canonical.views.iter().find(|v| v.id == "v:front").unwrap();
     let side = canonical.views.iter().find(|v| v.id == "v:side").unwrap();
@@ -562,7 +573,7 @@ fn pinning_a_view_at_its_own_place_keeps_the_ctc03_schedule() {
         "gap": side.area[0] - front.area[2],
     }}}}))
     .unwrap();
-    let s = Session::open(&part, api::Features::Native, spec).unwrap();
+    let s = open(spec);
     assert!(
         !canonical.balloons.is_empty(),
         "the canonical drawing has a schedule"

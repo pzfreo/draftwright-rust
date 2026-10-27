@@ -18,9 +18,20 @@
 //!   locations do, and a slot location that a hole's, pattern's or boss's states is conveyed by it
 //!   (`dims::holes::consolidate`, ARCH0009-6).
 //!
+//! Lone obround slots that are **congruent** (the same width, length and full-round ends, the
+//! radius half the width, seen through the same axis, whichever way each runs) are dimensioned as
+//! slots: one `N× SLOT W × L` callout states them all, in place of their widths, lengths and end
+//! radii (the callout implies full-round ends), and each is located by its centre (along its
+//! length as well as across it), so the group reads off centre-to-centre. A straight slot (a
+//! window with blended corners) or an obround whose ends are not full-round is dimensioned on its
+//! own, as are a keyhole (a circular seat opening the slot at its middle, whose axis and callout
+//! carry the compound: `lint::slots::keyed`) and a slot the spec splits from the callout
+//! (`features/<id>/split`).
+//!
 //! A **slot pattern** (quiddity's `SlotArray` or `SlotGrid`, a `slot_pattern` feature naming its
 //! member slots) is called out once, as draftwright's `render_slot_patterns` does, in the view that
-//! looks through its slots: one `N× SLOT W × L` callout, an obround's `2× R`, the pitch that spaces
+//! looks through its slots: one `N× SLOT W × L` callout, an obround's `2× R` unless the ends are
+//! full-round (the radius half the width, which the callout implies), the pitch that spaces
 //! a linear array (`2× 25`) or the column and row pitches of a grid (quiddity's own `cols` and
 //! `rows`), and the pattern's centre located from the part's box on both of that view's axes
 //! (draftwright's `location_slot_pattern`, from the array's centroid or the grid's centre). Its
@@ -255,6 +266,99 @@ fn alike(s: &Slot) -> Alike {
     )
 }
 
+/// What makes lone slots congruent, so one slot callout states them: the view that looks through
+/// them, their width and length, and their end radius (not the way each runs). `lint::slots`
+/// groups lone slots by the same rule.
+type Congruent = (&'static str, i64, i64, Option<i64>);
+
+fn congruence(s: &Slot) -> Congruent {
+    (
+        end_on(s.deep),
+        key(s.width),
+        key(s.length),
+        s.end_radius.map(key),
+    )
+}
+
+/// Whether an obround's ends are full-round: their radius half its width (to quiddity's rounding,
+/// `lint::slots::FULL_ROUND`), which a slot callout implies.
+fn full_round(s: &Slot) -> bool {
+    s.end_radius
+        .is_some_and(|r| (2.0 * r - s.width).abs() <= crate::lint::slots::FULL_ROUND)
+}
+
+/// The `N× SLOT W × L` callout for *members*, its leader to an obround end of any of them (as an
+/// end radius's leader lands), or to either long side of a straight slot.
+fn slot_callout(
+    id: String,
+    members: &[&Slot],
+    measurements: Vec<Measurement>,
+    basis: String,
+    analysis: &crate::model::Analysis,
+) -> Want {
+    let s = members[0];
+    let arcs = match s.end_radius {
+        Some(r) => members
+            .iter()
+            .flat_map(|t| t.end_arcs(r, analysis))
+            .collect(),
+        None => Vec::new(),
+    };
+    Want {
+        id,
+        views: vec![end_on(s.deep)],
+        value: s.width,
+        terms: vec![
+            format!("{}×", members.len()),
+            "SLOT".into(),
+            fmt(s.width),
+            "×".into(),
+            fmt(s.length),
+        ],
+        measurements,
+        turning: None,
+        basis,
+        shape: Shape::Callout {
+            arcs,
+            sites: members
+                .iter()
+                .flat_map(|t| {
+                    let mid = 0.5 * (t.ends[0] + t.ends[1]);
+                    [-1.0, 1.0].map(|sign| (t.at(mid, t.edge(t.wide, sign)), 0.0))
+                })
+                .collect(),
+        },
+    }
+}
+
+/// The end radius of *members*' obround ends, called out once with a leader to an end of the
+/// first: *measurements* name what it states.
+fn end_radius_want(
+    id: String,
+    s: &Slot,
+    r: f64,
+    measurements: Vec<Measurement>,
+    basis: &str,
+    analysis: &crate::model::Analysis,
+) -> Want {
+    Want {
+        id,
+        views: vec![end_on(s.deep)],
+        value: r,
+        terms: vec!["2×".into(), format!("R{}", fmt(r))],
+        measurements,
+        turning: None,
+        basis: basis.into(),
+        shape: Shape::Callout {
+            arcs: s.end_arcs(r, analysis),
+            sites: vec![
+                (s.at(s.ends[0] + r, s.centre), r),
+                (s.at(s.ends[1] - r, s.centre), r),
+            ],
+        },
+    }
+}
+
 fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     let analysis = cx.analysis;
     let [lo, _] = analysis.envelope;
@@ -307,6 +411,50 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         }
     }
 
+    // Congruent full-round slots are called out together, in the order their first member is
+    // recognised. A straight slot (a window with blended corners) is no `SLOT` to a reader.
+    let mut congruent: Vec<(Congruent, Vec<usize>)> = Vec::new();
+    for (i, s) in slots.iter().enumerate() {
+        if !full_round(s)
+            || crate::lint::slots::alone(s.feature)
+            || crate::lint::slots::keyed(analysis, s.feature)
+        {
+            continue; // not an obround, split from the callout by the spec, or a keyhole
+        }
+        let k = congruence(s);
+        match congruent.iter_mut().find(|(c, _)| *c == k) {
+            Some((_, members)) => members.push(i),
+            None => congruent.push((k, vec![i])),
+        }
+    }
+    let mut grouped = vec![false; slots.len()];
+    for (_, members) in congruent.iter().filter(|(_, m)| m.len() > 1) {
+        let group: Vec<&Slot> = members.iter().map(|&i| &slots[i]).collect();
+        let s = group[0];
+        let n = group.len();
+        let each = |parameter: &'static str, value: fn(&Slot) -> f64| {
+            group.iter().map(move |t| Measurement {
+                feature: t.feature.id.clone(),
+                parameter: parameter.into(),
+                value: value(t),
+            })
+        };
+        out.push(slot_callout(
+            want_id(&s.feature.id, "slot_width.length"),
+            &group,
+            each("slot_width.length", |t| t.width)
+                .chain(each("slot_length.length", |t| t.length))
+                .collect(),
+            format!(
+                "{n} congruent obround slots (the same width, length and end radius) are dimensioned as slots: one slot callout states their width and length, in the view that looks through them; their ends are full-round, half the width, which the callout implies"
+            ),
+            cx.analysis,
+        ));
+        for &i in members {
+            grouped[i] = true;
+        }
+    }
+
     // Widths spanning the same stretch of one axis share one dimension where draftwright solves
     // them together: across the view, or in the front (same-stretch widths elsewhere are merged
     // later, as one span, one dimension). Identical slots (the same width, length and end radius,
@@ -317,7 +465,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     let mut widths: BTreeMap<WidthKey, Vec<usize>> = BTreeMap::new();
     let mut identical: BTreeMap<Alike, (WidthKey, [i64; 2])> = BTreeMap::new();
     let mut order = Vec::new();
-    for (i, s) in slots.iter().enumerate() {
+    for (i, s) in slots.iter().enumerate().filter(|(i, _)| !grouped[*i]) {
         let view = end_on(s.deep);
         let same = alike(s);
         let stretch = [key(s.edge(s.wide, -1.0)), key(s.edge(s.wide, 1.0))];
@@ -390,7 +538,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
 
     // Each slot's centre line across its width: (owner, the point located, its axis, view).
     let mut across: Vec<(String, P3, usize, &'static str)> = Vec::new();
-    for s in &slots {
+    for (s, &together) in slots.iter().zip(&grouped) {
         let view = end_on(s.deep);
         let id = &s.feature.id;
         let m = |parameter: &str, value: f64| Measurement {
@@ -398,6 +546,43 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             parameter: parameter.into(),
             value,
         };
+        let Shape::Linear { b, .. } = size(s, view, s.wide, s.centre, s.centre, 1) else {
+            // Invariant: size constructs Shape::Linear unconditionally.
+            unreachable!("a size is linear")
+        };
+        across.push((id.clone(), b, s.wide, view));
+        if together {
+            // Called out with its congruent slots: located along its length by its centre.
+            let c = 0.5 * (s.ends[0] + s.ends[1]);
+            let Shape::Linear { mut a, b, .. } = size(s, view, s.long, c, c, 1) else {
+                // Invariant: size constructs Shape::Linear unconditionally.
+                unreachable!("a size is linear")
+            };
+            a[s.long] = lo[s.long];
+            let d = c - lo[s.long];
+            out.push(Want {
+                id: want_id(id, "location_slot.length"),
+                views: vec![view],
+                value: d,
+                terms: vec![fmt(d)],
+                measurements: vec![m("location_slot.length", d)],
+                turning: None,
+                basis: format!(
+                    "a slot called out with its congruent slots is located along its length ({}) from the part's {} face to its centre, so the group reads centre to centre, in the view that looks through it",
+                    AXES[s.long],
+                    ["left", "front", "bottom"][s.long]
+                ),
+                shape: Shape::Linear {
+                    a,
+                    b,
+                    axis: s.long,
+                    a_edge: true,
+                    b_edge: false,
+                    order: 1,
+                },
+            });
+            continue;
+        }
         out.push(Want {
             id: want_id(id, "slot_length.length"),
             views: vec![view],
@@ -409,24 +594,15 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             shape: size(s, view, s.long, s.ends[0], s.ends[1], 0),
         });
         if let Some(r) = s.end_radius {
-            out.push(Want {
-                id: want_id(id, "slot_end_radius.radius"),
-                views: vec![view],
-                value: r,
-                terms: vec!["2×".into(), format!("R{}", fmt(r))],
-                measurements: vec![m("slot_end_radius.radius", r)],
-                turning: None,
-                basis: "an obround slot's ends are proven arcs: their radius is called out once for both, with a leader to an end".into(),
-                shape: Shape::Callout { arcs: s.end_arcs(r, cx.analysis),
-                    sites: vec![(s.at(s.ends[0] + r, s.centre), r), (s.at(s.ends[1] - r, s.centre), r)],
-                },
-            });
+            out.push(end_radius_want(
+                want_id(id, "slot_end_radius.radius"),
+                s,
+                r,
+                vec![m("slot_end_radius.radius", r)],
+                "an obround slot's ends are proven arcs: their radius is called out once for both, with a leader to an end",
+                cx.analysis,
+            ));
         }
-        let Shape::Linear { b, .. } = size(s, view, s.wide, s.centre, s.centre, 1) else {
-            // Invariant: size constructs Shape::Linear unconditionally.
-            unreachable!("a size is linear")
-        };
-        across.push((id.clone(), b, s.wide, view));
         let d = s.ends[0] - lo[s.long];
         if d.abs() < 1e-6 {
             problems.push(Problem {
@@ -729,49 +905,33 @@ fn pattern<'a>(cx: &Context<'a>, p: &'a Feature) -> Result<Grouped<'a>, String> 
         parameter: parameter.into(),
         value,
     };
-    let mut items = vec![Want {
-        id: want_id(&p.id, "slot_width.length"),
-        views: vec![view],
-        value: s.width,
-        terms: vec![
-            format!("{n}×"),
-            "SLOT".into(),
-            fmt(s.width),
-            "×".into(),
-            fmt(s.length),
-        ],
-        measurements: vec![
+    let members: Vec<&Slot> = slots.iter().collect();
+    let mut items = vec![slot_callout(
+        want_id(&p.id, "slot_width.length"),
+        &members,
+        vec![
             m("slot_width.length", s.width),
             m("slot_length.length", s.length),
         ],
-        turning: None,
-        basis: format!(
-            "{why} is called out once with its width and length, in the view that looks through them, as draftwright's grouped slot callout"
+        format!(
+            "{why} is called out once with its width and length, in the view that looks through them, as draftwright's grouped slot callout{}",
+            if full_round(s) {
+                "; its ends are full-round, half the width, which the callout implies"
+            } else {
+                ""
+            }
         ),
-        shape: Shape::Callout {
-            arcs: Vec::new(),
-            sites: slots
-                .iter()
-                .flat_map(|t| {
-                    let mid = 0.5 * (t.ends[0] + t.ends[1]);
-                    [-1.0, 1.0].map(|sign| (t.at(mid, t.edge(t.wide, sign)), 0.0))
-                })
-                .collect(),
-        },
-    }];
-    if let Some(r) = s.end_radius {
-        items.push(Want {
-            id: want_id(&p.id, "slot_end_radius.radius"),
-            views: vec![view],
-            value: r,
-            terms: vec!["2×".into(), format!("R{}", fmt(r))],
-            measurements: vec![m("slot_end_radius.radius", r)],
-            turning: None,
-            basis: "the pattern's obround ends are proven arcs: their radius is called out once, with a leader to an end of one slot".into(),
-            shape: Shape::Callout { arcs: s.end_arcs(r, cx.analysis),
-                sites: vec![(s.at(s.ends[0] + r, s.centre), r), (s.at(s.ends[1] - r, s.centre), r)],
-            },
-        });
+        analysis,
+    )];
+    if let Some(r) = s.end_radius.filter(|_| !full_round(s)) {
+        items.push(end_radius_want(
+            want_id(&p.id, "slot_end_radius.radius"),
+            s,
+            r,
+            vec![m("slot_end_radius.radius", r)],
+            "the pattern's obround ends are proven arcs, not full-round: their radius is called out once, with a leader to an end of one slot",
+            analysis,
+        ));
     }
     items.extend(out);
     let [lo, _] = analysis.envelope;

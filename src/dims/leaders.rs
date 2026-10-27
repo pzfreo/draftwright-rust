@@ -3198,8 +3198,7 @@ fn refine_uncached(
             // scale, whatever the candidate's dimension spacing.
             crate::dims::with_compact(false, || {
                 crate::planning::memo(analysis, "bare-leader-reference", key, || {
-                    let mut base = analysis.clone();
-                    base.features.retain(|f| f.kind != "section_recess");
+                    let base = crate::lint::slots::without_recesses(analysis);
                     let mut recipe = crate::model::Spec::default();
                     recipe.sheet.size = Some(sheet.size.clone());
                     recipe.sheet.scale = Some(sheet.scale.clone());
@@ -7589,10 +7588,13 @@ mod tests {
             );
             return;
         };
-        let a = crate::model::analyse_native(&corpus.join("cadgenbench_inputs/cgb245.step"))
+        let mut a = crate::model::analyse_native(&corpus.join("cadgenbench_inputs/cgb245.step"))
             .unwrap()
             .1;
         assert!(a.features.iter().all(|f| f.kind != "section_recess"));
+        // Its two obround slots are congruent, so a slot callout would state their ends: one is
+        // split from the callout, so each keeps its own radius leader.
+        split_slot(&mut a, "f:slot:2");
         let plan = crate::model::plan_recovered(&a, &crate::model::Spec::default()).unwrap();
         let id = "d:f:slot:1/slot_end_radius.radius";
         let d = plan.dimensions.iter().find(|d| d.id == id).unwrap();
@@ -7615,6 +7617,16 @@ mod tests {
         assert!(length(&p.lines) <= MAX_LEADER + SHOULDER);
         assert!((elbow[0] - tip[0]) * (p.lines[1][1][0] - elbow[0]) >= -1e-9);
         assert_eq!(p.lines[1][0][1], p.lines[1][1][1]);
+    }
+
+    /// Splits slot *id* from its congruent slots' callout, as `features/<id>/split` does, so it
+    /// and its twin are dimensioned singly, each radius leader its own (`dims::slots`).
+    fn split_slot(a: &mut crate::model::Analysis, id: &str) {
+        let f = a.features.iter_mut().find(|f| f.id == id).unwrap();
+        f.parameters.insert(
+            crate::lint::slots::ALONE.into(),
+            serde_json::Value::Bool(true),
+        );
     }
 
     #[test]

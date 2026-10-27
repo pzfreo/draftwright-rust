@@ -499,7 +499,10 @@ fn held_labels_do_not_remove_the_canonical_schedule() {
 #[test]
 fn the_cgb245_view_pin_reproducer_keeps_its_schedule() {
     let Some(corpus) = corpus::dir() else { return };
-    let (_, analysis) = cache::native(&corpus.join("cadgenbench_inputs/cgb245.step"));
+    let (_, mut analysis) = cache::native(&corpus.join("cadgenbench_inputs/cgb245.step"));
+    // The reproducer pins slot 1's own length: its congruent twin is split from the slot
+    // callout, so the two are not called out together and slot 1 keeps that dimension.
+    corpus::split_slot(&mut analysis, "f:slot:2");
     let base = cache::default_plan(&analysis, true);
     assert!(!tables(&base).as_array().unwrap().is_empty());
     let ordinary = model::plan_recovered(&analysis, &setting("never")).unwrap();

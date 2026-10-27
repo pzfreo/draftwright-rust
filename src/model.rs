@@ -521,7 +521,8 @@ pub struct FeatureSpec {
     /// Remove a spurious recognition, including its feature requirements.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub suppress: bool,
-    /// Dissolve a recognised hole or slot pattern, retaining its members.
+    /// Dissolve a recognised hole or slot pattern, retaining its members; on a slot, dimension it
+    /// on its own rather than in its congruent slots' `N× SLOT W × L` callout.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub split: bool,
     /// Group existing holes under this stable, author-chosen pattern ID.
@@ -2583,8 +2584,7 @@ pub(crate) fn established_drawing(analysis: &Analysis, spec: &Spec) -> Result<Pl
             "prepared-established-drawing",
             key.clone(),
             || {
-                let mut reference = analysis.clone();
-                reference.features.retain(|f| f.kind != "section_recess");
+                let reference = crate::lint::slots::without_recesses(analysis);
                 let mut base = Spec {
                     hole_table: spec.hole_table,
                     pmi: spec.pmi,
