@@ -6247,6 +6247,16 @@ fn measure_fixed(c: &mut Candidate, job: &Job, fixed: &Fixed) {
             })
         }
     };
+    if job.slot {
+        // A slot callout's leader may land on any of its slots: one that runs along a
+        // location's extension line (to the slot that line locates) reads as that line, and
+        // the leader to another slot is taken instead ([`slot_callout`]).
+        hard += fixed
+            .extensions
+            .iter()
+            .filter(|(_, e)| segs.iter().any(|s| crate::centrelines::runs_beside(*s, *e)))
+            .count() as u32;
+    }
     if job.corridors {
         // The same finite 1 mm extension corridor used by the route acceptance
         // check participates in the initial solve, before a route becomes fixed.

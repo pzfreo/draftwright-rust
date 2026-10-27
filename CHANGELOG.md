@@ -136,7 +136,7 @@ All notable changes to draftwright-rust are recorded here, in the style of
   (`hole_table::origin_reservations`); other table failures keep the original dimensions as
   before. A slot callout's leader counts the features it crosses even on a part with semantic
   PMI, whose other leaders keep their established routing, so FTC-09's no longer runs through
-  the wide slot beside its two slots. A location that also conveys coincident slots' locations
+  the wide slot beside its two slots, and it does not run along a location's extension line. A location that also conveys coincident slots' locations
   starts its extension line at whichever of their centres is nearest its dimension line, so the
   witness of a row of slots does not cross the near ones (nema17-bracket, gantry-plate, CTC-03).
 - Plans change on 8 of the 65 quality and dw-examples parts, all with congruent obround slots:
@@ -146,7 +146,9 @@ All notable changes to draftwright-rust are recorded here, in the style of
   `extension_through_feature`: nema17-bracket 10 to 11 (its `5` goes to the left, crossing the
   flange's edge-on holes, where the right would share a dimension line), gantry-plate 28 to 30,
   CTC-03 1 and 4 to 0, cgb245 5 to 1. FTC-09 trades its slot leader through a slot for one
-  crossing of an extension line.
+  crossing of slot 3's `38.1` extension line (`annotation_leader_crossing` 0 to 1): that
+  dimension's extension lines and dimension line box its two slots in below slot 3, so every
+  route from them crosses something.
 
 ## 0.2.0 (2026-10-27)
 
