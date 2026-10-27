@@ -97,6 +97,17 @@ const MIN_LEADER: f64 = 6.0;
 /// The longest leader taken while any shorter one is free of hard blockers, mm: a longer one
 /// counts as one (draftwright's longest on its captured sheets is 73.5 mm, connector109's).
 const MAX_LEADER: f64 = 75.0;
+/// How far past [`MAX_LEADER`] a leader may measure and still meet it, mm. The sweep's longest
+/// reach is the limit, and platforms' maths libraries round its `cos`, `sin` and `hypot`
+/// differently in the last bit: compared exactly, the same route was legal on Apple Silicon and
+/// too long on x86-64 Linux (#236).
+const LIMIT_SLACK: f64 = 1e-6;
+
+/// Whether a leader of *length* is longer than [`MAX_LEADER`], beyond rounding.
+fn too_long(length: f64) -> bool {
+    length > MAX_LEADER + LIMIT_SLACK
+}
+
 /// The least angle a leader to a turned step's silhouette makes with it, degrees: closer to
 /// parallel, it reads as lying on the part's edge (ISO 128-22 has leaders meet the outline at an
 /// angle; it states no figure).
@@ -1496,7 +1507,7 @@ fn route_reports_named(
             });
     }
     let length = (shaft[1][0] - shaft[0][0]).hypot(shaft[1][1] - shaft[0][1]);
-    if length > MAX_LEADER {
+    if too_long(length) {
         let subjects = vec![id.to_owned()];
         problems.push(Problem {
                 id: format!("p:annotation_leader_long:{}", subjects.join("|")),
@@ -5999,7 +6010,7 @@ fn measure_at_bounds(
     if cut > 0.0 {
         hard += 1;
     }
-    if shaft > MAX_LEADER {
+    if too_long(shaft) {
         hard += 1;
     }
     // A leader along the silhouette it points at lies on the part's edge: ISO 128-22's leader
@@ -7965,6 +7976,53 @@ mod tests {
         let s = stations(-5.0, 0.0, 2.5);
         assert_eq!(s, vec![0.0, 1.0, 2.0]);
         assert!(stations(0.0, 1.0, 0.0).is_empty());
+    }
+
+    #[test]
+    fn a_sweep_reach_at_the_length_limit_meets_it_whatever_the_last_bit() {
+        // FTC-07 AP242's profile-surface frame (#236): a 75 mm reach measured exactly 75 on Apple
+        // Silicon, one unit in the last place over on x86-64 Linux, and the route was hard there.
+        let tip = [193.93296474348, 416.29007182347993];
+        for j in 0..SWEEP_DIRECTIONS {
+            let a = std::f64::consts::TAU * j as f64 / SWEEP_DIRECTIONS as f64;
+            let u = [a.cos(), a.sin()];
+            let elbow = [tip[0] + MAX_LEADER * u[0], tip[1] + MAX_LEADER * u[1]];
+            let shaft = (elbow[0] - tip[0]).hypot(elbow[1] - tip[1]);
+            let (mut low, mut high) = (shaft, shaft);
+            for _ in 0..4 {
+                low = low.next_down();
+                high = high.next_up();
+                for length in [low, shaft, high] {
+                    assert!(!too_long(length), "direction {j}: {length}");
+                }
+            }
+            // The route's report measures the leader itself: an elbow a few last bits further
+            // out still meets the limit.
+            let mut far = elbow;
+            for _ in 0..4 {
+                far = [
+                    if u[0] < 0.0 {
+                        far[0].next_down()
+                    } else {
+                        far[0].next_up()
+                    },
+                    if u[1] < 0.0 {
+                        far[1].next_down()
+                    } else {
+                        far[1].next_up()
+                    },
+                ];
+                let problems = route_reports_named("a", "a", "front", &[], [tip, far]);
+                assert!(
+                    problems.iter().all(|p| p.code != "annotation_leader_long"),
+                    "direction {j}"
+                );
+            }
+        }
+        assert!(too_long(MAX_LEADER + 1e-3));
+        let over = [tip[0] + MAX_LEADER + 1e-3, tip[1]];
+        let problems = route_reports_named("a", "a", "front", &[], [tip, over]);
+        assert!(problems.iter().any(|p| p.code == "annotation_leader_long"));
     }
 
     fn cand(tip: P2, elbow: P2, cost: i64) -> Candidate {

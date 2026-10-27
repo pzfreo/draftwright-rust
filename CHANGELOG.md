@@ -116,6 +116,12 @@ All notable changes to draftwright-rust are recorded here, in the style of
   or caption holds, so a relayout that leaves no such paper (applying fixes in the editor can)
   returns a frame to its leader: the spindle's f7 position frame then shows main's
   `leader_through_feature` again (`src/dims/hole_marks.rs`).
+- **A leader exactly at the 75 mm limit is now legal on every platform (#236).** The route
+  sweep's longest reach is the limit, and its `cos`, `sin` and `hypot` round differently in the
+  last bit on x86-64 Linux and Apple Silicon, so FTC-07 AP242's all-over profile-surface frame
+  took a 75 mm route on macOS that was "too long" on CI (19 leader-to-dimension-line crossings
+  there, 15 here). A leader now meets the limit within 1e-6 mm. The 34 quality and AP242 plans
+  are unchanged on macOS.
 - **A thread recognition refused is no longer drawn as a counterbore (#218).** quiddity refuses
   dw-examples' T8 flange nut thread (`inconsistent_diameters`) yet also reported a hole on its
   flanks, printed `⌀6.5 THRU ⌴ ⌀8.3 ↧ 14.8` in a 15 mm part. No hole, nor its pattern, is now
