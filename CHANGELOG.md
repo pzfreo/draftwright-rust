@@ -6,6 +6,24 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### Fixed
+
+- **Cited datums on a width or read through a nonconformance are drawn.** A datum whose faces are a
+  width's two opposite planes is the width's median plane, so it was refused ("not coplanar") and
+  every frame citing it said `frame_datum_not_drawn`. Once the drawing is finished, such a datum a
+  shown frame cites now stands on an extension line of the width's own size dimension, in line with
+  its dimension line (ISO 5459), where it has a clear place (`src/dims/size_datums.rs`);
+  `annotations/<id>/omit` leaves it out. A datum feature naming no face, which the STEP reader reads
+  as its datum's usage's faces (a nonconformance it reads through, said in the basis), is no longer
+  refused either. dw-examples: STC-06's datum B (12 frames read in full), FTC-06's A–E (every
+  frame), STC-08's A and D (7 of 9 frames), CTC-02's D; STC-07 and CTC-03 draw their origin datums
+  A, D, E and D. `frame_datum_not_drawn` over the 35 dw-examples and 30 quality parts falls from 37
+  to 13 (leader crossings 771 to 786: FTC-06 and STC-07 gain 11 and 8 around the new symbols, CTC-02
+  loses 7), and CTC-03's plan view states its holes by dimensions rather than a hole table
+  (`hole_table: always` restores it). Still undrawn: widths whose size dimension has no clear place
+  (FTC-10 J, STC-09 H, STC-10 J), datums on hole patterns (STC-06 F, STC-08 E, H, J) and datums set
+  by datum targets (CTC-02 A–C, CTC-05 C, D, FTC-10 K, L).
+
 ## 0.2.0 (2026-10-27)
 
 Now on quiddity-rust **v0.2.1** (previously `0.2.0-alpha.2`), which changes no library code from

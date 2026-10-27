@@ -4077,6 +4077,7 @@ fn plan_recovered_inner(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invali
             );
             crate::dims::callout_routes::finish(effective.as_ref(), spec, &mut plan);
             crate::dims::hole_marks::attach(effective.as_ref(), spec, &mut plan);
+            crate::dims::size_datums::attach(effective.as_ref(), spec, &mut plan);
             crate::dims::gdt::cited_undrawn(&mut plan);
             crate::dims::pmi_policy::audit(effective.as_ref(), &plan.spec.clone(), &mut plan);
             if crate::dims::pmi_policy::carries(effective.as_ref()) || !spec.origin.is_empty() {
@@ -4717,6 +4718,7 @@ fn plan_inner(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
             );
             crate::dims::callout_routes::finish(analysis, spec, &mut plan);
             crate::dims::hole_marks::attach(analysis, spec, &mut plan);
+            crate::dims::size_datums::attach(analysis, spec, &mut plan);
             crate::dims::gdt::cited_undrawn(&mut plan);
             if !crate::placement_intent::has_pins(spec) {
                 plan.record_dimension_labels();
@@ -4880,6 +4882,7 @@ fn plan_with_presentation(
                 // so it takes their reservations before attaching grew them (#224).
                 let areas: Vec<_> = finished.views.iter().map(|v| v.area).collect();
                 crate::dims::hole_marks::attach(analysis, base, &mut finished);
+                crate::dims::size_datums::attach(analysis, base, &mut finished);
                 for (v, area) in finished.views.iter_mut().zip(areas) {
                     v.area = area;
                 }
@@ -5286,6 +5289,7 @@ fn plan_with_presentation(
                 .map(|r| r.id),
         );
         annotation_ids.extend(crate::dims::blends::note_ids(analysis));
+        annotation_ids.extend(crate::dims::size_datums::ids(analysis));
         let missing = effective
             .annotations
             .keys()

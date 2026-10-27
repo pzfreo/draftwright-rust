@@ -74,7 +74,8 @@ fn reported<'a>(plan: &'a Plan, code: &str) -> Vec<&'a draftwright::dims::gdt::P
 fn ctc_02_frames_and_datum_symbols_are_inside_their_bands_and_on_the_sheet() {
     let a = analysed("nist_ctc_02_asme1_ap242-e2");
     let plan = cache::default_plan(&a, true);
-    assert_eq!(plan.gdt.len(), 10, "five frames and five datum symbols");
+    // Datum D among them since its feature, naming no face, is read as its usage's faces.
+    assert_eq!(plan.gdt.len(), 11, "five frames and six datum symbols");
     assert!(plan.gdt.iter().all(|g| g.placed.is_some()));
     let off: Vec<&str> = reported(&plan, "annotation_off_sheet")
         .iter()

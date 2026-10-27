@@ -113,59 +113,6 @@ pub(crate) fn attach(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
             let Some(mark) = mark(plan, &named, &view.id) else {
                 continue;
             };
-            let Some(sheet) = std::iter::once(&plan.sheet)
-                .chain(&plan.sheets)
-                .find(|s| s.number == view.sheet)
-            else {
-                continue;
-            };
-            // Other views' outlines are closed to it; its own view's only on proven blank paper.
-            let outlines: Vec<(bool, [f64; 4])> = plan
-                .views
-                .iter()
-                .filter(|v| v.sheet == sheet.number)
-                .filter(|v| {
-                    let name = v.id.trim_start_matches("v:");
-                    super::NAMES.contains(&name) || crate::detail::NAMES.contains(&name)
-                })
-                .map(|v| {
-                    (
-                        v.id == view.id,
-                        placement::Frame::new(analysis, v).outline(),
-                    )
-                })
-                .collect();
-            let paper = |b: [f64; 4]| {
-                exterior
-                    .get(&view.id)
-                    .is_some_and(|p| p.exterior_clear(view, b, &[], &[]))
-                    || interior.get(&view.id).is_some_and(|p| p.blank(view, b))
-            };
-            let on_sheet = |id: &str| {
-                plan.views
-                    .iter()
-                    .find(|v| v.id == id)
-                    .is_none_or(|v| v.sheet == sheet.number)
-            };
-            let own_triangle = format!("{}:triangle:", g.id);
-            let mut all: Vec<PlannedDimension> = plan.dimensions.clone();
-            all.extend(plan.gdt.iter().filter_map(gdt::proxy));
-            let i = all
-                .iter()
-                .position(|d| d.id == g.id)
-                // Invariant: a placed glyph has a proxy, appended above.
-                .expect("the glyph's proxy");
-            let peers: Vec<PlannedDimension> = all
-                .iter()
-                .enumerate()
-                .filter(|(j, q)| *j != i && on_sheet(&q.view))
-                .map(|(_, q)| q.clone())
-                .chain(
-                    callout_routes::furniture(plan)
-                        .into_iter()
-                        .filter(|q| !q.id.starts_with(&own_triangle) && on_sheet(&q.view)),
-                )
-                .collect();
             // The mark, and the frames stacked on it, may touch it.
             let mut attached: BTreeSet<String> = stacks
                 .get(&mark.id)
@@ -220,44 +167,16 @@ pub(crate) fn attach(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
                 out
             };
             let id = g.id.clone();
-            let before = placement::collisions_for(analysis, &all, sheet, &plan.views, &cache, &id);
-            let mut chosen = None;
-            for (side, next) in candidates {
-                if !clear(&next, &attached, &peers, &outlines, &paper) {
-                    continue;
-                }
-                let mut trial = plan.gdt[gi].clone();
-                trial.view.clone_from(&view.id);
-                trial.placed = Some(next.clone());
-                all[i] = gdt::proxy(&trial).expect("just placed");
-                let problems =
-                    placement::collisions_for(analysis, &all, sheet, &plan.views, &cache, &id);
-                if problems.is_empty() {
-                    chosen = Some((side, next, None));
-                    break;
-                }
-                // Past its view's reserved area alone: that area grows to hold it where the
-                // sheet has vacant paper, and nothing else may change.
-                if problems.iter().all(|p| p.code == "annotation_outside_area")
-                    && let Some(area) = super::ink_box(&all[i])
-                        .and_then(|ink| grown(view, ink, sheet, &plan.views, &peers))
-                {
-                    let mut views = plan.views.clone();
-                    // Invariant: `view` is one of the plan's views.
-                    let vi = views
-                        .iter()
-                        .position(|v| v.id == view.id)
-                        .expect("its view");
-                    views[vi].area = area;
-                    if placement::collisions_for(analysis, &all, sheet, &views, &cache, &id)
-                        .is_empty()
-                    {
-                        chosen = Some((side, next, Some((vi, area))));
-                        break;
-                    }
-                }
-            }
-            let Some((side, next, area)) = chosen else {
+            let Some((side, next, area, before)) = settle(
+                analysis,
+                plan,
+                gi,
+                view,
+                candidates,
+                &attached,
+                (&exterior, &interior),
+                &cache,
+            ) else {
                 continue;
             };
             rechecked_codes.extend(before.into_iter().map(|p| p.code));
@@ -297,6 +216,120 @@ pub(crate) fn attach(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
     let mut all = plan.dimensions.clone();
     all.extend(plan.gdt.iter().filter_map(gdt::proxy));
     callout_routes::refresh(analysis, plan, &all, &cache, &changed, &rechecked_codes);
+}
+
+/// Where glyph *gi* of *plan* goes in *view*: the first of *candidates* clear of every item but
+/// those it is *attached* to, of other views and of sheet furniture, on blank paper of its own
+/// view (*proofs*: its exterior and interior proofs), with no finding of its own, or past its
+/// view's reserved area alone where that area can grow (the view and grown area returned); with
+/// the findings its old place had, to check again. None when no candidate is clear.
+#[allow(clippy::type_complexity, clippy::too_many_arguments)]
+pub(super) fn settle(
+    analysis: &Analysis,
+    plan: &Plan,
+    gi: usize,
+    view: &crate::model::PlannedView,
+    candidates: Vec<(&'static str, gdt::GdtPlaced)>,
+    attached: &BTreeSet<String>,
+    proofs: (
+        &BTreeMap<String, std::rc::Rc<super::interior::Proof>>,
+        &BTreeMap<String, std::rc::Rc<super::interior::Proof>>,
+    ),
+    cache: &super::footprints::Cache,
+) -> Option<(
+    &'static str,
+    gdt::GdtPlaced,
+    Option<(usize, [f64; 4])>,
+    Vec<crate::model::Problem>,
+)> {
+    let sheet = std::iter::once(&plan.sheet)
+        .chain(&plan.sheets)
+        .find(|s| s.number == view.sheet)?;
+    let (exterior, interior) = proofs;
+    // Other views' outlines are closed to it; its own view's only on proven blank paper.
+    let outlines: Vec<(bool, [f64; 4])> = plan
+        .views
+        .iter()
+        .filter(|v| v.sheet == sheet.number)
+        .filter(|v| {
+            let name = v.id.trim_start_matches("v:");
+            super::NAMES.contains(&name) || crate::detail::NAMES.contains(&name)
+        })
+        .map(|v| {
+            (
+                v.id == view.id,
+                placement::Frame::new(analysis, v).outline(),
+            )
+        })
+        .collect();
+    let paper = |b: [f64; 4]| {
+        exterior
+            .get(&view.id)
+            .is_some_and(|p| p.exterior_clear(view, b, &[], &[]))
+            || interior.get(&view.id).is_some_and(|p| p.blank(view, b))
+    };
+    let on_sheet = |id: &str| {
+        plan.views
+            .iter()
+            .find(|v| v.id == id)
+            .is_none_or(|v| v.sheet == sheet.number)
+    };
+    let id = &plan.gdt[gi].id;
+    let own_triangle = format!("{id}:triangle:");
+    let mut all: Vec<PlannedDimension> = plan.dimensions.clone();
+    all.extend(plan.gdt.iter().filter_map(gdt::proxy));
+    let i = all
+        .iter()
+        .position(|d| d.id == *id)
+        // Invariant: a placed glyph has a proxy, appended above.
+        .expect("the glyph's proxy");
+    let peers: Vec<PlannedDimension> = all
+        .iter()
+        .enumerate()
+        .filter(|(j, q)| *j != i && on_sheet(&q.view))
+        .map(|(_, q)| q.clone())
+        .chain(
+            callout_routes::furniture(plan)
+                .into_iter()
+                .filter(|q| !q.id.starts_with(&own_triangle) && on_sheet(&q.view)),
+        )
+        .collect();
+    let before = placement::collisions_for(analysis, &all, sheet, &plan.views, cache, id);
+    let mut chosen = None;
+    for (side, next) in candidates {
+        if !clear(&next, attached, &peers, &outlines, &paper) {
+            continue;
+        }
+        let mut trial = plan.gdt[gi].clone();
+        trial.view.clone_from(&view.id);
+        trial.placed = Some(next.clone());
+        all[i] = gdt::proxy(&trial).expect("just placed");
+        let problems = placement::collisions_for(analysis, &all, sheet, &plan.views, cache, id);
+        if problems.is_empty() {
+            chosen = Some((side, next, None));
+            break;
+        }
+        // Past its view's reserved area alone: that area grows to hold it where the
+        // sheet has vacant paper, and nothing else may change.
+        if problems.iter().all(|p| p.code == "annotation_outside_area")
+            && let Some(area) =
+                super::ink_box(&all[i]).and_then(|ink| grown(view, ink, sheet, &plan.views, &peers))
+        {
+            let mut views = plan.views.clone();
+            // Invariant: `view` is one of the plan's views.
+            let vi = views
+                .iter()
+                .position(|v| v.id == view.id)
+                .expect("its view");
+            views[vi].area = area;
+            if placement::collisions_for(analysis, &all, sheet, &views, cache, id).is_empty() {
+                chosen = Some((side, next, Some((vi, area))));
+                break;
+            }
+        }
+    }
+    let (side, next, area) = chosen?;
+    Some((side, next, area, before))
 }
 
 /// Whether placement intent *p* keeps a glyph on its lowered attachment: it names a view other
