@@ -586,6 +586,79 @@ fn the_open_questions_stay_refused(stem: &str) {
 }
 
 #[test]
+fn a_hole_size_naming_its_rim_edge_reaches_its_callout_and_schedule() {
+    // NIST STC-10 names each hole of its ⌀2.5 ±0.15, ⌀3.5 ±0.2, ⌀7 ±0.25 and ⌀3.5 G6 by its
+    // cylindrical face and a rim edge of that face: the edge names the same hole again.
+    let (_, a, plan) = planned("nist_stc_10_asme1_ap242-e2");
+    for source in [
+        "dimension:#296",
+        "dimension:#305",
+        "dimension:#306",
+        "dimension:#309",
+        "dimension:#310",
+        "dimension:#319",
+    ] {
+        let r = records(&a).iter().find(|r| r.source_id == source).unwrap();
+        assert!(!r.edges.is_empty(), "{source} names an edge");
+        let g = r.geometry.as_ref().unwrap();
+        assert!(g.reasons.is_empty(), "{source}: {:?}", g.reasons);
+        assert!(r.blockers.is_empty(), "{source}: {:?}", r.blockers);
+        assert!(stating(&plan, &a, r).is_some(), "{source}");
+        assert!(
+            !plan.problems.iter().any(|p| {
+                REFUSALS.contains(&p.code.as_str())
+                    && p.refs.first().map(String::as_str) == Some(source)
+            }),
+            "{source}"
+        );
+    }
+    // The drawing's schedule repeats each size as its callout states it.
+    let drawn = cache::default_plan(&a, true);
+    let rows: Vec<&str> = drawn
+        .hole_tables
+        .iter()
+        .flat_map(|t| &t.rows)
+        .map(|r| r.cells[1].as_str())
+        .collect();
+    assert_eq!(
+        rows.iter().filter(|c| **c == "⌀2.5 ±0.15 THRU").count(),
+        8,
+        "{rows:?}"
+    );
+    assert_eq!(
+        rows.iter().filter(|c| **c == "⌀3.5 G6 THRU").count(),
+        3,
+        "{rows:?}"
+    );
+    assert_eq!(
+        rows.iter().filter(|c| **c == "⌀3.5 ±0.2 THRU").count(),
+        3,
+        "{rows:?}"
+    );
+    // The ⌀10 spotfaces name a plane, and the supplemental-geometry ⌀3 stays an open question.
+    for source in ["dimension:#299", "dimension:#313"] {
+        let r = records(&a).iter().find(|r| r.source_id == source).unwrap();
+        assert!(stating(&plan, &a, r).is_none(), "{source}");
+    }
+    // An edge off the referenced cylinders is no size reference.
+    let (file, bytes) = fixture("nist_stc_10_asme1_ap242-e2");
+    let (part, _) = analysed(&file, &bytes);
+    let mut r = records(&a)
+        .iter()
+        .find(|r| r.source_id == "dimension:#296")
+        .unwrap()
+        .clone();
+    let rim = r.edges.clone();
+    r.edges = vec![
+        (0..part.edges.len())
+            .find(|e| !rim.contains(e) && part.edges[*e].start[2] > 20.0)
+            .unwrap(),
+    ];
+    let g = draftwright::pmi_lowering::dimension_geometry(&part, &r);
+    assert_eq!(g.reasons, ["one diameter reference is not a face"]);
+}
+
+#[test]
 fn a_toleranced_bore_annotates_its_callout_and_a_spec_tolerance_wins() {
     let (_, a, plan) = planned("spool_fits");
     let callout = plan

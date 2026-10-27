@@ -10844,8 +10844,8 @@
   },
   "rust": null,
   "source": "dimension:#296",
-  "verdict": "equivalent",
-  "evidence": "Both leave the dimension off the drawing for the same reason, found at a different stage: draftwright checks the faces when it extracts the record (pmi_not_extracted), the port reads the record and its lowering makes the same check (dimension_geometry, as draftwright's _proved_planar_linear and _cylindrical_references), so it is pmi_not_lowered. Reason: 'one diameter reference is not a face'. draftwright: \"one diameter reference is not a face\""
+  "verdict": "rust-correct",
+  "evidence": "The hole's references are its cylindrical face and a rim edge of that face. draftwright refuses the record (pmi_not_extracted: 'one diameter reference is not a face'; with it authored_dim_source_unresolved). Every point of the edge lies on the referenced cylinder within its extent, so it names the same hole again and adds nothing to measure; the port reads the size from the cylinders (pmi_lowering cylinder_geometry, edge_on_cylinder), matches them to the recognised hole callout of those holes (same axis line and diameter) and states it there and in its hole table rows. An edge off the referenced cylinders still refuses (tests/pmi_dimensions.rs a_hole_size_naming_its_rim_edge_reaches_its_callout_and_schedule). draftwright: \"one diameter reference is not a face\""
  },
  {
   "code": "pmi_not_extracted",
@@ -10952,8 +10952,8 @@
   },
   "rust": null,
   "source": "dimension:#310",
-  "verdict": "equivalent",
-  "evidence": "Both leave the dimension off the drawing for the same reason, found at a different stage: draftwright checks the faces when it extracts the record (pmi_not_extracted), the port reads the record and its lowering makes the same check (dimension_geometry, as draftwright's _proved_planar_linear and _cylindrical_references), so it is pmi_not_lowered. Reason: 'one diameter reference is not a face'. draftwright: \"one diameter reference is not a face\""
+  "verdict": "rust-correct",
+  "evidence": "The hole's references are its cylindrical face and a rim edge of that face. draftwright refuses the record (pmi_not_extracted: 'one diameter reference is not a face'; with it authored_dim_source_unresolved). Every point of the edge lies on the referenced cylinder within its extent, so it names the same hole again and adds nothing to measure; the port reads the size from the cylinders (pmi_lowering cylinder_geometry, edge_on_cylinder), matches them to the recognised hole callout of those holes (same axis line and diameter) and states it there and in its hole table rows. An edge off the referenced cylinders still refuses (tests/pmi_dimensions.rs a_hole_size_naming_its_rim_edge_reaches_its_callout_and_schedule). draftwright: \"one diameter reference is not a face\""
  },
  {
   "code": "pmi_not_extracted",
@@ -10988,8 +10988,44 @@
   },
   "rust": null,
   "source": "dimension:#319",
-  "verdict": "equivalent",
-  "evidence": "Both leave the dimension off the drawing for the same reason, found at a different stage: draftwright checks the faces when it extracts the record (pmi_not_extracted), the port reads the record and its lowering makes the same check (dimension_geometry, as draftwright's _proved_planar_linear and _cylindrical_references), so it is pmi_not_lowered. Reason: 'one diameter reference is not a face'. draftwright: \"one diameter reference is not a face\""
+  "verdict": "rust-correct",
+  "evidence": "The hole's references are its cylindrical face and a rim edge of that face. draftwright refuses the record (pmi_not_extracted: 'one diameter reference is not a face'; with it authored_dim_source_unresolved). Every point of the edge lies on the referenced cylinder within its extent, so it names the same hole again and adds nothing to measure; the port reads the size from the cylinders (pmi_lowering cylinder_geometry, edge_on_cylinder), matches them to the recognised hole callout of those holes (same axis line and diameter) and states it there and in its hole table rows. An edge off the referenced cylinders still refuses (tests/pmi_dimensions.rs a_hole_size_naming_its_rim_edge_reaches_its_callout_and_schedule). draftwright: \"one diameter reference is not a face\""
+ },
+ {
+  "code": "pmi_not_extracted",
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "python": {
+   "id": "dimension:0:1:4:99",
+   "severity": "error"
+  },
+  "rust": null,
+  "source": "dimension:#305",
+  "verdict": "rust-correct",
+  "evidence": "The hole's references are its cylindrical face and a rim edge of that face. draftwright refuses the record (pmi_not_extracted: 'one diameter reference is not a face'; with it authored_dim_source_unresolved). Every point of the edge lies on the referenced cylinder within its extent, so it names the same hole again and adds nothing to measure; the port reads the size from the cylinders (pmi_lowering cylinder_geometry, edge_on_cylinder), matches them to the recognised hole callout of those holes (same axis line and diameter) and states it there and in its hole table rows. An edge off the referenced cylinders still refuses (tests/pmi_dimensions.rs a_hole_size_naming_its_rim_edge_reaches_its_callout_and_schedule). Its class stated without limits is printed as the class alone on the uniquely matched recognised bore callout (symbolic_bore), the default fit presentation (deviations are a Spec option). draftwright: \"one diameter reference is not a face\""
+ },
+ {
+  "code": "pmi_not_extracted",
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "python": {
+   "id": "dimension:0:1:4:100",
+   "severity": "error"
+  },
+  "rust": null,
+  "source": "dimension:#306",
+  "verdict": "rust-correct",
+  "evidence": "The hole's references are its cylindrical face and a rim edge of that face. draftwright refuses the record (pmi_not_extracted: 'one diameter reference is not a face'; with it authored_dim_source_unresolved). Every point of the edge lies on the referenced cylinder within its extent, so it names the same hole again and adds nothing to measure; the port reads the size from the cylinders (pmi_lowering cylinder_geometry, edge_on_cylinder), matches them to the recognised hole callout of those holes (same axis line and diameter) and states it there and in its hole table rows. An edge off the referenced cylinders still refuses (tests/pmi_dimensions.rs a_hole_size_naming_its_rim_edge_reaches_its_callout_and_schedule). Its class stated without limits is printed as the class alone on the uniquely matched recognised bore callout (symbolic_bore), the default fit presentation (deviations are a Spec option). draftwright: \"one diameter reference is not a face\""
+ },
+ {
+  "code": "pmi_not_extracted",
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "python": {
+   "id": "dimension:0:1:4:103",
+   "severity": "error"
+  },
+  "rust": null,
+  "source": "dimension:#309",
+  "verdict": "rust-correct",
+  "evidence": "The hole's references are its cylindrical face and a rim edge of that face. draftwright refuses the record (pmi_not_extracted: 'one diameter reference is not a face'; with it authored_dim_source_unresolved). Every point of the edge lies on the referenced cylinder within its extent, so it names the same hole again and adds nothing to measure; the port reads the size from the cylinders (pmi_lowering cylinder_geometry, edge_on_cylinder), matches them to the recognised hole callout of those holes (same axis line and diameter) and states it there and in its hole table rows. An edge off the referenced cylinders still refuses (tests/pmi_dimensions.rs a_hole_size_naming_its_rim_edge_reaches_its_callout_and_schedule). Its class stated without limits is printed as the class alone on the uniquely matched recognised bore callout (symbolic_bore), the default fit presentation (deviations are a Spec option). draftwright: \"one diameter reference is not a face\""
  },
  {
   "code": "pmi_not_extracted",
@@ -12157,15 +12193,6 @@
   "file": "nist_stc_10_asme1_ap242-e2.stp",
   "python": null,
   "rust": "error",
-  "source": "dimension:#296",
-  "verdict": "equivalent",
-  "evidence": "Both leave the dimension off the drawing for the same reason, found at a different stage: draftwright checks the faces when it extracts the record (pmi_not_extracted), the port reads the record and its lowering makes the same check (dimension_geometry, as draftwright's _proved_planar_linear and _cylindrical_references), so it is pmi_not_lowered. Reason: 'one diameter reference is not a face'. port: \"one diameter reference is not a face\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_stc_10_asme1_ap242-e2.stp",
-  "python": null,
-  "rust": "error",
   "source": "dimension:#299",
   "verdict": "equivalent",
   "evidence": "Both leave the dimension off the drawing for the same reason, found at a different stage: draftwright checks the faces when it extracts the record (pmi_not_extracted), the port reads the record and its lowering makes the same check (dimension_geometry, as draftwright's _proved_planar_linear and _cylindrical_references), so it is pmi_not_lowered. Reason: 'one diameter reference face is not cylindrical; cylindrical reference diameter(s) 6 mm differ from nominal 10 mm'. port: \"one diameter reference face is not cylindrical; cylindrical reference diameter(s) 6 mm differ from nominal 10 mm\""
@@ -12220,24 +12247,6 @@
   "file": "nist_stc_10_asme1_ap242-e2.stp",
   "python": null,
   "rust": "error",
-  "source": "dimension:#305",
-  "verdict": "undetermined",
-  "evidence": "draftwright reports it not extracted ('one diameter reference is not a face'), as the port does under that code; the port also holds the record, read in part, and reports it not lowered, which draftwright, holding no record, does not. Whether an ISO 286 class stated without its limits is drawn (limits computed, or the class dropped as draftwright does) is an open maintainer question (docs/next-session.md); the port refuses it until decided. port: \"the ISO 286 class G6 is stated without limits; they are not computed\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_stc_10_asme1_ap242-e2.stp",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#306",
-  "verdict": "undetermined",
-  "evidence": "draftwright reports it not extracted ('one diameter reference is not a face'), as the port does under that code; the port also holds the record, read in part, and reports it not lowered, which draftwright, holding no record, does not. Whether an ISO 286 class stated without its limits is drawn (limits computed, or the class dropped as draftwright does) is an open maintainer question (docs/next-session.md); the port refuses it until decided. port: \"the ISO 286 class G6 is stated without limits; they are not computed\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_stc_10_asme1_ap242-e2.stp",
-  "python": null,
-  "rust": "error",
   "source": "dimension:#307",
   "verdict": "equivalent",
   "evidence": "Both leave the dimension off the drawing for the same reason, found at a different stage: draftwright checks the faces when it extracts the record (pmi_not_extracted), the port reads the record and its lowering makes the same check (dimension_geometry, as draftwright's _proved_planar_linear and _cylindrical_references), so it is pmi_not_lowered. Reason: 'one diameter reference face is not cylindrical; cylindrical reference diameter(s) 7 mm differ from nominal 10 mm'. port: \"one diameter reference face is not cylindrical; cylindrical reference diameter(s) 7 mm differ from nominal 10 mm\""
@@ -12250,24 +12259,6 @@
   "source": "dimension:#308",
   "verdict": "equivalent",
   "evidence": "Both leave the dimension off the drawing for the same reason, found at a different stage: draftwright checks the faces when it extracts the record (pmi_not_extracted), the port reads the record and its lowering makes the same check (dimension_geometry, as draftwright's _proved_planar_linear and _cylindrical_references), so it is pmi_not_lowered. Reason: 'thickness dimension needs two measurable authored reference groups'. port: \"thickness dimension needs two measurable authored reference groups\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_stc_10_asme1_ap242-e2.stp",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#309",
-  "verdict": "undetermined",
-  "evidence": "draftwright reports it not extracted ('one diameter reference is not a face'), as the port does under that code; the port also holds the record, read in part, and reports it not lowered, which draftwright, holding no record, does not. Whether an ISO 286 class stated without its limits is drawn (limits computed, or the class dropped as draftwright does) is an open maintainer question (docs/next-session.md); the port refuses it until decided. port: \"the ISO 286 class G6 is stated without limits; they are not computed\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_stc_10_asme1_ap242-e2.stp",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#310",
-  "verdict": "equivalent",
-  "evidence": "Both leave the dimension off the drawing for the same reason, found at a different stage: draftwright checks the faces when it extracts the record (pmi_not_extracted), the port reads the record and its lowering makes the same check (dimension_geometry, as draftwright's _proved_planar_linear and _cylindrical_references), so it is pmi_not_lowered. Reason: 'one diameter reference is not a face'. port: \"one diameter reference is not a face\""
  },
  {
   "code": "pmi_not_lowered",
@@ -12340,15 +12331,6 @@
   "source": "dimension:#318",
   "verdict": "undetermined",
   "evidence": "draftwright reports it not extracted ('thickness dimension needs two measurable authored reference groups'), as the port does under that code; the port also holds the record, read in part, and reports it not lowered, which draftwright, holding no record, does not. Whether a dimension on supplemental (invisible) geometry is drawn is an open maintainer question (docs/next-session.md); the port refuses it until decided. port: \"applies to supplemental geometry (trimmed_curve), not only the part's faces and edges\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_stc_10_asme1_ap242-e2.stp",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#319",
-  "verdict": "equivalent",
-  "evidence": "Both leave the dimension off the drawing for the same reason, found at a different stage: draftwright checks the faces when it extracts the record (pmi_not_extracted), the port reads the record and its lowering makes the same check (dimension_geometry, as draftwright's _proved_planar_linear and _cylindrical_references), so it is pmi_not_lowered. Reason: 'one diameter reference is not a face'. port: \"one diameter reference is not a face\""
  },
  {
   "code": "pmi_not_lowered",

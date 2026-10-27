@@ -21,6 +21,17 @@ All notable changes to draftwright-rust are recorded here, in the style of
   the boss rule on the four squared. t8-flange-nut and t8-housing-bracket keep their bolt
   circles. The Spec's `pattern` can still declare one.
 
+- **A hole size that also names the hole's rim edge is drawn.** NIST STC-10 references each
+  hole of a pattern by its cylindrical face and a rim edge of that face, and the edge alone
+  made the size undrawn ("one diameter reference is not a face"). An edge every point of which
+  lies on one of the referenced cylinders, within its extent, now names that hole again. STC-10
+  gains A1-A8 `⌀2.5 ±0.15`, the `⌀3.5 G6` locating holes (printed by class), `⌀3.5 ±0.2` and
+  `4× ⌀7 ±0.25`, on their callouts and repeated in the hole table rows; `pmi_not_lowered` falls
+  from 35 to 29. Any other edge still refuses. The G6 callout, now carrying PMI, stays beside
+  the schedule in the plan view and moves the frames above it: two leaders of the C-hole frames
+  now cross the labels of `⌖ ⌀1Ⓜ A B C` and `⌖ ⌀0.65 A B C` (`annotation_ink_overlap` 1 to 5).
+  No other drawing of the 30 quality parts or the 35 dw-examples changes.
+
 ## 0.2.0 (2026-10-27)
 
 Now on quiddity-rust **v0.2.1** (previously `0.2.0-alpha.2`), which changes no library code from
