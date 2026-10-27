@@ -21,31 +21,24 @@ All notable changes to draftwright-rust are recorded here, in the style of
   for its stations (`profile_corners: angle` keeps the counted angle). Two equal stations from
   opposite sides of the box are stated once, `2× v`, and lint reads a counted station as locating
   its mirror: the symmetric octagon gets four (`2× 12.827`, `2× 33.902`, `2× 11.938`, `2× 33.013`),
-  not eight in repeated pairs; FTC-08 stays on A1 1:2 and STC-08 on A1 1:1. vslot-2020x50's slot
+  not eight in repeated pairs; FTC-08 stays on A1 1:2 and STC-08 on A1 1:1 (where its
+  established scale cap leaves nothing valid, the hole-table search runs once more without the
+  cap), at a cost on STC-08 of one more `annotation_leader_crossing` (4 to 5), two more
+  `extension_through_feature` (7 to 9), one `extension_off_centreline` and one `label_crowded`.
+  A settled location whose witness would cross a feature now starts it beyond the near face, as a
+  corridor repair would: FTC-08's `141.827` slot location stays clear of the 12.7 slot, and CTC-02
+  rc (3) and mfcadpp/1004 (1) lose their `extension_through_feature` findings. vslot-2020x50's slot
   openings get `2× 1.8`, `2× 5.15` and `2× 6.95` for their sixteen angles and move from A4 1:1
   (five leader crossings) to A3 2:1. FTC-08's fillet callout reads `8× R1.524`, not `8× R1.5` (the
   new route loses the established one-decimal text; the retention check in `tests/label_lanes.rs`
-  now uses mfcadpp/1004); l-plate-5-holes gains one `label_crowded`. `profile_corners: linear`,
-  or naming one station in the Spec, states each station on its own. A 45° corner chamfer gets
-  its leg stations, not a chamfer callout (the issue's alternative, left for later). Other
-  corners keep their angles (shf08's and corner-bracket-2020's among them); lint now reports
-  `profile_corner_unlocated` where no linear dimension places a drawn angle's edge (CTC-03 2,
-  cgb207 1, 10046 1, 10060 2), and 10007 and 10060 gain plate-face corners whose angles find no
-  clear place (`angular_requirement_missing`).
-
-### Fixed
-
-- **A settled location's witness no longer reaches its station across another feature (#217).**
-  Where a new recess leaves an established location's witness crossing a feature inside the body
-  and nothing else asks for a corridor repair, the witness now begins beyond the near face on the
-  same lane, as the repair would draw it; only ink is removed. FTC-08's `141.827` slot location
-  no longer crosses the 12.7 slot (its quality cell stays at 0), and CTC-02 rc (3) and mfcadpp/1004
-  (1) lose their `extension_through_feature` findings.
-- **A first estimate with a hole table no longer keeps its sheet when the established scale cap
-  leaves nothing valid (#217).** When no scale is valid without a table and the ordinary search,
-  capped at the established drawing's scale, finds nothing valid either, the search runs again
-  without the cap and its drawing is taken where it reads better. STC-08 is back on A1 1:1, not
-  A2 1:5 with its plan view small and its hole tags crowded (`annotation_leader_crossing` 37 to 5).
+  now uses mfcadpp/1004); l-plate-5-holes and FTC-08 each gain one `label_crowded`.
+  `profile_corners: linear`, or naming one station in the Spec, states each station on its own. A
+  45° corner chamfer gets its leg stations, not a chamfer callout (the issue's alternative, left
+  for later). Other corners are unchanged and stay unlocated (shf08's slanted top shows neither
+  angle nor station, its planned angles being dropped, as on 0.2.0; corner-bracket-2020 too);
+  lint now reports `profile_corner_unlocated` where no linear dimension places a drawn angle's
+  edge (CTC-03 2, cgb207 1, 10046 1, 10060 2), and 10007 and 10060 gain plate-face corners whose
+  angles find no clear place (`angular_requirement_missing`).
 
 ## 0.2.0 (2026-10-27)
 

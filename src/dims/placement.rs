@@ -3333,9 +3333,6 @@ fn clear_linear_ordered(
     }
 }
 
-// A linear trial has exactly two witnesses, one dimension line and two arrows.
-// Keep rejected trials inline; allocate public Placed vectors only for the
-// survivors that need text alternatives or can become the selected result.
 /// The same witnesses, begun beyond the near side of the projected body toward *target*;
 /// `None` when a witness would then be too short. No station or arrow moves.
 fn near_face_start(c: &LinearStroke, outline: [f64; 4], target: Side) -> Option<LinearStroke> {
@@ -3361,6 +3358,9 @@ fn near_face_start(c: &LinearStroke, outline: [f64; 4], target: Side) -> Option<
         .then_some(near_face)
 }
 
+// A linear trial has exactly two witnesses, one dimension line and two arrows.
+// Keep rejected trials inline; allocate public Placed vectors only for the
+// survivors that need text alternatives or can become the selected result.
 #[derive(Clone, Copy)]
 struct LinearStroke {
     lines: [[P2; 2]; 3],
