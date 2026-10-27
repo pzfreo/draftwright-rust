@@ -188,10 +188,12 @@ const ASSEMBLY_BASIS: &str = "automatic: the file is an assembly whose principal
 /// name, and the others by name (up to three) or by count.
 pub(crate) fn assembly_note(analysis: &Analysis) -> Option<String> {
     let k = analysis.binding.part_index.filter(|_| analysis.principal)?;
+    // "PART" before the names, so a part named after its material ("Metal") is not read as
+    // a statement about material.
     let name = |p: &crate::model::FilePart| {
         let n = p.name.trim();
         if n.is_empty() {
-            format!("PART {}", p.part)
+            p.part.to_string()
         } else {
             n.to_uppercase()
         }
@@ -205,11 +207,12 @@ pub(crate) fn assembly_note(analysis: &Analysis) -> Option<String> {
         .collect();
     let rest = match others.len() {
         0 => return None,
-        1..=3 => others.join(", "),
+        1 => format!("PART {}", others[0]),
+        2 | 3 => format!("PARTS {}", others.join(", ")),
         n => format!("{n} OTHER PARTS"),
     };
     Some(format!(
-        "ASSEMBLY OF {} PARTS: ONLY {} SHOWN; {rest} NOT SHOWN",
+        "ASSEMBLY OF {} PARTS: ONLY PART {} SHOWN; {rest} NOT SHOWN",
         analysis.parts.len(),
         name(drawn)
     ))

@@ -286,10 +286,12 @@ fn degrees(terms: &[String]) -> Vec<String> {
         .map(|t| {
             t.split('/')
                 .map(|v| {
-                    if v.ends_with(|c: char| c.is_ascii_digit()) {
-                        format!("{v}°")
-                    } else {
-                        v.to_string()
+                    // After the last digit, so a reference value `(60)` reads `(60°)`.
+                    match v.rfind(|c: char| c.is_ascii_digit()) {
+                        Some(i) if v[i + 1..].chars().all(|c| matches!(c, ')' | ']')) => {
+                            format!("{}°{}", &v[..=i], &v[i + 1..])
+                        }
+                        _ => v.to_string(),
                     }
                 })
                 .collect::<Vec<_>>()
@@ -1367,6 +1369,8 @@ mod tests {
         assert_eq!(t("59.5 - 60.5"), "59.5° - 60.5°");
         // A value that already states its unit keeps one.
         assert_eq!(t("60° ±0.5°"), "60° ±0.5°");
+        assert_eq!(t("(60)"), "(60°)");
+        assert_eq!(t("2X 60"), "2X 60°");
     }
 
     #[test]

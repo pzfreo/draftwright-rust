@@ -11,12 +11,14 @@ All notable changes to draftwright-rust are recorded here, in the style of
 - **A drawing of an assembly's principal part says the other parts are not shown.** dw-examples'
   LM8UU is a sleeve and an insert; only the sleeve is drawn (#219), so under the title "LM8UU
   linear bearing" the sheet showed a ⌀12.4 bore and no ⌀8, with the warning only in the review.
-  The sheet now carries an automatic general note, `ASSEMBLY OF 2 PARTS: ONLY METAL SHOWN;
-  CENTER NOT SHOWN` (the parts by name, or the others by count beyond three), which
+  The sheet now carries an automatic general note, `ASSEMBLY OF 2 PARTS: ONLY PART METAL SHOWN;
+  PART CENTER NOT SHOWN` (the parts by name, or the others by count beyond three), which
   `annotations/n:assembly/omit` leaves out and `annotations/n:assembly/text` words. A part chosen
   with `--part` gets none. Only LM8UU and the GT2 pulley change on the 30 quality parts and the
-  35 dw-examples drawings, on the same sheets: the notes block takes the top right, so the GT2
-  pulley's isometric moves up beside it and is drawn at the sheet's scale (5:1, was 6.35:1).
+  35 dw-examples drawings, on the same sheets. LM8UU's notes block takes the top left, so its
+  views move down and its isometric (not to scale) is drawn much smaller in the lower-left corner;
+  the GT2 pulley's notes block takes the top right, so its isometric moves up beside it and is
+  drawn at the sheet's scale (5:1, was 6.35:1).
 
 - **A PMI label that is a lone symbol is no longer drawn as an empty box.** CTC-04's side view
   and FTC-07's plan carried leadered labels of a lone `⌴`, and FTC-07 a private-use glyph

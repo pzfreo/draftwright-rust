@@ -358,7 +358,7 @@ fn a_body_within_the_principal_part_is_not_dimensioned_as_its_feature() {
     assert_eq!(notes.len(), 1, "{}", plan["notes"]);
     assert_eq!(
         notes[0]["text"],
-        "ASSEMBLY OF 2 PARTS: ONLY METAL SHOWN; CENTER NOT SHOWN"
+        "ASSEMBLY OF 2 PARTS: ONLY PART METAL SHOWN; PART CENTER NOT SHOWN"
     );
     assert_eq!(notes[0]["default"], true);
     assert_eq!(notes[0]["state"]["kind"], "shown");
