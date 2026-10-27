@@ -327,6 +327,53 @@ pub(crate) fn carrier(part: &Part, a: &Analysis, spec: &Spec, enabled: bool) -> 
             {
                 continue;
             }
+            // A chamfer or end face meets the flanks along a jagged curve. Its drawing
+            // boundary is the arc where that face crosses the crest, as for a circle.
+            if !matches!(edge.curve, haecceity::geom::Curve::Circle { .. }) {
+                let level = owners
+                    .iter()
+                    .filter(|f| !claimed.contains(f))
+                    .find_map(|&f| crest_level(&part.faces[f].surface, &t, r));
+                if let Some(level) = level
+                    && !edge.samples.is_empty()
+                    && level >= t.span[0] - t.pitch
+                    && level <= t.span[1] + t.pitch
+                    && edge.samples.iter().all(|&p| {
+                        let off = geom::norm(geom::cross(geom::sub(p, t.on), t.axis));
+                        off >= t.minor / 2. - 0.01 && off <= t.major / 2. + 0.01
+                    })
+                {
+                    let circle = Frame {
+                        origin: t.at(level),
+                        ..frame
+                    };
+                    let angle = |p: V3| {
+                        let q = geom::sub(p, circle.origin);
+                        geom::dot(q, circle.y).atan2(geom::dot(q, circle.x))
+                    };
+                    let first = angle(edge.samples[0]);
+                    let mut a = first;
+                    for &p in &edge.samples[1..] {
+                        a = geom::nearest_turn(angle(p), a);
+                    }
+                    let c = haecceity::geom::Curve::Circle {
+                        frame: circle,
+                        radius: r,
+                    };
+                    let n = edge.samples.len().max(9);
+                    edge.samples = (0..n)
+                        .map(|k| c.value(first + (a - first) * k as f64 / (n - 1) as f64))
+                        .collect();
+                    edge.start = edge.samples[0];
+                    edge.end = edge.samples[n - 1];
+                    edge.same_sense = a >= first;
+                    edge.curve = c;
+                    for face in &mut faces {
+                        face.pcurves.retain(|(e, _)| *e != i);
+                    }
+                }
+                continue;
+            }
             let haecceity::geom::Curve::Circle {
                 frame: circle,
                 radius,
@@ -421,6 +468,30 @@ pub(crate) fn carrier(part: &Part, a: &Analysis, spec: &Spec, enabled: bool) -> 
         });
     }
     Some(Part::new(faces, edges, solids))
+}
+
+/// Where a coaxial end plane or chamfer cone crosses radius *r*, along the thread's axis.
+fn crest_level(surface: &Surface, t: &Thread, r: f64) -> Option<f64> {
+    let (frame, at) = match surface {
+        Surface::Plane { frame } => (frame, 0.),
+        Surface::Cone {
+            frame,
+            radius,
+            semi_angle,
+        } if semi_angle.sin().abs() > 1e-6 => {
+            (frame, (r - radius) / semi_angle.sin() * semi_angle.cos())
+        }
+        _ => return None,
+    };
+    let coaxial = geom::dot(frame.z, t.axis).abs() > 1. - 1e-8
+        && (matches!(surface, Surface::Plane { .. })
+            || geom::norm(geom::cross(geom::sub(frame.origin, t.on), t.axis)) < 1e-5);
+    coaxial.then(|| {
+        geom::dot(
+            geom::sub(geom::add(frame.origin, geom::scale(frame.z, at)), t.on),
+            t.axis,
+        )
+    })
 }
 
 /// Extra ISO root and termination curves. Witnesses lie on the carrier crests,

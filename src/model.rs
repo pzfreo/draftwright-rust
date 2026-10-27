@@ -1825,7 +1825,9 @@ pub fn recognise_document(
     doc: &quiddity::recognition::RecognitionDocument,
 ) -> Result<(), String> {
     use crate::bridge::native;
-    let doc = &native::in_file_axes(doc);
+    let mut doc = native::in_file_axes(doc);
+    crate::bridge::refused_threads::complete(part, &mut doc);
+    let doc = &doc;
     let read = native::read(part, doc)?;
     let mut features = read.holes;
     features.extend(read.features);

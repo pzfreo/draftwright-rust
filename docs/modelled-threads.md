@@ -71,7 +71,19 @@ owns the callout: no second inferred callout is added. `ignore` uses recognition
 alone. Existing tapped-hole and Spec-authored thread callouts keep their ordinary
 PMI policy and source values.
 
-When recognition refuses a modelled thread (`ModelledThreadRefusal`), no hole or
+A refusal is first measured by draftwright from the faces it names
+(`src/bridge/refused_threads.rs`), with quiddity's invariants: every helical edge
+has one lead; every face of constant radius is at the least or greatest radius
+(minor and major), and both occur; the crest and root edges repeat every
+lead / starts; depth / pitch lies in 0.2–0.9. quiddity-rust 0.2.1 refuses a
+thread whose flanks a chamfer splits into short pieces (dw-examples' T8 flange
+nut); such a refusal passes, becomes a `ModelledThread` record with the
+refusal's reason as `refused`, and is drawn and called out like any other. A
+chamfer or end face that meets the flanks along a jagged curve has that
+boundary drawn at the crest, as a circular one is.
+
+When recognition refuses a modelled thread (`ModelledThreadRefusal`) and that
+measurement fails too, no hole or
 counterbore is built from the faces it names: their cylinders measure flanks, not
 a bore. The plan reports warning `modelled_thread_refused` with the refusal's
 reason and faces, and the modelled edges stay drawn. To state the thread, declare

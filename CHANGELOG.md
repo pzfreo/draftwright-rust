@@ -6,6 +6,23 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### Fixed
+
+- **A modelled thread quiddity refuses only because a chamfer splits its flanks is measured and
+  drawn conventionally.** dw-examples' T8 flange nut has a modelled 4-start, 8 mm lead Tr8 bore;
+  its top chamfer cuts each flank into two faces, and quiddity-rust 0.2.1 refuses the thread
+  (`inconsistent_diameters`) because the short pieces do not span the thread depth. The bore had
+  no size or designation (`modelled_thread_refused`) and its helix was drawn as a grey tangle.
+  draftwright now measures a refused thread from its faces with quiddity's own invariants (one
+  lead on every helical edge, faces of constant radius only at the minor and major diameters,
+  crest and root edges repeating every lead / starts, quiddity's depth-to-pitch bounds) and
+  reads it as a modelled thread, with the refusal's reason kept as `refused`; anything else stays
+  refused. The nut's bore is now called out "⌀8.3 × P2 4 STARTS" (no ISO 261 match, so measured,
+  info `thread_designation_measured`) and drawn with ISO 6410 minor and major lines.
+  `features/<id>/modelled_thread` overrides the designation or turns the depiction off. Where a
+  chamfer or end face meets any modelled thread's flanks along a jagged curve, that boundary is
+  now drawn at the crest, like a circular one, instead of as the raw intersection.
+
 ## 0.2.0 (2026-10-27)
 
 Now on quiddity-rust **v0.2.1** (previously `0.2.0-alpha.2`), which changes no library code from

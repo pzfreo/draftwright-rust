@@ -648,10 +648,12 @@ pub struct Native {
 /// Runs Rust quiddity's recognition on *part* and reads the families of [`READ`].
 pub fn recognise(part: &Part) -> Result<Native, String> {
     let recognition = quiddity::correspondence::recognise(part);
-    read(
-        part,
-        &quiddity::recognition::document(&recognition, part.faces.len()),
-    )
+    let mut doc = in_file_axes(&quiddity::recognition::document(
+        &recognition,
+        part.faces.len(),
+    ));
+    super::refused_threads::complete(part, &mut doc);
+    read(part, &doc)
 }
 
 /// Reads the families of [`READ`] from *doc*, Rust quiddity's recognition of *part*.
@@ -798,10 +800,18 @@ pub fn read(part: &Part, doc: &RecognitionDocument) -> Result<Native, String> {
 
     // A hole on faces a modelled-thread refusal names measures the thread's flanks, not a bore
     // (#218): it is left out, with any pattern it belongs to, and the refusal is reported instead.
+    // So is one on a refusal draftwright completed as a thread (`refused`).
     let threaded: BTreeSet<usize> = refusals
         .iter()
         .filter(|r| r.subtype == "ModelledThreadRefusal")
-        .flat_map(|r| r.faces.iter().copied())
+        .map(|r| &r.faces)
+        .chain(
+            others
+                .iter()
+                .filter(|r| r.family == "modelled_threads" && r.parameters.contains_key("refused"))
+                .map(|r| &r.faces),
+        )
+        .flat_map(|faces| faces.iter().copied())
         .collect();
     let at = |r: &Map<String, Value>| (r.get("location").cloned(), r.get("diameter").cloned());
     let (holes, refused): (Vec<_>, Vec<_>) = holes
