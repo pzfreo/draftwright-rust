@@ -1708,6 +1708,25 @@ fn lanes_uncached(
     if spec.dimensions.values().any(|d| d.between.is_some()) {
         problems.extend(chosen_views(&mut wants, spec, &frames)?);
     }
+    // A cut corner's station drawn on the open side its corner lies on (#217,
+    // [`placement::station_strip`]) may take a strip nothing else uses: it reserves its lane.
+    // The stations on their view's default strip, and the corner angles, reserve none, as before.
+    let mut stations = wants.clone();
+    profile_angles::apply(analysis, spec, &mut stations)?;
+    wants.extend(stations.into_iter().skip(wants.len()).filter(|w| {
+        let Shape::Linear { axis, .. } = w.shape else {
+            return false;
+        };
+        !excluded.contains(&w.id)
+            && w.views.iter().any(|v| {
+                frames.get(v).is_some_and(|f| {
+                    placement::across(f, axis).is_some_and(|horizontal| {
+                        placement::station_strip(f, w, horizontal)
+                            .is_some_and(|side| side != placement::strip(v, horizontal))
+                    })
+                })
+            })
+    }));
     plates::prefer_readable(analysis, &mut wants, &frames, None);
     let (chosen, _) = route(&mut wants, &frames, analysis);
     let wants: Vec<_> = wants

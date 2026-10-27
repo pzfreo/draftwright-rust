@@ -6,7 +6,8 @@
 //!   0°, 90° and 180° are implied.
 //! - A cut across a corner of principal edges (l-plate-5-holes' 45° cut, a bracket's corner
 //!   chamfers) that the linear dimensions do not fix is located by its legs (#217): each missing
-//!   station from the nearer side of the part's box. Its two angles would fix the cut's
+//!   station from the nearer side of the part's box, drawn on the side of the view its corner
+//!   lies on ([`super::placement`]'s `station_strip`). Its two angles would fix the cut's
 //!   direction, not where it lies. Two equal stations from opposite sides of the box (a
 //!   symmetric octagon's, a bracket's two chamfers) are stated once, `2× v`, by default.
 //! - Any other corner the linear dimensions do not fix gets its angle, drawn in the view that

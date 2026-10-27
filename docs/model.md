@@ -1310,7 +1310,9 @@ basis, placed, reference?, determined_by?}`:
   - a cut across a corner of principal edges (one edge of the corner principal, and the corner
     at the far end of its oblique edge also meeting a principal edge: l-plate-5-holes' 45° cut,
     a bracket's corner chamfers, a chamfered rectangle) is located by its legs (#217): each
-    missing station from the nearer side of the part's box,
+    missing station from the nearer side of the part's box, drawn on the side of the view its
+    corner lies on so its witness leaves the part at once, reserving its lane there when that is
+    not the view's default strip (a `dimensions/<id>` side overrides),
     `d:envelope/profile_location_<axis>.length.f<face>_<n>`. Its two angles would fix the cut's
     direction, not where it lies. By default two equal stations from opposite sides of the box
     (a symmetric octagon's, a bracket's two chamfers) are stated once, `2× v`, as

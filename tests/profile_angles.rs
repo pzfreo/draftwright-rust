@@ -192,6 +192,30 @@ fn an_under_defined_corner_gets_its_stations_not_an_angle() {
     assert!(stations(&p).is_empty());
 }
 
+/// A station whose corner lies on the view's silhouette is drawn on that side, so neither
+/// witness runs over the part (l-plate-5-holes' two `20`s ran through the plate, #217): the
+/// pentagon's y = 10 corner is on the right edge, though the plan's vertical strip is on the left.
+#[test]
+fn a_station_is_drawn_on_the_side_its_corner_is_open_to() {
+    let a = part(&PENTAGON);
+    let p = plan(&a, json!({}));
+    let view = p.views.iter().find(|v| v.id == "v:plan").unwrap();
+    // The part's 40 × 20 box on the page, about the view's centre.
+    let (hx, hy) = (20. * view.scale, 10. * view.scale);
+    let inside = |q: [f64; 2]| {
+        (q[0] - view.at[0]).abs() < hx - 1e-6 && (q[1] - view.at[1]).abs() < hy - 1e-6
+    };
+    let found = stations(&p);
+    assert_eq!(found.len(), 2, "{found:?}");
+    for d in found {
+        let placed = d.placed.as_ref().unwrap();
+        for w in &placed.lines[..2] {
+            let mid = [(w[0][0] + w[1][0]) / 2., (w[0][1] + w[1][1]) / 2.];
+            assert!(!inside(mid), "{} witness {w:?} runs over the part", d.id);
+        }
+    }
+}
+
 /// An octagon of equal corners but unequal sides (STC-08's chamfered rectangle) is not a
 /// regular polygon: no counted `8× 135°`, its corners are located linearly (#217).
 #[test]

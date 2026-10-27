@@ -2738,10 +2738,55 @@ mod complete_candidate_tests {
 }
 
 fn recover_uncached(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, Invalid> {
+    // A first estimate without a table whose search under the established drawing's scale cap
+    // is exhausted gets [`recover_tables`]'s last resort too: the cap has removed every scale,
+    // so the ordinary ladder is searched without it and its drawing taken where it reads better
+    // (STC-08 once #217's corner stations and the cited datums both reach it, its first
+    // estimate placing no table). A table-free baseline (`hole_table: never`) is left to
+    // [`recover_tables`], which applies the same resort itself.
+    let open = (!UNCAPPED.get()
+        && first.hole_tables.is_empty()
+        && spec.hole_table != crate::hole_table::Setting::Never)
+        .then(|| first.clone());
+    let plan = recover_capped(analysis, spec, first)?;
+    if let Some(first) = open
+        && recovery_exhausted(&plan)
+    {
+        let ordinary = with_uncapped(true, || recover_capped(analysis, spec, first))?;
+        if !recovery_exhausted(&ordinary)
+            && recovery_rank(analysis, &ordinary) < recovery_rank(analysis, &plan)
+        {
+            return Ok(ordinary);
+        }
+    }
+    Ok(plan)
+}
+
+fn recover_capped(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, Invalid> {
     let mut plan = recover_callouts(analysis, spec, first)?;
     shorten_wrapped_callouts(analysis, spec, &mut plan);
     recover_recess_corridors(analysis, spec, &mut plan)?;
     Ok(plan)
+}
+
+/// Whether no standard sheet and legible scale gave *p* a valid complete drawing.
+fn recovery_exhausted(p: &Plan) -> bool {
+    p.problems
+        .iter()
+        .any(|q| q.code == "layout_recovery_exhausted")
+}
+
+/// How well a recovered drawing reads, lowest best: hard findings, drops, drawn items past
+/// the paper, ink findings, feature crossings.
+fn recovery_rank(analysis: &Analysis, p: &Plan) -> (usize, usize, bool, usize, usize) {
+    let f = findings(p);
+    (
+        f.hard,
+        f.dropped,
+        !drawn_items_fit(analysis, p),
+        ink_findings(p),
+        feature_crossings(p),
+    )
 }
 
 /// A schedule can make the first sheet complete while leaving a new recess
@@ -4380,11 +4425,7 @@ fn recover_tables(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan,
     seed.hole_table = crate::hole_table::Setting::Never;
     let unscheduled = plan_escalated(analysis, &seed)?;
     let baseline = recover(analysis, &baseline_spec, unscheduled.clone())?;
-    let exhausted = |p: &Plan| {
-        p.problems
-            .iter()
-            .any(|q| q.code == "layout_recovery_exhausted")
-    };
+    let exhausted = recovery_exhausted;
     let unrecovered = exhausted(&baseline);
     let scheduled = schedule_recovered(analysis, spec, baseline)?;
     // Nothing is valid without a table at any scale. The established drawing's scale caps
@@ -4395,16 +4436,7 @@ fn recover_tables(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan,
     // is taken when it reads better than the schedule on the first estimate's sheet.
     if unrecovered && exhausted(&recover(analysis, spec, unscheduled.clone())?) {
         let ordinary = with_uncapped(true, || recover(analysis, spec, unscheduled))?;
-        let rank = |p: &Plan| {
-            let f = findings(p);
-            (
-                f.hard,
-                f.dropped,
-                !drawn_items_fit(analysis, p),
-                ink_findings(p),
-                feature_crossings(p),
-            )
-        };
+        let rank = |p: &Plan| recovery_rank(analysis, p);
         if !exhausted(&ordinary) && rank(&ordinary) < rank(&scheduled) {
             return Ok(ordinary);
         }

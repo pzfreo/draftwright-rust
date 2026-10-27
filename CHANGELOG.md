@@ -11,9 +11,14 @@ All notable changes to draftwright-rust are recorded here, in the style of
 - **A cut corner is located by its legs, and an angle with no position is reported (#217).** Two
   angles fix an edge's direction, not where it lies: dw-examples' l-plate-5-holes printed `135°` at
   both ends of its 45° cut and neither leg. A cut across a corner of principal edges now gets its
-  missing stations, each from the nearer side of the box, instead of angles (the l-plate gets `20`
-  and `20`; the NEMA 17 bracket's motor-plate chamfers `2× 4` and `4`, where two of their angles
-  had been dropped; 10049's cut is located). A plate's face is now hidden only by a nearer face of
+  missing stations, each from the nearer side of the box and drawn on the side its corner lies on,
+  so the witness leaves the part at once, instead of angles (the l-plate gets `20` above and `20`
+  on the left, not through the plate; a `dimensions/<id>` side places one elsewhere; a station
+  on such an open side reserves its lane when the sheet is laid out, which takes mfcadpp/10046
+  from A4 2:1 to A4 1:1 for its `18.759` on the side view's left, with two more of its corner
+  angles dropped and one `detail_unplaceable`; the NEMA 17
+  bracket's motor-plate chamfers `2× 4` and `4`, where two of their angles had been dropped;
+  10049's cut is located). A plate's face is now hidden only by a nearer face of
   the same plate, so the bracket's base-plate chamfers, behind the motor plate's end face and never
   reported, get `2× 4` and `4` too; a notch's flank corners are left to the notch (CTC-01's plate
   adds nothing; 1013's `2× 113.974°` and 10020's `100.614°` beside their notches go). The counted
@@ -21,17 +26,26 @@ All notable changes to draftwright-rust are recorded here, in the style of
   for its stations (`profile_corners: angle` keeps the counted angle). Two equal stations from
   opposite sides of the box are stated once, `2× v`, and lint reads a counted station as locating
   its mirror: the symmetric octagon gets four (`2× 12.827`, `2× 33.902`, `2× 11.938`, `2× 33.013`),
-  not eight in repeated pairs; FTC-08 stays on A1 1:2 and STC-08 on A1 1:1 (where its
-  established scale cap leaves nothing valid, the hole-table search runs once more without the
-  cap), at a cost on STC-08 of one more `annotation_leader_crossing` (4 to 5), two more
-  `extension_through_feature` (7 to 9), one `extension_off_centreline` and one `label_crowded`.
+  not eight in repeated pairs; FTC-08 stays on A1 1:2 (dw-examples' copy on A2 1:5) and STC-08
+  on A1 1:1 with its hole table: where a first estimate places no table and its established scale
+  cap leaves nothing valid, the search runs once more without the cap, as it already did for a
+  table (without it, STC-08 with the cited datums drawn went to A2 1:5 with no table and 51
+  crossings). STC-08 costs two more `extension_through_feature` (7 to 9) and one
+  `extension_off_centreline`. Where a linear solve leaves two dimensions on one dimension line, it
+  is solved once more with the new recess witnesses kept off the lines of the settled locations
+  that yielded to them (a yielded location comes back where it was and may find no other clear
+  lane), and taken where fewer lines are shared: dw-examples' FTC-08 had `49.124` on `64.999`'s
+  line and `141.834` on `157.709`'s; it now has none (main: one, `225.654` on `215.494`'s), with
+  `annotation_leader_crossing` 81 to 71, `leader_through_feature` 38 to 32 and
+  `extension_through_feature` 25 to 20, but `annotation_overlap` 2 to 5,
+  `annotation_ink_overlap` 4 to 7 and `extension_off_centreline` 1 to 4 on its crowded plan view.
   A settled location whose witness would cross a feature now starts it beyond the near face, as a
   corridor repair would: FTC-08's `141.827` slot location stays clear of the 12.7 slot, and CTC-02
   rc (3) and mfcadpp/1004 (1) lose their `extension_through_feature` findings. vslot-2020x50's slot
   openings get `2× 1.8`, `2× 5.15` and `2× 6.95` for their sixteen angles and move from A4 1:1
   (five leader crossings) to A3 2:1. FTC-08's fillet callout reads `8× R1.524`, not `8× R1.5` (the
   new route loses the established one-decimal text; the retention check in `tests/label_lanes.rs`
-  now uses mfcadpp/1004); l-plate-5-holes and FTC-08 each gain one `label_crowded`.
+  now uses mfcadpp/1004); FTC-08 gains one `label_crowded`.
   `profile_corners: linear`, or naming one station in the Spec, states each station on its own. A
   45° corner chamfer gets its leg stations, not a chamfer callout (the issue's alternative, left
   for later). Other corners are unchanged and stay unlocated (shf08's slanted top shows neither
