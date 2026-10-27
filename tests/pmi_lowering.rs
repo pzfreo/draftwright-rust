@@ -650,12 +650,12 @@ fn every_record_and_source_is_drawn_or_reported(only: &str) {
                         "{file}: {} is drawn ({drawn}) or reported ({reported}), not both",
                         r.source_id
                     );
-                    // A record whose reading left blockers is never drawn (a nonconformance
-                    // the reader read through, as its detail states, blocks nothing).
-                    if r.blockers
-                        .iter()
-                        .any(|b| !draftwright::pmi_lowering::read_through(b))
-                    {
+                    // A record whose reading left blockers is never drawn (for a datum, a
+                    // nonconformance the reader read through, as its detail states, blocks
+                    // nothing).
+                    if r.blockers.iter().any(|b| {
+                        r.category != Category::Datum || !draftwright::pmi_lowering::read_through(b)
+                    }) {
                         assert!(reported, "{file}: {} has blockers", r.source_id);
                     }
                 }
