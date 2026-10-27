@@ -2081,6 +2081,16 @@ fn feature_crossings_where(plan: &Plan, include: impl Fn(&str) -> bool) -> usize
     leaders.len() + extensions.len()
 }
 
+// Distinct pairs of dimension lines that cross each other.
+fn dimension_line_crossings(plan: &Plan) -> usize {
+    plan.problems
+        .iter()
+        .filter(|p| p.code == "dimension_line_crossing")
+        .map(|p| &p.subjects)
+        .collect::<BTreeSet<_>>()
+        .len()
+}
+
 pub(crate) fn ink_findings(plan: &Plan) -> usize {
     plan.problems
         .iter()
@@ -3575,6 +3585,10 @@ fn recover_candidates(
                 f.dropped += undrawn_gdt(&p);
                 let over = over_views(&p).saturating_sub(over_views(&first));
                 let crossings = feature_crossings(&p).saturating_sub(feature_crossings(&first));
+                // A crossed dimension line reads worse than a line through material: an
+                // enlargement that adds one is held to the same ratchet (#163).
+                let line_crossings =
+                    dimension_line_crossings(&p).saturating_sub(dimension_line_crossings(&first));
                 p.sheet.fill = crate::sheet_fit::fill(analysis, &p);
                 // A declined optional crop leaves an ordinary drawing. Its refusal must
                 // not veto the small-sheet candidates that F1 would otherwise accept.
@@ -3602,6 +3616,15 @@ fn recover_candidates(
                     ink_findings(&p),
                     p.sheet.arrangement
                 ));
+                if line_crossings > 0 {
+                    // Invariant: A candidate trace was pushed immediately before updating its final entry.
+                    tried
+                        .last_mut()
+                        .expect("candidate trace")
+                        .push_str(&format!(
+                            "; {line_crossings} additional dimension-line crossings"
+                        ));
+                }
                 let corridor_extra = extra_corridors(&p);
                 let existing_extra = extra_existing_crossings(&p);
                 if corridor_extra > 0 {
@@ -3658,7 +3681,7 @@ fn recover_candidates(
                         scale,
                         width: p.sheet.page[0],
                         fill: selection_fill,
-                        extra_crossings: crossings,
+                        extra_crossings: crossings + line_crossings,
                     },
                     p,
                 ));
