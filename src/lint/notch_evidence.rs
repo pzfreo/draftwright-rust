@@ -172,7 +172,7 @@ fn line(s: &Support) -> Option<[[f64; 3]; 2]> {
         None
     }
 }
-fn from_profile(a: &Analysis, s: &Source) -> Vec<Notch> {
+pub(crate) fn from_profile(a: &Analysis, s: &Source) -> Vec<Notch> {
     let p = &s.profile;
     if ![1, 2].contains(&p.schema_version) || p.boundary_kind != "outer" {
         return vec![];

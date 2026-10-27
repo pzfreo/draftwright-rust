@@ -157,6 +157,35 @@ features (0.1.0: 15, alpha.13: 7).
   quiddity does. The 30-part quality table and the random-pin cells are unchanged.
 - **A Spec tolerance writes a zero deviation as `0`, unsigned** (ISO 129-1), as imported and
   generated bands already do: `+0 -0.1` prints `0 -0.1`, not `+0.0 -0.1`.
+- **A cut corner is located by its legs, and an angle with no position is reported (#217).** Two
+  angles fix an edge's direction, not where it lies: dw-examples' l-plate-5-holes printed `135°` at
+  both ends of its 45° cut and neither leg. A cut across a corner of principal edges now gets its
+  missing stations, each from the nearer side of the box, instead of angles (the l-plate gets `20`
+  and `20`; the NEMA 17 bracket's motor-plate chamfers `2× 4` and `4`, where two of their angles
+  had been dropped; 10049's cut is located). A plate's face is now hidden only by a nearer face of
+  the same plate, so the bracket's base-plate chamfers, behind the motor plate's end face and never
+  reported, get `2× 4` and `4` too; a notch's flank corners are left to the notch (CTC-01's plate
+  adds nothing; 1013's `2× 113.974°` and 10020's `100.614°` beside their notches go). The counted
+  angle needs a regular polygon: FTC-08's and STC-08's chamfered-rectangle octagon loses `8× 135°`
+  for its stations (`profile_corners: angle` keeps the counted angle). Two equal stations from
+  opposite sides of the box are stated once, `2× v`, and lint reads a counted station as locating
+  its mirror: the symmetric octagon gets four (`2× 12.827`, `2× 33.902`, `2× 11.938`, `2× 33.013`),
+  not eight in repeated pairs, and FTC-08 stays on A1 1:2. Costs: FTC-08 gains one
+  `extension_through_feature` (the 141.827 slot location's witness now crosses the 12.7 slot;
+  its CI quality baseline is 0, so the quality gate fails on it) and its fillet callout reads
+  `8× R1.524`, not `8× R1.5` (the new route loses the established one-decimal text; the
+  retention check in `tests/label_lanes.rs` now uses mfcadpp/1004); l-plate-5-holes gains one
+  `label_crowded`. STC-08 (not a quality part) moves from A1 1:1 to A2 1:5 with its plan view
+  much smaller and its hole tags crowded (`annotation_leader_crossing` 4 to 37,
+  `extension_through_feature` 7 to 11, `leader_through_feature` 0 to 2, `label_crowded` 0 to
+  2): the stations tip its first estimate into a hole table, and a first estimate with a table
+  is recovered without one, where nothing at or above 1:5 is valid, so the larger sheets main
+  reached are never tried (`model::recover_tables`). `profile_corners: linear`, or naming one
+  station in the Spec, states each station on its own. A 45° corner chamfer gets its leg
+  stations, not a chamfer callout (the issue's alternative, left for later). Other corners keep
+  their angles; lint now reports `profile_corner_unlocated` where no linear dimension places a
+  drawn angle's edge (CTC-03 2, cgb207 1, 10046 1, 10060 2), and 10007 and 10060 gain plate-face
+  corners whose angles find no clear place (`angular_requirement_missing`).
 - On quiddity-rust **v0.2.0**. Its face accounting (blended box corners, plate edges, stock
   walls, drill-point tips, slot end walls) raises claimed faces on 65 corpus parts: CTC-01 AP242
   goes from 27 unclaimed faces to 3, and most of the claim losses listed for 0.1.0 are

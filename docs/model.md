@@ -1297,21 +1297,39 @@ basis, placed, reference?, determined_by?}`:
   differ; authored mode transfers the automatic role, and auto mode names the existing owner.
 - **Outer-profile corners** (`src/lint/profile_angles.rs`, `src/dims/profile_angles.rs`;
   LINT-angular-profile_angle_requirement). Each non-right convex corner of the foremost
-  camera-facing outer profile needs its geometry *defined*, not necessarily its angle printed
+  camera-facing outer profile (a plate's face counts as foremost unless a nearer face of the same
+  plate hides it, so a bent bracket's base plate is required behind the upright's end face; a
+  notch's flank corners are left to the notch) needs its geometry *defined*, not necessarily its
+  angle printed
   (ISO 129-1, ASME Y14.5: dimension only what is needed; no angle is implied except 0°, 90° and
   180°). A corner is defined when its two edges are located by linear dimensions chained to the
   part's box or datum planes: the offset of a principal edge, both coordinates of both ends of an
   oblique edge (a rounded end uses its theoretical sharp vertex). By default (`auto`):
   - a corner already defined gets no angle (never a toleranced angle on a linearly fixed
     corner);
-  - any other corner, even one a single station short, gets its angle in the principal view
-    that shows it true, `d:envelope/profile_angle.angle.f<face>_e<i>_e<j>`. Completing a
-    corner with linear stations is the explicit `linear` choice below, not automatic: the
-    stations have no lane reserved when the sheet is laid out, and on mfcadpp/1013 one
-    automatic station moved the drawing from A4 to A3;
-  - a closed all-line profile whose corners are all issued and equal (FTC-08's octagon) gets one
-    counted angle, `8× 135°` as `d:envelope/profile_angle.angle.f<face>`, never one per corner.
-    Lint proves the count from the closed loop of visible edges through the drawn corner.
+  - a cut across a corner of principal edges (one edge of the corner principal, and the corner
+    at the far end of its oblique edge also meeting a principal edge: l-plate-5-holes' 45° cut,
+    a bracket's corner chamfers, a chamfered rectangle) is located by its legs (#217): each
+    missing station from the nearer side of the part's box,
+    `d:envelope/profile_location_<axis>.length.f<face>_<n>`. Its two angles would fix the cut's
+    direction, not where it lies. By default two equal stations from opposite sides of the box
+    (a symmetric octagon's, a bracket's two chamfers) are stated once, `2× v`, as
+    `…f<face>_<n>_<m>`, and lint reads a counted station as locating its mirror; the `linear`
+    choice, or a Spec naming either station, states each on its own;
+  - any other corner gets its angle in the principal view that shows it true,
+    `d:envelope/profile_angle.angle.f<face>_e<i>_e<j>`. Completing it with stations is the
+    explicit `linear` choice below: stations are ordinary dimensions, and completing every
+    corner automatically moved mfcadpp/1013, 10020 and CTC-04 onto other paper;
+  - a regular polygon (a closed all-line profile whose corners are all issued and equal and whose
+    sides are equal) gets one counted angle, `6× 120°` as
+    `d:envelope/profile_angle.angle.f<face>`, never one per corner. Lint proves the count from
+    the closed loop of visible edges through the drawn corner. An octagon of equal corners but
+    unequal sides (FTC-08's and STC-08's chamfered rectangle) is completed linearly instead, or
+    takes its counted `8× 135°` under the `angle` choice.
+
+  Lint reports a corner whose angle is drawn but whose edges no drawn linear dimension places
+  (`profile_corner_unlocated`): a principal edge needs its offset, an oblique edge both
+  coordinates of at least one end.
 
   An angle stays local to its corner, so a reader sees which corner it states: its arc's radius
   and its whole label lie within twelve label heights of the corner (about 26 mm), its label
@@ -1326,9 +1344,9 @@ basis, placed, reference?, determined_by?}`:
   dimensions' extension lines, centre lines and cutting-plane chain lines may be crossed
   transversely. No callout's leader or padded label may meet its witness lines (the 2026-10-12
   extension contact rule), and leader refinement keeps clear of them as of linear extension
-  lines. Two mirror-equal corners in one view (CTC-04's waist) take one counted angle, `2× θ°`,
-  drawn at whichever corner has a clear place; lint proves the count from the mirrored corner's
-  visible edges. The
+  lines. Two mirror-equal corners that keep their angles in one view (CTC-04's waist) take one
+  counted angle, `2× θ°`, drawn at whichever corner has a clear place; lint proves the count
+  from the mirrored corner's visible edges. The
   angles are placed last of all, around the finished ink. Only when that leaves corners
   unstated is placing them before the callouts route tried, and it is kept only when it states
   more corners and makes no drawing finding (including extension contacts) worse; an early angle
@@ -1344,10 +1362,9 @@ basis, placed, reference?, determined_by?}`:
   defaults would not draw it (as a reference, in parentheses, when linear dimensions already
   fix the corner), and `omit` hides it. `faces/face:<n>/profile_corners` chooses, for the outer
   profile of face *n*: `auto` (the default above), `angle` (every corner's angle; a reference
-  where the corner is already linearly fixed) or `linear` (locate every missing station with
-  linear dimensions from the minimum datum, `d:envelope/profile_location_<axis>.length.f<face>_<n>`,
-  instead of angles; these are ordinary dimensions and may need more paper). A box side (`top`, `front`, …) names its faces as for
-  datums.
+  where the corner is already linearly fixed; no stations) or `linear` (stations for every
+  corner, a regular polygon's too; these are ordinary dimensions and may need more paper). A
+  box side (`top`, `front`, …) names its faces as for datums.
   An existing source PMI angle on the exact same flank faces also owns the bounded
   angle across normal-section heights: AP242 CTC-01 keeps its `60 ±0.5` and omits the
   duplicate automatic `60°`. Its PMI ID and tolerance remain, with both claims.

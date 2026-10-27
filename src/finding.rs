@@ -224,6 +224,7 @@ catalogue! {
     "polygonal_stock_requirement_unverifiable" => Incomplete, Requirement, "The drawing does not prove this required feature parameter.";
     "possible_thread" => Incomplete, Feature, "A smooth cylinder at a named metric size may be an unstated thread.";
     "prismatic_pocket_requirement_unsupported" => Incomplete, Requirement, "No supported drawing grammar states this feature requirement.";
+    "profile_corner_unlocated" => Incomplete, Requirement, "An outer-profile corner's angle is drawn but no linear dimension locates its edge.";
     "profiled_bore_not_dimensioned" => Incomplete, Code, "The profiled bore requirements have no complete drawn dimension.";
     "projection_relation_infeasible" => Decision, Code, "The authored projected-view relationship cannot be satisfied.";
     "radius_leader_not_radial" => Readability, Code, "The radius leader does not meet its arc radially from either side.";

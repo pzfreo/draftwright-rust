@@ -496,6 +496,18 @@ pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
                 || !i.requirements.iter().all(|r| defined.contains(&r.feature))
         });
     }
+    // A corner given its angle but no position is still undefined (#217).
+    let reported: std::collections::BTreeSet<String> = issues
+        .iter()
+        .filter(|i| i.code.starts_with("angular_requirement_"))
+        .flat_map(|i| i.requirements.iter().map(|r| r.feature.clone()))
+        .collect();
+    issues.extend(
+        profile_angles::unlocated_by_drawing(analysis, drawing)
+            .iter()
+            .filter(|c| !reported.contains(&c.feature))
+            .map(|c| profile_angles::unlocated(analysis, c)),
+    );
     issues.extend(gears::check(analysis, drawing));
     issues.extend(schedule_evidence::check(drawing));
     issues.extend(pmi_coverage::manufacturing_references(analysis, drawing));
