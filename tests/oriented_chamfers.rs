@@ -579,7 +579,7 @@ fn source_pmi_owns_a_notch_angle_at_another_normal_section_without_duplicate_ink
         .iter()
         .find(|d| d.id == "d:pmi:dimension.angular:f15,17/angular")
         .unwrap();
-    assert_eq!(owner.label, "60 ±0.5");
+    assert_eq!(owner.label, "60° ±0.5°");
     assert_eq!(
         p.dimensions.iter().filter(|d| d.kind == "angular").count(),
         2,
@@ -647,13 +647,11 @@ fn source_pmi_owns_a_notch_angle_at_another_normal_section_without_duplicate_ink
             .any(|i| i.code == "notch_requirement_unverifiable"
                 && i.annotation.as_deref() == Some(owner.id.as_str()))
     );
+    // A bare number (no `°`) proves an angle only through its typed source claim.
     let mut untyped = marks;
-    untyped
-        .iter_mut()
-        .find(|m| m.name == owner.id)
-        .unwrap()
-        .claims
-        .retain(|c| !c.feature.starts_with("pmi:"));
+    let bare = untyped.iter_mut().find(|m| m.name == owner.id).unwrap();
+    bare.text = "60 ±0.5".into();
+    bare.claims.retain(|c| !c.feature.starts_with("pmi:"));
     assert!(
         lint::check(&a, &untyped)
             .iter()

@@ -17,8 +17,8 @@
 //!   when only the plan's witness is proven), or the side then the plan (y); a diameter by a
 //!   leader to its cylinder where it is seen end-on; a radius by a leader to a proven point of
 //!   its arc; an angle about the vertex of its two planar sides, in the view that shows it true
-//!   ([`super::angular`]). Its label is the record's (`⌀62 +0.03/0`, `30`, `60 ±0.5`); a basic
-//!   dimension's is boxed. It is an ordinary planned dimension, placed with the others;
+//!   ([`super::angular`]). Its label is the record's (`⌀62 +0.03/0`, `30`), an angle's with its unit
+//!   (`60° ±0.5°`, [`degrees`]); a basic dimension's is boxed. It is an ordinary planned dimension, placed with the others;
 //! - **or is not drawn, and says why**: a record whose reading left blockers, whose faces lie in
 //!   several placements of the part, or whose faces prove no witness (`pmi_not_lowered`, with
 //!   draftwright's reasons); a kind the port does not draw yet: a diameter or radius not along
@@ -273,6 +273,27 @@ fn terms(label: &str) -> Vec<String> {
         .map(|t| match t.strip_prefix('ø') {
             Some(rest) => format!("⌀{rest}"),
             None => t.to_string(),
+        })
+        .collect()
+}
+
+/// An angle's terms with their unit: the record's label states degrees by its kind alone
+/// (`60 ±0.5`), but on the sheet a bare number reads as millimetres, so every value, its
+/// deviations and limits included, carries `°` (ISO 129-1: `60° ±0.5°`).
+fn degrees(terms: &[String]) -> Vec<String> {
+    terms
+        .iter()
+        .map(|t| {
+            t.split('/')
+                .map(|v| {
+                    if v.ends_with(|c: char| c.is_ascii_digit()) {
+                        format!("{v}°")
+                    } else {
+                        v.to_string()
+                    }
+                })
+                .collect::<Vec<_>>()
+                .join("/")
         })
         .collect()
 }
@@ -851,7 +872,7 @@ fn outcome(ids: &Identities, r: &Record, wants: &[Want], turned: Option<&Turned>
                     ""
                 }
             );
-            Outcome::Standalone(own(
+            let mut want = own(
                 ids,
                 r,
                 value,
@@ -861,7 +882,9 @@ fn outcome(ids: &Identities, r: &Record, wants: &[Want], turned: Option<&Turned>
                     alternates: Vec::new(),
                 },
                 basis,
-            ))
+            );
+            want.terms = degrees(&want.terms);
+            Outcome::Standalone(want)
         }
         "linear" | "thickness" => {
             let Some(k) = k else {
@@ -1334,6 +1357,17 @@ fn split(w: &Want, groups: &[Group]) -> Vec<(Want, Vec<usize>)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn every_angle_value_carries_its_unit() {
+        let t = |label: &str| degrees(&terms(label)).join(" ");
+        assert_eq!(t("60 ±0.5"), "60° ±0.5°");
+        assert_eq!(t("30"), "30°");
+        assert_eq!(t("45 +0.5/0"), "45° +0.5°/0°");
+        assert_eq!(t("59.5 - 60.5"), "59.5° - 60.5°");
+        // A value that already states its unit keeps one.
+        assert_eq!(t("60° ±0.5°"), "60° ±0.5°");
+    }
 
     #[test]
     fn limits_become_deviations_in_decimal() {

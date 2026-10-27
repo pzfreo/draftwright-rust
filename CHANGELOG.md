@@ -6,6 +6,14 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### Fixed
+
+- **A PMI angle prints its unit.** An AP242 angular dimension printed its record's label, whose
+  unit is only its kind, so CTC-01's right V-notch read `60 ±0.5` (as if millimetres) beside the
+  left notch's `60°`. Every value of a drawn PMI angle, its deviations and limits included, now
+  carries `°` (`60° ±0.5°`, ISO 129-1). Only CTC-01's angle label changes on the 30 quality parts
+  and the 35 dw-examples drawings.
+
 ## 0.2.0 (2026-10-27)
 
 Now on quiddity-rust **v0.2.1** (previously `0.2.0-alpha.2`), which changes no library code from

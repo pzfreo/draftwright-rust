@@ -125,7 +125,7 @@ fn ctc_01s_sides_are_draftwrights() {
 
 /// The ink: extension lines along the sides' projected traces from just past each witness, an
 /// unbroken arc about the projected vertex spanning the 60° between them, arrowheads at its ends
-/// on the sides, and the label `60 ±0.5` on the bisector just outside the arc (ISO 129-1, #227).
+/// on the sides, and the label `60° ±0.5°` (its unit on every value) on the bisector just outside the arc (ISO 129-1, #227).
 #[test]
 fn ctc_01s_angle_is_drawn_true_in_the_plan() {
     let (part, a) = analysed("drawn", "nist_ctc_01_asme1_ap242-e1.stp");
@@ -133,8 +133,8 @@ fn ctc_01s_angle_is_drawn_true_in_the_plan() {
     let d = the_angle(&plan);
     assert_eq!(d.kind, "angular");
     assert_eq!(d.view, "v:plan");
-    assert_eq!(d.label, "60 ±0.5");
-    assert_eq!(d.terms, ["60", "±0.5"]);
+    assert_eq!(d.label, "60° ±0.5°");
+    assert_eq!(d.terms, ["60°", "±0.5°"]);
     assert_eq!(d.value, 60.0);
     // The source annotation owns both its PMI requirement and the same physical
     // V-notch angle; the automatic duplicate must not print a second arc.
@@ -292,7 +292,7 @@ fn ctc_01s_angle_is_drawn_true_in_the_plan() {
         .iter()
         .map(|&i| drawing.text[i].text.as_str())
         .collect();
-    assert_eq!(text, ["60 ±0.5"]);
+    assert_eq!(text, ["60° ±0.5°"]);
     assert!(
         annotation
             .claims

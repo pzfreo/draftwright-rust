@@ -36,8 +36,8 @@
 //!   clear of the views, and the collision checks report what it hits: nothing is dropped. The
 //!   arc is drawn as chords within 0.005 mm of it (draftwright's sampling).
 //!
-//! The label is the record's, as every PMI dimension's (`60 ±0.5`; draftwright's
-//! `implicit_degrees`: its unit is the record's kind, not a printed `°`).
+//! The label is the record's with its unit on every value (`60° ±0.5°`): draftwright's
+//! `implicit_degrees` left the unit to the record's kind, which a reader of the sheet cannot see.
 
 use haecceity::Part;
 use haecceity::geom::Surface;
