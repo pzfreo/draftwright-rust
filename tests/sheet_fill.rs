@@ -361,6 +361,42 @@ fn a_part_about_100_mm_never_gets_a2_or_larger_by_default() {
     assert_eq!(model::recover(&a, &s, first).unwrap().sheet.size, "A2");
 }
 
+/// #163: the sheet metal hanger's plan band, not its ink, overran A4 at 1:2, so its views
+/// went to A3 at the same scale. Judged by its drawn items, A4 holds the same drawing.
+#[test]
+fn sm_hanger_keeps_its_scale_on_a4_when_only_an_empty_band_overruns() {
+    let Some(dir) = corpus::dir() else {
+        return;
+    };
+    let a = model::analyse_native(&dir.join("ttt_inputs/sm-hanger.step"))
+        .unwrap()
+        .1;
+    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    assert_eq!(plan.sheet.size, "A4", "{}", plan.sheet.basis);
+    assert!(plan.sheet.scale_factor >= 0.5, "{}", plan.sheet.basis);
+    assert!(plan.sheets.is_empty());
+    for v in &plan.views {
+        let [x0, y0, x1, y1] = v.area;
+        assert!(
+            x0 >= 10.
+                && y0 >= 10.
+                && x1 <= plan.sheet.page[0] - 10.
+                && y1 <= plan.sheet.page[1] - 10.,
+            "{} {:?}",
+            v.id,
+            v.area
+        );
+    }
+    assert!(
+        !plan.problems.iter().any(|p| matches!(
+            p.code.as_str(),
+            "annotation_off_sheet" | "page_fit_uncertain" | "views_do_not_fit" | "views_overlap"
+        )),
+        "{:?}",
+        plan.problems
+    );
+}
+
 /// Different tolerances keep each of the small turned part's statements distinct. A
 /// section over the title block must not push the end view off A4, and a transverse
 /// hole's witness must not run through a step-length label.

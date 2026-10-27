@@ -833,9 +833,11 @@ pub(crate) fn correct_estimate(analysis: &Analysis, plan: &mut Plan) {
     if plan.spec.sheet.keep_layout == Some(true) {
         return;
     }
-    // Wider label shelves can push an unused edge of the final section's generic band
-    // past the border. The complete rendered footprints prove whether it is empty paper;
-    // never trim an estimate through any model, label, arrow or piece of furniture.
+    // Wider label shelves, or a principal view's generic band at an enlarged scale, can push
+    // an unused edge of a reservation past the border (#163: a 21 mm bracket kept 1:1 on an
+    // empty A4 because its plan band, not its ink, overran at 2:1). The complete rendered
+    // footprints prove whether it is empty paper; never trim an estimate through any model,
+    // label, arrow or piece of furniture.
     if plan.problems.iter().any(|p| p.code == "page_fit_uncertain")
         && !crate::placement_intent::has_pins(&plan.spec)
         && plan.gdt.is_empty()
@@ -845,7 +847,7 @@ pub(crate) fn correct_estimate(analysis: &Analysis, plan: &mut Plan) {
             b[0] >= margin() && b[1] >= margin() && b[2] <= w - margin() && b[3] <= h - margin()
         };
         if footprints(analysis, plan).iter().all(inside) {
-            for v in plan.views.iter_mut().filter(|v| v.cut.is_some()) {
+            for v in plan.views.iter_mut() {
                 let b = [
                     v.area[0].max(margin()),
                     v.area[1].max(margin()),
@@ -2128,6 +2130,47 @@ mod tests {
         let with = furniture_bounds(&a, &p.sheet, &p.views);
         p.views.retain(|v| v.detail.is_none());
         assert_eq!(with, furniture_bounds(&a, &p.sheet, &p.views));
+    }
+
+    /// #163: an unused edge of a principal view's band past the border is trimmed once every
+    /// drawn footprint is proven inside, so the enlarged sheet is judged by its ink.
+    #[test]
+    fn an_empty_principal_band_past_the_border_is_trimmed_to_the_frame() {
+        let (_, a) = crate::model::analyse_native(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/parts/prismatic.step"),
+        )
+        .unwrap();
+        let spec = serde_json::from_value(serde_json::json!({"sheet":{"size":"A3","scale":"1:1"}}))
+            .unwrap();
+        let mut p = crate::model::plan(&a, &spec).unwrap();
+        assert!(p.gdt.is_empty() && crate::model::drawn_sheets_fit(&a, &p));
+        // A plan of the shape the automatic search makes: the estimate's doubt, with a
+        // principal (uncut) view's reservation running past the top border into empty paper.
+        p.spec.sheet.scale = None;
+        p.spec.sheet.size = None;
+        // An authored orientation view holds the row, as notes or tables do: only the trim
+        // may answer the doubt.
+        p.spec.views.insert("iso".into(), Default::default());
+        p.problems.push(crate::model::Problem {
+            code: "page_fit_uncertain".into(),
+            severity: "warning".into(),
+            ..Default::default()
+        });
+        // The topmost principal view, so its grown band meets only empty paper.
+        let front = (0..p.views.len())
+            .filter(|&i| p.views[i].id != "v:iso")
+            .max_by(|&i, &j| p.views[i].area[3].total_cmp(&p.views[j].area[3]))
+            .unwrap();
+        assert!(p.views[front].cut.is_none());
+        let top = p.sheet.page[1];
+        p.views[front].area[3] = top;
+        assert!(!crate::model::drawn_sheets_fit(&a, &p));
+        let ink = footprints(&a, &p);
+        correct_estimate(&a, &mut p);
+        assert!(p.views[front].area[3] <= top - margin() + 1e-9);
+        assert!(crate::model::drawn_sheets_fit(&a, &p));
+        assert_eq!(ink.len(), footprints(&a, &p).len());
     }
 
     fn candidate(scale: f64, width: f64, fill: f64) -> (f64, f64, f64) {

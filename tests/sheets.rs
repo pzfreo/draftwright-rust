@@ -647,15 +647,19 @@ fn r5_an_unhelpful_prefix_does_not_spend_an_extra_sheet() {
         json!({"sheet":{"size":"A3"},"sheets":{"max":2,"smallest_scale":"10:1"},"hole_table":"never"}),
     );
     let p = model::plan_recovered(&a, &s).unwrap();
-    assert_eq!(p.sheet.scale, "5:1");
-    assert!(p.sheets.is_empty());
     assert!(p.sheet.basis.contains("step 2:"));
+    // A second sheet is spent only when it helps. Until #163 the 10:1 trial on the allocated
+    // sheets was refused for an empty band past the border, so the prefix did not help and
+    // one sheet at 5:1 was kept, below the authored floor. Judged by its ink, the allocation
+    // now reaches the floor within the two sheets allowed.
+    assert!(p.sheets.len() <= 1);
+    assert_eq!(p.sheet.scale, "10:1", "{}", p.sheet.basis);
     assert!(
-        p.problems
-            .iter()
-            .any(|p| p.code == "sheet_below_smallest_scale")
+        !p.problems.iter().any(
+            |p| p.code == "sheet_below_smallest_scale" || p.code == "layout_recovery_exhausted"
+        )
     );
-    assert!(p.views.iter().all(|v| v.sheet == 1));
+    assert!(p.views.iter().all(|v| v.sheet <= 2));
 }
 
 #[test]

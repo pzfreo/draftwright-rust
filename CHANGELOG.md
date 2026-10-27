@@ -6,6 +6,20 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### Fixed
+
+- **A sheet is judged by its drawn items, not by an empty band past its border (#163).** The
+  automatic search trimmed a reservation that ran past the border into empty paper only for
+  section views, so a principal view's unused band refused an enlargement whose ink fits. The
+  21 mm 2020 corner bracket stayed at 1:1 on a near-empty A4 although 2:1 fits it cleanly, and
+  the sheet-metal hanger went to A3 at 1:2 although A4 holds the same drawing at 1:2. The trim
+  now applies to every view, still only when every drawn footprint is proven inside the frame:
+  the bracket is drawn at 2:1 on A4 and the hanger at 1:2 on A4 (and the gear-blank test part
+  at 5:1 on A4 rather than A3). An enlargement that adds a crossing of two dimension lines is
+  now held to the same ratchet as one that adds a line through material, so a plate's authored
+  diagonal keeps 1:1 rather than crossing its overall width at 2:1. The other 29 quality parts
+  and 34 dw-examples drawings plan identically.
+
 ## 0.2.0 (2026-10-27)
 
 Now on quiddity-rust **v0.2.1** (previously `0.2.0-alpha.2`), which changes no library code from
