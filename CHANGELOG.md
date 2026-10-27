@@ -6,6 +6,72 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+## 0.2.0 (2026-10-27)
+
+Now on quiddity-rust **v0.2.1** (previously `0.2.0-alpha.2`), which changes no library code from
+v0.2.1-alpha.1. Since 0.1.0: `draftwright diff` carries a drawing to a new revision of its part
+and reports what changed, and the command line is attached to each release for Linux, macOS and
+Windows. quiddity's face accounting and its annular grooves, V channels and semicircular blind
+slots are read and drawn; a recognisable shape that quiddity leaves unexplained is a warning
+(`shape_not_recognised`); a plan or side view no dimension needs is left out. Inch-authored PMI
+prints as millimetres, coincident copies of a body and assemblies with no part chosen draw one
+part, surface models no longer inflate the envelope, and a part slightly off the file's axes is
+squared to them. Hole datums and frames attach to their holes' callouts, bolt circles are called
+out as one, angular dimensions have unbroken arcs near their corners, round parts state each
+size once, and review now reports crowded labels and leaders to hidden edges, along centre lines
+or across their view. Over the 94 corpus parts and the 23 PMI fixtures, against 0.1.0: leader
+crossings fall from 840 to 691, leaders and extension lines through features from 434 to 392,
+warnings of the kinds 0.1.0 reported from 2138 to 1954, and claimed faces rise from 6210 to
+6873; errors (226) and unlocated features (209) are unchanged. STC-09 AP242 has 115 fewer leader
+crossings, FTC-10 AP242 20 fewer lines through features, CTC-02 AP242 13 fewer and 10 fewer
+crossings. Ten MFCAD parts besides those listed below get a larger scale on the same paper, and
+GRM-03 goes from A3 10:1 to A4 5:1.
+
+**Speed.** Instructions retired for `draftwright plan`, this release against 0.1.0 (median of
+three interleaved runs each): 0.73× on FTC-08, 0.97× on CTC-01, 1.008× on string_post and 1.058×
+on cgb245.
+
+### Known regressions
+
+Measured on this release against 0.1.0, over the 94 corpus parts (with cgb202, cgb217, cgb242
+and cgb243) and the 23 PMI fixtures. New kinds of finding are not counted as regressions:
+#213's `shape_not_recognised` (156 warnings on the corpus parts and fixtures, by design) and the
+review findings added by #224 and #226 (`leader_to_hidden_edge` 107, `leader_along_centreline`
+40, `extension_off_centreline` 32, `frame_datum_not_drawn` 26, `leader_across_view` 23,
+`label_section_furniture_overlap` 15, and 141 `label_crowded` notices) report what 0.1.0 already
+drew.
+
+- 10033: A3 2:1 (0.1.0: A4 1:1), with one leader crossing (0.1.0: none).
+- Holdout 274: A3 2:1 (0.1.0: A4 1:1); its findings are unchanged.
+- Holdout 196: A3 1:1 (0.1.0: A3 2:1).
+- Holdout 483: A4 1:1 (0.1.0: A4 2:1), with one leader crossing and one `detail_unplaceable`
+  (0.1.0: none).
+- 10092: A4 2:1 (0.1.0: A4 1:1), but with one leader crossing and one `annotation_over_view`
+  (0.1.0: none).
+- 10127: A4 1:1 (0.1.0: 1:2), but 3 leaders through features (0.1.0: none; its unplaceable
+  detail is gone). Holdout 317: A4 1:1 (0.1.0: 1:2), but 3 leaders through features (0.1.0: 1).
+- 10101 and 1013: one extension line through a feature each (0.1.0: none); 10138: 2 leaders
+  through features (0.1.0: 1); cgb243: 5 (0.1.0: 4).
+- FTC-10 rb: 46 extension lines through features (0.1.0: 43).
+- 28 of the 94 corpus parts still claim 1–3 fewer faces than alpha.14 (0.1.0: 58 parts, 1–6
+  fewer), string_post (14, alpha.14: 16) and GRM-03 among them; CTC-01 and FTC-06 are recovered.
+
+Still open from 0.1.0:
+
+- STC-06 AP242: A2 1:5 (alpha.12: A0 1:1).
+- FTC-06: A2 1:5 (alpha.12: A1 1:2).
+- FTC-10 rb: two A2 sheets (alpha.12: one A1).
+- 10119: A4 1:1 (alpha.12: 2:1).
+- FTC-07 AP242: 12 unlocated features, its 4 polygonal bosses among them; 28 extension lines
+  through features (0.1.0: 26, alpha.12: 14); now on A1 1:1 (0.1.0: A2 1:2, alpha.14: A1 1:1)
+  with 37 leader crossings (0.1.0: 40, alpha.14: 33).
+- string_post: the random-pin cell (seed 1, 8 pins) that puts the hole centreline on the title
+  block's scale note (#206), still listed in `tools/known-pin-failures.json`.
+
+Fixed since 0.1.0: the CTC-01 merge fixture is back to 21 warnings (alpha.12: 21); cgb241's
+`2× R23` is led from the blend again, 34 mm (alpha.12: 37 mm); cgb217 has 7 undimensioned
+features (0.1.0: 15, alpha.13: 7).
+
 ### Added
 
 - **The `draftwright` command line for Linux (x86_64), macOS (Apple Silicon) and Windows
@@ -73,7 +139,8 @@ All notable changes to draftwright-rust are recorded here, in the style of
   extension through a feature at its unchanged 2:1); l-plate-5-holes, retaining-ring, shf08,
   MFCAD 10038 and FTC-09 lose their empty plan. The rest of the 30 quality parts are unchanged.
   The title-block fixture tb_stepped now fits A4, as draftwright's sheet, instead of A3.
-- On quiddity-rust **v0.2.1-alpha.1**. The reader accepts its new `rectangular_through_notches`
+- On quiddity-rust **v0.2.1** (first taken as v0.2.1-alpha.1; the release changes no library
+  code from it). The reader accepts its new `rectangular_through_notches`
   family (not drawn yet), so CTC-01's two V-slot notches and their rounded
   channels are reported as unrecognised features instead of 3 unclaimed faces. Golden's
   30-degree slots are recognised in the plate's file axes and claim all four walls, as Python
@@ -82,7 +149,8 @@ All notable changes to draftwright-rust are recorded here, in the style of
   generated bands already do: `+0 -0.1` prints `0 -0.1`, not `+0.0 -0.1`.
 - On quiddity-rust **v0.2.0**. Its face accounting (blended box corners, plate edges, stock
   walls, drill-point tips, slot end walls) raises claimed faces on 65 corpus parts: CTC-01 AP242
-  goes from 27 unclaimed faces to 3, and the claim losses listed for 0.1.0 are recovered. Newly
+  goes from 27 unclaimed faces to 3, and most of the claim losses listed for 0.1.0 are
+  recovered (the rest are under 0.2.0's **Known regressions**). Newly
   recognised steps change the layout of 10033 (now A3 2:1, with one leader crossing a dimension
   line), 10127 and holdout 119. FTC-10 rb gains 3 and FTC-07 AP242 2 extension lines through
   features, and the FTC-10 AP242 drawing one leader through text. The three new families
