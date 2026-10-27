@@ -127,7 +127,9 @@ All notable changes to draftwright-rust are recorded here, in the style of
   applies to the requirement, so LM10UU's callout and the corpus FTC-10's stay one line (FTC-10
   keeps A2 1:1 on two sheets; a two-line callout took it to one sheet at 1:2) and STC-10's
   wrapped one ends `10 BOTH SIDES`. LM10UU's longer label runs past its view's area over empty
-  paper (`annotation_outside_area`, info).
+  paper (`annotation_outside_area`, info). A section's address beside other ink on its line now
+  keeps 3 mm from it rather than 1 mm, where the corpus FTC-10's `SECTION A–A, SHEET 2, ZONE D9`
+  read as one line with the longer callout; it and the corpus CTC-04's address move 2 mm.
 
 ## 0.2.0 (2026-10-27)
 

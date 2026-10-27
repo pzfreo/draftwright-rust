@@ -1903,8 +1903,11 @@ fn reference_position(
         .iter()
         .map(|p| p[1].clamp(limits[1], limits[3]))
         .collect();
+    // Beside other ink on its line the address keeps a word's gap more than the 1 mm above or
+    // below: 1 mm after a callout's text reads as one line with it (#104).
+    const BESIDE: f64 = 3.;
     for b in &obstacles {
-        xs.extend([b[0] - 1. - laid.max[0], b[2] + 1. - laid.min[0]]);
+        xs.extend([b[0] - BESIDE - laid.max[0], b[2] + BESIDE - laid.min[0]]);
         ys.extend([b[1] - 1. - laid.max[1], b[3] + 1. - laid.min[1]]);
     }
     xs.retain(|x| *x >= limits[0] && *x <= limits[2]);
@@ -1917,9 +1920,9 @@ fn reference_position(
         .flat_map(|x| ys.iter().map(move |y| [x, *y]))
         .filter(|at| {
             let b = [
-                at[0] + laid.min[0] - 0.5,
+                at[0] + laid.min[0] - BESIDE + 0.5,
                 at[1] + laid.min[1] - 0.5,
-                at[0] + laid.max[0] + 0.5,
+                at[0] + laid.max[0] + BESIDE - 0.5,
                 at[1] + laid.max[1] + 0.5,
             ];
             obstacles.iter().all(|other| !overlap(b, *other))
