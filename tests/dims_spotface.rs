@@ -200,3 +200,36 @@ fn spool132s_spotface_is_drawn_and_searchable() {
         "⌴ is searchable through the ToUnicode map"
     );
 }
+
+/// `bearing-lm10uu.step.gz` (dw-examples): the ø16.4 ↧ 1.4 recess is cut alike at both ends of
+/// the ⌀10 bore. quiddity records it once, on the end it presents, so the callout says
+/// `BOTH SIDES` after the recess, and lint reads the callout as before (#104). A recess at one
+/// mouth (spool132's) keeps its plain callout, as above.
+#[test]
+fn a_recess_at_both_mouths_says_both_sides() {
+    let file = root().join("tests/fixtures/parts/bearing-lm10uu.step.gz");
+    let (part, a) = model::analyse_native(&file).unwrap();
+    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let d = plan
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:f:hole:1/bore.diameter")
+        .unwrap();
+    // Line breaks are layout, which may split a term's words.
+    let text = d
+        .terms
+        .iter()
+        .map(String::as_str)
+        .filter(|t| !t.trim().is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+    assert_eq!(text, "⌀10 THRU ⌴SF ⌀16.4 ↧ 1.4 BOTH SIDES", "{}", d.label);
+    assert!(d.basis.contains("both mouths"), "{}", d.basis);
+    let drawing = model::render(&part, &a, &plan, &Font::new(mono()).unwrap()).unwrap();
+    let found: Vec<_> = draftwright::lint::lint(&a, &drawing)
+        .into_iter()
+        .filter(|i| i.code.contains("hole") || i.message.contains("hole:1"))
+        .map(|i| i.message)
+        .collect();
+    assert!(found.is_empty(), "{found:?}");
+}

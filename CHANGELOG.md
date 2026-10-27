@@ -107,6 +107,20 @@ All notable changes to draftwright-rust are recorded here, in the style of
   and STC-06 (no candidate on any paper is valid; layout density), and the 2020×50 V-slot (A4 2:1
   is set aside for one added leader through material; left for a decision).
 
+- **Turned and round parts: coaxial bores are not located from a silhouette, a recess at both
+  mouths says so, and leaders leave a shared centre line (#104).** A hole on the axis of a round
+  face that is the part's whole outline in its end view is no longer located from that face's
+  tangents: dw-examples' 608ZZ bearing loses its two `11` dimensions (half its ø22), the Hirth
+  joint its two `10`s and cgb203 its two `180`s; the centre lines locate the bore, and
+  `origin/<axis>: min` keeps the box sides. A counterbore or spotface quiddity finds alike at
+  both mouths of a through hole, which its record states once, is called out `BOTH SIDES`
+  (LM10UU's `⌀10 THRU ⌴SF ⌀16.4 ↧ 1.4`, FTC-10's and STC-10's `4× ⌀7 THRU ⌴ ⌀10 ↧ 10`); a like
+  recess of another hole farther along the same line is not counted. A leader to a bore whose
+  centre lines run on to larger coaxial circles is no longer free to run down or beside them:
+  the router weighs a leader that review's `leader_along_centreline` reads as that line (within
+  6° and 2 mm of it over more than 5 mm) as beside it, which leaves 608ZZ, LM10UU, LM8UU, the
+  GT2 pulley, the sprocket, the Hirth joint, CTC-02, STC-06, FTC-11, cgb203, GRM-03 and FTC-06.
+
 ## 0.2.0 (2026-10-27)
 
 Now on quiddity-rust **v0.2.1** (previously `0.2.0-alpha.2`), which changes no library code from

@@ -6103,23 +6103,45 @@ fn measure_fixed(c: &mut Candidate, job: &Job, fixed: &Fixed) {
     let mut furniture_text = Vec::new();
     let mut besides = Vec::new();
     let lines = segs.map(Line::new);
-    fixed.grid.near(0, near, |n| {
+    // A hole's own centre mark is looked for as far off as the drawing's check reads a leader
+    // as running along it.
+    let wide = grow(
+        bounds,
+        job.stroke_pad
+            .max(LABEL_PAD)
+            .max(super::contacts::ALONG_GAP),
+    );
+    fixed.grid.near(0, wide, |n| {
         let (i, f) = &fixed.segments[n];
-        if !segment_near(*f, near) {
+        if !segment_near(*f, wide) {
+            return;
+        }
+        let own = fixed.furniture.contains_key(i)
+            && fixed.crosses.contains(i)
+            && !job.sites.is_empty()
+            && through(*f, nearest(&job.sites, tip).0);
+        let close = segment_near(*f, near);
+        if !close && !own {
             return;
         }
         // Exact collinear travel stays hard; a shaft's near-parallel travel is weighted
         // ([`BESIDE`]).
         let mut beside = false;
         let mut collinear = false;
-        let meets = if let Some(&global) = fixed.furniture.get(i) {
+        let meets = if !close {
+            beside = super::contacts::along_centreline(segs[0], *f);
+            beside
+        } else if let Some(&global) = fixed.furniture.get(i) {
             // The shaft only: a short shelf beside a stroke's end is not a run along it. A
             // radial leader leaving its own hole along that hole's centre mark is its
-            // attachment, not travel along another feature's line.
-            beside = crate::centrelines::runs_beside(segs[0], *f)
-                && !(fixed.crosses.contains(i)
-                    && !job.corridors
-                    && through(*f, nearest(&job.sites, tip).0));
+            // attachment, not travel along another feature's line, within the mark's overrun
+            // past the rim. A mark shared with the larger circles round a coaxial bore (a turned
+            // part's end view) runs on, and a shaft the finished drawing's check reads as running
+            // along it ([`super::contacts::along_centreline`]) is weighed as beside it; that
+            // check's length exceeds the overrun, so a mark ending there never trips it (#104).
+            // A corridor route keeps its closer test on its own mark as well.
+            beside = (own && super::contacts::along_centreline(segs[0], *f))
+                || ((!own || job.corridors) && crate::centrelines::runs_beside(segs[0], *f));
             collinear = lines.iter().any(|s| s.collinear(*f));
             beside
                 || collinear
