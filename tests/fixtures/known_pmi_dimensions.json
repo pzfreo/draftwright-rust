@@ -1535,6 +1535,16 @@
  },
  {
   "field": "label",
+  "file": "nist_ctc_01_asme1_ap242-e1.stp",
+  "port": "dimension:#33",
+  "python": "60 ±0.5",
+  "record": "dimension:0:1:4:17",
+  "rust": "60° ±0.5°",
+  "verdict": "rust-correct",
+  "evidence": "draftwright states '60 ±0.5'; the port states '60° ±0.5°'. An angle's record label leaves its unit to the record's kind (draftwright's implicit_degrees), which a reader of the sheet cannot see, so a bare '60 ±0.5' reads as millimetres beside the automatic notch angle's '60°'; the port prints the unit on the nominal and its deviation (ISO 129-1)."
+ },
+ {
+  "field": "label",
   "file": "nist_ctc_01_merge.step",
   "port": "dimension:#120",
   "python": "⌀35 +0.0 -0.2 THRU",
@@ -1552,6 +1562,16 @@
   "rust": "⌀35 +0.2 0 THRU",
   "verdict": "rust-correct",
   "evidence": "draftwright states '⌀35 +0.2 -0.0 THRU'; the port states '⌀35 +0.2 0 THRU'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+ },
+ {
+  "field": "label",
+  "file": "nist_ctc_01_merge.step",
+  "port": "dimension:#33",
+  "python": "60 ±0.5",
+  "record": "dimension:0:1:4:17",
+  "rust": "60° ±0.5°",
+  "verdict": "rust-correct",
+  "evidence": "draftwright states '60 ±0.5'; the port states '60° ±0.5°'. An angle's record label leaves its unit to the record's kind (draftwright's implicit_degrees), which a reader of the sheet cannot see, so a bare '60 ±0.5' reads as millimetres beside the automatic notch angle's '60°'; the port prints the unit on the nominal and its deviation (ISO 129-1)."
  },
  {
   "file": "nist_ftc_10_asme1_ap242-e2.stp",

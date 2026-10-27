@@ -1328,6 +1328,36 @@
   "evidence": "draftwright's drawing: 'B' (datum ref, front view); the port's: 'B' (datum ref, plan view). Datum B is one hole's bore, a feature of size: draftwright draws its symbol edge-on in the front view, on the bore's silhouette, which is hidden there. Since #224 the port attaches it to the hole's mark (its size callout or hole table tag) in the plan view, which sees the bore end-on, as ASME Y14.5 and ISO 5459 place a feature of size's datum symbol on its size dimension; a view or side in annotations/<id>/place keeps draftwright's attachment. Above its `⌀35` callout the `4× R25` callout's leader leaves no clear place; beneath it is past the plan's reserved area, which since this change grows into the vacant paper above the front view to hold it (before, B stayed on its silhouette)."
  },
  {
+  "field": "drawing",
+  "file": "nist_ctc_01_asme1_ap242-e1.stp",
+  "port": "dimension:#33",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": null,
+     "text": "60 ±0.5",
+     "view": "plan"
+    }
+   ]
+  },
+  "record": "dimension:0:1:4:17",
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": null,
+     "text": "60° ±0.5°",
+     "view": "plan"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright states '60 ±0.5' (dimension, plan view); the port states '60° ±0.5°' (dimension, plan view). An angle's record label leaves its unit to the record's kind (draftwright's implicit_degrees), which a reader of the sheet cannot see: a bare '60 ±0.5' reads as millimetres beside the automatic notch angle's '60°'. The port prints the unit on the nominal and its deviation (ISO 129-1)."
+ },
+ {
   "file": "nist_ctc_01_merge.step",
   "record": "datum:0:1:4:2",
   "port": "datum:#34",
@@ -1442,6 +1472,36 @@
   },
   "verdict": "rust-correct",
   "evidence": "draftwright's drawing: 'C' (datum ref, front view); the port's: 'C' (datum ref, plan view). Datum C is one hole's bore, a feature of size: draftwright draws its symbol edge-on in the front view, on the bore's silhouette, which is hidden there. Since #224 the port attaches it to the hole's mark (its size callout or hole table tag) in the plan view, which sees the bore end-on, as ASME Y14.5 and ISO 5459 place a feature of size's datum symbol on its size dimension; a view or side in annotations/<id>/place keeps draftwright's attachment. Datum B, the other bottom hole's bore, stays on its silhouette in the front view, as draftwright draws it: with the `4× R25` callout's leader beside B's `⌀35` callout, above it has no clear place and beneath it is past the plan's area (until the backlog-1 and backlog-2 stacks met, B attached and C did not)."
+ },
+ {
+  "field": "drawing",
+  "file": "nist_ctc_01_merge.step",
+  "port": "dimension:#33",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": null,
+     "text": "60 ±0.5",
+     "view": "plan"
+    }
+   ]
+  },
+  "record": "dimension:0:1:4:17",
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": null,
+     "text": "60° ±0.5°",
+     "view": "plan"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright states '60 ±0.5' (dimension, plan view); the port states '60° ±0.5°' (dimension, plan view). An angle's record label leaves its unit to the record's kind (draftwright's implicit_degrees), which a reader of the sheet cannot see: a bare '60 ±0.5' reads as millimetres beside the automatic notch angle's '60°'. The port prints the unit on the nominal and its deviation (ISO 129-1)."
  },
  {
   "file": "nist_ctc_02_asme1_ap242-e2.stp",
@@ -9623,6 +9683,56 @@
   },
   "verdict": "rust-correct",
   "evidence": "Only nominal display changes to shortest faithful decimals up to three places; tolerances, claims and rendering outcomes are retained (drawn-values-2026-10-18)."
+ },
+ {
+  "field": "drawing",
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "port": "dimension:#16423",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "note",
+     "rides_on": null,
+     "text": "",
+     "view": "front"
+    }
+   ]
+  },
+  "record": "dimension:0:1:4:108",
+  "rust": {
+   "codes": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: a leadered note in the front view whose whole text is a lone symbol (the private-use glyph U+F055 of the authoring system's font), printed as an empty box with no size or depth; the port's: not drawn, refused (pmi_not_lowered, a warning). The common label is a fragment of a callout whose sizes the file states in its own dimension records; alone it states nothing."
+ },
+ {
+  "field": "drawing",
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "port": "dimension:#16482",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "note",
+     "rides_on": null,
+     "text": "⌴",
+     "view": "front"
+    }
+   ]
+  },
+  "record": "dimension:0:1:4:110",
+  "rust": {
+   "codes": [
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: a leadered note in the front view whose whole text is a lone symbol ('⌴'), printed as an empty box with no size or depth; the port's: not drawn, refused (pmi_not_lowered, a warning). The common label is a fragment of a callout whose sizes the file states in its own dimension records; alone it states nothing."
  },
  {
   "field": "drawing",

@@ -63,6 +63,33 @@ All notable changes to draftwright-rust are recorded here, in the style of
   chamfer or end face meets any modelled thread's flanks along a jagged curve, that boundary is
   now drawn at the crest, like a circular one, instead of as the raw intersection.
 
+- **A drawing of an assembly's principal part says the other parts are not shown.** dw-examples'
+  LM8UU is a sleeve and an insert; only the sleeve is drawn (#219), so under the title "LM8UU
+  linear bearing" the sheet showed a ⌀12.4 bore and no ⌀8, with the warning only in the review.
+  The sheet now carries an automatic general note, `ASSEMBLY OF 2 PARTS: ONLY PART METAL SHOWN;
+  PART CENTER NOT SHOWN` (the parts by name, or the others by count beyond three), which
+  `annotations/n:assembly/omit` leaves out and `annotations/n:assembly/text` words. A part chosen
+  with `--part` gets none. Only LM8UU and the GT2 pulley change on the 30 quality parts and the
+  35 dw-examples drawings, on the same sheets. LM8UU's notes block takes the top left, so its
+  views move down and its isometric (not to scale) is drawn much smaller in the lower-left corner;
+  the GT2 pulley's notes block takes the top right, so its isometric moves up beside it and is
+  drawn at the sheet's scale (5:1, was 6.35:1).
+
+- **A PMI label that is a lone symbol is no longer drawn as an empty box.** CTC-04's side view
+  and FTC-07's plan carried leadered labels of a lone `⌴`, and FTC-07 a private-use glyph
+  (U+F055) of its authoring system's font: AP242 common labels that are fragments of callouts
+  whose sizes the file states elsewhere, printed as empty boxes with no size or depth. A label
+  whose text has no letter or digit is now refused with why (`pmi_not_lowered`, a warning: the
+  lone symbol states nothing its features' own dimensions do not). On the 30 quality parts and
+  the 35 dw-examples drawings, only CTC-04 (one label) and FTC-07 (two) change; FTC-07 has four
+  fewer leader crossings.
+
+- **A PMI angle prints its unit.** An AP242 angular dimension printed its record's label, whose
+  unit is only its kind, so CTC-01's right V-notch read `60 ±0.5` (as if millimetres) beside the
+  left notch's `60°`. Every value of a drawn PMI angle, its deviations and limits included, now
+  carries `°` (`60° ±0.5°`, ISO 129-1). Only CTC-01's angle label changes on the 30 quality parts
+  and the 35 dw-examples drawings.
+
 ## 0.2.0 (2026-10-27)
 
 Now on quiddity-rust **v0.2.1** (previously `0.2.0-alpha.2`), which changes no library code from

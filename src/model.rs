@@ -5133,9 +5133,10 @@ fn plan_with_presentation(
             code: "assembly_principal_drawn".into(),
             severity: "warning".into(),
             message: format!(
-                "{file} is an assembly of {} parts; its largest, part {k} ({}){placements}, holds the others within its box and is drawn alone, so they ({others}) are neither drawn nor dimensioned as its features. To draw another part, choose it by its index: --part K on the command line, or \"part\": K in a request.",
+                "{file} is an assembly of {} parts; its largest, part {k} ({}){placements}, holds the others within its box and is drawn alone, so they ({others}) are neither drawn nor dimensioned as its features; a general note on the sheet says so (annotations/{}/omit leaves it out). To draw another part, choose it by its index: --part K on the command line, or \"part\": K in a request.",
                 analysis.parts.len(),
-                analysis.binding.part
+                analysis.binding.part,
+                crate::notes::ASSEMBLY_NOTE
             ),
             subjects: Vec::new(),
             refs: analysis.parts.iter().map(|p| p.name.clone()).collect(),
@@ -5292,6 +5293,9 @@ fn plan_with_presentation(
         );
         annotation_ids.extend(crate::dims::blends::note_ids(analysis));
         annotation_ids.extend(crate::dims::size_datums::ids(analysis));
+        if crate::notes::assembly_note(analysis).is_some() {
+            annotation_ids.push(crate::notes::ASSEMBLY_NOTE.into());
+        }
         let missing = effective
             .annotations
             .keys()
@@ -5589,6 +5593,15 @@ fn plan_with_presentation(
     let (mut notes_given, omitted_notes, more) =
         crate::notes::reconcile(&requirements, analysis, spec);
     problems.extend(more);
+    for note in &mut notes_given {
+        if note.id == crate::notes::ASSEMBLY_NOTE
+            && let Some(text) = spec.annotations.get(&note.id).and_then(|a| a.text.as_ref())
+        {
+            note.text = text
+                .terms(&note.id, std::slice::from_ref(&note.text))?
+                .join(" ");
+        }
+    }
     let mut radius_notes = if crate::dims::pmi_policy::strict(analysis, spec) {
         Vec::new()
     } else {

@@ -344,6 +344,41 @@ fn a_body_within_the_principal_part_is_not_dimensioned_as_its_feature() {
     assert!(message.contains("they (0: Center)"), "{message}");
     assert!(message.contains("--part"), "{message}");
     assert!(problems(&chosen, "assembly_principal_drawn").is_empty());
+    // The sheet says so: one automatic general note names the part drawn and the one left out,
+    // and a part chosen by its index carries none.
+    let note = |plan: &Value| {
+        plan["notes"].as_array().map_or(Vec::new(), |n| {
+            n.iter()
+                .filter(|n| n["id"] == "n:assembly")
+                .cloned()
+                .collect::<Vec<_>>()
+        })
+    };
+    let notes = note(&plan);
+    assert_eq!(notes.len(), 1, "{}", plan["notes"]);
+    assert_eq!(
+        notes[0]["text"],
+        "ASSEMBLY OF 2 PARTS: ONLY PART METAL SHOWN; PART CENTER NOT SHOWN"
+    );
+    assert_eq!(notes[0]["default"], true);
+    assert_eq!(notes[0]["state"]["kind"], "shown");
+    assert!(notes[0]["placed"].is_object(), "{}", notes[0]);
+    assert!(note(&chosen).is_empty(), "{}", chosen["notes"]);
+    // The Spec leaves it out, kept in the plan undrawn.
+    let spec = scratch("lm8uu_spec.json");
+    std::fs::write(
+        &spec,
+        json!({"schema": "draftwright.spec/2", "annotations": {"n:assembly": {"omit": true}}})
+            .to_string(),
+    )
+    .unwrap();
+    let (code, omitted) = run(&["plan", &step, "--spec", spec.to_str().unwrap()]);
+    assert_eq!(code, Some(0), "{omitted}");
+    let notes = note(&omitted);
+    assert_eq!(notes.len(), 1, "{}", omitted["notes"]);
+    assert_eq!(notes[0]["state"]["kind"], "omitted_by_user");
+    assert!(notes[0]["placed"].is_null());
+    assert_eq!(labels(&omitted), drawn);
     // The inner sleeve can still be drawn alone.
     let (code, inner) = run(&["plan", &step, "--part", "0"]);
     assert_eq!(code, Some(0), "{inner}");
