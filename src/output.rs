@@ -585,6 +585,9 @@ pub struct DrawnFrame {
     pub up: [f64; 3],
     pub at: P,
     pub scale: f64,
+    /// A half section's axis on the page ([`crate::half_section`]): the page coordinate (0 for
+    /// x, 1 for y) that crosses it, and its value there. A half dimension is measured from it.
+    pub half_axis: Option<(usize, f64)>,
 }
 
 #[derive(Clone, Debug)]

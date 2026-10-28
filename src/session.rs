@@ -1631,6 +1631,13 @@ fn settable(
             for field in crate::linework::FIELDS {
                 fields.insert(format!("{base}/{field}"), choices(json!([false, true])));
             }
+            // A profile view of a turned part may be drawn as a half section ([`crate::half_section`]).
+            if matches!(id.as_str(), "v:front" | "v:plan" | "v:side") {
+                fields.insert(
+                    format!("{base}/half_section"),
+                    choices(json!([false, true])),
+                );
+            }
             // Preserve default single-sheet answers until the author enables sheet controls.
             if session.spec().sheets.is_some() {
                 let name = id.trim_start_matches("v:");

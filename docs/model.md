@@ -290,7 +290,7 @@ mention takes its default.
 
 The design also includes `views/sections` (for example `"sections": [{"id": "A", "through": "f:hole:3"}]`). Feature `anchor` is read for recognition corrections, below; a feature's `note` is read since K1b (below).
 
-- **Fields read:** `sheet` (`size`, `scale`, `preferred_max_size`, `preferred_max_sheets`, `dimension_spacing`, `frame_gutter`, `title`, `references`, `fit_deviations`, `fit_limits`, `projection`, `default_finish`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`),
+- **Fields read:** `sheet` (`size`, `scale`, `preferred_max_size`, `preferred_max_sheets`, `dimension_spacing`, `frame_gutter`, `title`, `references`, `fit_deviations`, `fit_limits`, `projection`, `default_finish`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`, `half_section`),
   `iso_scale_factor`, `dimension_source`, `dimension_schemes/<name>` (`scheme`, `axis`, `targets`, `view`, `from`), `hole_table` (`auto`, `always`, `never`), `dimensions/<id>` (`omit`, `tolerance`, `fit`, `text`, `style`, `place`, `kind`, `between`, `along`, and the earlier `view`
   spelling), `annotations/<id>` (`omit`, `place`, `text` for prose callouts and automatic notes), `features/<id>` (`fit`, `datum`, `controls`, `finish`, `thread`, `knurl`, `note`, `anchor`, `reclassify`, `suppress`, `split`, `pattern`), `feature_declarations`,
   `faces/<face>` (`datum`, `controls`, `finish`, `note`: "Datums and controls authored in the Spec" and "Finish, threads,
@@ -477,6 +477,18 @@ do not fit, the problem's `fix` sets the nearest pair that does, found by the en
 the pinned sheet at the scale the recovery picks for it, else the pinned scale on the smallest sheet
 that holds it, else the automatic pair; each is offered only when, pinned, its drawing fits. The
 message names it (`…; A4 at 1:1 fits.`).
+
+#### Half sections
+
+A part turned whole about one axis whose bore steps inside (a coaxial hole with a counterbore,
+spotface or countersink) has its profile view drawn as an ISO 128-50 half section when the plan
+has no full section: half as seen, half cut on the turning axis and hatched, with no hidden
+edges in either half and no caption or cutting-plane line. The cut half is the side the view's
+lengths are dimensioned on. Witnesses on internal edges of the half drawn as seen move to their
+mirror in the cut half, and an internal diameter becomes a half dimension: one arrow on the
+cut edge, its line running past the axis. `views/<name>/half_section` steers it: `true` forces it
+on a profile view of a turned part (a `section_not_shown` warning says when the view shows none),
+`false` forbids it.
 
 #### Line work per view (#76 item 6)
 

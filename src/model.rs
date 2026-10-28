@@ -768,6 +768,10 @@ pub struct ViewSpec {
     pub thread_depiction: Option<bool>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub knurl_depiction: Option<bool>,
+    /// A half section on this profile view of a turned part ([`crate::half_section`]): true
+    /// forces it, false forbids it; absent keeps the automatic choice.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub half_section: Option<bool>,
 
     #[serde(skip_serializing_if = "Option::is_none")]
     pub detail: Option<crate::detail::DetailSpec>,
@@ -992,6 +996,9 @@ pub struct PlannedView {
     /// A section view's cutting plane.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub cut: Option<Cut>,
+    /// A profile view drawn as a half section ([`crate::half_section`]).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub half_section: Option<crate::half_section::HalfSection>,
 }
 
 /// A section's cutting plane: the material on the side `normal` points to is kept and seen from
@@ -4135,6 +4142,7 @@ fn plan_recovered_once(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid
     }
     let prepared = crate::modelled_threads::planning(analysis, spec);
     let mut plan = crate::dims::pmi_policy::planning(|| plan_recovered_inner(&prepared, spec))?;
+    crate::half_section::apply(&prepared, &mut plan);
     crate::modelled_threads::source_hash(
         analysis,
         matches!(&prepared, std::borrow::Cow::Owned(_)),
@@ -4895,6 +4903,7 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
 fn plan_once(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     let prepared = crate::modelled_threads::planning(analysis, spec);
     let mut plan = crate::dims::pmi_policy::planning(|| plan_inner(&prepared, spec))?;
+    crate::half_section::apply(&prepared, &mut plan);
     crate::modelled_threads::source_hash(
         analysis,
         matches!(&prepared, std::borrow::Cow::Owned(_)),
@@ -6178,6 +6187,7 @@ fn plan_with_presentation(
                 basis: basis + &turned(name),
                 state: ItemState::Shown,
                 cut: None,
+                half_section: None,
                 line_work: Vec::new(),
                 line_style: Default::default(), from_spec: Vec::new(),
             }
@@ -6204,6 +6214,7 @@ fn plan_with_presentation(
             state: ItemState::Shown,
             line_work: Vec::new(),
             line_style: Default::default(), from_spec: Vec::new(),
+            half_section: None,
             cut: Some(Cut {
                 xref: None,
                 label,
@@ -6253,6 +6264,7 @@ fn plan_with_presentation(
                 state: ItemState::Shown,
                 line_work: Vec::new(),
                 cut: None,
+                half_section: None,
                 line_style: Default::default(),
                 from_spec: Vec::new(),
                 detail: Some(detail),
@@ -8673,6 +8685,8 @@ fn projection_key(v: &PlannedView) -> Vec<u64> {
         cut.map_or(&[], |c| &c.normal[..]),
         v.detail.as_ref().map_or(&[], |d| &d.bounds[0][..]),
         v.detail.as_ref().map_or(&[], |d| &d.bounds[1][..]),
+        v.half_section.as_ref().map_or(&[], |h| &h.origin[..]),
+        v.half_section.as_ref().map_or(&[], |h| &h.keep[..]),
     ])
 }
 
@@ -8767,44 +8781,82 @@ impl Projections {
                 v.at[1] + v.scale * (q[1] - centre[1]),
             ]
         };
-        for piece in self.view(part, analysis, v, spec)? {
-            let mut moved = piece.clone();
-            moved.points = piece.points.iter().map(|q| place(*q)).collect();
-            moved.exact = piece
-                .exact
-                .as_ref()
-                .map(|e| placed(e, v.scale, centre, v.at));
-            match projected(&moved) {
-                Some(curve) => {
-                    let curve = crate::linework::stable_curve(curve);
-                    let items = if piece.visible {
-                        &mut geometry.visible
-                    } else {
-                        &mut geometry.hidden
-                    };
-                    if v.detail.is_some() {
-                        let clipped = crate::detail::clip(curve.clone(), rect);
-                        boundary.add(&curve, &clipped, rect);
-                        items.extend(clipped.into_iter().map(Item::Edge));
-                    } else {
-                        items.push(Item::Edge(curve));
-                    }
-                }
-                None if piece.visible || hidden => geometry.undrawn += 1,
-                None => {}
+        // A half section draws the view as seen on one side of its axis and as cut on the
+        // other, each projection clipped to its half ([`crate::half_section`]).
+        let halves: Vec<(std::borrow::Cow<PlannedView>, Option<[f64; 4]>)> = match &v.half_section {
+            None => vec![(std::borrow::Cow::Borrowed(v), None)],
+            Some(h) => {
+                let mut cut = v.clone();
+                cut.cut = Some(h.cut(v));
+                vec![
+                    (
+                        std::borrow::Cow::Borrowed(v),
+                        Some(h.rect(analysis, v, false)),
+                    ),
+                    (
+                        std::borrow::Cow::Owned(cut),
+                        Some(h.rect(analysis, v, true)),
+                    ),
+                ]
             }
-        }
+        };
         let carrier = crate::modelled_threads::carrier(
             part,
             analysis,
             spec,
             v.line_style.thread_depiction != Some(false),
         );
-        let (thick, _, thread_hidden) =
-            crate::modelled_threads::ink(analysis, spec, v, carrier.as_ref().unwrap_or(part));
-        geometry.visible.extend(thick);
-        geometry.hidden.extend(thread_hidden);
-        if projection_cut(v).is_some() || !hidden {
+        for (source, half) in &halves {
+            let keep = |curve: Curve| match half {
+                Some(r) => crate::detail::clip(curve, *r),
+                None => vec![curve],
+            };
+            for piece in self.view(part, analysis, source, spec)? {
+                let mut moved = piece.clone();
+                moved.points = piece.points.iter().map(|q| place(*q)).collect();
+                moved.exact = piece
+                    .exact
+                    .as_ref()
+                    .map(|e| placed(e, v.scale, centre, v.at));
+                match projected(&moved) {
+                    Some(curve) => {
+                        let curve = crate::linework::stable_curve(curve);
+                        let items = if piece.visible {
+                            &mut geometry.visible
+                        } else {
+                            &mut geometry.hidden
+                        };
+                        if v.detail.is_some() {
+                            let clipped = crate::detail::clip(curve.clone(), rect);
+                            boundary.add(&curve, &clipped, rect);
+                            items.extend(clipped.into_iter().map(Item::Edge));
+                        } else {
+                            items.extend(keep(curve).into_iter().map(Item::Edge));
+                        }
+                    }
+                    None if piece.visible || hidden => geometry.undrawn += 1,
+                    None => {}
+                }
+            }
+            let (thick, _, thread_hidden) = crate::modelled_threads::ink(
+                analysis,
+                spec,
+                source,
+                carrier.as_ref().unwrap_or(part),
+            );
+            let clip_items = |items: Vec<Item>| -> Vec<Item> {
+                items
+                    .into_iter()
+                    .flat_map(|item| match (item, half) {
+                        (Item::Edge(c), Some(_)) => keep(c).into_iter().map(Item::Edge).collect(),
+                        (item, _) => vec![item],
+                    })
+                    .collect()
+            };
+            geometry.visible.extend(clip_items(thick));
+            geometry.hidden.extend(clip_items(thread_hidden));
+        }
+        if projection_cut(v).is_some() || v.half_section.is_some() || !hidden {
             geometry.hidden.clear();
         } else {
             // Visible ink takes precedence in orientation views too. A scale or
@@ -9382,6 +9434,7 @@ fn render_annotations_with_cuts(
                     v.at
                 },
                 scale: v.scale,
+                half_axis: v.half_section.as_ref().map(|h| h.page_axis(analysis, v)),
             },
         );
         for w in v.line_work.iter().filter(|w| w.kind != "cutting_plane") {
@@ -9502,6 +9555,40 @@ fn render_annotations_with_cuts(
             style: crate::output::thin_style(),
             items: thin,
         });
+    }
+    // A half section's hatch, clipped to its cut half; it has no caption or cutting-plane line
+    // (ISO 128-50: the cut through the axis of symmetry is obvious).
+    for v in &plan.views {
+        let Some(h) = &v.half_section else { continue };
+        let cut = h.cut(v);
+        let Some(plane) = Plane::new(cut.origin, cut.normal) else {
+            continue;
+        };
+        let keep = h.rect(analysis, v, true);
+        let ink: Vec<Item> = section_hatch(part, analysis, plan, v, (&plane, &cut), projections)?
+            .into_iter()
+            .flat_map(|item| match item {
+                Item::Edge(c) => crate::detail::clip(c, keep)
+                    .into_iter()
+                    .map(Item::Edge)
+                    .collect(),
+                item => vec![item],
+            })
+            .collect();
+        if let Some(bbox) = items_bbox(&ink) {
+            sheet.items.push(Drawn {
+                datum_triangle: None,
+                heads: Vec::new(),
+                name: format!("{}/half_section_hatch", v.id),
+                kind: Kind::Hatch,
+                ink: bbox,
+                label: None,
+                lines: Vec::new(),
+                elbow: None,
+                interior: false,
+            });
+        }
+        furniture.extend(ink);
     }
     for v in plan.views.iter().chain(remote_sections.iter().copied()) {
         if rejected_sections.contains_key(&v.id) {
@@ -10745,13 +10832,38 @@ fn section_furniture(
     (plane, cut): (&Plane, &Cut),
     projections: &mut Projections,
 ) -> Result<Furniture, Unresolved> {
-    use crate::section::{HATCH_SPACING, hatch};
     let mut out = Furniture {
-        ink: Vec::new(),
+        ink: section_hatch(part, analysis, plan, v, (plane, cut), projections)?,
         hatch: 0,
         chain: None,
         text: Vec::new(),
     };
+    // Invariant: Planned cameras come from the fixed views or checked section/detail cameras, with nonparallel axes.
+    let view = &View::new(v.direction, v.up).expect("a planned view");
+    out.hatch = out.ink.len();
+    let half_h = 0.5 * extent(analysis, view).0[1] * v.scale;
+    let l = &cut.label;
+    out.text.push((
+        format!("SECTION {l}\u{2013}{l}"),
+        [v.at[0], v.at[1] - half_h - 7.0],
+    ));
+    cutting_furniture(plan, cut, &mut out);
+    Ok(out)
+}
+
+/// The 45° hatch of the material plane *cut* leaves in view *v* (page mm), each line proven
+/// inside the material on both sides of the plane: a full section's, or a half section's before
+/// it is clipped to its cut half.
+fn section_hatch(
+    part: &Part,
+    analysis: &Analysis,
+    plan: &Plan,
+    v: &PlannedView,
+    (plane, cut): (&Plane, &Cut),
+    projections: &mut Projections,
+) -> Result<Vec<Item>, Unresolved> {
+    use crate::section::{HATCH_SPACING, hatch};
+    let mut ink = Vec::new();
     // Invariant: Planned cameras come from the fixed views or checked section/detail cameras, with nonparallel axes.
     let view = &View::new(v.direction, v.up).expect("a planned view");
     let (s, centre) = (v.scale, extent(analysis, view).1);
@@ -10775,8 +10887,8 @@ fn section_furniture(
         &v.at,
     ]);
     hatch_key.extend(&extra);
-    if let Some(ink) = projections.hatches.get(&hatch_key) {
-        out.ink = ink.clone();
+    if let Some(cached) = projections.hatches.get(&hatch_key) {
+        ink = cached.clone();
     } else {
         let page: Vec<Vec<[f64; 2]>> = projections
             .cut(part, cut, plane, &extra)?
@@ -10847,22 +10959,13 @@ fn section_furniture(
                         .into_iter()
                         .all(|side| classifier.classify(to_model(middle, side)) == State::In)
                 {
-                    out.ink
-                        .push(Item::Edge(Curve::Line(point(pair[0]), point(pair[1]))));
+                    ink.push(Item::Edge(Curve::Line(point(pair[0]), point(pair[1]))));
                 }
             }
         }
-        projections.hatches.insert(hatch_key, out.ink.clone());
+        projections.hatches.insert(hatch_key, ink.clone());
     }
-    out.hatch = out.ink.len();
-    let half_h = 0.5 * extent(analysis, view).0[1] * v.scale;
-    let l = &cut.label;
-    out.text.push((
-        format!("SECTION {l}\u{2013}{l}"),
-        [v.at[0], v.at[1] - half_h - 7.0],
-    ));
-    cutting_furniture(plan, cut, &mut out);
-    Ok(out)
+    Ok(ink)
 }
 
 fn cutting_furniture(plan: &Plan, cut: &Cut, out: &mut Furniture) {

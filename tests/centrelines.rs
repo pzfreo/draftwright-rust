@@ -942,3 +942,199 @@ fn a_leader_beside_a_coaxial_bores_centre_line_moves_off_it() {
         .collect();
     assert!(along.is_empty(), "{along:?}");
 }
+
+/// `bearing-lm10uu.step.gz` (dw-examples): a part turned whole whose ⌀10 bore steps inside (a
+/// ⌀16.4 ↧ 1.4 spotface at each end, a ⌀11.2 × 0.7 ring on its floor) draws its profile view as
+/// an ISO 128-50 half section: hatched on the side of the axis its lengths are dimensioned on, no
+/// hidden edges, the ring's ⌀11.2 drawn as a section edge and dimensioned there as a half
+/// dimension that lint still measures against its label.
+#[test]
+fn a_turned_part_with_a_stepped_bore_draws_its_profile_as_a_half_section() {
+    let (_, p, mut d) = drawing(
+        &Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts/bearing-lm10uu.step.gz"),
+    );
+    let side = p.views.iter().find(|v| v.id == "v:side").unwrap();
+    assert!(side.half_section.is_some(), "{}", side.basis);
+    assert!(p.views.iter().filter(|v| v.half_section.is_some()).count() == 1);
+    let frame = &d.sheet.frames["side"];
+    let (k, axis) = frame.half_axis.unwrap();
+    let scale = frame.scale;
+    // The cut half: where the lengths' dimension lines are.
+    let lengths = p
+        .dimensions
+        .iter()
+        .find(|q| q.id == "d:envelope/depth.length")
+        .unwrap();
+    let cut_sign = (lengths.placed.as_ref().unwrap().lines[2][0][k] - axis).signum();
+    let in_cut = |q: [f64; 2]| (q[k] - axis) * cut_sign > 1e-6;
+    let area = side.area;
+    let inside =
+        |b: [f64; 4]| b[0] >= area[0] && b[2] <= area[2] && b[1] >= area[1] && b[3] <= area[3];
+    let hidden = d.layers.iter().find(|l| l.name == "hidden").unwrap();
+    assert!(
+        !hidden.items.iter().any(|i| match i {
+            draftwright::output::Item::Edge(c) => inside(c.bbox()),
+            _ => false,
+        }),
+        "a half section draws no hidden edges"
+    );
+    let hatch = d
+        .sheet
+        .items
+        .iter()
+        .find(|i| i.name == "v:side/half_section_hatch")
+        .unwrap();
+    assert!(in_cut([hatch.ink[0], hatch.ink[1]]) && in_cut([hatch.ink[2], hatch.ink[3]]));
+    // The ring's ⌀11.2 is a visible edge of the cut half.
+    let ring = axis + cut_sign * 5.6 * scale;
+    let view = d.sheet.views.iter().find(|v| v.name == "v:side").unwrap();
+    let on_ring: f64 = view
+        .edges
+        .iter()
+        .map(|e| e.bbox())
+        .filter(|b| (b[k] - ring).abs() < 1e-3 && (b[k + 2] - ring).abs() < 1e-3)
+        .map(|b| b[3 - k] - b[1 - k])
+        .sum();
+    assert!(on_ring > 0.7 * scale, "{on_ring}");
+    // ⌀11.2: one witness on the cut edge, one arrow, the line past the axis.
+    let ring_dim = p
+        .dimensions
+        .iter()
+        .find(|q| q.id == "d:f:boss:1/boss.diameter")
+        .unwrap()
+        .placed
+        .as_ref()
+        .unwrap();
+    assert_eq!((ring_dim.lines.len(), ring_dim.arrows.len()), (2, 1));
+    assert!((ring_dim.lines[0][0][k] - ring).abs() < 1e-6);
+    // Its witness starts at the ring nearer the dimension line, not across the section from
+    // the far one.
+    let witness = ring_dim.lines[0];
+    let run = (witness[0][1 - k] - witness[1][1 - k]).abs();
+    assert!(
+        run < 0.5 * (area[3 - k] - area[1 - k]),
+        "{witness:?} in {area:?}"
+    );
+    let line = ring_dim.lines[1];
+    assert!((line[0][k] - axis) * (line[1][k] - axis) < 0.0, "{line:?}");
+    // The rings' heights: witnesses from the cut half.
+    for id in [
+        "d:f:boss:1/boss_height.length",
+        "d:f:boss:2/boss_height.length",
+    ] {
+        let q = p.dimensions.iter().find(|q| q.id == id).unwrap();
+        for w in &q.placed.as_ref().unwrap().lines[..2] {
+            assert!(w.iter().all(|e| in_cut(*e)), "{id}: {w:?}");
+        }
+    }
+    let measured = |d: &draftwright::output::Drawing| {
+        draftwright::lint::structural::check(d)
+            .into_iter()
+            .filter(|i| i.code == "label_vs_measured")
+            .count()
+    };
+    assert_eq!(measured(&d), 0);
+    let drawn = d
+        .sheet
+        .items
+        .iter_mut()
+        .find(|i| i.name == "d:f:boss:1/boss.diameter")
+        .unwrap();
+    assert_eq!(drawn.lines.len(), 2);
+    for e in &mut drawn.lines[0] {
+        e[k] += cut_sign;
+    }
+    assert_eq!(
+        measured(&d),
+        1,
+        "a half dimension's label is measured from the axis"
+    );
+}
+
+/// `views/<name>/half_section` steers the choice: false keeps lm10uu's side view whole, true
+/// cuts lm8uu's plain bore, and a view with no turned profile seen side on stays whole with a
+/// warning.
+#[test]
+fn the_spec_forces_or_forbids_a_half_section() {
+    let parts = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts");
+    let spec = |json: Value| -> Spec { serde_json::from_value(json).unwrap() };
+    let (_, p, _) = drawing_with(
+        &parts.join("bearing-lm10uu.step.gz"),
+        &spec(serde_json::json!({"views": {"side": {"half_section": false}}})),
+    );
+    assert!(p.views.iter().all(|v| v.half_section.is_none()));
+    let ring = p
+        .dimensions
+        .iter()
+        .find(|q| q.id == "d:f:boss:1/boss.diameter")
+        .unwrap();
+    assert_eq!(ring.placed.as_ref().unwrap().lines.len(), 3);
+    let (_, p, d) = drawing(&parts.join("lm8uu.step.gz"));
+    assert!(p.views.iter().all(|v| v.half_section.is_none()));
+    assert!(
+        d.sheet
+            .items
+            .iter()
+            .all(|i| i.kind != draftwright::output::Kind::Hatch)
+    );
+    let (_, p, d) = drawing_with(
+        &parts.join("lm8uu.step.gz"),
+        &spec(
+            serde_json::json!({"views": {"side": {"half_section": true}, "front": {"half_section": true}}}),
+        ),
+    );
+    let side = p.views.iter().find(|v| v.id == "v:side").unwrap();
+    assert!(side.half_section.is_some());
+    assert!(side.basis.contains("as the spec asks"));
+    assert!(
+        d.sheet
+            .items
+            .iter()
+            .any(|i| i.name == "v:side/half_section_hatch")
+    );
+    let front = p.views.iter().find(|v| v.id == "v:front").unwrap();
+    assert!(front.half_section.is_none());
+    assert!(
+        p.problems
+            .iter()
+            .any(|q| q.id == "p:section_not_shown:v:front" && q.severity == "warning")
+    );
+}
+
+#[test]
+fn a_half_section_drops_the_centre_lines_of_holes_it_cuts_away() {
+    let Some(dir) = corpus::dir() else { return };
+    let (_, a) = cache::native(&dir.join("cadgenbench/flanged_spool_132.step"));
+    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let v = p.views.iter().find(|v| v.half_section.is_some()).unwrap();
+    let h = v.half_section.as_ref().unwrap();
+    let n = h.cut(v).normal;
+    let r = h.rect(&a, v, true);
+    let in_cut = |q: [f64; 2]| r[0] <= q[0] && q[0] <= r[2] && r[1] <= q[1] && q[1] <= r[3];
+    let mut kept = 0;
+    for (f, hole) in draftwright::bridge::holes::read(&a) {
+        let Ok(hole) = hole else { continue };
+        let Some(w) = v
+            .line_work
+            .iter()
+            .find(|w| w.id == format!("ink:{}:{}", v.id, f.id))
+        else {
+            continue;
+        };
+        if !draftwright::centrelines::segments(w)
+            .iter()
+            .flatten()
+            .all(|&q| in_cut(q))
+        {
+            continue;
+        }
+        // A hole marked on the cut half is one the cutting plane passes through.
+        let off: f64 = (0..3).map(|k| (hole.at[k] - h.origin[k]) * n[k]).sum();
+        assert!(off.abs() <= hole.diameter, "{}: {off}", f.id);
+        kept += 1;
+    }
+    assert!(
+        kept > 0,
+        "the holes on the cutting plane keep their centre lines"
+    );
+}

@@ -2573,6 +2573,7 @@ pub(crate) fn validate_placements(
             basis: String::new(),
             state: State::Shown,
             cut: None,
+            half_section: None,
             line_work: Vec::new(),
             line_style: Default::default(),
             from_spec: Vec::new(),
