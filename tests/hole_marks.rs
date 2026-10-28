@@ -12,8 +12,10 @@ fn nist(name: &str) -> Analysis {
 }
 
 const FTC10: &str = "nist_ftc_10_asme1_ap242-e2.stp.gz";
-const CYLINDRICITY: &str = "pmi:geometric_tolerance.cylindricity:f101,102,104,105,107,108,110,111";
 const DATUM_F: &str = "pmi:datum.datum:f244,245:t=F";
+const STC09: &str = "nist_stc_09_asme1_ap242-e4.stp.gz";
+const SPLIT_POSITION: &str =
+    "pmi:geometric_tolerance.position:f42,43,44,45,46,47,54,55:ref=A,B,C:mod=diameter_zone";
 
 /// The size callout or tag box a moved glyph sits against, within *gap* paper mm across and
 /// overlapping it along.
@@ -31,20 +33,15 @@ fn mark_box(plan: &Plan, b: [f64; 4], gap: f64) -> Option<[f64; 4]> {
         .find(|m| beside(*m))
 }
 
+/// FTC-10's datum F stands on its hole table tag. (Its plan-view cylindricity frame on the ⌀7
+/// holes attached beneath their callout until the schedule rows replaced the front holes' PMI
+/// callouts, 2026-10-28: the freed front band now holds the position frames above the front
+/// view, the plan view sits lower, and the ⌀7 callout has no clear paper beneath it, so that
+/// frame keeps its lowered leader. The frame attachment is checked on STC-09 below.)
 #[test]
-fn ftc10_hole_frames_and_datums_attach_to_their_marks() {
+fn ftc10_hole_datums_attach_to_their_marks() {
     let a = nist(FTC10);
     let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
-    let frame = plan.gdt.iter().find(|g| g.id == CYLINDRICITY).unwrap();
-    let p = frame.placed.as_ref().unwrap();
-    // Seen end-on (the plan looks down z), with no leader to blank material, beneath its callout
-    // and left-aligned with it.
-    assert_eq!(frame.view, "v:plan");
-    assert!(p.lines.is_empty() && p.arrows.is_empty(), "{p:?}");
-    let callout = mark_box(&plan, p.label_box, 1.0).expect("a callout above the frame");
-    assert!((callout[0] - p.label_box[0]).abs() < 1e-6);
-    assert!(frame.basis.contains("size callout"), "{}", frame.basis);
-
     // The datum's triangle stands on its tag in the view that sees its hole end-on.
     let datum = plan.gdt.iter().find(|g| g.id == DATUM_F).unwrap();
     assert_eq!(datum.view, "v:front");
@@ -70,49 +67,57 @@ fn ftc10_hole_frames_and_datums_attach_to_their_marks() {
         "the triangle's base stands on its mark: {triangle:?}"
     );
     // Nothing moved has a finding of its own.
-    for id in [CYLINDRICITY, DATUM_F] {
-        let own: Vec<_> = plan
-            .problems
-            .iter()
-            .filter(|p| p.code.starts_with("annotation_") && p.subjects.iter().any(|s| s == id))
-            .collect();
-        assert!(own.is_empty(), "{id}: {own:#?}");
-    }
+    let own: Vec<_> = plan
+        .problems
+        .iter()
+        .filter(|p| p.code.starts_with("annotation_") && p.subjects.iter().any(|s| s == DATUM_F))
+        .collect();
+    assert!(own.is_empty(), "{DATUM_F}: {own:#?}");
 }
 
 /// A frame on holes whose bores are split in halves at an angle (so neither half spans the
-/// diameter across a principal axis) still finds its holes' size callout.
+/// diameter across a principal axis) still finds its holes' size callout: seen end-on, with no
+/// leader to blank material, beneath its callout and left-aligned with it, and with no finding
+/// of its own.
 #[test]
 fn a_frame_on_split_bores_attaches_to_their_callout() {
-    let a = nist("nist_stc_09_asme1_ap242-e4.stp.gz");
+    let a = nist(STC09);
     let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
-    let frame = plan
-        .gdt
-        .iter()
-        .find(|g| {
-            g.id == "pmi:geometric_tolerance.position:f42,43,44,45,46,47,54,55:ref=A,B,C:mod=diameter_zone"
-        })
-        .unwrap();
+    let frame = plan.gdt.iter().find(|g| g.id == SPLIT_POSITION).unwrap();
     assert!(frame.basis.contains("size callout"), "{}", frame.basis);
     let p = frame.placed.as_ref().unwrap();
-    assert!(p.lines.is_empty(), "{p:?}");
-    assert!(mark_box(&plan, p.label_box, 1.0).is_some());
+    assert!(p.lines.is_empty() && p.arrows.is_empty(), "{p:?}");
+    let callout = mark_box(&plan, p.label_box, 1.0).expect("a callout beside the frame");
+    assert!((callout[0] - p.label_box[0]).abs() < 1e-6);
+    let own: Vec<_> = plan
+        .problems
+        .iter()
+        .filter(|q| {
+            q.code.starts_with("annotation_") && q.subjects.iter().any(|s| s == SPLIT_POSITION)
+        })
+        .collect();
+    assert!(own.is_empty(), "{own:#?}");
 }
 
 /// The Spec's placement intent is the override: a frame placed on a side keeps its leader, a
 /// datum placed in a view its surface.
 #[test]
 fn a_placed_hole_frame_or_datum_keeps_its_lowered_attachment() {
+    let a = nist(STC09);
+    let spec: Spec = serde_json::from_value(serde_json::json!({"annotations": {
+        SPLIT_POSITION: {"place": {"side": "below"}},
+    }}))
+    .unwrap();
+    let plan = model::plan_recovered(&a, &spec).unwrap();
+    let frame = plan.gdt.iter().find(|g| g.id == SPLIT_POSITION).unwrap();
+    assert!(!frame.placed.as_ref().unwrap().lines.is_empty());
+    assert!(!frame.basis.contains("size callout"));
     let a = nist(FTC10);
     let spec: Spec = serde_json::from_value(serde_json::json!({"annotations": {
-        CYLINDRICITY: {"place": {"side": "below"}},
         DATUM_F: {"place": {"view": "side"}},
     }}))
     .unwrap();
     let plan = model::plan_recovered(&a, &spec).unwrap();
-    let frame = plan.gdt.iter().find(|g| g.id == CYLINDRICITY).unwrap();
-    assert!(!frame.placed.as_ref().unwrap().lines.is_empty());
-    assert!(!frame.basis.contains("size callout"));
     let datum = plan.gdt.iter().find(|g| g.id == DATUM_F).unwrap();
     assert_eq!(datum.view, "v:side");
     assert!(!datum.basis.contains("table tag"));

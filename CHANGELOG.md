@@ -8,6 +8,27 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Changed
 
+- **A hole table row replaces a PMI size callout, and a wrapped callout keeps `↧ 10` together
+  (maintainer decisions).** Where a schedule exists, its row now replaces the callout of a hole
+  whose size comes from PMI, as it already replaced a native one: the row prints the callout's
+  text verbatim (band, fit class or thread) and carries its PMI claim once, on the first row of
+  its holes, so every PMI size is still stated once and no longer twice. dw-examples' STC-10 loses
+  its `4× ⌀6 ±0.15 THRU ⌴SF ⌀10 ↧ 1.8`, `3× ⌀3.5 ±0.2 THRU`, `3× ⌀3.5 G6 THRU` and
+  `8× ⌀2.5 ±0.15 THRU` beside rows E, D, C and A; FTC-10 three (the freed front band takes
+  three position frames that hung 50–250 mm below the front view, but the plan view's cylindricity
+  frame loses its place beneath the ⌀7 callout and the fixture's leader crossings rise from 148 to
+  158), STC-07 three and CTC-05 its
+  `⌀254 ±0.0254 ↧ 92.08` (whose datum B and runout frame, attached beneath it, find no clear place
+  on its tag and keep their lowered places). Whether an automatic schedule is drawn on a PMI part
+  is still decided by the native callouts it frees, and where replacing the PMI callouts would add
+  an error the drawing without schedules lacks, the schedules are installed again with those
+  callouts kept (FTC-08's schedule, with its PMI callouts replaced, would fit but put `64.999` and
+  `2× 11.938` on one dimension line, so it keeps its drawing). When a callout wraps, a depth,
+  counterbore or countersink symbol now moves to the next line with its value instead of ending a
+  line, a departure from draftwright's 48 mm wrap: STC-06's three counterbore callouts break
+  before `⌴`, and FTC-10's and STC-10's `⌴ ⌀10 ↧` / `10 BOTH SIDES` read `⌴ ⌀10` / `↧ 10 BOTH
+  SIDES`.
+
 - **A cut corner is located by its legs, and an angle with no position is reported (#217).** Two
   angles fix an edge's direction, not where it lies: dw-examples' l-plate-5-holes printed `135°` at
   both ends of its 45° cut and neither leg. A cut across a corner of principal edges now gets its

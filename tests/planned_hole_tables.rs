@@ -279,8 +279,12 @@ fn approved_fit_limits_survive_in_each_size_cell() {
     );
 }
 
+/// The maintainer's decision (2026-10-28): where a schedule exists, its row replaces a hole's
+/// size callout even when the size comes from PMI. The row prints the callout's text (band, fit
+/// or thread designation) exactly, and the PMI claim moves to the rows once, so nothing is lost
+/// and nothing is stated twice.
 #[test]
-fn semantic_pmi_callouts_remain_source_carrying_beside_the_schedule() {
+fn semantic_pmi_callouts_are_replaced_by_rows_that_carry_them() {
     let (_, analysis) = model::analyse_native(
         &Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts/editor_pmi.step"),
     )
@@ -311,7 +315,41 @@ fn semantic_pmi_callouts_remain_source_carrying_beside_the_schedule() {
         })
         .collect();
     assert_eq!(semantic.len(), 3);
-    assert!(semantic.iter().all(|d| d.placed.is_some()));
+    let rows: Vec<_> = plan.hole_tables.iter().flat_map(|t| &t.rows).collect();
+    for d in &semantic {
+        assert!(d.placed.is_none(), "{} is drawn beside its rows", d.id);
+        let text = d
+            .terms
+            .iter()
+            .filter(|t| !matches!(t.as_str(), "\n" | "\u{2028}"))
+            .skip(usize::from(d.terms[0].ends_with('×')))
+            .cloned()
+            .collect::<Vec<_>>()
+            .join(" ");
+        let holes: Vec<_> = d
+            .measurements
+            .iter()
+            .filter(|m| m.parameter == "bore.diameter")
+            .map(|m| m.feature.as_str())
+            .collect();
+        for hole in &holes {
+            let row = rows.iter().find(|r| r.feature == *hole).unwrap();
+            assert_eq!(row.cells[1], text, "{hole}");
+        }
+        for claim in d
+            .measurements
+            .iter()
+            .filter(|m| m.feature.starts_with("pmi:"))
+        {
+            let carried = rows
+                .iter()
+                .flat_map(|r| &r.measurements)
+                .filter(|m| *m == claim)
+                .count();
+            assert_eq!(carried, 1, "{} is carried once", claim.feature);
+        }
+    }
+    assert!(!plan.problems.iter().any(|p| p.code == "pmi_not_lowered"));
 }
 
 #[test]

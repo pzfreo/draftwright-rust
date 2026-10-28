@@ -108,8 +108,9 @@ fn compound_terms_keep_their_own_precision_and_tolerances() {
         })
         .unwrap();
     assert!(d.label.contains("⌀6.25 ±0.0005 ↧ 4.75"), "{}", d.label);
-    assert!(d.label.contains("⌴\n⌀8.75 ↧ 1.875"), "{}", d.label);
-    assert!(d.label.contains("⌵ ⌀10.25 ×\n82.50°"), "{}", d.label);
+    // A wrapped symbol stays on the line of its value (the maintainer's wrap, 2026-10-28).
+    assert!(d.label.contains("\n⌴ ⌀8.75 ↧ 1.875"), "{}", d.label);
+    assert!(d.label.contains("\n⌵ ⌀10.25 × 82.50°"), "{}", d.label);
     let ink = dims::label_ink(
         &d.terms,
         &draftwright::text::Font::open(&root().join("fonts").join(dims::FONT)).unwrap(),
