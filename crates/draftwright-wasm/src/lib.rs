@@ -263,7 +263,9 @@ export interface CalloutOffset {
         /// and with its PMI only.
         #[wasm_bindgen(js_name = openPart)]
         pub fn open_part(name: &str, bytes: &[u8], part: usize) -> Result<Engine, JsValue> {
-            Session::open_part(name, bytes, Some(part)).map(Engine).map_err(js)
+            Session::open_part(name, bytes, Some(part))
+                .map(Engine)
+                .map_err(js)
         }
         pub fn apply(&mut self, ops: &str, commit: bool) -> Result<String, JsValue> {
             self.0.apply_json(ops, commit).map_err(js)
@@ -424,7 +426,10 @@ mod tests {
         let pin = Session::open_part("assembly.step", bytes, Some(1)).unwrap();
         assert_eq!(plate.face_count(), 13);
         assert_eq!(pin.face_count(), 7);
-        assert!(Session::open_part("assembly.step", bytes, Some(2)).is_err(), "no third part");
+        assert!(
+            Session::open_part("assembly.step", bytes, Some(2)).is_err(),
+            "no third part"
+        );
     }
 
     #[test]
