@@ -123,6 +123,54 @@ fn ctc_01s_sides_are_draftwrights() {
     }
 }
 
+/// CTC-01's hexagonal boss centre, averaged from its corners, lies 2.7e-5 short of the 225 at
+/// which its holes are located: one span, so one dimension (`225`, the holes'), not `225` and
+/// `225.000` side by side; the boss's location is conveyed by it, and the boss is located by the
+/// holes' lines on both axes (`400` and `225`).
+#[test]
+fn ctc_01s_boss_and_holes_on_one_line_are_located_once() {
+    let (_, a) = analysed("located_once", "nist_ctc_01_asme1_ap242-e1.stp");
+    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let boss = "d:f:polygonal_boss:1/location.length.y";
+    assert!(plan.dimensions.iter().all(|d| d.id != boss));
+    let by = plan
+        .omitted
+        .iter()
+        .find_map(|o| match &o.state {
+            draftwright::items::State::Covered { by } if o.id == boss => Some(by.clone()),
+            _ => None,
+        })
+        .expect("conveyed");
+    let owner = plan.dimensions.iter().find(|d| d.id == by).unwrap();
+    assert_eq!(owner.label, "225");
+    assert!(owner.placed.is_some());
+    // No two drawn linear dimensions in one view state the same span.
+    let spans: Vec<_> = plan
+        .dimensions
+        .iter()
+        .filter(|d| d.kind == "linear" && d.placed.is_some())
+        .map(|d| {
+            (
+                d.view.as_str(),
+                d.measurements[0].parameter.as_str(),
+                (d.value * 1e3).round(),
+            )
+        })
+        .collect();
+    let y225 = spans
+        .iter()
+        .filter(|s| s.0 == "v:plan" && s.1 == "location.length.y" && s.2 == 225_000.0)
+        .count();
+    assert_eq!(y225, 1, "{spans:?}");
+    let unlocated: Vec<_> = plan
+        .problems
+        .iter()
+        .filter(|p| p.code == "feature_not_located" && p.id.contains("f:polygonal_boss:1/"))
+        .map(|p| &p.message)
+        .collect();
+    assert!(unlocated.is_empty(), "{unlocated:?}");
+}
+
 /// The ink: extension lines along the sides' projected traces from just past each witness, an
 /// unbroken arc about the projected vertex spanning the 60° between them, arrowheads at its ends
 /// on the sides, and the label `60° ±0.5°` (its unit on every value) on the bisector just outside the arc (ISO 129-1, #227).

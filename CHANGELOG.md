@@ -120,6 +120,25 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Fixed
 
+- **A location stated twice by model noise is drawn once.** CTC-01's plan dimensioned the same
+  span (the bottom edge to the hex boss's and holes' centre line) twice, `225` and `225.000` side
+  by side: the boss's centre, averaged from its corners, lies 2.7e-5 mm short of the holes', so
+  the one-span-one-dimension merge (ARCH0009-6), which compared ends to 1e-6 mm and labels
+  exactly, kept both, the boss's printing three places. Ends now agree to 1e-4 mm (still far
+  below the file's 0.01 mm coincidence tolerance) and two defaults' nominals that differ only in
+  printed places agree; a precision the Spec states still keeps its own dimension. The hole
+  location survives and conveys the boss's.
+
+- **A boss on a hole's location line is located by it.** The location audit kept each feature
+  axis its own node, so a boss whose location the planner omitted as conveyed by a hole's or
+  pattern's (ARCH0009-6) was reported `feature_not_located`: CTC-01's hex boss on x (the holes'
+  `400`), and with the merge above on y too. A mark claiming a location whose feature stands
+  within 1e-4 mm of a boss's centre on that axis now claims the boss's too, as a grouped slot's
+  centre already was; the witness must still land on the boss's centre. CTC-01 loses both boss
+  findings and STC-06 the four on its ⌀31.75 bosses round holes 1 and 2, located by those holes'
+  `158.75`, `76.2` and `228.6`. No drawing on the 30 quality parts or the 35 dw-examples
+  drawings changes but CTC-01's plan.
+
 - **A rectangle of holes is no longer called out as a bolt circle (#223).** quiddity accepts a
   bolt circle whose holes are up to 2% off one radius and 4% off even spacing, so dw-examples'
   gantry plate called four ⌀5.1 holes on a 19.85 × 20 rectangle "4× ⌀5.1 THRU EQ SP ON ø28.18 BC",
