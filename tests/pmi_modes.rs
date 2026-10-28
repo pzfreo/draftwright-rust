@@ -747,7 +747,8 @@ fn datum_rebased_plane_location_also_states_its_coincident_plate_thickness() {
                 .iter()
                 .filter(|q| q.code == "feature_not_located")
                 .count(),
-            3,
+            // 2 since the hex boss on its holes' location lines is located by them (it was 3).
+            2,
             "the retained datum chain must not introduce another gap"
         );
         assert!(!p.problems.iter().any(|q| q.code == "feature_located_twice"));

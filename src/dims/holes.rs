@@ -1133,11 +1133,8 @@ fn pitch_want(
 /// carries it, and the views that look along it.
 type Kept = (Want, bool, Option<&'static str>, Vec<&'static str>);
 
-/// How far apart two raw endpoints may be and still be one span, mm: geometric identity, not
-/// the label's rounding (quiddity's 0.01 mm record rounding is already undone where it is read),
-/// but above a model's coordinate noise: ctc01's hexagonal boss centre, averaged from its
-/// corners, lies at 224.999973 where the holes on the same line lie at 225.
-pub(crate) const SAME_SPAN: f64 = 1e-4;
+/// One span's tolerance, shared with lint's boss-location audit (lint may not read dims).
+pub(crate) use crate::lint::location::SAME_SPAN;
 
 /// What each [`rank`] locates, for the bases.
 const NAMED: [&str; 3] = ["slot position", "boss location", "hole or pattern location"];

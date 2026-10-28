@@ -1,6 +1,5 @@
 //! Rooted physical station graphs. Both precedence and the drawn-set audit use this walk.
 use super::{LintIssue, Mark, uncovered};
-use crate::dims::SAME_SPAN;
 use crate::model::Analysis;
 use crate::pmi::{Category, Reading};
 use std::collections::BTreeSet;
@@ -1009,9 +1008,15 @@ pub(crate) fn evidence(a: &Analysis, marks: &[Mark]) -> Vec<Mark> {
     extra
 }
 
+/// How far apart two raw endpoints may be and still be one span, mm: geometric identity, not
+/// the label's rounding (quiddity's 0.01 mm record rounding is already undone where it is read),
+/// but above a model's coordinate noise: ctc01's hexagonal boss centre, averaged from its
+/// corners, lies at 224.999973 where the holes on the same line lie at 225.
+pub(crate) const SAME_SPAN: f64 = 1e-4;
+
 /// A boss whose centre stands on another feature's location line (a hole's or pattern's
-/// `location.length.<axis>`, within the planner's [`SAME_SPAN`]: lint reads no plan) has its
-/// own location omitted as conveyed by that line (`dims::holes::consolidate`, ARCH0009-6):
+/// `location.length.<axis>`, within [`SAME_SPAN`], which the planner shares: lint reads no
+/// plan) has its own location omitted as conveyed by that line (`dims::holes::consolidate`, ARCH0009-6):
 /// ctc01's hexagonal boss shares its holes' `400` and `225`. A mark claiming such a location on
 /// the boss's axis claims the boss's too, for every rule; the location network still lands its
 /// witness on the boss's centre from the ink before the boss counts as located.
@@ -1031,6 +1036,11 @@ pub(crate) fn conveyed_boss_locations(a: &Analysis, marks: &mut [Mark]) {
         return;
     }
     for m in marks {
+        // A hole table row's coordinate locates its own hole and has no witness line for a
+        // boss to share: STC-07's bosses, each on two rows' x and y, read as located twice.
+        if m.name.starts_with("hole_schedule_") || m.name.starts_with("hole_table_plan/") {
+            continue;
+        }
         let mut conveyed = Vec::new();
         for &(id, k, at) in &bosses {
             let parameter = format!("location.length.{}", AXES[k]);
