@@ -8,6 +8,26 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Changed
 
+- **A 45° corner chamfer is called out by its size (#217).** A cut across a right corner of
+  principal edges whose two corners are both 135° (equal legs) now gets `C<leg>`, the edge
+  chamfers' house form, on a leader to the cut, and equal ones on a face share one counted
+  callout; only the principal edges' missing offsets get stations, never the legs. Lint credits
+  the callout with both corners' 135° when its size is the cut's leg and locates the cut from
+  those offsets. dw-examples' FTC-08 octagon gets `4× C21.075` with `2× 12.827` and `2× 11.938`
+  in place of four counted stations (`2× 33.902` and `2× 33.013` go): its plan view's left and
+  lower lanes empty, its hole table now fits (main: `hole_table_unavailable`), and
+  `extension_through_feature` goes 32 to 13, `annotation_ink_overlap` 24 to 3,
+  `leader_through_feature` 35 to 19 and `label_crowded` 15 to 3 at the same A2 1:5; the table
+  brings the ten `hole_pattern_requirement_missing` and one `feature_not_located` warnings that
+  STC-08's table drawing already has. l-plate-5-holes gets `C40` for its two `20`s; the NEMA 17
+  bracket's chamfers `2× C4` twice for `4`, `2× 4`, `2× 4` and `4`, and it moves from A3 1:1 to
+  A4 1:2. STC-08 gets the same callout and stations, and moves from A1 1:1 to A1 1:2
+  (`extension_through_feature` 9 to 30); the FTC-08 quality part goes from A2 1:2 back to A1
+  1:2 with its `detail_unplaceable`, as before the stations reserved their lanes. Naming either
+  corner's angle in `dimensions` keeps that cut located by its legs, and
+  `faces/<face>/profile_corners` (`linear`, `angle`) still chooses for the whole profile.
+  Station IDs are numbered among the remaining stations (FTC-08's `…f1_0_3` is now `…f1_0_1`).
+
 - **A cut corner is located by its legs, and an angle with no position is reported (#217).** Two
   angles fix an edge's direction, not where it lies: dw-examples' l-plate-5-holes printed `135°` at
   both ends of its 45° cut and neither leg. A cut across a corner of principal edges now gets its

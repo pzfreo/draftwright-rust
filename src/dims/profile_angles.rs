@@ -10,6 +10,9 @@
 //!   lies on ([`super::placement`]'s `station_strip`). Its two angles would fix the cut's
 //!   direction, not where it lies. Two equal stations from opposite sides of the box (a
 //!   symmetric octagon's, a bracket's two chamfers) are stated once, `2× v`, by default.
+//! - A 45° chamfer across a right corner (both its corners 135°: equal legs) is called out by its
+//!   size instead, `C<leg>` as an edge chamfer is, equal ones of a face counted (`4× C21.075`,
+//!   maintainer 2026-10-28); only its principal edges' missing offsets get stations.
 //! - Any other corner the linear dimensions do not fix gets its angle, drawn in the view that
 //!   shows it true; lint reports it while its edges stay unlocated (`profile_corner_unlocated`).
 //!   Completing it with stations is the `linear` profile choice: stations are ordinary
@@ -17,17 +20,19 @@
 //!   CTC-04).
 //! - A closed all-line profile whose corners are all issued, equal and whose sides are equal (a
 //!   regular polygon) gets one counted angle (`6× 120°`), never one per corner. An octagon with
-//!   unequal sides (FTC-08's and STC-08's chamfered rectangle) is completed linearly, or takes
+//!   unequal sides (FTC-08's and STC-08's chamfered rectangle) takes its chamfers' callout, or
 //!   its `8× 135°` under the `angle` choice.
 //! - Two mirror-equal corners of one profile that keep their angles (CTC-04's waist) get one
 //!   counted angle, `2× θ°`, drawn at whichever of them has a clear place.
 //! - IDs follow the notches': `d:envelope/profile_angle.angle.f<face>_e<i>_e<j>` per corner,
 //!   `d:envelope/profile_angle.angle.f<face>` for a polygon's counted angle and
 //!   `d:envelope/profile_location_<axis>.length.f<face>_<n>` for a completing station
-//!   (`…f<face>_<n>_<m>` for a counted pair).
+//!   (`…f<face>_<n>_<m>` for a counted pair); `d:envelope/profile_chamfer.length.f<face>_e<i>` for
+//!   a chamfer callout, named by its first cut's oblique edge.
 //! - Overrides: `dimensions/<id>` shows (`{}`, as a reference when linearly defined) or hides
 //!   (`omit`) a corner's angle; `faces/face:<n>/profile_corners` chooses `angle` (every corner,
-//!   reference where linearly defined) or `linear` (stations only, a regular polygon too).
+//!   reference where linearly defined) or `linear` (stations only, a regular polygon too). Naming
+//!   either corner of a chamfer in `dimensions` keeps that cut out of the chamfer callout.
 //!
 //! The angles are placed one at a time ([`super::angular::place_profile`]), local to their corner
 //! (arc and label within twelve label heights of it) and only where they are clear:
@@ -35,10 +40,14 @@
 //! place stays undrawn (`angular_dimension_dropped`) and lint still reports its corner missing;
 //! it never moves another item, takes a fallback or asks for more paper.
 use super::{Measurement, Shape, Want, end_on, fmt, want_id};
-use crate::lint::profile_angles::{Corner, requirements, undefined_stations};
+use crate::lint::profile_angles::{
+    Corner, chamfer, principal_axes, requirements, undefined_stations,
+};
 use crate::model::{Analysis, Invalid, Spec};
 
 pub const PARAMETER: &str = "profile_angle.angle";
+/// A profile chamfer callout's role in its ID (`d:envelope/profile_chamfer.length.f<face>_e<i>`).
+const CHAMFER: &str = "profile_chamfer.length";
 
 /// How a profile's corners are defined (`faces/<face>/profile_corners`).
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
@@ -332,6 +341,94 @@ pub(super) fn apply(
             }
         }
         let mut stations: Vec<(usize, f64, [f64; 3], usize)> = Vec::new();
+        let mut station = |k: usize, v: f64, at: [f64; 3], axis: usize| {
+            if !stations.iter().any(|s| s.0 == k && (s.1 - v).abs() < 1e-4) {
+                stations.push((k, v, at, axis));
+            }
+        };
+        // A 45° chamfer across a right corner (#217, maintainer 2026-10-28) is called out by its
+        // size, `C<leg>` as an edge chamfer is, counted when equal (`4× C21.075`), and its
+        // principal edges' offsets are located; its legs need no stations. Default only, and not
+        // where the Spec names either corner's angle.
+        if mode == CornerMode::Auto {
+            let mut cuts: Vec<(f64, Vec<[usize; 2]>)> = Vec::new();
+            for (n, c) in mine.iter().enumerate() {
+                let Some((other, leg)) = chamfer(c, mine.iter().copied()) else {
+                    continue;
+                };
+                let Some(o) = mine.iter().position(|d| d.feature == other.feature) else {
+                    continue;
+                };
+                if paired[n]
+                    || paired[o]
+                    || (missing[n].is_empty() && missing[o].is_empty())
+                    || [c, other]
+                        .iter()
+                        .any(|d| spec.dimensions.contains_key(&id(&support(d), PARAMETER)))
+                {
+                    continue;
+                }
+                paired[n] = true;
+                paired[o] = true;
+                match cuts.iter_mut().find(|(l, _)| (l - leg).abs() < 1e-4) {
+                    Some((_, members)) => members.push([n, o]),
+                    None => cuts.push((leg, vec![[n, o]])),
+                }
+            }
+            for (leg, members) in cuts {
+                let first = mine[members[0][0]];
+                let oblique = first.edge_ids()[usize::from(first.principal_edges()[0])];
+                for &n in members.iter().flatten() {
+                    let c = mine[n];
+                    if let Some((_, m)) = principal_axes(c)
+                        && !located(m, c.vertex[m])
+                    {
+                        station(m, c.vertex[m], c.vertex, c.axis);
+                    }
+                }
+                let mut terms = Vec::new();
+                if members.len() > 1 {
+                    terms.push(format!("{}×", members.len()));
+                }
+                terms.push(format!("C{}", fmt(leg)));
+                // atan2 differs in its last bits between native and WASM libm; the plan's value
+                // must not.
+                let angle = |c: &Corner| (c.degrees() * 1e9).round() / 1e9;
+                added.push(Want {
+                    id: id(&format!("f{face}_{oblique}"), CHAMFER),
+                    views: vec![end_on(first.axis)],
+                    value: leg,
+                    terms,
+                    measurements: members
+                        .iter()
+                        .flat_map(|&[n, o]| {
+                            [mine[n], mine[o]].map(|c| Measurement {
+                                feature: c.feature.clone(),
+                                parameter: PARAMETER.into(),
+                                value: angle(c),
+                            })
+                        })
+                        .collect(),
+                    basis: if members.len() > 1 {
+                        "equal 45° chamfers across outer-profile corners, called out once by their size and counted, as edge chamfers are, in the view that shows them true"
+                    } else {
+                        "a 45° chamfer across an outer-profile corner, called out by its size as an edge chamfer is, in the view that shows it true"
+                    }
+                    .into(),
+                    shape: Shape::Callout {
+                        sites: members
+                            .iter()
+                            .map(|&[n, o]| {
+                                let (p, q) = (mine[n].vertex, mine[o].vertex);
+                                ([0, 1, 2].map(|k| (p[k] + q[k]) / 2.), 0.)
+                            })
+                            .collect(),
+                        arcs: Vec::new(),
+                    },
+                    turning: None,
+                });
+            }
+        }
         for (n, (c, miss)) in mine.iter().zip(&missing).enumerate() {
             if paired[n] {
                 continue;
@@ -343,13 +440,11 @@ pub(super) fn apply(
             let linear = mode == CornerMode::Linear || (mode == CornerMode::Auto && cut(c, &mine));
             if linear && !miss.is_empty() && !shown(&id) {
                 for &(k, v) in miss {
-                    if !stations.iter().any(|s| s.0 == k && (s.1 - v).abs() < 1e-4) {
-                        let at = [c.vertex, c.ends[0], c.ends[1]]
-                            .into_iter()
-                            .find(|p| (p[k] - v).abs() < 1e-4)
-                            .unwrap_or(c.vertex);
-                        stations.push((k, v, at, c.axis));
-                    }
+                    let at = [c.vertex, c.ends[0], c.ends[1]]
+                        .into_iter()
+                        .find(|p| (p[k] - v).abs() < 1e-4)
+                        .unwrap_or(c.vertex);
+                    station(k, v, at, c.axis);
                 }
                 // An angle the Spec omits stays a known item, omitted, beside the stations.
                 if spec.dimensions.contains_key(&id) {

@@ -410,8 +410,74 @@ pub fn located_with_angle(c: &Corner, located: &dyn Fn(usize, f64) -> bool) -> b
         })
 }
 
+/// The other end and the leg of the 45° chamfer *c* is one end of: a cut across a right corner of
+/// principal edges whose two corners are both 135° (equal legs), as the profile's *corners* give
+/// them. A chamfer is called out by its size (`C<leg>`, the edge chamfers' house form), which
+/// states both its corners' angles.
+pub fn chamfer<'a>(
+    c: &Corner,
+    corners: impl IntoIterator<Item = &'a Corner>,
+) -> Option<(&'a Corner, f64)> {
+    let chamfered = |c: &Corner| (c.degrees() - 135.).abs() < 1e-3;
+    let principal = c.principal_edges();
+    if principal[0] == principal[1] || !chamfered(c) {
+        return None;
+    }
+    let oblique = c.edge_ids()[usize::from(principal[0])];
+    let other = corners.into_iter().find(|d| {
+        d.feature != c.feature && {
+            let (ids, p) = (d.edge_ids(), d.principal_edges());
+            (ids[0] == oblique && !p[0] && p[1]) || (ids[1] == oblique && p[0] && !p[1])
+        }
+    })?;
+    chamfered(other).then(|| (other, norm(sub(other.vertex, c.vertex)) / 2f64.sqrt()))
+}
+
+/// Whether chamfer corner *c* (the other end *other*) lies where its size puts it: its principal
+/// edge's offset and the other end's principal edge's offset are located, so the cut runs a leg
+/// from the corner they meet at.
+pub fn chamfer_located(c: &Corner, other: &Corner, located: &dyn Fn(usize, f64) -> bool) -> bool {
+    principal_axes(c).is_some_and(|(k, m)| located(m, c.vertex[m]) && located(k, other.vertex[k]))
+}
+
+/// The axis corner *c*'s principal edge runs along and the axis its offset is measured on.
+pub fn principal_axes(c: &Corner) -> Option<(usize, usize)> {
+    let plane: Vec<usize> = (0..3).filter(|&k| k != c.axis).collect();
+    let edge = if c.principal_edges()[0] {
+        (c.ends[0], c.vertex)
+    } else {
+        (c.vertex, c.ends[1])
+    };
+    let d = unit(sub(flat(edge.1, c.axis), flat(edge.0, c.axis)));
+    let &k = plane.iter().find(|&&k| d[k].abs() >= 1. - 1e-9)?;
+    Some((k, plane[usize::from(plane[0] == k)]))
+}
+
+/// Whether *text* is a chamfer callout of size *leg*: `C<leg>`, optionally counted (`4× C21.075`).
+pub fn states_chamfer(text: &str, leg: f64) -> bool {
+    let t = text.trim();
+    let t = t
+        .split_once("× ")
+        .filter(|(n, _)| n.parse::<usize>().is_ok())
+        .map_or(t, |(_, rest)| rest);
+    t.strip_prefix('C')
+        .filter(|v| v.parse::<f64>().is_ok())
+        .is_some_and(|v| holes::states(v, leg))
+}
+
+/// Whether some mark claims corner *c*'s angle with a chamfer callout of size *leg*.
+fn chamfer_called(c: &Corner, leg: f64, marks: &[Mark]) -> bool {
+    marks.iter().any(|m| {
+        m.claims
+            .iter()
+            .any(|cl| cl.feature == c.feature && cl.parameter == "profile_angle.angle")
+            && states_chamfer(&m.text, leg)
+    })
+}
+
 /// The corners the drawing's linear dimensions neither fix nor locate for an angle (see
-/// [`located_with_angle`]): even a stated angle leaves their edges unplaced.
+/// [`located_with_angle`]): even a stated angle leaves their edges unplaced. A chamfer called
+/// out by its size is located by its principal edges' offsets ([`chamfer_located`]).
 pub fn unlocated_by_drawing(a: &Analysis, drawing: &crate::output::Drawing) -> Vec<Corner> {
     let corners = requirements(a);
     if corners.is_empty() {
@@ -420,9 +486,16 @@ pub fn unlocated_by_drawing(a: &Analysis, drawing: &crate::output::Drawing) -> V
     let spans = drawn_spans(a, drawing);
     let roots = super::location::roots(a);
     let located = |k: usize, v: f64| rooted_at(&roots[k], &spans, k, v);
+    let marks = super::marks(drawing);
     corners
-        .into_iter()
-        .filter(|c| !located_with_angle(c, &located))
+        .iter()
+        .filter(|c| match chamfer(c, &corners) {
+            Some((other, leg)) if chamfer_called(c, leg, &marks) => {
+                !chamfer_located(c, other, &located)
+            }
+            _ => !located_with_angle(c, &located),
+        })
+        .cloned()
         .collect()
 }
 
@@ -564,9 +637,14 @@ pub fn requirements(a: &Analysis) -> Vec<Corner> {
 }
 /// Require live, role-bound, degree-bearing ink for every issued corner.
 pub fn coverage(a: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
-    requirements(a)
+    let corners = requirements(a);
+    corners
         .iter()
         .filter_map(|c| {
+            // A chamfer's size callout states both its corners' 135°.
+            if chamfer(c, &corners).is_some_and(|(_, leg)| chamfer_called(c, leg, marks)) {
+                return None;
+            }
             let claimed: Vec<_> = marks
                 .iter()
                 .filter(|m| {

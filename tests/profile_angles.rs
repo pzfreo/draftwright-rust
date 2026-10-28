@@ -1,7 +1,8 @@
 //! LINT-angular-profile_angle_requirement (ISO 129-1, ASME Y14.5): an outer-profile corner
 //! needs its geometry defined, not necessarily its angle printed. A corner the linear
-//! dimensions fix needs no angle; a cut across a corner of principal edges is located by its
-//! legs by default (#217), any other corner gets its angle; a regular polygon's equal corners
+//! dimensions fix needs no angle; a 45° corner chamfer is called out by its size (`C<leg>`), any
+//! other cut across a corner of principal edges is located by its legs by default (#217), any
+//! other corner gets its angle; a regular polygon's equal corners
 //! get one counted angle; an angle with no clear place is dropped and
 //! stays a lint warning, and an angle whose edge no linear dimension places is reported; Spec
 //! overrides choose per corner and per profile.
@@ -55,10 +56,21 @@ fn angles(p: &Plan) -> Vec<&PlannedDimension> {
     p.dimensions
         .iter()
         .filter(|d| {
-            d.measurements
-                .iter()
-                .any(|m| m.parameter == "profile_angle.angle")
+            !d.id.starts_with(CHAMFER)
+                && d.measurements
+                    .iter()
+                    .any(|m| m.parameter == "profile_angle.angle")
         })
+        .collect()
+}
+
+/// A profile chamfer callout's ID prefix.
+const CHAMFER: &str = "d:envelope/profile_chamfer.length.";
+
+fn chamfers(p: &Plan) -> Vec<&PlannedDimension> {
+    p.dimensions
+        .iter()
+        .filter(|d| d.id.starts_with(CHAMFER))
         .collect()
 }
 
@@ -83,6 +95,17 @@ fn stations(p: &Plan) -> Vec<&PlannedDimension> {
 /// A trapezoid: its sloping side runs from (40, 0) to (30, 20). Every station of both its
 /// corners is on the part's box except x = 30.
 const TRAPEZOID: [[f64; 2]; 4] = [[0., 0.], [40., 0.], [30., 20.], [0., 20.]];
+/// A 40 × 20 rectangle with its four corners chamfered 5 × 45°.
+const OCTAGON: [[f64; 2]; 8] = [
+    [5., 0.],
+    [35., 0.],
+    [40., 5.],
+    [40., 15.],
+    [35., 20.],
+    [5., 20.],
+    [0., 15.],
+    [0., 5.],
+];
 /// A pentagon whose sloping side runs from (40, 10) to (25, 20): x = 25 and y = 10 are both
 /// off the box.
 const PENTAGON: [[f64; 2]; 5] = [[0., 0.], [40., 0.], [40., 10.], [25., 20.], [0., 20.]];
@@ -217,49 +240,52 @@ fn a_station_is_drawn_on_the_side_its_corner_is_open_to() {
 }
 
 /// An octagon of equal corners but unequal sides (STC-08's chamfered rectangle) is not a
-/// regular polygon: no counted `8× 135°`, its corners are located linearly (#217).
+/// regular polygon: no counted `8× 135°`. Its four 45° chamfers are called out once by their
+/// size, `4× C5` as equal edge chamfers are (#217, maintainer 2026-10-28): their principal edges
+/// are the box's, so no station is needed.
 #[test]
-fn an_irregular_equal_angled_octagon_is_located_linearly() {
-    let a = part(&[
-        [5., 0.],
-        [35., 0.],
-        [40., 5.],
-        [40., 15.],
-        [35., 20.],
-        [5., 20.],
-        [0., 15.],
-        [0., 5.],
-    ]);
-    assert_eq!(profile_angles::requirements(&a).len(), 8);
+fn an_irregular_equal_angled_octagon_gets_one_chamfer_callout() {
+    let a = part(&OCTAGON);
+    let corners = profile_angles::requirements(&a);
+    assert_eq!(corners.len(), 8);
+    for c in &corners {
+        let (other, leg) = profile_angles::chamfer(c, &corners).expect("a chamfer corner");
+        assert_ne!(other.feature, c.feature);
+        assert!((leg - 5.).abs() < 1e-9, "{leg}");
+    }
     let p = plan(&a, json!({}));
     assert!(angles(&p).is_empty(), "{:?}", angles(&p));
-    // x = 5 and 35, y = 5 and 15 locate every corner's edges. Each axis's two are equal from
-    // opposite sides of the box, so each is stated once with its count, never twice (FTC-08).
-    let found = stations(&p);
-    assert_eq!(found.len(), 2, "{found:?}");
-    for d in &found {
-        assert_eq!(d.label, "2× 5");
-        assert_eq!(d.measurements.len(), 2);
-        assert!(d.placed.is_some(), "{}", d.id);
-    }
-    assert_ne!(found[0].id, found[1].id);
-    // The `linear` choice, or a Spec naming one station, states each station on its own.
+    assert!(stations(&p).is_empty(), "{:?}", stations(&p));
+    let found = chamfers(&p);
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0].label, "4× C5");
+    assert_eq!(found[0].view, "v:plan");
+    assert!(found[0].placed.is_some());
+    // Every corner's 135° is claimed by the callout.
+    assert_eq!(found[0].measurements.len(), 8);
+    assert!(
+        found[0]
+            .measurements
+            .iter()
+            .all(|m| { m.parameter == "profile_angle.angle" && (m.value - 135.).abs() < 1e-6 })
+    );
+    // The `linear` choice locates the legs instead: x = 5 and 35, y = 5 and 15.
     let p = plan(
         &a,
         json!({"faces": {"face:1": {"profile_corners": "linear"}}}),
     );
+    assert!(chamfers(&p).is_empty());
     assert_eq!(stations(&p).len(), 4, "{:?}", stations(&p));
-    let p = plan(
-        &a,
-        json!({"dimensions": {"d:envelope/profile_location_x.length.f1_0": {}}}),
-    );
+    // Naming a corner's angle keeps its cut out of the callout: hidden, that cut is located by
+    // its legs, `5` on each axis; the other three keep the counted callout.
+    let hidden = angle_id(&corners[0].feature);
+    let p = plan(&a, json!({"dimensions": {&hidden: {"omit": true}}}));
+    let found = chamfers(&p);
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0].label, "3× C5");
     let found = stations(&p);
-    assert_eq!(found.len(), 3, "{found:?}");
-    assert_eq!(
-        found.iter().filter(|d| d.label == "5").count(),
-        2,
-        "{found:?}"
-    );
+    assert_eq!(found.len(), 2, "{found:?}");
+    assert!(found.iter().all(|d| d.label == "5"), "{found:?}");
     // The profile's `angle` choice keeps its one counted angle.
     let p = plan(
         &a,
@@ -269,6 +295,43 @@ fn an_irregular_equal_angled_octagon_is_located_linearly() {
     assert_eq!(found.len(), 1, "{found:?}");
     assert_eq!(found[0].label, "8× 135°");
     assert!(stations(&p).is_empty());
+    assert!(chamfers(&p).is_empty());
+}
+
+/// A chamfered rectangle inset from the part's box: its chamfers' callout needs their principal
+/// edges' offsets as stations, never their legs, and lint locates a called-out chamfer from
+/// those offsets alone.
+#[test]
+fn an_inset_chamfer_locates_its_principal_edges_only() {
+    let mut a = part(&OCTAGON);
+    // A wider body: the box runs 10 mm past the profile all round.
+    a.envelope = [[-10., -10., 0.], [50., 30., 10.]];
+    let p = plan(&a, json!({}));
+    assert_eq!(chamfers(&p).len(), 1, "{:?}", chamfers(&p));
+    let found = stations(&p);
+    assert_eq!(found.len(), 2, "{found:?}");
+    for d in &found {
+        assert_eq!(d.label, "2× 10", "{}", d.id);
+    }
+    let corners = profile_angles::requirements(&a);
+    let c = &corners[0];
+    let (other, _) = profile_angles::chamfer(c, &corners).unwrap();
+    let box_only: Vec<(usize, f64, f64)> = Vec::new();
+    let located = |k: usize, v: f64| profile_angles::rooted(&a, &box_only, k, v);
+    assert!(!profile_angles::chamfer_located(c, other, &located));
+    let offsets = vec![(0, -10., 0.), (1, -10., 0.), (0, 40., 50.), (1, 20., 30.)];
+    let located = |k: usize, v: f64| profile_angles::rooted(&a, &offsets, k, v);
+    assert!(profile_angles::chamfer_located(c, other, &located));
+}
+
+/// A chamfer callout states its size in the edge chamfers' house form.
+#[test]
+fn a_chamfer_callout_is_read_by_its_size() {
+    assert!(profile_angles::states_chamfer("C21.075", 21.075));
+    assert!(profile_angles::states_chamfer("4× C21.075", 21.0752));
+    assert!(!profile_angles::states_chamfer("4× C21.075", 21.2));
+    assert!(!profile_angles::states_chamfer("21.075", 21.075));
+    assert!(!profile_angles::states_chamfer("135°", 135.));
 }
 
 /// A corner off a cut (here a triangle's base corners, whose sloping edges meet at the apex)
@@ -399,25 +462,27 @@ fn missing(r: &api::Review) -> Vec<String> {
         .collect()
 }
 
-/// FTC-08's chamfered-rectangle octagon is symmetric: its eight stations come in four pairs
-/// equal from opposite sides of the box, each drawn once as `2× v` (no label repeated in the
-/// plan view), and lint reads each counted station as locating its mirror too.
+/// FTC-08's chamfered-rectangle octagon: its four 45° chamfers take one `4× C21.075` (#217,
+/// maintainer 2026-10-28), and its inset sides' offsets the two counted stations `2× 12.827`
+/// and `2× 11.938`, each locating its mirror; lint reads every corner as stated and located.
 #[test]
-fn ftc08_mirror_equal_stations_are_stated_once_with_a_count() {
+fn ftc08_chamfers_are_called_out_by_size() {
     let Some(dir) = corpus::dir() else {
         return;
     };
     let path = dir.join("nist/nist_ftc_08_asme1_rc.stp");
     let a = model::analyse_native(&path).unwrap().1;
     let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let found = chamfers(&p);
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0].label, "4× C21.075");
+    assert_eq!(found[0].measurements.len(), 8);
+    assert!(found[0].placed.is_some());
     let found = stations(&p);
-    assert_eq!(found.len(), 4, "{found:?}");
     let mut labels: Vec<&str> = found.iter().map(|d| d.label.as_str()).collect();
     labels.sort();
-    labels.dedup();
-    assert_eq!(labels.len(), 4, "{labels:?}");
+    assert_eq!(labels, ["2× 11.938", "2× 12.827"], "{found:?}");
     for d in &found {
-        assert!(d.label.starts_with("2× "), "{}", d.label);
         assert_eq!(d.measurements.len(), 2);
         assert!(d.placed.is_some(), "{}", d.id);
     }
