@@ -245,7 +245,7 @@
     "nist_ctc_02_asme1_rc": {
       "hidden_on_visible": 0,
       "ink": 0,
-      "line_through_feature": 2,
+      "line_through_feature": 0,
       "off_sheet": 0,
       "repeated_label": 0,
       "repeated_measure": 0,
@@ -502,7 +502,7 @@
       1
     ],
     "nist_ftc_08_asme1_rc": [
-      "A2",
+      "A1",
       "1:2",
       1
     ],
@@ -528,6 +528,6 @@
     ]
   },
   "source": "Recorded from the complete quality.py --record audit",
-  "source_commit": "3bf780ab02542177d91297c742b4b3dcefbc8743",
-  "verified_binary_sha256": "310a8f11fe949eab1f05b810042c7bd42928394bb51390004e0e19fea56cd2af"
+  "source_commit": "822d05551bb2ca4d7d203bcb88b00f9a9a2bf86a",
+  "verified_binary_sha256": "550bb58e1a48caf6bbd8e4381fe72efcf5ea8a4b346a909e7d43a109bd174350"
 }
