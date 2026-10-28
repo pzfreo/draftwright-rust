@@ -1494,6 +1494,16 @@ pub fn analyse_step_part(
 /// Analyse in-memory STEP (or gzip) bytes with Rust feature recognition. `name` is only a
 /// display name, never a filesystem path. Browser callers need no filesystem or clock.
 pub fn analyse_native_bytes(name: &str, bytes: &[u8]) -> Result<(Part, Analysis), Unanalysed> {
+    analyse_native_bytes_part(name, bytes, None)
+}
+
+/// [`analyse_native_bytes`] of part *part* of an assembly alone, when given (an index as
+/// `parts` lists them), in its own frame and with its PMI only.
+pub fn analyse_native_bytes_part(
+    name: &str,
+    bytes: &[u8],
+    part: Option<usize>,
+) -> Result<(Part, Analysis), Unanalysed> {
     let file = name.rsplit('/').next().unwrap_or(name);
     let plain = if file
         .get(file.len().saturating_sub(3)..)
@@ -1508,7 +1518,7 @@ pub fn analyse_native_bytes(name: &str, bytes: &[u8]) -> Result<(Part, Analysis)
         .filter(|(stem, _)| !stem.is_empty())
         .map_or(plain, |(stem, _)| stem)
         .trim_end_matches(".step");
-    let (part, mut analysis) = analyse_step_input(name, stem.into(), bytes, None)?;
+    let (part, mut analysis) = analyse_step_input(name, stem.into(), bytes, part)?;
     recognise_native(&part, &mut analysis).map_err(|e| {
         unanalysed(
             true,

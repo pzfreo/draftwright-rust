@@ -337,6 +337,12 @@ All notable changes to draftwright-rust are recorded here, in the style of
   keeps 3 mm from it rather than 1 mm, where the corpus FTC-10's `SECTION A–A, SHEET 2, ZONE D9`
   read as one line with the longer callout; it and the corpus CTC-04's address move 2 mm.
 
+### WASM API
+
+- `Engine.openPart(name, bytes, part)` opens part *part* of an assembly (an index as `parts`
+  lists them) alone, in its own frame and with its PMI only, as the command line's `--part`
+  does. `new Engine(name, bytes)` is unchanged.
+
 ## 0.2.0 (2026-10-27)
 
 Now on quiddity-rust **v0.2.1** (previously `0.2.0-alpha.2`), which changes no library code from

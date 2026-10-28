@@ -25,6 +25,7 @@ export class Engine {
   sheetSvg(sheet: number): Uint8Array;
   snapshot(): string;
   spec(): string;
+  static openPart(name: string, bytes: Uint8Array, part: number): Engine;
   undo(): string;
 }
 
@@ -71,6 +72,7 @@ export interface InitOutput {
   readonly engine_fragments: (a: number) => [number, number];
   readonly engine_labelOffset: (a: number, b: number, c: number) => [number, number, number, number];
   readonly engine_open: (a: number, b: number, c: number, d: number) => [number, number, number];
+  readonly engine_openPart: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
   readonly engine_openSpec: (a: number, b: number, c: number) => [number, number, number, number];
   readonly engine_placementOptions: (a: number) => [number, number, number, number];
   readonly engine_plan: (a: number) => [number, number, number, number];

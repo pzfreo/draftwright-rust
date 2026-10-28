@@ -24,7 +24,11 @@ pub fn spec_ops_json(before: &str, after: &str) -> Result<String, Error> {
 
 impl Session {
     pub fn open(name: &str, bytes: &[u8]) -> Result<Self, Error> {
-        let (part, analysis) = model::analyse_native_bytes(name, bytes)?;
+        Self::open_part(name, bytes, None)
+    }
+    /// [`Session::open`] of part *part* of an assembly alone, when given.
+    pub fn open_part(name: &str, bytes: &[u8], part: Option<usize>) -> Result<Self, Error> {
+        let (part, analysis) = model::analyse_native_bytes_part(name, bytes, part)?;
         CoreSession::new(part, analysis, model::Spec::default()).map(Self)
     }
     pub fn apply(&mut self, ops: &[Op], commit: bool) -> Result<session::Delta, Error> {
@@ -255,6 +259,12 @@ export interface CalloutOffset {
         pub fn open(name: &str, bytes: &[u8]) -> Result<Engine, JsValue> {
             Session::open(name, bytes).map(Engine).map_err(js)
         }
+        /// Part *part* of an assembly (an index as `parts` lists them) alone, in its own frame
+        /// and with its PMI only.
+        #[wasm_bindgen(js_name = openPart)]
+        pub fn open_part(name: &str, bytes: &[u8], part: usize) -> Result<Engine, JsValue> {
+            Session::open_part(name, bytes, Some(part)).map(Engine).map_err(js)
+        }
         pub fn apply(&mut self, ops: &str, commit: bool) -> Result<String, JsValue> {
             self.0.apply_json(ops, commit).map_err(js)
         }
@@ -404,6 +414,17 @@ mod tests {
         let applied: Value = serde_json::from_str(&s.apply_fragments_json(&ops).unwrap()).unwrap();
         assert_eq!(applied["delta"]["notices"], preview["notices"]);
         assert_eq!(s.0.plan().sheet.size, size);
+    }
+
+    #[test]
+    fn opens_one_part_of_an_assembly_alone() {
+        // The plate (part 0) and the pin (part 1, placed twice) of tests/fixtures/assembly.
+        let bytes = include_bytes!("../../../tests/fixtures/assembly/assembly.step");
+        let plate = Session::open_part("assembly.step", bytes, Some(0)).unwrap();
+        let pin = Session::open_part("assembly.step", bytes, Some(1)).unwrap();
+        assert_eq!(plate.face_count(), 13);
+        assert_eq!(pin.face_count(), 7);
+        assert!(Session::open_part("assembly.step", bytes, Some(2)).is_err(), "no third part");
     }
 
     #[test]
