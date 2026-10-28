@@ -1696,6 +1696,48 @@ fn segments_cross(a: [[f64; 2]; 2], b: [[f64; 2]; 2]) -> bool {
 mod tests {
     use super::*;
 
+    /// The fallback a schedule installs when replacing PMI callouts would add an error keeps
+    /// every PMI size callout beside its row, as before the rows replaced them, and leaves the
+    /// PMI claims with those callouts.
+    #[test]
+    fn the_keeping_selection_leaves_pmi_callouts_beside_their_rows() {
+        let (_, a) = crate::model::analyse_native(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/parts/editor_pmi.step"),
+        )
+        .unwrap();
+        let spec = crate::model::Spec {
+            hole_table: Setting::Always,
+            ..Default::default()
+        };
+        let mut p = crate::model::plan(&a, &spec).unwrap();
+        p.hole_tables.clear();
+        let semantic: Vec<String> = p
+            .dimensions
+            .iter()
+            .filter(|d| d.measurements.iter().any(|m| m.feature.starts_with("pmi:")))
+            .filter(|d| !bores(d).is_empty())
+            .map(|d| d.id.clone())
+            .collect();
+        assert!(!semantic.is_empty());
+        let claims = |s: &Selection| {
+            s.tables
+                .iter()
+                .flat_map(|t| &t.rows)
+                .flat_map(|r| &r.measurements)
+                .filter(|m| m.feature.starts_with("pmi:"))
+                .count()
+        };
+        let replacing = select(&a, &p);
+        assert!(replacing.pmi_replaced);
+        assert!(semantic.iter().all(|id| replacing.replaced.contains(id)));
+        assert!(claims(&replacing) > 0);
+        let keeping = select_keeping_pmi(&a, &p);
+        assert!(!keeping.tables.is_empty() && !keeping.pmi_replaced);
+        assert!(semantic.iter().all(|id| !keeping.replaced.contains(id)));
+        assert_eq!(claims(&keeping), 0);
+    }
+
     #[test]
     fn detail_obstacle_equals_its_crop_footprint() {
         let (_, a) = crate::model::analyse_native(
@@ -1810,6 +1852,8 @@ pub(crate) struct Selection {
     /// marks need ([`origin_reservations`]): set for a second attempt, when a slot callout took
     /// such a place in the first ([`slot_callout_takes_origin`]).
     pub reserve_origins: bool,
+    /// Whether a row replaces a callout whose size comes from PMI ([`select`]).
+    pub pmi_replaced: bool,
     dimensions: Vec<PlannedDimension>,
     aliases: Vec<crate::dims::Omitted>,
 }
@@ -2004,6 +2048,17 @@ fn datum_corner(analysis: &Analysis, axes: &[usize]) -> Option<[f64; 3]> {
 /// threshold is in annotation density, never in a part's identity. Bolt circles already have
 /// their PCD note and are left intact unless the author explicitly requests a schedule.
 pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
+    select_with(analysis, plan, true)
+}
+
+/// [`select`] with every callout whose size comes from PMI kept beside its row: the fallback when
+/// replacing those callouts would add an error to the drawing ([`crate::model`]'s schedule
+/// installation).
+pub(crate) fn select_keeping_pmi(analysis: &Analysis, plan: &Plan) -> Selection {
+    select_with(analysis, plan, false)
+}
+
+fn select_with(analysis: &Analysis, plan: &Plan, replace_pmi: bool) -> Selection {
     let mut selection = Selection {
         scale: plan.sheet.scale_factor,
         page: plan.sheet.page,
@@ -2158,6 +2213,8 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
         }
         let mut rows = Vec::new();
         let mut replaced = BTreeSet::new();
+        let mut frees_native = false;
+        let mut pmi_replaced = false;
         for d in &callouts {
             if bores(d).iter().any(|f| {
                 axes.iter().any(|k| {
@@ -2212,10 +2269,21 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
                 })
                 .collect::<Vec<_>>()
                 .join(" ");
+            // A pin keeps its complete callout. The row is additive for that item. A size from
+            // PMI, with its band or fit, is stated by its row exactly as its callout states it,
+            // so the row replaces that callout and carries its PMI claims.
+            let semantic = d.measurements.iter().any(|m| m.feature.starts_with("pmi:"));
+            let authored_size = plan.spec.hole_table == Setting::Auto
+                && d.from_spec
+                    .iter()
+                    .any(|s| matches!(s.as_str(), "fit" | "tolerance"));
+            let kept = pinned(plan, d)
+                || authored_size
+                || crate::label_text::overridden(d)
+                || (semantic && !replace_pmi);
             // A schedule repeats every size, including sizes owned by retained PMI.
-            let source_callout =
-                d.placed.is_some() && d.measurements.iter().any(|m| m.feature.starts_with("pmi:"));
-            for f in bores(d) {
+            let source_callout = d.placed.is_some() && semantic && kept;
+            for (member, f) in bores(d).into_iter().enumerate() {
                 let h = &read[f];
                 let mut measurements: Vec<_> = d
                     .measurements
@@ -2225,6 +2293,15 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
                     .collect();
                 if source_callout {
                     measurements.clear();
+                } else if member == 0 {
+                    // A PMI size names the whole pattern, as its callout did once: every row
+                    // prints it, and the first row carries the claim.
+                    measurements.extend(
+                        d.measurements
+                            .iter()
+                            .filter(|m| m.feature.starts_with("pmi:"))
+                            .cloned(),
+                    );
                 }
                 let mut cells = vec![String::new(), label.clone()];
                 for &k in &axes {
@@ -2280,27 +2357,21 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
                     measurements,
                 });
             }
-            // A pin keeps its complete callout. The row is additive for that item.
-            // Semantic PMI keeps its source-carrying callout; the schedule adds coordinates.
-            // Its lowering/reporting contract follows that native owner, as pins follow theirs.
-            let semantic = d.measurements.iter().any(|m| m.feature.starts_with("pmi:"));
-            let authored_size = plan.spec.hole_table == Setting::Auto
-                && d.from_spec
-                    .iter()
-                    .any(|s| matches!(s.as_str(), "fit" | "tolerance"));
-            if !pinned(plan, d) && !semantic && !authored_size && !crate::label_text::overridden(d)
-            {
+            if !kept {
                 replaced.insert(d.id.clone());
+                frees_native |= !semantic;
+                pmi_replaced |= semantic;
             }
         }
         if rows.is_empty()
             || (plan.spec.hole_table == Setting::Auto
                 && crate::dims::pmi_policy::carries(analysis)
-                && replaced.is_empty())
+                && !frees_native)
         {
-            // A source-only schedule keeps every callout in the lanes and adds a
-            // second size presentation without freeing one label corridor. Keep
-            // its ordinary inline geometry; an explicit schedule remains available.
+            // Whether a PMI part gets a schedule is still decided by the native callouts it
+            // frees: a schedule of PMI sizes alone keeps its ordinary inline callouts, and an
+            // explicit schedule remains available. Once a schedule exists, its rows replace
+            // the PMI callouts too.
             continue;
         }
         let mut pcd: Option<PitchCircle> = None;
@@ -2435,6 +2506,7 @@ pub(crate) fn select(analysis: &Analysis, plan: &Plan) -> Selection {
                 .cloned(),
         );
         selection.replaced.extend(replaced);
+        selection.pmi_replaced |= pmi_replaced;
         selection.tables.push(HoleTable {
             sheet: 1,
             id: format!("hole_schedule_{}", view.id.trim_start_matches("v:")), view: Some(view.id.clone()), origin: Some(origin), pcd, covered: Vec::new(),

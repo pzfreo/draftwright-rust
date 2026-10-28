@@ -1085,7 +1085,7 @@
 "draftwright::dimensions planned_hole_tables::schedule_labels_clear_the_rendered_part_and_other_annotations::cgb245": 4.3,
 "draftwright::dimensions planned_hole_tables::schedule_labels_clear_the_rendered_part_and_other_annotations::nist_ctc_02_asme1_rc": 37.5,
 "draftwright::dimensions planned_hole_tables::schedule_labels_clear_the_rendered_part_and_other_annotations::nist_ctc_05_asme1_rd": 7.6,
-"draftwright::dimensions planned_hole_tables::semantic_pmi_callouts_remain_source_carrying_beside_the_schedule": 0.4,
+"draftwright::dimensions planned_hole_tables::semantic_pmi_callouts_are_replaced_by_rows_that_carry_them": 0.4,
 "draftwright::dimensions planned_hole_tables::table_recess_and_depth_symbols_are_drawn_inside_the_size_cell": 3.9,
 "draftwright::dimensions planned_hole_tables::the_cgb245_view_pin_reproducer_keeps_its_schedule": 7.4,
 "draftwright::dimensions planned_hole_tables::the_dense_acceptance_parts_have_no_hole_location_tower::nist_ctc_02_asme1_rc": 17.4,

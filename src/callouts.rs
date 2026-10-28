@@ -130,7 +130,15 @@ fn wrap_measured(terms: &[String], width: &dyn Fn(&[String]) -> f64) -> Vec<Stri
                 let mut next = line.clone();
                 next.push(word.into());
                 if !line.is_empty() && width(&next) > WIDTH {
+                    // A depth, counterbore or countersink symbol stays with its value.
+                    let symbol = (line.len() > 1
+                        && line
+                            .last()
+                            .is_some_and(|w| matches!(w.as_str(), "↧" | "⌴" | "⌵")))
+                    .then(|| line.pop())
+                    .flatten();
                     flush(&mut out, &mut line);
+                    line.extend(symbol);
                 }
                 line.push(word.into());
                 if word.ends_with(';') && width(&line) >= WIDTH / 2.0 {
@@ -145,4 +153,28 @@ fn wrap_measured(terms: &[String], width: &dyn Fn(&[String]) -> f64) -> Vec<Stri
         out.extend(tail.cloned());
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    #[test]
+    fn a_wrapped_depth_symbol_stays_with_its_value() {
+        // STC-10's counterbore callout used to leave `↧` at a line end and `10` alone below it.
+        let terms: Vec<String> = ["⌀10", "↧", "10"].map(String::from).to_vec();
+        // Two words fit a line, three do not: the break falls after `↧` unless it is carried.
+        let wrapped = super::wrap_measured(&terms, &|t| 20.0 * t.len() as f64);
+        let lines = super::lines(&wrapped);
+        assert!(lines.len() > 1, "{wrapped:?}");
+        assert!(
+            lines
+                .iter()
+                .all(|l| l.last().map(String::as_str) != Some("↧")),
+            "{wrapped:?}"
+        );
+        assert!(
+            lines
+                .iter()
+                .any(|l| l.ends_with(&["↧".into(), "10".into()]))
+        );
+    }
 }

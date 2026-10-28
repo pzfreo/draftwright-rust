@@ -2551,8 +2551,12 @@ explicit `ANGLE` column (counterclockwise from local +X). Missing positions do
 not imply equal spacing; the member X/Y remain supplementary locating evidence.
 Tags and origin labels avoid boundaries, bore silhouettes, other annotation ink
 and section furniture; their resolved `label_box` is also judged by structural
-lint and the SVG quality instrument. Pins keep their callout or location ink. Semantic PMI keeps its native
-source-carrying callout beside the schedule, and auto retains authored size
+lint and the SVG quality instrument. Pins keep their callout or location ink. A row replaces a
+semantic PMI size callout too: it prints the callout's text (band, fit or thread) verbatim, and
+the callout's PMI claim moves to the first row of its holes, so every PMI size is stated once.
+Where replacing those callouts would add an error the drawing without schedules lacks, or would
+detach a frame or datum symbol that attaches to a hole's mark with them kept, the schedules are
+installed again with them kept beside their rows. Auto retains authored size
 fits/tolerances. Coordinate tolerances keep their original span.
 
 Table-owned callouts remain as stable covered dimensions; retired linear spans
@@ -2797,8 +2801,9 @@ features, while principal planar datums supply ± dimension origins.
 
 Hole schedules state every size and coordinate, including coordinates already supplied
 by retained PMI. Those cells restate the same origin frame and do not add an independent
-locating constraint. Automatic schedules that would retain every source callout stay
-inline; `hole_table: "always"` can request that presentation explicitly. Selected table
+locating constraint. Whether an automatic schedule is drawn on a PMI part is still decided by
+the native callouts it frees: one whose rows would replace only PMI callouts stays inline;
+`hole_table: "always"` can request that presentation explicitly. Selected table
 origins are named in the basis and are labelled as origins rather than box minima.
 
 ### Specify PMI authorship

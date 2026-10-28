@@ -109,16 +109,19 @@ fn ftc06_prints_the_authored_bands_as_draftwright_does() {
     for (id, python) in [
         ("d:envelope/width.length", "304.8 ±0.02"),
         ("d:envelope/depth.length", "97.79 +0.1 -0.02"),
-        (
-            "d:f:hole_pattern:2/bore.diameter",
-            "4× ⌀7.137 ±0.03 THRU ⌴\n⌀10.16 ↧ 7.94",
-        ),
         ("d:f:hole_pattern:1/grid_pitch.length.row", "127 ±0.1"),
         ("d:f:hole:11/bore.diameter", "2× ⌀6.35 H7 ↧ 12.7"),
         ("d:f:boss:5/boss.diameter", "2× ø31.75 g6"),
     ] {
         assert_eq!(label(&plan, id), python, "{id}");
     }
+    // The same band as draftwright's, wrapped where the maintainer decided (2026-10-28): a
+    // callout symbol stays on the line of its value. draftwright breaks after the counterbore
+    // symbol ("4× ⌀7.137 ±0.03 THRU ⌴\n⌀10.16 ↧ 7.94"); the port carries `⌴` to the next line.
+    assert_eq!(
+        label(&plan, "d:f:hole_pattern:2/bore.diameter"),
+        "4× ⌀7.137 ±0.03 THRU\n⌴ ⌀10.16 ↧ 7.94"
+    );
     let differs = [
         // ARCH0019-2: draftwright prints the band of nothing as "±0.0", a tolerance that states
         // none; the port withholds it and says so.

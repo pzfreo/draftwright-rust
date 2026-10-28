@@ -380,9 +380,12 @@ fn compound_callouts_keep_every_value_tolerance_and_fit_and_lint_rejects_false_l
     );
     let p = model::plan(&a, &spec).unwrap();
     let d = p.dimensions.iter().find(|d| d.id == old.id).unwrap();
+    // Each callout symbol stays on the line of its value (the maintainer's wrap, 2026-10-28;
+    // draftwright's 48 mm wrap gave "DRILL ⌀6.25 H7 ↧ 4.75 ⌴\n⌀8.75 ↧ 1.875 ⌵ ⌀10.25 ×\n82.5°
+    // AFTER PLATING").
     assert_eq!(
         d.label,
-        "DRILL ⌀6.25 H7 ↧ 4.75 ⌴\n⌀8.75 ↧ 1.875 ⌵ ⌀10.25 ×\n82.5° AFTER PLATING"
+        "DRILL ⌀6.25 H7 ↧ 4.75\n⌴ ⌀8.75 ↧ 1.875\n⌵ ⌀10.25 × 82.5° AFTER\nPLATING"
     );
     assert_eq!(d.value, old.value);
     assert_eq!(d.measurements, old.measurements);

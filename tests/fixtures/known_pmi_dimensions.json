@@ -1114,11 +1114,11 @@
   },
   "record": "dimension:0:1:4:113",
   "rust": {
-   "detail": "4× ⌀6 ±0.15 THRU ⌴ ⌀10 ↧\n2",
+   "detail": "4× ⌀6 ±0.15 THRU ⌴ ⌀10\n↧ 2",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright found no owner and drew it standalone ('⌀6 ±0.15') beside the callout that already states that hole's size. The port's cylinders match the callout's holes (axis lines, axis, diameter), so by draftwright's rule the callout takes the band and states the size once: '4× ⌀6 ±0.15 THRU ⌴ ⌀10 ↧ 2 (2×2)'. Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
+  "evidence": "draftwright found no owner and drew it standalone ('⌀6 ±0.15') beside the callout that already states that hole's size. The port's cylinders match the callout's holes (axis lines, axis, diameter), so by draftwright's rule the callout takes the band and states the size once: '4× ⌀6 ±0.15 THRU ⌴ ⌀10 ↧ 2 (2×2)'. Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md. Wrap updated 2026-10-28 (maintainer decision): a callout symbol (↧, ⌴, ⌵) stays on the line of its value, so the break falls before the symbol, not after it as in draftwright's 48 mm wrap; the outcome and verdict are unchanged."
  },
  {
   "field": "outcome",
@@ -1130,11 +1130,11 @@
   },
   "record": "dimension:0:1:4:114",
   "rust": {
-   "detail": "4× ⌀6 ±0.15 THRU ⌴ ⌀10 ↧\n2",
+   "detail": "4× ⌀6 ±0.15 THRU ⌴ ⌀10\n↧ 2",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright found no owner and drew it standalone ('⌀6 ±0.15') beside the callout that already states that hole's size. The port's cylinders match the callout's holes (axis lines, axis, diameter), so by draftwright's rule the callout takes the band and states the size once: '4× ⌀6 ±0.15 THRU ⌴ ⌀10 ↧ 2 (2×2)'. Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
+  "evidence": "draftwright found no owner and drew it standalone ('⌀6 ±0.15') beside the callout that already states that hole's size. The port's cylinders match the callout's holes (axis lines, axis, diameter), so by draftwright's rule the callout takes the band and states the size once: '4× ⌀6 ±0.15 THRU ⌴ ⌀10 ↧ 2 (2×2)'. Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md. Wrap updated 2026-10-28 (maintainer decision): a callout symbol (↧, ⌴, ⌵) stays on the line of its value, so the break falls before the symbol, not after it as in draftwright's 48 mm wrap; the outcome and verdict are unchanged."
  },
  {
   "field": "outcome",
@@ -1148,11 +1148,11 @@
   },
   "record": "dimension:0:1:4:115",
   "rust": {
-   "detail": "4× ⌀6 ±0.15 THRU ⌴ ⌀10 ↧\n2",
+   "detail": "4× ⌀6 ±0.15 THRU ⌴ ⌀10\n↧ 2",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø6 ±0.15' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀6 ±0.15 THRU ⌴ ⌀10 ↧ 2 (2×2)'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
+  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø6 ±0.15' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀6 ±0.15 THRU ⌴ ⌀10 ↧ 2 (2×2)'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md. Wrap updated 2026-10-28 (maintainer decision): a callout symbol (↧, ⌴, ⌵) stays on the line of its value, so the break falls before the symbol, not after it as in draftwright's 48 mm wrap; the outcome and verdict are unchanged."
  },
  {
   "field": "outcome",
@@ -1166,11 +1166,11 @@
   },
   "record": "dimension:0:1:4:135",
   "rust": {
-   "detail": "4× ⌀7 ±0.25 THRU ⌴ ⌀10 ↧\n10 BOTH SIDES",
+   "detail": "4× ⌀7 ±0.25 THRU ⌴ ⌀10\n↧ 10 BOTH SIDES",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø7 ±0.25' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀7 ±0.25 THRU ⌴ ⌀10 ↧ 10 BOTH SIDES' (the ⌀10 ↧ 10 counterbore is cut at both ends of each ⌀7 bore, #104). Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md."
+  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø7 ±0.25' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀7 ±0.25 THRU ⌴ ⌀10 ↧ 10 BOTH SIDES' (the ⌀10 ↧ 10 counterbore is cut at both ends of each ⌀7 bore, #104). Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md. Wrap updated 2026-10-28 (maintainer decision): a callout symbol (↧, ⌴, ⌵) stays on the line of its value, so the break falls before the symbol, not after it as in draftwright's 48 mm wrap; the outcome and verdict are unchanged."
  },
  {
   "field": "outcome",
@@ -1185,11 +1185,11 @@
   },
   "record": "dimension:0:1:4:7",
   "rust": {
-   "detail": "4× ⌀10.541 ±0.2032 THRU ⌴\n⌀15.88 ↧ 12.7",
+   "detail": "4× ⌀10.541 ±0.2032 THRU\n⌴ ⌀15.88 ↧ 12.7",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.415 ±0.008 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists; pmi_not_extracted: AP242 dimension dimension:0:1:4:7 was discovered but not extracted: Part21 dimension correspondence is ambiguous for 'Hole Callout  (Radi). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀10.5 ±0.2032 THRU ⌴ ⌀15.9 ↧ 12.7 (2×2)'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
+  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.415 ±0.008 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists; pmi_not_extracted: AP242 dimension dimension:0:1:4:7 was discovered but not extracted: Part21 dimension correspondence is ambiguous for 'Hole Callout  (Radi). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀10.5 ±0.2032 THRU ⌴ ⌀15.9 ↧ 12.7 (2×2)'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18). Wrap updated 2026-10-28 (maintainer decision): a callout symbol (↧, ⌴, ⌵) stays on the line of its value, so the break falls before the symbol, not after it as in draftwright's 48 mm wrap; the outcome and verdict are unchanged."
  },
  {
   "field": "outcome",
@@ -1203,11 +1203,11 @@
   },
   "record": "dimension:0:1:4:9",
   "rust": {
-   "detail": "2× ⌀14.287 ±0.2032 THRU ⌴\n⌀20.64 ↧ 14.29",
+   "detail": "2× ⌀14.287 ±0.2032 THRU\n⌴ ⌀20.64 ↧ 14.29",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.562 ±0.008 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '2× ⌀14.3 ±0.2032 THRU ⌴ ⌀20.6 ↧ 14.3'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
+  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.562 ±0.008 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '2× ⌀14.3 ±0.2032 THRU ⌴ ⌀20.6 ↧ 14.3'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18). Wrap updated 2026-10-28 (maintainer decision): a callout symbol (↧, ⌴, ⌵) stays on the line of its value, so the break falls before the symbol, not after it as in draftwright's 48 mm wrap; the outcome and verdict are unchanged."
  },
  {
   "field": "outcome",
@@ -1221,11 +1221,11 @@
   },
   "record": "dimension:0:1:4:93",
   "rust": {
-   "detail": "4× ⌀7.137 ±0.2032 THRU ⌴\n⌀10.16 ↧ 7.94",
+   "detail": "4× ⌀7.137 ±0.2032 THRU\n⌴ ⌀10.16 ↧ 7.94",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.281 ±0.008 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀7.1 ±0.2032 THRU ⌴ ⌀10.2 ↧ 7.9'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
+  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.281 ±0.008 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀7.1 ±0.2032 THRU ⌴ ⌀10.2 ↧ 7.9'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18). Wrap updated 2026-10-28 (maintainer decision): a callout symbol (↧, ⌴, ⌵) stays on the line of its value, so the break falls before the symbol, not after it as in draftwright's 48 mm wrap; the outcome and verdict are unchanged."
  },
  {
   "field": "label",
@@ -1405,11 +1405,11 @@
    "outcome": "refused"
   },
   "rust": {
-   "detail": "4× ⌀7 ±0.25 THRU ⌴ ⌀10 ↧\n10 BOTH SIDES",
+   "detail": "4× ⌀7 ±0.25 THRU ⌴ ⌀10\n↧ 10 BOTH SIDES",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "The hole's references are its cylindrical face and a rim edge of that face. draftwright refuses the record (pmi_not_extracted: 'one diameter reference is not a face'; with it authored_dim_source_unresolved). Every point of the edge lies on the referenced cylinder within its extent, so it names the same hole again and adds nothing to measure; the port reads the size from the cylinders (pmi_lowering cylinder_geometry, edge_on_cylinder), matches them to the recognised hole callout of those holes (same axis line and diameter) and states it there and in its hole table rows. An edge off the referenced cylinders still refuses (tests/pmi_dimensions.rs a_hole_size_naming_its_rim_edge_reaches_its_callout_and_schedule). The callout says BOTH SIDES: each ⌀7 bore (z 0-75) has its ⌀10 ↧ 10 counterbore at both ends (z 0-10 and 65-75), as FTC-10's (#104)."
+  "evidence": "The hole's references are its cylindrical face and a rim edge of that face. draftwright refuses the record (pmi_not_extracted: 'one diameter reference is not a face'; with it authored_dim_source_unresolved). Every point of the edge lies on the referenced cylinder within its extent, so it names the same hole again and adds nothing to measure; the port reads the size from the cylinders (pmi_lowering cylinder_geometry, edge_on_cylinder), matches them to the recognised hole callout of those holes (same axis line and diameter) and states it there and in its hole table rows. An edge off the referenced cylinders still refuses (tests/pmi_dimensions.rs a_hole_size_naming_its_rim_edge_reaches_its_callout_and_schedule). The callout says BOTH SIDES: each ⌀7 bore (z 0-75) has its ⌀10 ↧ 10 counterbore at both ends (z 0-10 and 65-75), as FTC-10's (#104). Wrap updated 2026-10-28 (maintainer decision): a callout symbol (↧, ⌴, ⌵) stays on the line of its value, so the break falls before the symbol, not after it as in draftwright's 48 mm wrap; the outcome and verdict are unchanged."
  },
  {
   "field": "outcome",

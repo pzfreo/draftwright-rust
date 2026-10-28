@@ -4428,10 +4428,66 @@ fn with_uncapped<T>(uncapped: bool, run: impl FnOnce() -> T) -> T {
 /// the place an origin mark needs, the presentation is planned once more with that place reserved
 /// before the dimensions are laid out ([`crate::hole_table::slot_callout_takes_origin`], CTC-03).
 /// `None` when the schedules are not installed.
+///
+/// A row replaces a callout whose size comes from PMI. Where that drawing has an error the plan
+/// without schedules (*unscheduled*, which the selection was made from) does not, the schedules
+/// are installed once more with those callouts kept beside their rows, as they were before; and
+/// so they are where a frame or datum symbol attaches to a hole's mark with the callouts kept but
+/// not with them replaced, since a row has no place for a frame on several holes and a tag may
+/// have no room (dw-examples FTC-10's cylindricity, CTC-05's datum B and runout).
 fn install_schedules(
     analysis: &Analysis,
+    unscheduled: &Plan,
     selection: &crate::hole_table::Selection,
     plan: impl Fn(&crate::hole_table::Selection) -> Result<Plan, Invalid>,
+) -> Result<Option<Plan>, Invalid> {
+    let installed = install_selection(analysis, selection, &plan)?;
+    let Some(replacing) = installed.as_ref().filter(|_| selection.pmi_replaced) else {
+        return Ok(installed);
+    };
+    let errors = |p: &Plan| -> BTreeSet<String> {
+        p.problems
+            .iter()
+            .filter(|q| q.severity == "error")
+            .map(|q| q.id.clone())
+            .collect()
+    };
+    let keeping = || {
+        let kept = crate::hole_table::select_keeping_pmi(analysis, unscheduled);
+        if kept.tables.is_empty() {
+            return Ok(None);
+        }
+        install_selection(analysis, &kept, &plan)
+    };
+    if !errors(replacing).is_subset(&errors(unscheduled)) {
+        return keeping();
+    }
+    let attached = |p: &Plan| -> BTreeSet<String> {
+        crate::dims::hole_marks::attachments(analysis, p)
+            .into_keys()
+            .collect()
+    };
+    // Only a glyph that attaches without the schedule can lose its place: to a replaced callout,
+    // or to the layout the freed callouts let move (FTC-10's plan view, with the `4× ⌀7` callout
+    // kept but no clear paper beneath it).
+    let unscheduled_attached = attached(unscheduled);
+    if unscheduled_attached.is_empty() {
+        return Ok(installed);
+    }
+    let held = attached(replacing);
+    if unscheduled_attached.is_subset(&held) {
+        return Ok(installed);
+    }
+    match keeping()? {
+        Some(kept) if !attached(&kept).is_subset(&held) => Ok(Some(kept)),
+        _ => Ok(installed),
+    }
+}
+
+fn install_selection(
+    analysis: &Analysis,
+    selection: &crate::hole_table::Selection,
+    plan: &impl Fn(&crate::hole_table::Selection) -> Result<Plan, Invalid>,
 ) -> Result<Option<Plan>, Invalid> {
     let mut scheduled = plan(selection)?;
     let first = scheduled.clone();
@@ -4496,7 +4552,7 @@ fn schedule_recovered(
         at.sheet.size = Some(baseline.sheet.size.clone());
         at.sheet.scale = Some(scale_name(baseline.sheet.scale_factor));
     }
-    let installed = install_schedules(analysis, &selection, |selection| {
+    let installed = install_schedules(analysis, &baseline, &selection, |selection| {
         plan_with_presentation(
             analysis,
             &at,
@@ -4649,7 +4705,7 @@ fn plan_escalated_uncached(
                 p.problems.push(Problem { id:"p:hole_table_unavailable:sheet".into(), code:"hole_table_unavailable".into(), severity:"warning".into(), message:"A hole table needs holes located in X and Y from a datum corner. This part has no holes located that way; use the individual hole dimensions shown instead.".into(), subjects:callouts, ..Default::default() });
             }
             if !selection.tables.is_empty() {
-                let mut scheduled = install_schedules(analysis, &selection, |selection| {
+                let mut scheduled = install_schedules(analysis, &p, &selection, |selection| {
                     plan_with_presentation(
                         analysis,
                         spec,
@@ -4674,7 +4730,7 @@ fn plan_escalated_uncached(
                     for (name, ..) in layout::PAGES.iter().skip(first + 1) {
                         let mut larger = spec.clone();
                         larger.sheet.size = Some((*name).into());
-                        let candidate = install_schedules(analysis, &selection, |selection| {
+                        let candidate = install_schedules(analysis, &p, &selection, |selection| {
                             plan_with_presentation(
                                 analysis, &larger, beyond_lanes, automatic_pair,
                                 candidate_arrangement, ViewPolicy { complete: true, require_detail: require_automatic }, Some(selection),
