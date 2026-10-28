@@ -6,6 +6,12 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### WASM API
+
+- `Engine.openPart(name, bytes, part)` opens part *part* of an assembly (an index as `parts`
+  lists them) alone, in its own frame and with its PMI only, as the command line's `--part`
+  does. `new Engine(name, bytes)` is unchanged.
+
 ## 0.2.1 (2026-10-28)
 
 Still on quiddity-rust **v0.2.1**. This release carries three rounds of fixes from a sheet-by-sheet
@@ -387,12 +393,6 @@ Measured on this release against 0.2.0, on the same parts.
   paper (`annotation_outside_area`, info). A section's address beside other ink on its line now
   keeps 3 mm from it rather than 1 mm, where the corpus FTC-10's `SECTION A–A, SHEET 2, ZONE D9`
   read as one line with the longer callout; it and the corpus CTC-04's address move 2 mm.
-
-### WASM API
-
-- `Engine.openPart(name, bytes, part)` opens part *part* of an assembly (an index as `parts`
-  lists them) alone, in its own frame and with its PMI only, as the command line's `--part`
-  does. `new Engine(name, bytes)` is unchanged.
 
 ## 0.2.0 (2026-10-27)
 
