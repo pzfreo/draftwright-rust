@@ -2770,16 +2770,28 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Pla
         .then(|| first.clone());
     let plan = recover_capped(analysis, spec, first)?;
     let page = |size: &str| layout::PAGES.iter().position(|p| p.0 == size);
+    let exhausted = recovery_exhausted(&plan);
     if let Some(first) = open
-        && (recovery_exhausted(&plan)
+        && (exhausted
             || (spec.sheet.scale.is_none()
                 && crate::dims::has_new_native_recess_dimensions(analysis)
                 && page(&plan.sheet.size) > page(&established_drawing(analysis, spec)?.sheet.size)))
     {
         let ordinary = with_uncapped(true, || recover_capped(analysis, spec, first))?;
-        if !recovery_exhausted(&ordinary)
-            && recovery_rank(analysis, &ordinary) < recovery_rank(analysis, &plan)
-        {
+        let (o, c) = (
+            recovery_rank(analysis, &ordinary),
+            recovery_rank(analysis, &plan),
+        );
+        // Off the established paper the cap keeps nothing but a smaller scale, so the uncapped
+        // drawing is taken unless it is harder, drops more or fits worse; a couple of ink
+        // findings either way do not hold a near-empty sheet (STC-08 with quiddity-rust
+        // v0.2.2's fillets: A1 1:1 with 52 ink findings against A1 1:2 with 50).
+        let better = if exhausted {
+            o < c
+        } else {
+            (o.0, o.1, o.2) <= (c.0, c.1, c.2)
+        };
+        if !recovery_exhausted(&ordinary) && better {
             return Ok(ordinary);
         }
     }

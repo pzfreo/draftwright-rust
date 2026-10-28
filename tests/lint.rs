@@ -977,14 +977,17 @@ fn coverage_on_pythons_sheets_matches_pythons_lint_or_is_known() {
             seen.insert((*g, parameter.clone()));
             // Python's "all requirements" finding stands for each of the group's requirements
             // (those lint has ported: its locations are not yet).
-            let theirs: Vec<(&str, Option<&String>)> = if parameter == "*" {
+            let theirs: Vec<(String, Option<&String>)> = if parameter == "*" {
                 groups[*g]
                     .requirements()
-                    .iter()
-                    .map(|(p, _)| (*p, rust.get(&(*g, p.to_string()))))
+                    .into_iter()
+                    .map(|(p, _)| {
+                        let r = rust.get(&(*g, p.clone()));
+                        (p, r)
+                    })
                     .collect()
             } else {
-                vec![(parameter.as_str(), rust.get(&(*g, parameter.clone())))]
+                vec![(parameter.clone(), rust.get(&(*g, parameter.clone())))]
             };
             for (p, r) in theirs {
                 seen.insert((*g, p.to_string()));
