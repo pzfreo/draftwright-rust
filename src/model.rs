@@ -2743,14 +2743,21 @@ fn recover_uncached(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Pla
     // so the ordinary ladder is searched without it and its drawing taken where it reads better
     // (STC-08 once #217's corner stations and the cited datums both reach it, its first
     // estimate placing no table). A table-free baseline (`hole_table: never`) is left to
-    // [`recover_tables`], which applies the same resort itself.
+    // [`recover_tables`], which applies the same resort itself. So does a capped drawing that
+    // had to leave the established drawing's paper for larger: the established drawing the cap
+    // keeps is gone, and the cap would only hold the scale on a near-empty sheet (STC-08 with
+    // #217's chamfer callouts: A1 at 1:2, 19% fill, beside the established A2 at 1:2).
     let open = (!UNCAPPED.get()
         && first.hole_tables.is_empty()
         && spec.hole_table != crate::hole_table::Setting::Never)
         .then(|| first.clone());
     let plan = recover_capped(analysis, spec, first)?;
+    let page = |size: &str| layout::PAGES.iter().position(|p| p.0 == size);
     if let Some(first) = open
-        && recovery_exhausted(&plan)
+        && (recovery_exhausted(&plan)
+            || (spec.sheet.scale.is_none()
+                && crate::dims::has_new_native_recess_dimensions(analysis)
+                && page(&plan.sheet.size) > page(&established_drawing(analysis, spec)?.sheet.size)))
     {
         let ordinary = with_uncapped(true, || recover_capped(analysis, spec, first))?;
         if !recovery_exhausted(&ordinary)

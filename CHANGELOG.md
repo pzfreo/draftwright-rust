@@ -21,9 +21,15 @@ All notable changes to draftwright-rust are recorded here, in the style of
   brings the ten `hole_pattern_requirement_missing` and one `feature_not_located` warnings that
   STC-08's table drawing already has. l-plate-5-holes gets `C40` for its two `20`s; the NEMA 17
   bracket's chamfers `2× C4` twice for `4`, `2× 4`, `2× 4` and `4`, and it moves from A3 1:1 to
-  A4 1:2. STC-08 gets the same callout and stations, and moves from A1 1:1 to A1 1:2
-  (`extension_through_feature` 9 to 30); the FTC-08 quality part goes from A2 1:2 back to A1
-  1:2 with its `detail_unplaceable`, as before the stations reserved their lanes. Naming either
+  A4 1:2. STC-08 gets the same callout and stations and stays on A1 at 1:1: a recess drawing
+  whose search under the established drawing's scale cap had to leave that drawing's paper for
+  larger now also tries the search without the cap, as an exhausted one already did, and takes it
+  where it reads better (the capped search had settled on A1 1:2 at 19% fill, beside the
+  established A2 1:2, with `extension_through_feature` 9 to 30). A profile corner station that a
+  re-seated recess location lands on moves out lane by lane to a line of its own (FTC-08's
+  `2× 11.938` had shared the line of the 64.999 seat location, a `dimension_line_shared` error).
+  The FTC-08 quality part goes from A2 1:2 back to A1 1:2 with its `detail_unplaceable`, as
+  before the stations reserved their lanes. Naming either
   corner's angle in `dimensions` keeps that cut located by its legs, and
   `faces/<face>/profile_corners` (`linear`, `angle`) still chooses for the whole profile.
   Station IDs are numbered among the remaining stations (FTC-08's `…f1_0_3` is now `…f1_0_1`).

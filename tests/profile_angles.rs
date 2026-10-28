@@ -485,6 +485,14 @@ fn ftc08_chamfers_are_called_out_by_size() {
     for d in &found {
         assert_eq!(d.measurements.len(), 2);
         assert!(d.placed.is_some(), "{}", d.id);
+        // No recess location re-seated onto a station's line (dw-examples' FTC-08).
+        assert!(
+            !p.problems
+                .iter()
+                .any(|q| q.code == "dimension_line_shared" && q.subjects.contains(&d.id)),
+            "{:?}",
+            p.problems
+        );
     }
     assert!(angles(&p).is_empty(), "{:?}", angles(&p));
     let r = review(&path, json!({}));
