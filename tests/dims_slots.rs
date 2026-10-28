@@ -1168,7 +1168,7 @@ fn ftc09_slot_callout_leader_crosses_no_other_feature() {
         eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
         return;
     };
-    let (_, a) = model::analyse_native(&corpus.join("nist/nist_ftc_09_asme1_rd.stp")).unwrap();
+    let (part, a) = model::analyse_native(&corpus.join("nist/nist_ftc_09_asme1_rd.stp")).unwrap();
     let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
     let callout = plan
         .dimensions
@@ -1182,4 +1182,13 @@ fn ftc09_slot_callout_leader_crosses_no_other_feature() {
         .filter(|p| p.code == "leader_through_feature" && p.subjects.first() == Some(&callout.id))
         .collect();
     assert!(crossings.is_empty(), "{crossings:#?}");
+    // Its tip lands on a slot's full-round end, which the lint reads as round although
+    // quiddity records the end radius rounded (R3.18 on a 6.35 wide slot).
+    let font = draftwright::text::Font::new(draftwright::api::MONO.to_vec()).unwrap();
+    let drawing = model::render(&part, &a, &plan, &font).unwrap();
+    let mismatched: Vec<_> = draftwright::lint::lint(&a, &drawing)
+        .into_iter()
+        .filter(|i| i.code == "slot_leader_target_mismatch")
+        .collect();
+    assert!(mismatched.is_empty(), "{mismatched:#?}");
 }

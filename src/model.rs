@@ -7988,6 +7988,19 @@ fn settle_finished_nominals(
                 radius_reference,
             );
         }
+    } else if pass == NominalPass::All {
+        // Another callout's refinement can cost the trial (nema17-bracket's hole callout left
+        // its area); the radius repair alone may still be taken, so a radius leader is not
+        // left off radial for a peer's sake.
+        settle_finished_nominals(
+            analysis,
+            original_spec,
+            plan,
+            omitted,
+            0,
+            NominalPass::Radius,
+            radius_reference,
+        );
     }
 }
 

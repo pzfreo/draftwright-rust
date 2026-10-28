@@ -139,13 +139,27 @@ All notable changes to draftwright-rust are recorded here, in the style of
   the wide slot beside its two slots, and it does not run along a location's extension line. A location that also conveys coincident slots' locations
   starts its extension line at whichever of their centres is nearest its dimension line, so the
   witness of a row of slots does not cross the near ones (nema17-bracket, gantry-plate, CTC-03).
+- **A baseline's lone inner link follows the rest across the view.** When a strip cannot hold a
+  baseline (one face, one axis), its outer links fall through to the strip across the view; the
+  one inner link left behind now follows them, innermost, where the whole baseline fits there and
+  its extension lines cross fewer features there: nema17-bracket's `5` joins `6.5`, `34.5` and
+  `36` on the right instead of running left across a slot and the flange's three holes
+  (`dims::placement::fall_through`; `dimensions/<id>/place/side` still chooses). No other part of
+  the 65 changes.
+- **A radius leader is not left off radial for another callout's sake.** The final leader pass
+  takes its repairs together, so when nema17-bracket's hole callout was refined out of its area
+  the trial was refused and its `R3` kept a route 97° off radial; the radius repair is now tried
+  alone when that happens.
+- **A slot leader on a full-round end is judged against the round end.** quiddity rounds the end
+  radius to 0.01 mm (R3.18 on FTC-09's 6.35 wide slots, R9.52 on CTC-03's 19.05), and the slot
+  tip check then read the ends as square, so a slot callout's tip on the end arc was reported as
+  `slot_leader_target_mismatch` (0.147 and 0.002 mm off).
 - Plans change on 8 of the 65 quality and dw-examples parts, all with congruent obround slots:
   nema17-bracket now fits A4 1:1 (was A3 2:1); gantry-plate, nema17-mount-bracket, NIST STC-09,
   cgb245 and the corpus CTC-03 and FTC-09 keep their sheets; dw-examples' CTC-03 keeps A3 1:5
   and regains its hole table (dimensioned singly since the cited-datum change above).
-  `extension_through_feature`: nema17-bracket 10 to 11 (its `5` goes to the left, crossing the
-  flange's edge-on holes, where the right would share a dimension line), gantry-plate 28 to 30,
-  CTC-03 1 and 4 to 0, cgb245 5 to 1. FTC-09 trades its slot leader through a slot for one
+  `extension_through_feature`: nema17-bracket 10 to 8, gantry-plate 28 to 30, CTC-03 1 and 4
+  to 0, cgb245 5 to 1. FTC-09 trades its slot leader through a slot for one
   crossing of slot 3's `38.1` extension line (`annotation_leader_crossing` 0 to 1): that
   dimension's extension lines and dimension line box its two slots in below slot 3, so every
   route from them crosses something.

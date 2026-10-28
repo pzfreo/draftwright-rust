@@ -767,7 +767,16 @@ fn slot_gap(analysis: &Analysis, p: &Projection, f: &Feature, tip: P) -> Result<
         .gap(p, tip);
     }
     let s = super::slots::outline(analysis, f)?;
-    let boundary = super::oriented_slots::outline(s.width, s.ends, s.centre, s.end_radius);
+    // quiddity rounds the end radius to 0.01 mm (nist_ftc_09's 6.35 wide slots record R3.18):
+    // full-round ends are half the width, as the slot's arcs are drawn.
+    let end_radius = s.end_radius.map(|r| {
+        if (2.0 * r - s.width).abs() <= super::slots::FULL_ROUND {
+            0.5 * s.width
+        } else {
+            r
+        }
+    });
+    let boundary = super::oriented_slots::outline(s.width, s.ends, s.centre, end_radius);
     Prism {
         origin: [0.0; 3],
         run: axis(s.deep),
