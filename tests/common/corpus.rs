@@ -68,3 +68,15 @@ pub fn analyse(dir: &Path, file: &str, name: &str) -> (Part, Analysis) {
     })
     .unwrap()
 }
+
+/// Splits slot *id* from its congruent slots' callout, as `features/<id>/split` does: it is then
+/// dimensioned singly (width, length, end radius and low-end location of its own), and so is a
+/// twin it leaves without a group (`dims::slots`). For tests whose subject is a single slot's own
+/// items, or the layout they made, on parts whose slots come in congruent pairs.
+pub fn split_slot(a: &mut Analysis, id: &str) {
+    let f = a.features.iter_mut().find(|f| f.id == id).unwrap();
+    f.parameters.insert(
+        draftwright::lint::slots::ALONE.into(),
+        serde_json::Value::Bool(true),
+    );
+}

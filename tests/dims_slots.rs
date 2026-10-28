@@ -95,32 +95,57 @@ fn cgb245_slots_state_width_length_end_radius_and_location() {
     // Three through slots in the plan: two obrounds (6 × 15.0, ends R3) and one straight slot
     // (7.0 × 16.9, corner radius 2: no end radius), each located from the box along x, and across
     // in y by its centre line: one at 38.9; two share 50.4, which is a hole's y location in the
-    // same view, so that states it (ARCH0009-6). The two obrounds' widths lie across the same
-    // span in y, so one counted width states both (draftwright's shared slot width, `2× 6`); their
-    // lengths lie on different spans and stay two.
+    // same view, so that states it (ARCH0009-6). The two obrounds are congruent, so they are
+    // dimensioned as slots: one `2× SLOT 6 × 14.97` claims both widths and lengths, their
+    // full-round ends (R3, half the width) need no radius, and each is located along x by its
+    // centre. The straight slot keeps its own width and length, and its low end's location.
     assert_eq!(
         items(&plan, "slot_"),
         strs(&[
-            ("slot_end_radius.radius", "plan", "2× R3"),
-            ("slot_end_radius.radius", "plan", "2× R3"),
-            ("slot_length.length", "plan", "14.97"),
-            ("slot_length.length", "plan", "14.97"),
             ("slot_length.length", "plan", "16.86"),
-            ("slot_width.length", "plan", "2× 6"),
+            ("slot_width.length", "plan", "2× SLOT 6 × 14.97"),
             ("slot_width.length", "plan", "6.98"),
         ])
     );
-    let width = plan.dimensions.iter().find(|d| d.label == "2× 6").unwrap();
-    assert_eq!(width.measurements.len(), 2, "{width:?}");
+    let callout = plan
+        .dimensions
+        .iter()
+        .find(|d| d.label == "2× SLOT 6 × 14.97")
+        .unwrap();
+    assert_eq!(callout.kind, "callout", "{callout:?}");
+    let mut stated: Vec<_> = callout
+        .measurements
+        .iter()
+        .map(|m| (m.feature.as_str(), m.parameter.as_str()))
+        .collect();
+    stated.sort();
+    assert_eq!(
+        stated,
+        [
+            ("f:slot:1", "slot_length.length"),
+            ("f:slot:1", "slot_width.length"),
+            ("f:slot:2", "slot_length.length"),
+            ("f:slot:2", "slot_width.length"),
+        ]
+    );
     assert_eq!(
         items(&plan, "location_slot"),
         strs(&[
             ("location_slot.length", "plan", "181.57"),
-            ("location_slot.length", "plan", "285.960"),
-            ("location_slot.length", "plan", "79.070"),
+            ("location_slot.length", "plan", "293.445"),
+            ("location_slot.length", "plan", "86.555"),
             ("location_slot_across.length", "plan", "38.866"),
         ])
     );
+    // The obrounds' locations measure to their centres, half a length (7.485) beyond their low
+    // ends (79.070 and 285.960 before they were grouped).
+    for d in plan
+        .dimensions
+        .iter()
+        .filter(|d| d.id.ends_with("/location_slot.length") && d.label != "181.57")
+    {
+        assert!(d.basis.contains("to its centre"), "{}", d.basis);
+    }
     let conveyed: Vec<_> = plan
         .omitted
         .iter()
@@ -319,11 +344,13 @@ fn equal_widths_across_a_view_share_one_counted_dimension() {
     };
     let mut a = analysed(&corpus, "cgb245");
     // Turn cgb245's slots a quarter turn in the plan (quiddity's letters swapped): their widths
-    // now run across the view, and the two 6 mm obrounds span the same stretch of x.
+    // now run across the view, and the two 6 mm obrounds span the same stretch of x. One is split
+    // from the congruent slots' callout (`features/<id>/split`), so their widths are shared.
     for f in a.features.iter_mut().filter(|f| f.kind == "slot") {
         f.parameters.insert("long_axis".into(), "y".into());
         f.parameters.insert("width_axis".into(), "z".into());
     }
+    corpus::split_slot(&mut a, "f:slot:2");
     let plan = model::plan(&a, &Spec::default()).unwrap();
     assert_eq!(
         items(&plan, "slot_width"),
@@ -710,10 +737,11 @@ fn slot_fixture(name: &str, edit: impl Fn(&mut serde_json::Value)) -> Analysis {
     a
 }
 
-/// draftwright's `render_slot_patterns`: one `N× SLOT W × L` callout, the obround's `2× R`, the
-/// pitches, and the pattern's centre located, in the view that looks through the slots; its
-/// members are not dimensioned again. The labels are those on draftwright's sheets of these
-/// parts (`<name>.facts.json.gz`; `tests/dimensions.rs` compares them item by item).
+/// draftwright's `render_slot_patterns`: one `N× SLOT W × L` callout, the pitches, and the
+/// pattern's centre located, in the view that looks through the slots; its members are not
+/// dimensioned again. The labels are those on draftwright's sheets of these parts
+/// (`<name>.facts.json.gz`; `tests/dimensions.rs` compares them item by item), less the obround's
+/// `2× R`: the ends are full-round (the radius half the width), which the slot callout implies.
 #[test]
 fn a_slot_pattern_is_called_out_once_with_its_pitches_and_centre() {
     let a = slot_fixture("slot_array", |_| {});
@@ -728,7 +756,6 @@ fn a_slot_pattern_is_called_out_once_with_its_pitches_and_centre() {
         of_pattern,
         [
             ("d:f:slot_pattern:1/slot_width.length", "3× SLOT 6 × 20"),
-            ("d:f:slot_pattern:1/slot_end_radius.radius", "2× R3"),
             ("d:f:slot_pattern:1/pitch.length", "2× 25"),
             ("d:f:slot_pattern:1/location_slot_pattern.length.x", "60"),
             ("d:f:slot_pattern:1/location_slot_pattern.length.y", "30"),
@@ -787,7 +814,6 @@ fn a_slot_pattern_is_called_out_once_with_its_pitches_and_centre() {
         of_pattern,
         [
             ("d:f:slot_pattern:1/slot_width.length", "6× SLOT 8 × 24"),
-            ("d:f:slot_pattern:1/slot_end_radius.radius", "2× R4"),
             ("d:f:slot_pattern:1/grid_pitch.length.col", "30"),
             ("d:f:slot_pattern:1/grid_pitch.length.row", "2× 40"),
             ("d:f:slot_pattern:1/location_slot_pattern.length.x", "80"),
@@ -822,14 +848,18 @@ fn a_slot_pattern_that_does_not_hold_together_is_reported_and_its_slots_dimensio
             .iter()
             .all(|d| !d.id.contains("slot_pattern"))
     );
-    // Each slot's own length is stated: the three lie across one span, so one counted
-    // dimension claims all three (src/dims/mod.rs::share), never the pattern.
+    // Each slot's own length is stated: the three are congruent, so one slot callout claims all
+    // three (`3× SLOT 6 × 20`), never the pattern, and states no pitch.
     let lengths: Vec<&str> = plan
         .dimensions
         .iter()
-        .filter(|d| d.id.ends_with("/slot_length.length") && d.view == "v:plan")
-        .flat_map(|d| d.measurements.iter().map(|m| m.feature.as_str()))
+        .filter(|d| d.view == "v:plan")
+        .flat_map(|d| &d.measurements)
+        .filter(|m| m.parameter == "slot_length.length")
+        .map(|m| m.feature.as_str())
         .collect();
+    assert!(plan.dimensions.iter().any(|d| d.label == "3× SLOT 6 × 20"));
+    assert!(plan.dimensions.iter().all(|d| !d.id.contains("pitch")));
     assert_eq!(lengths.len(), 3, "{lengths:?}");
     assert!(
         lengths.iter().all(|f| f.starts_with("f:slot:")),
@@ -975,4 +1005,190 @@ fn ctc01_hex_boss_location_is_conveyed_by_its_hole_grid() {
         let promoted = again.dimensions.iter().find(|d| d.id == boss).unwrap();
         assert!(promoted.placed.is_some(), "{promoted:?}");
     }
+}
+
+/// dw-examples nema17-bracket and gantry-plate: congruent lone slots (here the array plate's
+/// three, its pattern broken) are dimensioned as slots: one `3× SLOT 6 × 20` callout claims each
+/// slot's width and length, no `2× R3` repeats the full-round ends the callout implies, no
+/// separate width or length is drawn, and each slot is located by its centre on both axes, so one
+/// line serves the three centres at the same distance along their length.
+#[test]
+fn congruent_lone_slots_are_dimensioned_as_slots_located_by_their_centres() {
+    let a = slot_fixture("slot_array", |j| {
+        j["quiddity"]["derived"]["slot_patterns"][0]["pitch"] = 26.0.into();
+    });
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let slots: Vec<_> = plan
+        .dimensions
+        .iter()
+        .filter(|d| d.id.starts_with("d:f:slot:"))
+        .collect();
+    let callouts: Vec<_> = slots.iter().filter(|d| d.kind == "callout").collect();
+    assert_eq!(callouts.len(), 1, "{slots:#?}");
+    assert_eq!(callouts[0].label, "3× SLOT 6 × 20");
+    for parameter in ["slot_width.length", "slot_length.length"] {
+        let mut claimed: Vec<_> = callouts[0]
+            .measurements
+            .iter()
+            .filter(|m| m.parameter == parameter)
+            .map(|m| m.feature.as_str())
+            .collect();
+        claimed.sort();
+        assert_eq!(claimed, of_kind(&a, "slot"), "{parameter}");
+    }
+    assert!(
+        slots
+            .iter()
+            .all(|d| !d.id.ends_with("/slot_end_radius.radius")
+                && !d.id.ends_with("/slot_length.length")
+                && !(d.kind == "linear" && d.id.ends_with("/slot_width.length"))),
+        "{slots:#?}"
+    );
+    // Along y (their length) every centre stands at 30: one location line, the rest conveyed.
+    let along: Vec<_> = slots
+        .iter()
+        .filter(|d| d.id.ends_with("/location_slot.length"))
+        .collect();
+    assert_eq!(along.len(), 1, "{along:#?}");
+    assert_eq!(along[0].label, "30");
+    assert!(
+        along[0].basis.contains("to its centre"),
+        "{}",
+        along[0].basis
+    );
+    // Its witness starts at whichever centre is nearest its dimension line, so it crosses no
+    // other slot, on either side of the view.
+    for side in ["left", "right"] {
+        let spec: Spec = serde_json::from_value(serde_json::json!({
+            "dimensions": {along[0].id.as_str(): {"place": {"side": side}}}
+        }))
+        .unwrap();
+        let sided = model::plan(&a, &spec).unwrap();
+        assert!(
+            !sided
+                .problems
+                .iter()
+                .any(|p| p.code == "extension_through_feature"
+                    && p.subjects.first() == Some(&along[0].id)),
+            "{side}: {:#?}",
+            sided.problems
+        );
+    }
+    assert_eq!(
+        across(&plan),
+        [("35", 1), ("60", 1), ("85", 1)].map(|(l, n)| (l.to_string(), n))
+    );
+    for d in &slots {
+        drawn(&plan, d);
+    }
+}
+
+/// The spec's override (`features/<id>/split` on a slot): a slot split from its congruent slots'
+/// callout is dimensioned on its own (its width and end radius; its length, on the same span in y
+/// as the others', is stated once by the callout's, ARCH0009-6), and the callout counts the rest.
+#[test]
+fn a_slot_split_by_the_spec_is_dimensioned_on_its_own() {
+    let a = slot_fixture("slot_array", |j| {
+        j["quiddity"]["derived"]["slot_patterns"][0]["pitch"] = 26.0.into();
+    });
+    let spec: Spec =
+        serde_json::from_value(serde_json::json!({"features": {"f:slot:2": {"split": true}}}))
+            .unwrap();
+    let plan = model::plan_recovered(&a, &spec).unwrap();
+    let callout = plan
+        .dimensions
+        .iter()
+        .find(|d| d.label.contains("SLOT"))
+        .unwrap();
+    assert_eq!(callout.label, "2× SLOT 6 × 20");
+    assert!(
+        callout
+            .measurements
+            .iter()
+            .all(|m| m.feature != "f:slot:2" || m.parameter == "slot_length.length")
+    );
+    let own = |parameter: &str| {
+        plan.dimensions
+            .iter()
+            .filter(|d| d.placed.is_some())
+            .find(|d| {
+                d.measurements
+                    .iter()
+                    .any(|m| m.feature == "f:slot:2" && m.parameter == parameter)
+            })
+            .map(|d| d.label.as_str())
+    };
+    assert_eq!(own("slot_width.length"), Some("6"));
+    assert_eq!(own("slot_end_radius.radius"), Some("2× R3"));
+    assert!(own("slot_length.length").is_some());
+}
+
+/// nist_ftc_08's two keyhole slots (15.24 × 31.75, full-round, each opened at its middle by a
+/// circular seat) are congruent but not called out together: the seat's axis and callout carry
+/// the compound, and each slot keeps its own length, end radius and low-end location. That holds
+/// in the recess-free Analysis the established route templates plan (nist_stc_08's hole table
+/// came from it).
+#[test]
+fn keyhole_slots_are_not_called_out_together() {
+    let Some(dir) = corpus::dir() else { return };
+    let a = model::analyse_native(&dir.join("nist/nist_ftc_08_asme1_rc.stp"))
+        .unwrap()
+        .1;
+    let keyholes = ["f:slot:2", "f:slot:4"];
+    let bare = draftwright::lint::slots::without_recesses(&a);
+    assert!(bare.features.iter().all(|f| f.kind != "section_recess"));
+    for analysis in [&a, &bare] {
+        for id in keyholes {
+            let f = analysis.features.iter().find(|f| f.id == id).unwrap();
+            assert!(draftwright::lint::slots::keyed(analysis, f), "{id}");
+            assert!(!draftwright::lint::slots::grouped(analysis, f), "{id}");
+        }
+    }
+    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    assert!(plan.dimensions.iter().all(|d| !d.label.contains("SLOT")));
+    for id in keyholes {
+        for parameter in ["slot_length.length", "slot_end_radius.radius"] {
+            assert!(
+                plan.dimensions.iter().any(|d| d
+                    .measurements
+                    .iter()
+                    .any(|m| m.feature == id && m.parameter == parameter)),
+                "{id} {parameter}"
+            );
+        }
+    }
+}
+
+/// NIST FTC-09: its two congruent slots' callout reaches one of them clear of the wide slot
+/// beside them. The part's semantic PMI keeps the other leaders' established routing, which does
+/// not count a crossed feature; the slot callout is new and still does (`dims::leaders`).
+#[test]
+fn ftc09_slot_callout_leader_crosses_no_other_feature() {
+    let Some(corpus) = corpus::dir() else {
+        eprintln!("SKIPPED: the corpus is not found; set DRAFTWRIGHT_CORPUS");
+        return;
+    };
+    let (part, a) = model::analyse_native(&corpus.join("nist/nist_ftc_09_asme1_rd.stp")).unwrap();
+    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let callout = plan
+        .dimensions
+        .iter()
+        .find(|d| d.label == "2× SLOT 6.35 × 25.4")
+        .expect("the slot callout");
+    drawn(&plan, callout);
+    let crossings: Vec<_> = plan
+        .problems
+        .iter()
+        .filter(|p| p.code == "leader_through_feature" && p.subjects.first() == Some(&callout.id))
+        .collect();
+    assert!(crossings.is_empty(), "{crossings:#?}");
+    // Its tip lands on a slot's full-round end, which the lint reads as round although
+    // quiddity records the end radius rounded (R3.18 on a 6.35 wide slot).
+    let font = draftwright::text::Font::new(draftwright::api::MONO.to_vec()).unwrap();
+    let drawing = model::render(&part, &a, &plan, &font).unwrap();
+    let mismatched: Vec<_> = draftwright::lint::lint(&a, &drawing)
+        .into_iter()
+        .filter(|i| i.code == "slot_leader_target_mismatch")
+        .collect();
+    assert!(mismatched.is_empty(), "{mismatched:#?}");
 }

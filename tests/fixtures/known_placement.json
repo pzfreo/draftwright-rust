@@ -7,13 +7,6 @@
     "reason": "The longer nominal linear labels now reserve their measured footprints by reclaiming only vacant neighbouring bands, with all neighbouring view, dimension and GD&T ink protected. The three decimal-valued locations formerly outside the estimated plan band are inside that measured reservation. The unchanged integer station 372 still extends 6.5 mm beyond the band; its existing finding remains required. No physical ink or leader exception is added."
   },
   {
-    "part": "cgb245",
-    "code": "annotation_leader_crossing",
-    "count": 2,
-    "verdict": "rust-wrong",
-    "reason": "The leader of d:f:hole:3/bore.diameter (2× ⌀6 THRU) crosses an extension line of d:f:hole:1/location.length.y (156.4). Before drawing quality 3 (the layout keeps the isometric off the views' bands, docs/quality-2026-10-09.md) that location fitted on neither side of the plan (its next lane on the right ran across the isometric) and kept its lane off the sheet (annotation_off_sheet); it now falls through to the strip right of the plan, and its extension line from the hole near the plan's left edge runs across the whole view to it, through the callout's leader. A location drawn on the side away from its feature: a placement residual (dims::placement::fall_through), one off-sheet error traded for one crossing. Since stream d-quality-merged-lanes (items merged away share their survivor's lane, as draftwright's corridor dedup places no displaced duplicate) also the leader of d:f:slot:2/slot_end_radius.radius (2× R3) crosses an extension line of d:f:slot:3/slot_width.length (7.0): with the merged items' lanes freed, that vertical slot width stays in its own strip left of the plan instead of falling through to the right, nearer its slot, and its extension lines run across the view (known_leaders.json)."
-  },
-  {
     "part": "ctc01",
     "code": "annotation_outside_area",
     "count": 6,

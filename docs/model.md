@@ -349,6 +349,8 @@ circles with fewer than five holes: a bore or boss must prove the centre. A new 
 intersecting automatic groups; holes may belong to only one authored group. `split` dissolves
 a recognised hole or slot pattern and keeps its members. Normal sharing of identical hole
 sizes continues; their locations are individual and the pattern's pitch statements disappear.
+On a lone slot, `split` keeps it out of its congruent obround slots' `N× SLOT W × L` callout:
+it is dimensioned on its own (width, length, end radius, low-end location).
 
 `reclassify` accepts `hole`, `boss`, `turned_step`, `slot` or `pocket`. Supported changes are
 boss ↔ turned step and slot ↔ pocket, when defining faces prove the target grammar. Cylindrical

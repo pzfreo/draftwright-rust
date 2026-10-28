@@ -271,6 +271,7 @@ pub fn marks(drawing: &Drawing) -> Vec<Mark> {
 /// [`crate::api::review`] does.
 pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
     let mut marks = marks(drawing);
+    slots::conveyed_locations(analysis, &mut marks);
     location::drawn_constraints(analysis, drawing, &mut marks);
     // Stream K4: each callout's tip against the edge it names, and its shaft against the
     // material (`leaders`). A callout whose leader or witness misses the physical feature it

@@ -1001,6 +1001,75 @@ pub(super) fn fall_through(
             continue;
         }
         let first = *held.get(&(view, across)).unwrap_or(&0);
+        // A strip left holding only the innermost link of one baseline (dimensions from the
+        // same face along the same axis) whose other links went across gives it across too,
+        // innermost, where the whole baseline fits there: one baseline reads on one side, and a
+        // short inner link does not run its extension lines across the view alone
+        // (nema17-bracket's `5` crossed a slot and three holes on the left, one slot on the right).
+        // A link crossing no more features where it is stays (mounting_plate's `15`, whose move
+        // cost the A4 sheet a leader on an extension line), and so does more than one link
+        // (cgb243's seven hole heights, reshuffled, lost more than they gained).
+        let datum = |i: usize| match items[i].shape {
+            Shape::Linear {
+                a,
+                axis,
+                a_edge: true,
+                ..
+            } => Some((axis, key(a[axis]))),
+            _ => None,
+        };
+        let mut kept: Vec<usize> = (0..items.len())
+            .filter(|&i| {
+                owner[i].is_none()
+                    && linear(i)
+                    && views_of[i] == Some(view)
+                    && sides[i] == Some(side)
+                    && !list.contains(&i)
+            })
+            .collect();
+        kept.sort_by_key(|&i| lanes[i]);
+        let mut list = list;
+        if kept.len() == 1
+            && kept
+                .iter()
+                .all(|&i| datum(i).is_some() && list.iter().any(|&j| datum(j) == datum(i)))
+            && list
+                .iter()
+                .filter(|&&j| datum(j).is_some() && kept.iter().any(|&i| datum(i) == datum(j)))
+                .count()
+                > kept.len()
+            && kept
+                .iter()
+                .chain(&list)
+                .enumerate()
+                .all(|(k, &i)| fits(i, across, first + k))
+            && {
+                // Only for a link whose extension lines cross fewer features there.
+                let i = kept[0];
+                let footprints = super::footprints::Footprints::new(analysis, &frames[view], view);
+                let crossed = |side: Side, lane: usize| {
+                    place(&frames[view], &items[i], side, lane).map(|p| {
+                        p.lines
+                            .iter()
+                            .take(2)
+                            .map(|s| {
+                                footprints
+                                    .crossed_extension(*s, &items[i].measurements)
+                                    .len()
+                            })
+                            .sum::<usize>()
+                    })
+                };
+                matches!(
+                    (crossed(side, lanes[i]), crossed(across, first)),
+                    (Some(home), Some(there)) if there < home
+                )
+            }
+        {
+            kept.extend(list);
+            list = kept;
+            held.insert((view, side), 0);
+        }
         // An overall extent has first claim on the free lanes (draftwright falls through only
         // the extent, ISSUE-1215-e); the others follow in their order.
         let extent = |i: usize| crate::dims::is_envelope_extent(&items[i].id);

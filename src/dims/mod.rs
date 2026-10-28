@@ -3981,6 +3981,12 @@ fn plan_inventory_ordered(
         .iter()
         .map(|w| (w.id.clone(), w.terms.clone()))
         .collect();
+    // Where coincident slot locations' witnesses may start ([`slots::nearest_witness`]).
+    let witnesses: BTreeMap<String, Shape> = all
+        .iter()
+        .filter(|w| omitted.iter().any(|o| o.id == w.id))
+        .map(|w| (w.id.clone(), w.shape.clone()))
+        .collect();
     let mut positions: BTreeMap<String, Option<Placed>> =
         all.into_iter().map(|w| w.id).zip(placed).collect();
 
@@ -4040,6 +4046,21 @@ fn plan_inventory_ordered(
                 } else {
                     schemes::ink(&w, p)
                 }
+            })
+            .map(|p| match chosen.and_then(|v| frames.get(v)) {
+                Some(frame) => slots::nearest_witness(
+                    &w,
+                    p,
+                    omitted
+                        .iter()
+                        .filter(|o| {
+                            matches!(&o.state, State::Covered { by } if *by == w.id)
+                                && o.basis.contains("locates the same span")
+                        })
+                        .filter_map(|o| witnesses.get(&o.id)),
+                    frame,
+                ),
+                None => p,
             });
         if let Some(v) = spec.dimensions.get(&w.id).and_then(|e| e.view.as_deref())
             && chosen == Some(v)
@@ -4792,6 +4813,10 @@ pub(crate) fn callout_members(
     id: &str,
     view: &str,
 ) -> Vec<crate::session::CalloutMember> {
+    // The plan was made from the corrected inventory (a slot split from its congruent slots'
+    // callout keeps its own radius callout), so its members are read from it too.
+    let corrected = crate::recognition_corrections::effective(analysis, spec).ok();
+    let analysis = corrected.as_deref().unwrap_or(analysis);
     let (mut wants, ..) = pmi_policy::wants(analysis, spec);
     callouts::apply(analysis, spec, &mut wants);
     if schemes::apply(analysis, spec, &mut wants).is_err()
