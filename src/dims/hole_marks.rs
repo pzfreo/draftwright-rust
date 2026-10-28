@@ -79,37 +79,10 @@ pub(crate) fn attach(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
                 continue;
             }
             let frame = kind == "control_frame";
-            let Some(owners) = bore_owners(analysis, &holes, &g.faces) else {
+            let Some((vi, named)) = target(analysis, spec, plan, &holes, g) else {
                 continue;
             };
-            if !frame && owners.len() != 1 {
-                continue;
-            }
-            // The principal view down the holes' common axis.
-            let Some(k) = owners[0].principal.map(|(k, _)| k) else {
-                continue;
-            };
-            if owners
-                .iter()
-                .any(|h| h.principal.map(|(a, _)| a) != Some(k))
-            {
-                continue;
-            }
-            let Some(view) = plan.views.iter().find(|v| {
-                super::NAMES.contains(&v.id.trim_start_matches("v:"))
-                    && v.direction[k].abs() > 0.999
-            }) else {
-                continue;
-            };
-            if spec
-                .annotations
-                .get(&g.id)
-                .and_then(|a| a.place.as_ref())
-                .is_some_and(|p| lowered(p, view.id.trim_start_matches("v:")))
-            {
-                continue;
-            }
-            let named: BTreeSet<&str> = owners.iter().map(|h| h.feature.id.as_str()).collect();
+            let view = &plan.views[vi];
             let Some(mark) = mark(plan, &named, &view.id) else {
                 continue;
             };
@@ -379,6 +352,64 @@ pub(crate) fn pinned_on_mark(
         .iter()
         .all(|h| h.principal.map(|(a, _)| a) == Some(k))
         && place.view.as_deref() == Some(["side", "front", "plan"][k])
+}
+
+/// Where glyph *g* would attach: the index of the principal view down its holes' common axis and the holes
+/// whose bores its faces are (one, for a datum symbol); none when it stays where lowering put it,
+/// or when the Spec places it in that view or side.
+fn target<'h>(
+    analysis: &Analysis,
+    spec: &Spec,
+    plan: &Plan,
+    holes: &[&'h Hole<'h>],
+    g: &gdt::PlannedGdt,
+) -> Option<(usize, BTreeSet<&'h str>)> {
+    let owners = bore_owners(analysis, holes, &g.faces)?;
+    if g.kind != "control_frame" && owners.len() != 1 {
+        return None;
+    }
+    // The principal view down the holes' common axis.
+    let k = owners[0].principal.map(|(k, _)| k)?;
+    if owners
+        .iter()
+        .any(|h| h.principal.map(|(a, _)| a) != Some(k))
+    {
+        return None;
+    }
+    let vi = plan.views.iter().position(|v| {
+        super::NAMES.contains(&v.id.trim_start_matches("v:")) && v.direction[k].abs() > 0.999
+    })?;
+    if spec
+        .annotations
+        .get(&g.id)
+        .and_then(|a| a.place.as_ref())
+        .is_some_and(|p| lowered(p, plan.views[vi].id.trim_start_matches("v:")))
+    {
+        return None;
+    }
+    Some((vi, owners.iter().map(|h| h.feature.id.as_str()).collect()))
+}
+
+/// The frames and datum symbols of *plan* that attach to a hole's mark ([`attach`]) when the
+/// drawing is finished as it stands, each with the size callout it attaches to (none for a table
+/// tag). A table row cannot take such a callout's place: a frame on several holes has no tag to
+/// attach to and a tag may have no room, so the glyph would keep a leader to faces that do not say
+/// which hole it controls (dw-examples CTC-05's datum B and runout, FTC-10's cylindricity).
+pub(crate) fn attachments(analysis: &Analysis, plan: &Plan) -> BTreeMap<String, Option<String>> {
+    let mut finished = plan.clone();
+    attach(analysis, &plan.spec, &mut finished);
+    let read = crate::bridge::holes::read(analysis);
+    let holes: Vec<&Hole> = read.iter().filter_map(|(_, h)| h.as_ref().ok()).collect();
+    finished
+        .gdt
+        .iter()
+        .filter(|g| attached(g))
+        .filter_map(|g| {
+            let (vi, named) = target(analysis, &plan.spec, &finished, &holes, g)?;
+            let m = mark(&finished, &named, &finished.views[vi].id)?;
+            Some((g.id.clone(), (!m.tag).then_some(m.id)))
+        })
+        .collect()
 }
 
 /// Whether glyph *g* was attached to a hole's mark here, so a pin on it holds that ink rather

@@ -2547,8 +2547,9 @@ and section furniture; their resolved `label_box` is also judged by structural
 lint and the SVG quality instrument. Pins keep their callout or location ink. A row replaces a
 semantic PMI size callout too: it prints the callout's text (band, fit or thread) verbatim, and
 the callout's PMI claim moves to the first row of its holes, so every PMI size is stated once.
-Where replacing those callouts would add an error the drawing without schedules lacks, the
-schedules are installed again with them kept beside their rows. Auto retains authored size
+Where replacing those callouts would add an error the drawing without schedules lacks, or would
+detach a frame or datum symbol that attaches to a hole's mark with them kept, the schedules are
+installed again with them kept beside their rows. Auto retains authored size
 fits/tolerances. Coordinate tolerances keep their original span.
 
 Table-owned callouts remain as stable covered dimensions; retired linear spans
