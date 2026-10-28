@@ -1320,6 +1320,13 @@ basis, placed, reference?, determined_by?}`:
     (a symmetric octagon's, a bracket's two chamfers) are stated once, `2× v`, as
     `…f<face>_<n>_<m>`, and lint reads a counted station as locating its mirror; the `linear`
     choice, or a Spec naming either station, states each on its own;
+  - a 45° chamfer across a right corner (such a cut whose two corners are both 135°, so its legs
+    are equal) is called out by its size instead, `C<leg>` as an edge chamfer is, with a leader
+    to the cut, and equal ones of a face share one counted callout, `4× C21.075` (maintainer
+    2026-10-28), `d:envelope/profile_chamfer.length.f<face>_e<i>`. Only its principal edges'
+    missing offsets get stations; its legs need none. Lint credits the callout with both
+    corners' 135° when its size is the cut's leg, and locates the cut from its principal edges'
+    offsets. A Spec naming either corner's angle (`{}` or `omit`) keeps that cut as before;
   - any other corner gets its angle in the principal view that shows it true,
     `d:envelope/profile_angle.angle.f<face>_e<i>_e<j>`. Completing it with stations is the
     explicit `linear` choice below: stations are ordinary dimensions, and completing every
@@ -1328,8 +1335,8 @@ basis, placed, reference?, determined_by?}`:
     sides are equal) gets one counted angle, `6× 120°` as
     `d:envelope/profile_angle.angle.f<face>`, never one per corner. Lint proves the count from
     the closed loop of visible edges through the drawn corner. An octagon of equal corners but
-    unequal sides (FTC-08's and STC-08's chamfered rectangle) is completed linearly instead, or
-    takes its counted `8× 135°` under the `angle` choice.
+    unequal sides (FTC-08's and STC-08's chamfered rectangle) takes its chamfers' `4× C21.075`
+    instead, or its counted `8× 135°` under the `angle` choice.
 
   Lint reports a corner whose angle is drawn but whose edges no drawn linear dimension places
   (`profile_corner_unlocated`): a principal edge needs its offset, an oblique edge both
