@@ -13,7 +13,8 @@ All notable changes to draftwright-rust are recorded here, in the style of
   width, length, `2× R` and low-end location. It now states its width, its low end's centre
   located from the part's box, and the centres' distance apart (`slot_centres.length`), as two
   arcs located, with no length or end radius (the width and the located centres fix the
-  full-round ends); review asks the same of it. On dw-examples' gantry-plate, splitting both long
+  full-round ends), and a centre mark at each end centre for those dimensions to end on;
+  review asks the same of it. On dw-examples' gantry-plate, splitting both long
   slots gives `2× 20` between centres that stand on the hole columns (the low centre is located by
   the `22.75` hole location) in place of `2× 25`, `20.25` and two `2× R2.5` leaders; on
   nema17-mount-bracket, `10` and `2× 30` in place of `8`, `2× 34` and two `2× R2` (and the

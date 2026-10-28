@@ -102,6 +102,7 @@ mod recesses;
 mod redundancy;
 mod schemes;
 mod slots;
+pub(crate) use slots::located_end_centres;
 mod steps;
 mod stock;
 mod tolerance;
@@ -2286,7 +2287,11 @@ fn recess_chain_scale_uncached(analysis: &Analysis) -> f64 {
                 // reservation is for the newly native recess information.
                 return native.then_some(crate::sheet_fit::MIN_OPENING / w.value);
             }
-            let feature = w.id.strip_suffix("/slot_length.length")?;
+            // A slot dimensioned by its end centres states their distance apart in its
+            // length's place, chained from the same location.
+            let feature =
+                w.id.strip_suffix("/slot_length.length")
+                    .or_else(|| w.id.strip_suffix("/slot_centres.length"))?;
             if !items
                 .iter()
                 .any(|other| other.id == format!("{feature}/location_slot.length"))

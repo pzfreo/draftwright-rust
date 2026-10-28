@@ -353,8 +353,9 @@ On a lone slot, `split` keeps it out of its congruent obround slots' `N× SLOT W
 A full-round obround (its end radius half its width) split this way is dimensioned by its two
 end centres, as two arcs located: its width, its low end's centre located from the part's box
 (`location_slot.length`), and the centres' distance apart (`slot_centres.length`, the length less
-the width), with no length or end radius, which the width and the located centres fix. Review
-asks the same of it. Any other split slot (a keyhole, a straight slot, an obround whose ends are
+the width), with no length or end radius, which the width and the located centres fix. A
+centre mark is drawn at each end centre for those dimensions to end on. Review asks the same of
+it. Any other split slot (a keyhole, a straight slot, an obround whose ends are
 not full-round) is dimensioned singly (width, length, end radius, low-end location). Splitting
 one of two congruent slots leaves the other alone in its group, so it too is dimensioned singly;
 split both to dimension both by their centres. Without `split` nothing changes.

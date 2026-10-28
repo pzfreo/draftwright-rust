@@ -1107,9 +1107,19 @@ fn a_slot_split_by_the_spec_is_dimensioned_by_its_end_centres() {
             .collect()
     };
 
+    // Centre marks at its end centres, where its centre dimensions end.
+    let end_marks = |plan: &Plan| -> usize {
+        plan.views
+            .iter()
+            .flat_map(|v| &v.line_work)
+            .filter(|w| w.kind == "cross" && w.id.contains(":f:slot:2:end"))
+            .count()
+    };
+
     let unsplit = model::plan_recovered(&a, &Spec::default()).unwrap();
     assert_eq!(claims(&unsplit, "slot_width.length"), ["3× SLOT 6 × 20"]);
     assert!(claims(&unsplit, "slot_centres.length").is_empty());
+    assert_eq!(end_marks(&unsplit), 0);
 
     let spec: Spec =
         serde_json::from_value(serde_json::json!({"features": {"f:slot:2": {"split": true}}}))
@@ -1127,6 +1137,7 @@ fn a_slot_split_by_the_spec_is_dimensioned_by_its_end_centres() {
     assert_eq!(claims(&plan, "slot_centres.length"), ["14"]);
     assert!(claims(&plan, "slot_length.length").is_empty());
     assert!(claims(&plan, "slot_end_radius.radius").is_empty());
+    assert_eq!(end_marks(&plan), 2);
     // Its low end's centre is located from the part's box, R3 in from the low end.
     let f = a.features.iter().find(|f| f.id == "f:slot:2").unwrap();
     let o = draftwright::lint::slots::outline(&a, f).unwrap();

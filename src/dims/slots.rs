@@ -30,6 +30,7 @@
 //! centres (`lint::slots::ends_located`): its width, its low end's centre located from the part's
 //! box, and the centres' distance apart (`slot_centres.length`), as two arcs located; the width
 //! with the located centres fixes its full-round ends, so no length or end radius is stated.
+//! `centrelines` draws a centre mark at each end centre ([`located_end_centres`]).
 //!
 //! A **slot pattern** (quiddity's `SlotArray` or `SlotGrid`, a `slot_pattern` feature naming its
 //! member slots) is called out once, as draftwright's `render_slot_patterns` does, in the view that
@@ -764,6 +765,39 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     }
     located_across(cx, across, &mut out, &mut problems);
     (out, problems)
+}
+
+/// The end centres of each lone slot dimensioned by them ([`crate::lint::slots::ends_located`]),
+/// in the part's frame, with the axis it passes through and its end radius: a dimension to a
+/// centre ends on a drawn centre mark (ISO 129-1), which `centrelines` draws there.
+pub(crate) fn located_end_centres(
+    analysis: &crate::model::Analysis,
+) -> Vec<(&Feature, usize, [P3; 2], f64)> {
+    let frame = QFrame(crate::bridge::holes::frame(analysis));
+    let patterned: BTreeSet<&str> = analysis
+        .features
+        .iter()
+        .filter(|p| p.kind == "slot_pattern")
+        .filter_map(|p| p.parameters.get("slots").and_then(Value::as_array))
+        .flatten()
+        .filter_map(Value::as_str)
+        .collect();
+    analysis
+        .features
+        .iter()
+        .filter(|f| f.kind == "slot" && !patterned.contains(f.id.as_str()))
+        .filter(|f| crate::lint::slots::ends_located(analysis, f))
+        .filter_map(|f| read(f, &frame).ok())
+        .filter_map(|s| {
+            let r = s.end_radius?;
+            Some((
+                s.feature,
+                s.deep,
+                [s.at(s.ends[0] + r, s.centre), s.at(s.ends[1] - r, s.centre)],
+                r,
+            ))
+        })
+        .collect()
 }
 
 /// The slots' locations across their widths, from the part's box to each centre line: one
