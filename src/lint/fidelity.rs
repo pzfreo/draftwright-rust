@@ -716,7 +716,6 @@ fn datum_leader(d: &Drawn) -> Option<LintIssue> {
     })
 }
 
-/// Recognise perpendicular extension lines and a parallel dimension line at any rotation.
 /// A half dimension's span in a half section ([`crate::half_section`]): one witness parallel to
 /// the *axis* (the page coordinate crossing it, and its value there) and the dimension line
 /// across it, the diameter twice the witness's distance from the axis.
@@ -728,6 +727,7 @@ fn half_span(lines: &[[P; 2]], (k, at): (usize, f64)) -> Option<f64> {
     (along(w) && across).then(|| 2.0 * (w[0][k] - at).abs())
 }
 
+/// Recognise perpendicular extension lines and a parallel dimension line at any rotation.
 fn aligned_span(lines: &[[P; 2]]) -> Option<f64> {
     let [a, b, d] = lines else { return None };
     let delta = [d[1][0] - d[0][0], d[1][1] - d[0][1]];

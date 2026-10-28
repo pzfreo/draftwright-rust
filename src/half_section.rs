@@ -74,6 +74,8 @@ struct Split {
     per_mm: f64,
     origin: f64,
     scale: f64,
+    /// The world axis the part turns about.
+    axis: usize,
 }
 
 impl Split {
@@ -94,6 +96,7 @@ impl Split {
             per_mm: a[along] - o[along],
             origin: h.origin[h.axis],
             scale: v.scale,
+            axis: h.axis,
         }
     }
 
@@ -291,9 +294,42 @@ pub(crate) fn apply(analysis: &Analysis, plan: &mut Plan) {
             "; drawn as a half section (ISO 128-50), half as seen and half cut on the turning axis, as the spec asks"
         });
         v.half_section = Some(half);
+        drop_cut_away_axes(analysis, &mut plan.views[i]);
         let v = plan.views[i].clone();
         follow(analysis, plan, &v, &t);
     }
+}
+
+/// The centre lines of holes the half section cuts away (wholly in front of its plane, on its
+/// cut half) go with them, as a full section's do.
+fn drop_cut_away_axes(analysis: &Analysis, v: &mut PlannedView) {
+    let Some(h) = v.half_section.clone() else {
+        return;
+    };
+    let split = Split::new(analysis, v, &h);
+    let n = h.cut(v).normal;
+    let dot = |a: [f64; 3], b: [f64; 3]| (0..3).map(|k| a[k] * b[k]).sum::<f64>();
+    let gone: Vec<String> = holes::read(analysis)
+        .into_iter()
+        .filter_map(|(_, r)| r.ok())
+        .filter(|r| {
+            let radius = 0.5
+                * r.diameter
+                    .max(r.counterbore.map_or(0.0, |c| c.diameter))
+                    .max(r.spotface.map_or(0.0, |c| c.diameter))
+                    .max(r.countersink.map_or(0.0, |c| c.diameter));
+            dot(r.direction, n).abs() < 1e-6
+                && dot([0, 1, 2].map(|k| r.at[k] - h.origin[k]), n) < -radius - 1e-6
+        })
+        .map(|r| format!("ink:{}:{}", v.id, r.feature.id))
+        .collect();
+    v.line_work.retain(|w| {
+        !(gone.contains(&w.id)
+            && crate::centrelines::segments(w)
+                .iter()
+                .flatten()
+                .all(|&p| split.in_cut(p)))
+    });
 }
 
 /// The half section of view *v*: cut on the side of the axis its lengths are dimensioned on
@@ -408,7 +444,52 @@ fn follow(analysis: &Analysis, plan: &mut Plan, v: &PlannedView, t: &Turned) {
                     .total_cmp(&(p.arrows[j][0][across] - station).abs())
             })
             .unwrap_or(0);
-        p.lines = vec![p.lines[cut], [a, b]];
+        // A repeated edge keeps the witness from the instance nearest the dimension line, so it
+        // does not cross the section to the far one.
+        let mut witness = p.lines[cut];
+        let f = foot(&witness);
+        if let Some(t) = nearest_instance(analysis, &d.measurements, &split, feet[cut], l.offset) {
+            witness[f][split.along] = t;
+        }
+        p.lines = vec![witness, [a, b]];
         p.arrows = vec![p.arrows[arrow]];
     }
+}
+
+/// The page coordinate along the axis of a repeated edge's instance nearest *toward* (the
+/// dimension line): the edge at *foot* sits at a fixed offset along its feature's own axis from
+/// the nearest measured feature's location, and every measured instance has its own edge there.
+/// None when the dimension measures one feature or its records give no location and axis.
+fn nearest_instance(
+    analysis: &Analysis,
+    measurements: &[crate::dims::Measurement],
+    split: &Split,
+    foot: [f64; 2],
+    toward: f64,
+) -> Option<f64> {
+    if measurements.len() < 2 {
+        return None;
+    }
+    let frame = holes::frame(analysis);
+    let placed: Vec<(f64, f64)> = measurements
+        .iter()
+        .map(|m| {
+            let f = analysis.features.iter().find(|f| f.id == m.feature)?;
+            let at = holes::to_part(&frame, holes::point(f.parameters.get("location"))?);
+            let axis = holes::dir_to_part(&frame, holes::point(f.parameters.get("axis"))?);
+            Some((at[split.axis], axis[split.axis]))
+        })
+        .collect::<Option<_>>()?;
+    let (station, _) = split.polar(foot);
+    let (at, dir) = *placed
+        .iter()
+        .min_by(|a, b| (station - a.0).abs().total_cmp(&(station - b.0).abs()))?;
+    if dir.abs() < 0.5 {
+        return None;
+    }
+    let u = (station - at) * dir;
+    placed
+        .iter()
+        .map(|&(at, dir)| split.o + (at + u * dir - split.origin) * split.per_mm)
+        .min_by(|a, b| (a - toward).abs().total_cmp(&(b - toward).abs()))
 }

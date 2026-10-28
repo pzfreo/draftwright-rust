@@ -14,8 +14,9 @@ All notable changes to draftwright-rust are recorded here, in the style of
   no caption or cutting-plane line, unless the plan already has a full section. The cut half is
   the side the view's lengths are dimensioned on; witnesses on internal edges move to their
   mirror in the cut half, and an internal diameter becomes a half dimension (one arrow on the cut
-  edge, its line past the axis), which lint's label-against-measurement check reads from the
-  axis. dw-examples' bearing-lm10uu shows its ⌀16.4 × 1.4 recesses, ⌀11.2 × 0.7 rings and ⌀10 bore
+  edge, its line past the axis, its witness from the repeated edge nearest the dimension line),
+  which lint's label-against-measurement check reads from the axis. Centre lines of holes the
+  half section cuts away go with them. dw-examples' bearing-lm10uu shows its ⌀16.4 × 1.4 recesses, ⌀11.2 × 0.7 rings and ⌀10 bore
   as section edges instead of overlapping hidden lines, its `2× ⌀11.2` and `0.7`s on them;
   cadgenbench's flanged spool 132 shows its ⌀62 bore and ⌀70 ↧ 10 spotface cut in the right half
   of its front view. No other dw-examples drawing or quality part qualifies (lm8uu's and 608zz's

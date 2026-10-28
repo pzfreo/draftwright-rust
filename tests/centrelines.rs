@@ -1007,6 +1007,14 @@ fn a_turned_part_with_a_stepped_bore_draws_its_profile_as_a_half_section() {
         .unwrap();
     assert_eq!((ring_dim.lines.len(), ring_dim.arrows.len()), (2, 1));
     assert!((ring_dim.lines[0][0][k] - ring).abs() < 1e-6);
+    // Its witness starts at the ring nearer the dimension line, not across the section from
+    // the far one.
+    let witness = ring_dim.lines[0];
+    let run = (witness[0][1 - k] - witness[1][1 - k]).abs();
+    assert!(
+        run < 0.5 * (area[3 - k] - area[1 - k]),
+        "{witness:?} in {area:?}"
+    );
     let line = ring_dim.lines[1];
     assert!((line[0][k] - axis) * (line[1][k] - axis) < 0.0, "{line:?}");
     // The rings' heights: witnesses from the cut half.
@@ -1090,5 +1098,43 @@ fn the_spec_forces_or_forbids_a_half_section() {
         p.problems
             .iter()
             .any(|q| q.id == "p:section_not_shown:v:front" && q.severity == "warning")
+    );
+}
+
+#[test]
+fn a_half_section_drops_the_centre_lines_of_holes_it_cuts_away() {
+    let Some(dir) = corpus::dir() else { return };
+    let (_, a) = cache::native(&dir.join("cadgenbench/flanged_spool_132.step"));
+    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let v = p.views.iter().find(|v| v.half_section.is_some()).unwrap();
+    let h = v.half_section.as_ref().unwrap();
+    let n = h.cut(v).normal;
+    let r = h.rect(&a, v, true);
+    let in_cut = |q: [f64; 2]| r[0] <= q[0] && q[0] <= r[2] && r[1] <= q[1] && q[1] <= r[3];
+    let mut kept = 0;
+    for (f, hole) in draftwright::bridge::holes::read(&a) {
+        let Ok(hole) = hole else { continue };
+        let Some(w) = v
+            .line_work
+            .iter()
+            .find(|w| w.id == format!("ink:{}:{}", v.id, f.id))
+        else {
+            continue;
+        };
+        if !draftwright::centrelines::segments(w)
+            .iter()
+            .flatten()
+            .all(|&q| in_cut(q))
+        {
+            continue;
+        }
+        // A hole marked on the cut half is one the cutting plane passes through.
+        let off: f64 = (0..3).map(|k| (hole.at[k] - h.origin[k]) * n[k]).sum();
+        assert!(off.abs() <= hole.diameter, "{}: {off}", f.id);
+        kept += 1;
+    }
+    assert!(
+        kept > 0,
+        "the holes on the cutting plane keep their centre lines"
     );
 }
