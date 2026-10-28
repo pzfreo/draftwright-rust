@@ -3044,20 +3044,20 @@
     "side": "rust",
     "family": "envelope",
     "view": "side",
-    "label": "104.302°",
+    "label": "13.978",
     "count": 1,
     "verdict": "rust-correct",
-    "reason": "LINT-angular-profile_angle_requirement: the port now plans the angle of each non-right convex outer-profile corner its linear dimensions do not fix, in the view that shows it true (ISO 129-1: a corner needs its geometry defined). The captured draftwright sheet for this part does not state these angles. Angles with no clear place are planned but dropped (angular_dimension_dropped) and lint still reports their corners."
+    "reason": "LINT-angular-profile_angle_requirement (#217): the cut on m10046's face 14 profile (an oblique edge between two principal edges) is located by its legs, each missing station from the nearer side of the part's box, instead of two angles that fix its direction but not where it lies. The captured draftwright sheet for this part does not state these stations."
   },
   {
     "part": "m10046",
     "side": "rust",
     "family": "envelope",
     "view": "side",
-    "label": "75.698°",
+    "label": "18.759",
     "count": 1,
     "verdict": "rust-correct",
-    "reason": "LINT-angular-profile_angle_requirement: the port now plans the angle of each non-right convex outer-profile corner its linear dimensions do not fix, in the view that shows it true (ISO 129-1: a corner needs its geometry defined). The captured draftwright sheet for this part does not state these angles. Angles with no clear place are planned but dropped (angular_dimension_dropped) and lint still reports their corners."
+    "reason": "LINT-angular-profile_angle_requirement (#217): the cut on m10046's face 14 profile (an oblique edge between two principal edges) is located by its legs, each missing station from the nearer side of the part's box, instead of two angles that fix its direction but not where it lies. The captured draftwright sheet for this part does not state these stations."
   },
   {
     "part": "m10127",

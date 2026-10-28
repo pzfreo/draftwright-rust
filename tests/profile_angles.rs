@@ -1,9 +1,10 @@
 //! LINT-angular-profile_angle_requirement (ISO 129-1, ASME Y14.5): an outer-profile corner
 //! needs its geometry defined, not necessarily its angle printed. A corner the linear
-//! dimensions fix needs no angle; one a single station short is completed linearly; any other
-//! gets its angle; a closed polygon's equal corners get one counted angle; an angle with no
-//! clear place is dropped and stays a lint warning; Spec overrides choose per corner and per
-//! profile.
+//! dimensions fix needs no angle; a cut across a corner of principal edges is located by its
+//! legs by default (#217), any other corner gets its angle; a regular polygon's equal corners
+//! get one counted angle; an angle with no clear place is dropped and
+//! stays a lint warning, and an angle whose edge no linear dimension places is reported; Spec
+//! overrides choose per corner and per profile.
 #[path = "common/corpus.rs"]
 mod corpus;
 
@@ -38,6 +39,8 @@ fn part(corners: &[[f64; 2]]) -> Analysis {
         "binding":{"source_sha256":"","part":"test","face_count":20,"loader":"test"},
         "envelope":[[lo[0],lo[1],0],[hi[0],hi[1],10]],"iso_bounds":[lo[0],lo[1],hi[0],hi[1]],
         "features":[],
+        // One (empty) attachment per face, so the Spec can name `face:1`.
+        "face_attachments":vec![json!({}); 20],
         "outer_profiles":[{"face":1,"body_faces":(1..=12).collect::<Vec<_>>(),
             "edges":(1..=n).collect::<Vec<_>>(),"profile":{"origin":[0,0,10],"normal":[0,0,1],
             "schema_version":1,"boundary_kind":"outer","inner_loop_count":0,"supports":supports}}]}))
@@ -122,21 +125,59 @@ fn a_linearly_fixed_corner_needs_no_angle() {
     );
 }
 
-/// One station short is still not fixed: by default the corner gets its angle. Completing it
-/// linearly is the profile's `linear` choice (see the CTC-03 test), never automatic.
+/// A placed station's value and the coordinate it locates: its dimension is measured from one
+/// side of the part's box (*lo*..*hi* on its axis).
+fn station_reaches(d: &PlannedDimension, v: f64, lo: f64, hi: f64) -> bool {
+    let value: f64 = d.label.parse().unwrap();
+    (value - (v - lo)).abs() < 1e-3 || (value - (hi - v)).abs() < 1e-3
+}
+
+/// One station short is not fixed: by default it is completed linearly (#217), with no angle.
 #[test]
-fn a_nearly_fixed_corner_gets_its_angle_by_default() {
+fn a_nearly_fixed_corner_is_completed_linearly_by_default() {
     let a = part(&TRAPEZOID);
     assert_eq!(profile_angles::requirements(&a).len(), 2);
     let p = plan(&a, json!({}));
-    assert_eq!(angles(&p).len(), 2, "{:?}", angles(&p));
-    assert!(stations(&p).is_empty(), "{:?}", stations(&p));
+    assert!(angles(&p).is_empty(), "{:?}", angles(&p));
+    let found = stations(&p);
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert!(
+        found[0]
+            .id
+            .starts_with("d:envelope/profile_location_x.length.f1_")
+    );
+    assert!(
+        station_reaches(found[0], 30., 0., 40.),
+        "{}",
+        found[0].label
+    );
+    assert!(found[0].placed.is_some());
 }
 
+/// Two angles fix the sloping edge's direction, not where it lies (l-plate-5-holes, #217): an
+/// under-defined corner gets the stations of its edge's ends, never an angle alone.
 #[test]
-fn an_under_defined_corner_gets_its_angle() {
+fn an_under_defined_corner_gets_its_stations_not_an_angle() {
     let a = part(&PENTAGON);
     let p = plan(&a, json!({}));
+    assert!(angles(&p).is_empty(), "{:?}", angles(&p));
+    let found = stations(&p);
+    assert_eq!(found.len(), 2, "{found:?}");
+    assert!(
+        found
+            .iter()
+            .any(|d| d.id.contains("location_x") && station_reaches(d, 25., 0., 40.))
+    );
+    assert!(
+        found
+            .iter()
+            .any(|d| d.id.contains("location_y") && station_reaches(d, 10., 0., 20.))
+    );
+    // The profile's `angle` choice still gives each corner its angle.
+    let p = plan(
+        &a,
+        json!({"faces": {"face:1": {"profile_corners": "angle"}}}),
+    );
     let found = angles(&p);
     assert_eq!(found.len(), 2, "{found:?}");
     for d in &found {
@@ -149,6 +190,147 @@ fn an_under_defined_corner_gets_its_angle() {
         assert_eq!(d.measurements.len(), 1);
     }
     assert!(stations(&p).is_empty());
+}
+
+/// A station whose corner lies on the view's silhouette is drawn on that side, so neither
+/// witness runs over the part (l-plate-5-holes' two `20`s ran through the plate, #217): the
+/// pentagon's y = 10 corner is on the right edge, though the plan's vertical strip is on the left.
+#[test]
+fn a_station_is_drawn_on_the_side_its_corner_is_open_to() {
+    let a = part(&PENTAGON);
+    let p = plan(&a, json!({}));
+    let view = p.views.iter().find(|v| v.id == "v:plan").unwrap();
+    // The part's 40 × 20 box on the page, about the view's centre.
+    let (hx, hy) = (20. * view.scale, 10. * view.scale);
+    let inside = |q: [f64; 2]| {
+        (q[0] - view.at[0]).abs() < hx - 1e-6 && (q[1] - view.at[1]).abs() < hy - 1e-6
+    };
+    let found = stations(&p);
+    assert_eq!(found.len(), 2, "{found:?}");
+    for d in found {
+        let placed = d.placed.as_ref().unwrap();
+        for w in &placed.lines[..2] {
+            let mid = [(w[0][0] + w[1][0]) / 2., (w[0][1] + w[1][1]) / 2.];
+            assert!(!inside(mid), "{} witness {w:?} runs over the part", d.id);
+        }
+    }
+}
+
+/// An octagon of equal corners but unequal sides (STC-08's chamfered rectangle) is not a
+/// regular polygon: no counted `8× 135°`, its corners are located linearly (#217).
+#[test]
+fn an_irregular_equal_angled_octagon_is_located_linearly() {
+    let a = part(&[
+        [5., 0.],
+        [35., 0.],
+        [40., 5.],
+        [40., 15.],
+        [35., 20.],
+        [5., 20.],
+        [0., 15.],
+        [0., 5.],
+    ]);
+    assert_eq!(profile_angles::requirements(&a).len(), 8);
+    let p = plan(&a, json!({}));
+    assert!(angles(&p).is_empty(), "{:?}", angles(&p));
+    // x = 5 and 35, y = 5 and 15 locate every corner's edges. Each axis's two are equal from
+    // opposite sides of the box, so each is stated once with its count, never twice (FTC-08).
+    let found = stations(&p);
+    assert_eq!(found.len(), 2, "{found:?}");
+    for d in &found {
+        assert_eq!(d.label, "2× 5");
+        assert_eq!(d.measurements.len(), 2);
+        assert!(d.placed.is_some(), "{}", d.id);
+    }
+    assert_ne!(found[0].id, found[1].id);
+    // The `linear` choice, or a Spec naming one station, states each station on its own.
+    let p = plan(
+        &a,
+        json!({"faces": {"face:1": {"profile_corners": "linear"}}}),
+    );
+    assert_eq!(stations(&p).len(), 4, "{:?}", stations(&p));
+    let p = plan(
+        &a,
+        json!({"dimensions": {"d:envelope/profile_location_x.length.f1_0": {}}}),
+    );
+    let found = stations(&p);
+    assert_eq!(found.len(), 3, "{found:?}");
+    assert_eq!(
+        found.iter().filter(|d| d.label == "5").count(),
+        2,
+        "{found:?}"
+    );
+    // The profile's `angle` choice keeps its one counted angle.
+    let p = plan(
+        &a,
+        json!({"faces": {"face:1": {"profile_corners": "angle"}}}),
+    );
+    let found = angles(&p);
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0].label, "8× 135°");
+    assert!(stations(&p).is_empty());
+}
+
+/// A corner off a cut (here a triangle's base corners, whose sloping edges meet at the apex)
+/// keeps its angle by default: only a cut across a corner of principal edges is located by its
+/// legs automatically.
+#[test]
+fn a_corner_off_a_cut_keeps_its_angle() {
+    let a = part(&[[0., 0.], [40., 0.], [20., 20.]]);
+    assert_eq!(profile_angles::requirements(&a).len(), 2);
+    let p = plan(&a, json!({}));
+    assert!(stations(&p).is_empty(), "{:?}", stations(&p));
+    let found = angles(&p);
+    assert_eq!(found.len(), 1, "{found:?}");
+    assert_eq!(found[0].label, "2× 45°");
+}
+
+/// An angle drawn where no linear dimension places its edge is reported (#217): the profile's
+/// `angle` choice on the pentagon draws both angles but not the stations x = 25 and y = 10.
+#[test]
+fn an_angle_whose_edge_is_not_located_is_reported() {
+    let a = part(&PENTAGON);
+    let corners = profile_angles::requirements(&a);
+    let box_only: Vec<(usize, f64, f64)> = Vec::new();
+    let located = |k: usize, v: f64| profile_angles::rooted(&a, &box_only, k, v);
+    assert!(
+        corners
+            .iter()
+            .all(|c| !profile_angles::located_with_angle(c, &located))
+    );
+    // One fully located end of the sloping edge places it once its angle is stated.
+    let chain = vec![(0, 0., 25.)];
+    let located = |k: usize, v: f64| profile_angles::rooted(&a, &chain, k, v);
+    assert!(
+        corners
+            .iter()
+            .all(|c| profile_angles::located_with_angle(c, &located))
+    );
+    // End to end on the pentagon fixture part, whose corners are not cuts: by default (and under
+    // its `angle` choice) it gets angles but no stations, so lint reports the corners whose
+    // edges stay unplaced; its `linear` choice locates them and nothing is reported.
+    let pentagon = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/coverage-holes/profile-pentagon.step");
+    let unlocated = |r: &api::Review| -> Vec<String> {
+        r.lint
+            .iter()
+            .filter(|i| i.code == "profile_corner_unlocated")
+            .flat_map(|i| i.subjects.clone())
+            .collect()
+    };
+    let r = review(
+        &pentagon,
+        json!({"faces": {"face:6": {"profile_corners": "angle"}}}),
+    );
+    assert!(!unlocated(&r).is_empty(), "{:?}", r.lint);
+    let r = review(&pentagon, json!({}));
+    assert!(!unlocated(&r).is_empty(), "{:?}", r.lint);
+    let r = review(
+        &pentagon,
+        json!({"faces": {"face:6": {"profile_corners": "linear"}}}),
+    );
+    assert!(unlocated(&r).is_empty(), "{:?}", r.lint);
+    assert!(missing(&r).is_empty(), "{:?}", r.lint);
 }
 
 #[test]
@@ -180,7 +362,7 @@ fn a_shown_corner_keeps_its_angle_and_a_hidden_one_is_omitted() {
     // Show an angle the defaults would draw anyway: it stays, now listed in the spec.
     let p = plan(&a, json!({"dimensions": {&id: {}}}));
     assert!(angles(&p).iter().any(|d| d.id == id), "{:?}", angles(&p));
-    // Hide an angle the planner would draw.
+    // Hide a corner's angle: the id stays known, omitted, and its stations are still drawn.
     let b = part(&PENTAGON);
     let hidden = angle_id(&profile_angles::requirements(&b)[0].feature);
     let p = plan(&b, json!({"dimensions": {&hidden: {"omit": true}}}));
@@ -191,7 +373,8 @@ fn a_shown_corner_keeps_its_angle_and_a_hidden_one_is_omitted() {
             .iter()
             .any(|o| o.id == hidden && o.state == State::OmittedByUser)
     );
-    assert_eq!(angles(&p).len(), 1);
+    assert!(angles(&p).iter().all(|d| d.state == State::OmittedByUser));
+    assert_eq!(stations(&p).len(), 2, "{:?}", stations(&p));
 }
 
 fn ctc03() -> &'static std::path::PathBuf {
@@ -214,6 +397,44 @@ fn missing(r: &api::Review) -> Vec<String> {
         .filter(|i| i.code.starts_with("angular_requirement_"))
         .flat_map(|i| i.requirements.iter().map(|q| q.feature.clone()))
         .collect()
+}
+
+/// FTC-08's chamfered-rectangle octagon is symmetric: its eight stations come in four pairs
+/// equal from opposite sides of the box, each drawn once as `2× v` (no label repeated in the
+/// plan view), and lint reads each counted station as locating its mirror too.
+#[test]
+fn ftc08_mirror_equal_stations_are_stated_once_with_a_count() {
+    let Some(dir) = corpus::dir() else {
+        return;
+    };
+    let path = dir.join("nist/nist_ftc_08_asme1_rc.stp");
+    let a = model::analyse_native(&path).unwrap().1;
+    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let found = stations(&p);
+    assert_eq!(found.len(), 4, "{found:?}");
+    let mut labels: Vec<&str> = found.iter().map(|d| d.label.as_str()).collect();
+    labels.sort();
+    labels.dedup();
+    assert_eq!(labels.len(), 4, "{labels:?}");
+    for d in &found {
+        assert!(d.label.starts_with("2× "), "{}", d.label);
+        assert_eq!(d.measurements.len(), 2);
+        assert!(d.placed.is_some(), "{}", d.id);
+    }
+    assert!(angles(&p).is_empty(), "{:?}", angles(&p));
+    let r = review(&path, json!({}));
+    assert!(
+        !r.lint.iter().any(|i| i.code == "profile_corner_unlocated"),
+        "{:?}",
+        r.lint
+    );
+    assert!(
+        !missing(&r)
+            .iter()
+            .any(|f| f.starts_with("outer_profile:f1:")),
+        "{:?}",
+        r.lint
+    );
 }
 
 /// CTC-03's two mirror-equal 135° corners: by default one counted `2× 135°`, drawn where clear
@@ -266,14 +487,17 @@ fn ctc03_corners_are_stated_by_angle_or_linearly_by_profile_choice() {
     assert!(stations(&p).iter().all(|d| d.placed.is_some()));
 }
 
-/// mfcadpp/10049: a corner whose angle finds no clear place is dropped, never forced, and
-/// lint still reports it missing.
+/// mfcadpp/10049 under the `angle` choice: a corner whose angle finds no clear place is
+/// dropped, never forced, and lint still reports it missing.
 #[test]
 fn a_failed_placement_leaves_the_corner_a_lint_warning() {
     let Some(dir) = corpus::dir() else {
         return;
     };
-    let r = review(&dir.join("mfcadpp/10049.step"), json!({}));
+    let r = review(
+        &dir.join("mfcadpp/10049.step"),
+        json!({"faces": {"face:1": {"profile_corners": "angle"}}}),
+    );
     let dropped: Vec<_> = r
         .problems
         .iter()
@@ -290,19 +514,83 @@ fn a_failed_placement_leaves_the_corner_a_lint_warning() {
     }
 }
 
-/// A mirror pair takes one counted angle.
+/// A plate's face is required even behind a nearer face of another plate (#217: a bent
+/// bracket's base plate behind the motor plate's end face); a plain face stays hidden.
+#[test]
+fn a_plate_face_behind_another_plates_end_is_required() {
+    let mut a = part(&PENTAGON);
+    // The upright plate's end face: a thin strip nearer the camera, on the same body.
+    let mut end = a.outer_profiles[0].clone();
+    end.face = 13;
+    end.edges = vec![21, 22, 23, 24];
+    end.profile = serde_json::from_value(json!({"origin":[0,0,30],"normal":[0,0,1],
+        "schema_version":1,"boundary_kind":"outer","inner_loop_count":0,"supports":[
+            {"kind":"line","start":[0,0,30],"end":[3,0,30]},
+            {"kind":"line","start":[3,0,30],"end":[3,20,30]},
+            {"kind":"line","start":[3,20,30],"end":[0,20,30]},
+            {"kind":"line","start":[0,20,30],"end":[0,0,30]}]}))
+    .unwrap();
+    a.outer_profiles.push(end);
+    assert!(profile_angles::requirements(&a).is_empty());
+    let plate = |id: &str, faces: [usize; 2]| {
+        serde_json::from_value(json!({"id":id,"kind":"plate","faces":faces,"parameters":{},
+            "fingerprint":{"version":"draftwright-bridge/2","family":"plates",
+                "subtype":"Plate","sizes":{},"position":[0,0,0],"neighbourhood":[]}}))
+        .unwrap()
+    };
+    a.features = vec![plate("f:plate:1", [1, 2]), plate("f:plate:2", [13, 14])];
+    let found = profile_angles::requirements(&a);
+    assert_eq!(found.len(), 2, "{found:?}");
+    assert!(
+        found
+            .iter()
+            .all(|c| c.feature.starts_with("outer_profile:f1:"))
+    );
+}
+
+/// A notch's flanks are stated by the notch: CTC-01's plate, now required behind the hex
+/// boss, issues no corner on its V-slots' flank edges.
+#[test]
+fn a_notch_flank_corner_is_left_to_the_notch() {
+    let Some(dir) = corpus::dir() else {
+        return;
+    };
+    let a = model::analyse_native(&dir.join("nist/nist_ctc_01_asme1_rd.stp"))
+        .unwrap()
+        .1;
+    // The notches' flank edges, from their angles' IDs (`notch.angle.f<face>_e<i>_e<j>`).
+    let flanks: Vec<String> = plan(&a, json!({}))
+        .dimensions
+        .iter()
+        .filter_map(|d| d.id.split("/notch.angle.f").nth(1))
+        .flat_map(|s| s.split('_').skip(1).map(str::to_owned).collect::<Vec<_>>())
+        .collect();
+    assert!(!flanks.is_empty());
+    let corners = profile_angles::requirements(&a);
+    for c in &corners {
+        assert!(
+            !c.edge_ids().iter().any(|e| flanks.iter().any(|f| f == e)),
+            "{}",
+            c.feature
+        );
+    }
+}
+
+/// A mirror pair that keeps its angles takes one counted angle.
 #[test]
 fn mirror_equal_corners_get_one_counted_angle() {
-    // A symmetric trapezoid: its two lower corners mirror each other across x = 20, and so do
-    // its two upper ones: two counted angles, each claiming its pair.
-    let a = part(&[[0., 0.], [40., 0.], [30., 20.], [10., 20.]]);
+    // A house: its eaves mirror each other across x = 20 and are not cuts (the ridge meets no
+    // principal edge), so they keep their angles as one `2×`; the ridge keeps its own.
+    let a = part(&[[0., 0.], [40., 0.], [40., 10.], [20., 20.], [0., 10.]]);
     let p = plan(&a, json!({}));
     let found = angles(&p);
     assert_eq!(found.len(), 2, "{found:?}");
-    for d in &found {
-        assert!(d.label.starts_with("2× "), "{}", d.label);
-        assert_eq!(d.measurements.len(), 2);
-    }
+    let pair: Vec<_> = found
+        .iter()
+        .filter(|d| d.label.starts_with("2× "))
+        .collect();
+    assert_eq!(pair.len(), 1, "{found:?}");
+    assert_eq!(pair[0].measurements.len(), 2);
 }
 
 /// Every placed profile angle stays local to its corner: its arc's radius and its whole label
@@ -319,14 +607,25 @@ fn a_placed_profile_angle_stays_local_to_its_corner() {
         .iter()
         .map(|c| {
             let a = part(c);
-            let p = plan(&a, json!({}));
+            let p = plan(
+                &a,
+                json!({"faces": {"face:1": {"profile_corners": "angle"}}}),
+            );
             (a, p)
         })
         .collect();
-    for f in [
-        "profile-pentagon.step",
-        "profile-trapezoid.step",
-        "profile-triangle.step",
+    // Each profile under the `angle` choice: by default its corners are located linearly.
+    let angle = |faces: &[usize]| -> Spec {
+        let faces: serde_json::Map<String, serde_json::Value> = faces
+            .iter()
+            .map(|f| (format!("face:{f}"), json!({"profile_corners": "angle"})))
+            .collect();
+        serde_json::from_value(json!({ "faces": faces })).unwrap()
+    };
+    for (f, faces) in [
+        ("profile-pentagon.step", &[6][..]),
+        ("profile-trapezoid.step", &[5]),
+        ("profile-triangle.step", &[4]),
     ] {
         let a = model::analyse_native(
             &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -335,20 +634,20 @@ fn a_placed_profile_angle_stays_local_to_its_corner() {
         )
         .unwrap()
         .1;
-        let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+        let p = model::plan_recovered(&a, &angle(faces)).unwrap();
         plans.push((a, p));
     }
     if let Some(dir) = corpus::dir() {
-        for f in [
-            "nist/nist_ftc_08_asme1_rc.stp",
-            "nist/nist_ctc_04_asme1_rd.stp",
-            "nist/nist_ctc_03_asme1_rc.stp",
-            "cadgenbench_inputs/cgb207.step",
-            "mfcadpp/10046.step",
-            "mfcadpp/10049.step",
+        for (f, faces) in [
+            ("nist/nist_ftc_08_asme1_rc.stp", &[1][..]),
+            ("nist/nist_ctc_04_asme1_rd.stp", &[381, 396]),
+            ("nist/nist_ctc_03_asme1_rc.stp", &[37]),
+            ("cadgenbench_inputs/cgb207.step", &[238]),
+            ("mfcadpp/10046.step", &[10, 14, 16, 20]),
+            ("mfcadpp/10049.step", &[1]),
         ] {
             let a = model::analyse_native(&dir.join(f)).unwrap().1;
-            let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+            let p = model::plan_recovered(&a, &angle(faces)).unwrap();
             plans.push((a, p));
         }
     }

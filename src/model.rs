@@ -2352,9 +2352,15 @@ pub fn recover(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, In
             // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
             Sha256::digest(serde_json::to_vec(analysis).expect("Analysis serializes")).into()
         });
-    let bytes = serde_json::to_vec(&(analysis_key, spec, &first, crate::nominal::comparison()))
-        // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
-        .expect("plan inputs serialize");
+    let bytes = serde_json::to_vec(&(
+        analysis_key,
+        spec,
+        &first,
+        crate::nominal::comparison(),
+        UNCAPPED.get(),
+    ))
+    // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
+    .expect("plan inputs serialize");
     let key = crate::planning::spaced_digest(&Sha256::digest(&bytes).into());
     let mut plan = if let Some(plan) = MEMO.get(&key) {
         plan
@@ -2691,6 +2697,23 @@ fn complete_candidate(findings: layout::Findings, extra_view_conflicts: usize) -
 
 #[cfg(test)]
 mod complete_candidate_tests {
+    /// The lifted cap is #217's last resort for one search; it must never leak into a
+    /// later plan on the same thread, even when that search fails.
+    #[test]
+    fn a_lifted_established_cap_is_restored_after_its_search() {
+        use super::*;
+        assert!(!UNCAPPED.get());
+        let inner = with_uncapped(true, || {
+            assert!(UNCAPPED.get());
+            with_uncapped(false, || UNCAPPED.get())
+        });
+        assert!(!inner);
+        assert!(!UNCAPPED.get());
+        let failed = std::panic::catch_unwind(|| with_uncapped(true, || panic!("search failed")));
+        assert!(failed.is_err());
+        assert!(!UNCAPPED.get());
+    }
+
     #[test]
     fn complete_sheet_never_accepts_additional_ink_over_foreign_views() {
         use super::*;
@@ -2715,10 +2738,55 @@ mod complete_candidate_tests {
 }
 
 fn recover_uncached(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, Invalid> {
+    // A first estimate without a table whose search under the established drawing's scale cap
+    // is exhausted gets [`recover_tables`]'s last resort too: the cap has removed every scale,
+    // so the ordinary ladder is searched without it and its drawing taken where it reads better
+    // (STC-08 once #217's corner stations and the cited datums both reach it, its first
+    // estimate placing no table). A table-free baseline (`hole_table: never`) is left to
+    // [`recover_tables`], which applies the same resort itself.
+    let open = (!UNCAPPED.get()
+        && first.hole_tables.is_empty()
+        && spec.hole_table != crate::hole_table::Setting::Never)
+        .then(|| first.clone());
+    let plan = recover_capped(analysis, spec, first)?;
+    if let Some(first) = open
+        && recovery_exhausted(&plan)
+    {
+        let ordinary = with_uncapped(true, || recover_capped(analysis, spec, first))?;
+        if !recovery_exhausted(&ordinary)
+            && recovery_rank(analysis, &ordinary) < recovery_rank(analysis, &plan)
+        {
+            return Ok(ordinary);
+        }
+    }
+    Ok(plan)
+}
+
+fn recover_capped(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, Invalid> {
     let mut plan = recover_callouts(analysis, spec, first)?;
     shorten_wrapped_callouts(analysis, spec, &mut plan);
     recover_recess_corridors(analysis, spec, &mut plan)?;
     Ok(plan)
+}
+
+/// Whether no standard sheet and legible scale gave *p* a valid complete drawing.
+fn recovery_exhausted(p: &Plan) -> bool {
+    p.problems
+        .iter()
+        .any(|q| q.code == "layout_recovery_exhausted")
+}
+
+/// How well a recovered drawing reads, lowest best: hard findings, drops, drawn items past
+/// the paper, ink findings, feature crossings.
+fn recovery_rank(analysis: &Analysis, p: &Plan) -> (usize, usize, bool, usize, usize) {
+    let f = findings(p);
+    (
+        f.hard,
+        f.dropped,
+        !drawn_items_fit(analysis, p),
+        ink_findings(p),
+        feature_crossings(p),
+    )
 }
 
 /// A schedule can make the first sheet complete while leaving a new recess
@@ -3226,7 +3294,8 @@ fn recover_candidates(
     // The existing crossing and leader budgets still constrain each candidate.
     let compare_diagram_fill = min_legible_scale + 1e-9 < first.sheet.scale_factor;
     let established_scale = established_scale.filter(|cap| {
-        *cap >= min_legible_scale
+        !UNCAPPED.get()
+            && *cap >= min_legible_scale
             && established_plan
                 .as_ref()
                 .is_none_or(|p| findings(p).clean())
@@ -4330,6 +4399,23 @@ fn retain_dropped_location(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
     }
 }
 
+thread_local! {
+    static UNCAPPED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Run *run* with the established drawing's scale cap on candidates lifted or kept
+/// ([`recover_tables`]'s last resort).
+fn with_uncapped<T>(uncapped: bool, run: impl FnOnce() -> T) -> T {
+    struct Restore(bool);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            UNCAPPED.set(self.0);
+        }
+    }
+    let _restore = Restore(UNCAPPED.replace(uncapped));
+    run()
+}
+
 fn recover_tables(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, Invalid> {
     // Establish the ordinary recovered geometry before changing presentation. A table must
     // not undo a scale recovery (nor spend one merely because its ladder has disappeared).
@@ -4337,7 +4423,33 @@ fn recover_tables(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan,
     baseline_spec.hole_table = crate::hole_table::Setting::Never;
     let mut seed = first.spec.clone();
     seed.hole_table = crate::hole_table::Setting::Never;
-    let mut baseline = recover(analysis, &baseline_spec, plan_escalated(analysis, &seed)?)?;
+    let unscheduled = plan_escalated(analysis, &seed)?;
+    let baseline = recover(analysis, &baseline_spec, unscheduled.clone())?;
+    let exhausted = recovery_exhausted;
+    let unrecovered = exhausted(&baseline);
+    let scheduled = schedule_recovered(analysis, spec, baseline)?;
+    // Nothing is valid without a table at any scale. The established drawing's scale caps
+    // the ordinary search, whose candidates may escalate to tables; when nothing under the
+    // cap is valid either, the cap has removed every scale rather than preserving an old
+    // corridor, so search the scales the ordinary ladder reaches without it, from the
+    // estimate without a table, as when the first estimate has none (STC-08). Its drawing
+    // is taken when it reads better than the schedule on the first estimate's sheet.
+    if unrecovered && exhausted(&recover(analysis, spec, unscheduled.clone())?) {
+        let ordinary = with_uncapped(true, || recover(analysis, spec, unscheduled))?;
+        let rank = |p: &Plan| recovery_rank(analysis, p);
+        if !exhausted(&ordinary) && rank(&ordinary) < rank(&scheduled) {
+            return Ok(ordinary);
+        }
+    }
+    Ok(scheduled)
+}
+
+/// [`recover_tables`]'s schedule on the sheet its table-free recovery chose.
+fn schedule_recovered(
+    analysis: &Analysis,
+    spec: &Spec,
+    mut baseline: Plan,
+) -> Result<Plan, Invalid> {
     baseline.spec = spec.clone();
     let selection = crate::hole_table::select(analysis, &baseline);
     if selection.tables.is_empty() {

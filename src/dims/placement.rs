@@ -377,7 +377,7 @@ pub(super) enum Side {
 /// except the plan's, which go above it (its x-location tiers); vertical ones right of the front
 /// and the side, and left of the plan (the front/plan column's left band). Callouts take the
 /// outermost lanes: below the front, above the plan and the side.
-fn strip(view: &str, horizontal: bool) -> Side {
+pub(super) fn strip(view: &str, horizontal: bool) -> Side {
     match (view, horizontal) {
         ("plan", true) => Side::Above,
         (_, true) => Side::Below,
@@ -533,6 +533,35 @@ fn body_strip(frame: &Frame, w: &Want, horizontal: bool) -> Option<Side> {
     }
 }
 
+/// The strip of a profile corner station ([`super::profile_angles`], #217) whose corner lies on
+/// the view's silhouette: that side, so the witness from the corner leaves the part at once
+/// rather than crossing it (l-plate-5-holes' two `20`s, whose corners lie on the top and left
+/// edges). None for any other item; a `dimensions/<id>` side places it elsewhere.
+pub(super) fn station_strip(frame: &Frame, w: &Want, horizontal: bool) -> Option<Side> {
+    let Shape::Linear {
+        a,
+        b,
+        a_edge,
+        b_edge,
+        ..
+    } = &w.shape
+    else {
+        return None;
+    };
+    if w.measurements.is_empty()
+        || !w
+            .measurements
+            .iter()
+            .all(|m| m.parameter.starts_with("profile_location_"))
+        || a_edge == b_edge
+    {
+        return None;
+    }
+    let corner = if *a_edge { b } else { a };
+    let (side, gap) = silhouette_gap(frame, *corner, horizontal);
+    (gap <= ON_SILHOUETTE).then_some(side)
+}
+
 /// For each item, the item whose lane it shares, when the defaults merge it away: one span, one
 /// dimension (ARCH0009-6; [`super::bosses::consolidate`], [`super::holes::consolidate`],
 /// [`super::share`]) leaves one dimension on a span that several items measure, so the others
@@ -637,6 +666,8 @@ pub(super) fn lanes<'a>(
                         // A notch mouth on the silhouette is located on that free side,
                         // keeping its witnesses out of the existing opposite-side callouts.
                         silhouette_gap(f, *b, horizontal).0
+                    } else if let Some(side) = station_strip(f, w, horizontal) {
+                        side
                     } else {
                         strip(view, horizontal)
                     },
@@ -2246,11 +2277,57 @@ pub(super) fn clear_linear(
                 page,
                 yield_locations,
             );
+            // Two dimensions left on one dimension line is a hard finding. Where the solve
+            // leaves any, solve once more with the new witnesses kept off the lines of the
+            // locations yielded to them, and keep that where it shares fewer.
+            let shared = shared_lines(&next_placed);
+            if shared > 0 {
+                let mut guarded = (sides.to_vec(), lanes.to_vec(), placed.to_vec());
+                clear_linear_ordered(
+                    analysis,
+                    cache,
+                    views,
+                    frames,
+                    items,
+                    chosen,
+                    &mut guarded.0,
+                    &mut guarded.1,
+                    &mut guarded.2,
+                    obstacles,
+                    locked,
+                    page,
+                    0,
+                    yield_locations,
+                    true,
+                );
+                if shared_lines(&guarded.2) < shared {
+                    (next_sides, next_lanes, next_placed) = guarded;
+                }
+            }
             (next_sides, next_lanes, next_placed)
         });
     sides.copy_from_slice(&next_sides);
     lanes.copy_from_slice(&next_lanes);
     placed.clone_from_slice(&next_placed);
+}
+
+/// How many pairs of placed linear dimensions share one dimension line over overlapping spans.
+fn shared_lines(placed: &[Option<Placed>]) -> usize {
+    let linear: Vec<_> = placed
+        .iter()
+        .flatten()
+        .filter(|p| p.arrows.len() == 2)
+        .collect();
+    linear
+        .iter()
+        .enumerate()
+        .map(|(i, p)| {
+            linear[i + 1..]
+                .iter()
+                .filter(|q| shared_dimension_line(&p.lines, &q.lines))
+                .count()
+        })
+        .sum()
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -2285,6 +2362,7 @@ fn clear_linear_uncached(
         page,
         0,
         yield_locations,
+        false,
     );
     let recess = |w: &Want| {
         !w.measurements.is_empty()
@@ -2365,6 +2443,7 @@ fn clear_linear_uncached(
             page,
             rotation,
             yield_locations,
+            false,
         );
         let now = rank(placed);
         if now < score {
@@ -2396,6 +2475,7 @@ fn clear_linear_ordered(
     page: &Page,
     rotation: usize,
     yield_locations: bool,
+    guard_yielded: bool,
 ) {
     let held = locked.iter().any(|p| *p);
     let established_clear = crate::planning::lookup::<std::collections::BTreeSet<String>>(
@@ -2670,6 +2750,24 @@ fn clear_linear_ordered(
         if (recess_context && !recess_corridor && !label_conflict)
             || (!label_conflict && (!recess_corridor || before == (0, 0)))
         {
+            // A settled location's witness may still reach its station across
+            // another feature inside the body. Without a corridor repair, begin it
+            // beyond the near face on the same lane, as the repair itself would:
+            // this only removes ink, so no other item can gain a contact.
+            if recess_context
+                && !semantic_pmi
+                && new_native
+                && old_location(i)
+                && before.0 > 0
+                && let Some(near_face) =
+                    near_face_start(&LinearStroke::new(p), frames[view].outline(), side)
+            {
+                let mut shortened = p.clone();
+                near_face.write(&mut shortened);
+                if crossings(&shortened).0 < before.0 {
+                    placed[i] = Some(shortened);
+                }
+            }
             continue;
         }
         // Prefer the least obstructed of the opposite strip's first eight lanes.
@@ -2742,11 +2840,34 @@ fn clear_linear_ordered(
             rotation: 0.,
             label_box: [0.; 4],
         });
+        // A settled location yielded to the new witnesses comes back where it was, and
+        // its own repair may find no other lane clear (FTC-08's 49.124 and 64.999, the
+        // slot location held by the slot's callout's leader). In the guarded re-solve
+        // ([`clear_linear`]) a new witness first looks for a lane without a dimension line
+        // over such a location's span; only when none is clear are those lanes tried.
+        let yield_guard = std::cell::Cell::new(guard_yielded);
+        let yield_guarded = std::cell::Cell::new(false);
+        let yielded_line = |c: &Placed| {
+            let shared = yield_guard.get()
+                && pending
+                    .values()
+                    .any(|q| q.arrows.len() == 2 && shared_dimension_line(&c.lines, &q.lines));
+            if shared {
+                yield_guarded.set(true);
+            }
+            shared
+        };
         let mut found = None;
         // Exhaust perpendicular lanes on both sides, including finite start gaps,
         // before considering any oblique witness. Crossing minimisation alone must
         // never trade a readable ordinary location for a diagonal through the body.
-        for oblique in [false, true] {
+        for (pass, oblique) in [(0, false), (0, true), (1, false), (1, true)] {
+            if pass == 1 {
+                if !yield_guarded.get() {
+                    break;
+                }
+                yield_guard.set(false);
+            }
             best_rank.set(None);
             let candidates = choices
                 .iter()
@@ -2827,31 +2948,12 @@ fn clear_linear_ordered(
                         }
                     }
                     if recess_context && !semantic_pmi && new_native {
-                        let normal = usize::from(c.rotation == 0.0);
-                        let out = if matches!(target, Side::Below | Side::Left) {
-                            -1.0
-                        } else {
-                            1.0
-                        };
                         // Keep the projected coordinate, but begin its finite
                         // witness beyond the near side of the projected body when
                         // its original support would traverse a recess. This is the
                         // same perpendicular coordinate with a longer start gap;
                         // no measured station or arrow is shifted sideways.
-                        let outline = frames[view].outline();
-                        let face = outline[normal + if out > 0.0 { 2 } else { 0 }];
-                        let mut near_face = c;
-                        for line in near_face.lines.iter_mut().take(2) {
-                            let from = face + out * GAP;
-                            if out * (from - line[0][normal]) > 0.0 {
-                                line[0][normal] = from;
-                            }
-                        }
-                        if near_face
-                            .lines
-                            .iter()
-                            .take(2)
-                            .all(|l| out * (l[1][normal] - l[0][normal]) > 1.0)
+                        if let Some(near_face) = near_face_start(&c, frames[view].outline(), target)
                         {
                             strokes.push(near_face);
                         }
@@ -3070,6 +3172,7 @@ fn clear_linear_ordered(
                     // Label slides cannot repair an invalid physical witness.
                     if !page.witnesses_fit(stroke, view)
                         || fixed_witnesses.contact(stroke, transverse_allowed)
+                        || yielded_line(stroke)
                     {
                         return Vec::new();
                     }
@@ -3332,6 +3435,31 @@ fn clear_linear_ordered(
             }
         }
     }
+}
+
+/// The same witnesses, begun beyond the near side of the projected body toward *target*;
+/// `None` when a witness would then be too short. No station or arrow moves.
+fn near_face_start(c: &LinearStroke, outline: [f64; 4], target: Side) -> Option<LinearStroke> {
+    let normal = usize::from(c.rotation == 0.0);
+    let out = if matches!(target, Side::Below | Side::Left) {
+        -1.0
+    } else {
+        1.0
+    };
+    let face = outline[normal + if out > 0.0 { 2 } else { 0 }];
+    let mut near_face = *c;
+    for line in near_face.lines.iter_mut().take(2) {
+        let from = face + out * GAP;
+        if out * (from - line[0][normal]) > 0.0 {
+            line[0][normal] = from;
+        }
+    }
+    near_face
+        .lines
+        .iter()
+        .take(2)
+        .all(|l| out * (l[1][normal] - l[0][normal]) > 1.0)
+        .then_some(near_face)
 }
 
 // A linear trial has exactly two witnesses, one dimension line and two arrows.
@@ -5390,6 +5518,62 @@ mod tests {
         );
         assert!(sides.iter().all(|s| *s == Some(Side::Below)));
         assert_eq!(lane, [4, 3, 0, 1, 2]);
+    }
+
+    #[test]
+    fn shared_lines_counts_overlapping_spans_on_one_dimension_line() {
+        // FTC-08's 49.124 and 64.999: two vertical locations from one datum, one lane.
+        let vertical = |x: f64, y0: f64, y1: f64| Placed {
+            lines: vec![
+                [[x - 20., y0], [x + 1., y0]],
+                [[x - 20., y1], [x + 1., y1]],
+                [[x, y0], [x, y1]],
+            ],
+            arrows: vec![[[x, y0], [x, y0 + 2.7]], [[x, y1], [x, y1 - 2.7]]],
+            label_at: [x - 1., (y0 + y1) / 2.],
+            rotation: 90.,
+            label_box: [x - 3., y0 + 2., x - 1., y0 + 8.],
+        };
+        let a = vertical(236.58, 197.27, 213.5);
+        let b = vertical(236.58, 197.27, 216.67);
+        let apart = vertical(243.58, 197.27, 216.67);
+        assert_eq!(shared_lines(&[Some(a.clone()), Some(b.clone())]), 1);
+        assert_eq!(shared_lines(&[Some(a.clone()), None, Some(apart)]), 0);
+        // A chain meeting at one witness shares no span.
+        let next = vertical(236.58, 213.5, 230.);
+        assert_eq!(shared_lines(&[Some(a), Some(next)]), 0);
+    }
+
+    #[test]
+    fn a_near_face_start_moves_only_the_witness_starts_beyond_the_body() {
+        // FTC-08's 141.827 slot location: a vertical dimension left of the plan view, whose
+        // second witness starts at the slot end inside the body (outline x 60..240).
+        let c = LinearStroke {
+            lines: [
+                [[58., 10.], [20., 10.]],
+                [[220., 80.], [20., 80.]],
+                [[22., 10.], [22., 80.]],
+            ],
+            arrows: [[[22., 10.], [22., 12.7]], [[22., 80.], [22., 77.3]]],
+            label_at: [21., 45.],
+            rotation: 90.,
+            label_box: [19., 40., 21., 50.],
+        };
+        let outline = [60., 0., 240., 100.];
+        let near = near_face_start(&c, outline, Side::Left).unwrap();
+        assert_eq!(
+            near.lines[0], c.lines[0],
+            "a start already beyond the face stays"
+        );
+        assert_eq!(near.lines[1][0], [60. - GAP, 80.]);
+        assert_eq!(near.lines[1][1], c.lines[1][1]);
+        assert_eq!(near.lines[2], c.lines[2]);
+        assert_eq!(near.arrows, c.arrows);
+        assert_eq!(near.label_box, c.label_box);
+        // A witness that would no longer leave the face by a millimetre is no stroke.
+        let mut short = c;
+        short.lines[1][1][0] = 60. - GAP - 0.5;
+        assert!(near_face_start(&short, outline, Side::Left).is_none());
     }
 
     #[test]

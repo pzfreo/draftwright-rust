@@ -220,6 +220,7 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `polygonal_stock_requirement_unverifiable` | incomplete | The drawing does not prove this required feature parameter. |
 | `possible_thread` | incomplete | A smooth cylinder at a named metric size may be an unstated thread. |
 | `prismatic_pocket_requirement_unsupported` | incomplete | No supported drawing grammar states this feature requirement. |
+| `profile_corner_unlocated` | incomplete | An outer-profile corner's angle is drawn but no linear dimension locates its edge. |
 | `profiled_bore_not_dimensioned` | incomplete | The profiled bore requirements have no complete drawn dimension. |
 | `projection_relation_infeasible` | decision | The authored projected-view relationship cannot be satisfied. |
 | `radius_leader_not_radial` | readability | The radius leader does not meet its arc radially from either side. |
