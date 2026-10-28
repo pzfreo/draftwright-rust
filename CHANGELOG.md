@@ -6,6 +6,57 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+## 0.2.1 (2026-10-28)
+
+Still on quiddity-rust **v0.2.1**. This release carries three rounds of fixes from a sheet-by-sheet
+review of the 35 dw-examples drawings. Turned parts whose bore steps inside (a counterbore, spotface
+or countersink on the axis) are drawn as half sections; `views/<name>/half_section` forces one on or
+off. Cut profile corners are located by their legs, and a 45° corner chamfer is called out by its
+size (`4× C21.075`). Congruent obround slots are dimensioned as slots (`N× SLOT W × L`), and
+`features/<id>/split` dimensions a full-round slot by its two end centres instead. Where a part has
+a hole table, a table row replaces a PMI size callout and carries its tolerance and fit; a wrapped
+callout keeps `↧ 10` together. Cited datums on a width or read through a nonconformance are drawn, a
+rectangle of holes is no longer called out as a bolt circle, a location stated twice by model noise
+is drawn once, and a boss on a hole's location line counts as located. Turned parts are not located
+from a silhouette, and a recess at both ends says BOTH SIDES. Sheets are judged by their drawn
+items, not an empty band past the border (#163). A modelled thread quiddity refuses only because a
+chamfer splits its flanks (the T8 flange nut's Tr8 bore) is measured and drawn, an assembly's
+drawing notes the parts it leaves out, PMI angles print `°`, and a PMI label that is a lone symbol
+is refused instead of drawn as an empty box.
+
+Over the 94 corpus parts and the 23 PMI fixtures, against 0.2.0: errors fall from 226 to 218,
+unlocated features from 209 to 203, lines through features from 392 to 379, leader crossings from
+691 to 671, and warnings other than `shape_not_recognised` from 2198 to 2113; claimed faces (6873)
+and `shape_not_recognised` (156) are unchanged. On the dw-examples drawings: NIST FTC-08 gets its
+hole table and loses its overlapping labels and shared dimension line (158 warnings to 105, leader
+crossings 81 to 52), STC-06 draws its datum B, so 12 more of its frames have every datum drawn,
+STC-08 keeps A1 1:1 and its hole table and draws its datums A and D, STC-10's hole sizes gain their
+tolerances and fit (`⌀3.5 G6`), and CTC-01 draws `225` once.
+
+**Speed.** Instructions retired for `draftwright plan`, this release against 0.2.0 (median of
+three interleaved runs each): 0.90× on FTC-08, 1.01× on CTC-01, 1.00× on string_post and 1.45×
+on cgb245 (see below).
+
+### Known regressions
+
+Measured on this release against 0.2.0, on the same parts.
+
+- **cgb245 plans 1.45× slower.** The cost arrived with #241's congruent slots dimensioned as
+  slots; its drawing improves (lines through features 3 to 1).
+- **Leader crossings on two parts:** 10092 (1 to 3, as it moves from A4 2:1 to A3 5:1) and NIST
+  FTC-09 (0 to 1: a slot callout's leader crosses one slot location's extension line). STC-10
+  AP242 has one more leader through a feature (lines through features 66 to 67). On dw-examples,
+  FTC-06 (3 to 14) and STC-07 (4 to 12) gain crossings around their newly drawn datum symbols.
+- **Sheet changes:** 10046 A4 2:1 to A4 1:1 (with one `detail_unplaceable`), 1017 A4 2:1 to A4 1:1,
+  408 A4 1:2 to A4 1:1, 10155 A3 2:1 to A4 1:1, 274 A3 2:1 to A4 2:1, sm-hanger A3 1:2 to A4 1:2,
+  10092 A4 2:1 to A3 5:1, 10190 A4 1:1 to A3 2:1, 388 A3 2:1 to A2 5:1; on dw-examples,
+  vslot-2020x50 A4 1:1 to A3 2:1.
+- **nema17-mount-bracket** goes from A3 1:1 to A4 1:2, its `40` crossing two ⌀4 holes.
+- **Not yet fixed:** LM10UU's end recess still prints `SF` (quiddity-rust#118), and 608ZZ is not
+  recognised as turned, so it gets no half section (quiddity-rust#123). The quality-corpus copy
+  of NIST FTC-08 (rc) stays on A1 1:2 with `detail_unplaceable`, as on 0.2.0, where A2 1:2
+  should fit.
+
 ### Added
 
 - **Half sections for turned parts with internal steps (ISO 128-50).** A part turned whole about
