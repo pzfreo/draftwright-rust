@@ -873,8 +873,9 @@ fn structural_findings_on_the_ports_own_drawings_are_known() {
                     // A section's pieces, as draftwright places them: the chain line by its one
                     // line, and at each end a solid arrowhead (2.7 mm long, a third of that
                     // either side of the line) and a wing stub (1.5 arrow lengths).
+                    // A half section's hatch has neither (ISO 128-50: its cut is the axis).
                     let piece = |n: &str| drawing.sheet.items.iter().find(|d| d.name == n);
-                    if kinds.contains(&Kind::Hatch) {
+                    if piece("section_hatch").is_some() {
                         let line = piece("section_line").expect("a cutting plane");
                         assert_eq!(line.kind, Kind::Centreline);
                         let [[[x0, y0], [x1, y1]]] = line.lines[..] else {

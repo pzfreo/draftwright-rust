@@ -213,7 +213,9 @@ fn ctc03_valid_complete_sheet_beats_invalid_seed_despite_material_crossings() {
         .unwrap()
         .1;
     // The seed was captured when the two congruent slots were dimensioned singly: one is split
-    // from their slot callout, so the plan recovered from it has the items it holds.
+    // from their slot callout, so the plan recovered from it has the first's items. The split
+    // one is now dimensioned by its end centres, so its length, end radius and low-end location
+    // are left out of the seed below.
     corpus::split_slot(&mut a, "f:slot:2");
     use std::io::Read as _;
     let mut bytes = Vec::new();
@@ -237,6 +239,15 @@ fn ctc03_valid_complete_sheet_beats_invalid_seed_despite_material_crossings() {
             .iter()
             .all(|m| matches!(m.parameter.as_str(), "blend.radius" | "fillet.radius"))
     });
+    first.dimensions.retain(|d| {
+        !d.measurements.iter().all(|m| {
+            m.feature == "f:slot:2"
+                && matches!(
+                    m.parameter.as_str(),
+                    "slot_length.length" | "slot_end_radius.radius" | "location_slot.length"
+                )
+        })
+    });
     let mut spec = Spec::default();
     spec.sheet.size = Some("A2".into());
     first.spec.sheet.size = spec.sheet.size.clone();
@@ -245,6 +256,11 @@ fn ctc03_valid_complete_sheet_beats_invalid_seed_despite_material_crossings() {
         (p.sheet.size.as_str(), p.sheet.scale.as_str()),
         ("A2", "1:5")
     );
+    assert!(p.dimensions.iter().any(|d| {
+        d.measurements
+            .iter()
+            .any(|m| m.feature == "f:slot:2" && m.parameter == "slot_centres.length")
+    }));
     assert!(!p.problems.iter().any(|p| matches!(
         p.code.as_str(),
         "annotation_ink_overlap" | "layout_recovery_exhausted" | "annotation_off_sheet"

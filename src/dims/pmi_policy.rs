@@ -774,6 +774,7 @@ fn dimension_marks(
             up: view.up,
             at,
             scale: view.scale,
+            half_axis: None,
         };
         mark.claims
             .retain(|c| !c.feature.starts_with("station_span:") && c.feature != "station_ink");
@@ -805,6 +806,8 @@ fn dimension_marks(
     }
     // A grouped slot's centre conveyed by another feature's location line is located by it.
     crate::lint::slots::conveyed_locations(a, &mut marks);
+    // So is a boss's centre on a hole's or pattern's location line.
+    location::conveyed_boss_locations(a, &mut marks);
     marks
 }
 

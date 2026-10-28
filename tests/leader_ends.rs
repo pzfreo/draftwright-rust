@@ -37,20 +37,15 @@ fn leaders_across_their_own_view_are_reported() {
     let (_, mut analysis) =
         model::analyse_native(&dir.join("cadgenbench_inputs/cgb245.step")).unwrap();
     // Its two obround slots are congruent, so one slot callout would state them: the second is
-    // split from the callout, so each keeps the radius leader this test reads.
+    // split from the callout, so the first keeps the radius leader this test reads (the split
+    // one is dimensioned by its end centres, with no radius).
     corpus::split_slot(&mut analysis, "f:slot:2");
     let p = model::plan_recovered(&analysis, &Spec::default()).unwrap();
-    // Both slot-end 2× R3 leaders run from the slots near the plan's foot up across the view to
-    // labels above and beside it.
+    // The slot-end 2× R3 leader runs from the slot near the plan's foot up across the view to
+    // a label above and beside it.
     let mut across = found(&p, "leader_across_view");
     across.sort();
-    assert_eq!(
-        across,
-        [
-            ["d:f:slot:1/slot_end_radius.radius", "v:plan"],
-            ["d:f:slot:2/slot_end_radius.radius", "v:plan"],
-        ]
-    );
+    assert_eq!(across, [["d:f:slot:1/slot_end_radius.radius", "v:plan"]]);
     for d in p
         .dimensions
         .iter()

@@ -26,7 +26,11 @@
 //! window with blended corners) or an obround whose ends are not full-round is dimensioned on its
 //! own, as are a keyhole (a circular seat opening the slot at its middle, whose axis and callout
 //! carry the compound: `lint::slots::keyed`) and a slot the spec splits from the callout
-//! (`features/<id>/split`).
+//! (`features/<id>/split`). A full-round obround split that way is dimensioned by its two end
+//! centres (`lint::slots::ends_located`): its width, its low end's centre located from the part's
+//! box, and the centres' distance apart (`slot_centres.length`), as two arcs located; the width
+//! with the located centres fixes its full-round ends, so no length or end radius is stated.
+//! `centrelines` draws a centre mark at each end centre ([`located_end_centres`]).
 //!
 //! A **slot pattern** (quiddity's `SlotArray` or `SlotGrid`, a `slot_pattern` feature naming its
 //! member slots) is called out once, as draftwright's `render_slot_patterns` does, in the view that
@@ -624,6 +628,55 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             });
             continue;
         }
+        if let (Some(r), true) = (
+            s.end_radius,
+            crate::lint::slots::ends_located(analysis, s.feature),
+        ) {
+            // Split from its congruent slots' callout: dimensioned by its two end centres, as two
+            // arcs located, and its width (above), which with the centres fixes the full-round
+            // ends. The low end's centre is located from the part's box, the other by the
+            // centres' distance apart.
+            let c = [s.ends[0] + r, s.ends[1] - r];
+            let apart = c[1] - c[0];
+            out.push(Want {
+                id: want_id(id, "slot_centres.length"),
+                views: vec![view],
+                value: apart,
+                terms: vec![fmt(apart)],
+                measurements: vec![m("slot_centres.length", apart)],
+                turning: None,
+                basis: "a slot split from its congruent slots' callout (features/<id>/split) is dimensioned by its two end centres: their distance apart along it, in the view that looks through it".into(),
+                shape: size(s, view, s.long, c[0], c[1], 0),
+            });
+            let Shape::Linear { mut a, b, .. } = size(s, view, s.long, c[0], c[0], 1) else {
+                // Invariant: size constructs Shape::Linear unconditionally.
+                unreachable!("a size is linear")
+            };
+            a[s.long] = lo[s.long];
+            let d = c[0] - lo[s.long];
+            out.push(Want {
+                id: want_id(id, "location_slot.length"),
+                views: vec![view],
+                value: d,
+                terms: vec![fmt(d)],
+                measurements: vec![m("location_slot.length", d)],
+                turning: None,
+                basis: format!(
+                    "a slot dimensioned by its end centres is located along its length ({}) from the part's {} face to its near end's centre, in the view that looks through it",
+                    AXES[s.long],
+                    ["left", "front", "bottom"][s.long]
+                ),
+                shape: Shape::Linear {
+                    a,
+                    b,
+                    axis: s.long,
+                    a_edge: true,
+                    b_edge: false,
+                    order: 1,
+                },
+            });
+            continue;
+        }
         out.push(Want {
             id: want_id(id, "slot_length.length"),
             views: vec![view],
@@ -712,6 +765,39 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     }
     located_across(cx, across, &mut out, &mut problems);
     (out, problems)
+}
+
+/// The end centres of each lone slot dimensioned by them ([`crate::lint::slots::ends_located`]),
+/// in the part's frame, with the axis it passes through and its end radius: a dimension to a
+/// centre ends on a drawn centre mark (ISO 129-1), which `centrelines` draws there.
+pub(crate) fn located_end_centres(
+    analysis: &crate::model::Analysis,
+) -> Vec<(&Feature, usize, [P3; 2], f64)> {
+    let frame = QFrame(crate::bridge::holes::frame(analysis));
+    let patterned: BTreeSet<&str> = analysis
+        .features
+        .iter()
+        .filter(|p| p.kind == "slot_pattern")
+        .filter_map(|p| p.parameters.get("slots").and_then(Value::as_array))
+        .flatten()
+        .filter_map(Value::as_str)
+        .collect();
+    analysis
+        .features
+        .iter()
+        .filter(|f| f.kind == "slot" && !patterned.contains(f.id.as_str()))
+        .filter(|f| crate::lint::slots::ends_located(analysis, f))
+        .filter_map(|f| read(f, &frame).ok())
+        .filter_map(|s| {
+            let r = s.end_radius?;
+            Some((
+                s.feature,
+                s.deep,
+                [s.at(s.ends[0] + r, s.centre), s.at(s.ends[1] - r, s.centre)],
+                r,
+            ))
+        })
+        .collect()
 }
 
 /// The slots' locations across their widths, from the part's box to each centre line: one

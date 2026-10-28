@@ -1133,9 +1133,8 @@ fn pitch_want(
 /// carries it, and the views that look along it.
 type Kept = (Want, bool, Option<&'static str>, Vec<&'static str>);
 
-/// How far apart two raw endpoints may be and still be one span, mm: geometric identity, not
-/// the label's rounding (quiddity's 0.01 mm record rounding is already undone where it is read).
-const SAME_SPAN: f64 = 1e-6;
+/// One span's tolerance, shared with lint's boss-location audit (lint may not read dims).
+pub(crate) use crate::lint::location::SAME_SPAN;
 
 /// What each [`rank`] locates, for the bases.
 const NAMED: [&str; 3] = ["slot position", "boss location", "hole or pattern location"];
@@ -1173,9 +1172,10 @@ fn rank(analysis: &Analysis, w: &Want) -> Option<u8> {
 /// One span, one dimension (ARCH0009-6, draftwright's `_ordered_corridor_candidates`): kept
 /// locations that measure the same span (the same view and axis, the same raw origin and
 /// endpoint, and the same label, its tolerance included, so different stated precision never
-/// collapses) are drawn once. The survivor is the highest [`rank`]ed, then one the spec lists
-/// over a default (draftwright's pinned location, `precedence=3`), then the smaller ID; each
-/// displaced one moves to *omitted*, `conveyed by` the survivor, and is not reported as a drop.
+/// collapses; two defaults' nominals may differ in printed places only) are drawn once. The
+/// survivor is the highest [`rank`]ed, then one the spec lists over a default (draftwright's
+/// pinned location, `precedence=3`), then the smaller ID; each displaced one moves to
+/// *omitted*, `conveyed by` the survivor, and is not reported as a drop.
 /// The survivor's measurements stay its own: draftwright's survivor also claims the displaced
 /// ones' (`_group_measurements`), but a location dimension here states one feature's axis
 /// (ISSUE-883-a), and the omitted entry records what it conveys. Coincidence is decided among the
@@ -1196,24 +1196,41 @@ fn merge(
     omitted: &mut Vec<Omitted>,
     rank: impl Fn(&Want) -> Option<u8>,
 ) {
-    // The span each location measures: its view, axis, raw ends on that axis, and label.
-    type Span = (&'static str, usize, f64, f64, String);
-    let span = |(w, _, view, _): &Kept| match w.shape {
+    // The span each location measures: its view, axis, raw ends on that axis, label, and whether
+    // it is a default (its label then the planner's own, not a precision the spec states).
+    type Span = (&'static str, usize, f64, f64, String, bool);
+    let span = |(w, default, view, _): &Kept| match w.shape {
         Shape::Linear { a, b, axis, .. } => Some((
             view.unwrap_or(w.views[0]),
             axis,
             a[axis],
             b[axis],
             w.terms.join(" "),
+            *default,
         )),
         Shape::Callout { .. } | Shape::Angular { .. } | Shape::Aligned { .. } => None,
+    };
+    // Two defaults' labels also agree when they differ only in a nominal's printed places: the
+    // three-place limit prints 224.999973 as `225.000`, the same distance as `225`.
+    let same_label = |s: &Span, t: &Span| {
+        s.4 == t.4
+            || (s.5 && t.5 && {
+                let (x, y): (Vec<&str>, Vec<&str>) =
+                    (s.4.split(' ').collect(), t.4.split(' ').collect());
+                x.len() == y.len()
+                    && x.iter().zip(&y).all(|(p, q)| {
+                        p == q
+                            || matches!((p.parse::<f64>(), q.parse::<f64>()),
+                                (Ok(m), Ok(n)) if (m - n).abs() <= SAME_SPAN)
+                    })
+            })
     };
     let same = |s: &Span, t: &Span| {
         s.0 == t.0
             && s.1 == t.1
             && (s.2 - t.2).abs() <= SAME_SPAN
             && (s.3 - t.3).abs() <= SAME_SPAN
-            && s.4 == t.4
+            && same_label(s, t)
     };
     let mut groups: Vec<(Span, Vec<usize>)> = Vec::new();
     for (i, k) in kept.iter().enumerate() {
@@ -1382,6 +1399,27 @@ mod tests {
             location("f:boss:1", "location.length.x", 40.0, "40"),
         ]);
         assert_eq!(kept, ["d:f:hole:1/location.length.x"]);
+        // ctc01: a boss centre averaged from its corners, 2.7e-5 short, prints `225.000` beside
+        // the holes' `225`; it is the same span, stated once, by the hole location.
+        let (kept, gone) = merged(vec![
+            location(
+                "f:polygonal_boss:1",
+                "location.length.x",
+                224.999973,
+                "225.000",
+            ),
+            location("f:hole:1", "location.length.x", 225.0, "225"),
+        ]);
+        assert_eq!(kept, ["d:f:hole:1/location.length.x"]);
+        assert_eq!(gone.len(), 1);
+        // A precision the spec states is never collapsed by that rule.
+        let mut listed = location("f:boss:1", "location.length.x", 225.0, "225.00");
+        listed.1 = false;
+        let (kept, _) = merged(vec![
+            listed,
+            location("f:hole:1", "location.length.x", 225.0, "225"),
+        ]);
+        assert_eq!(kept.len(), 2);
     }
 
     #[test]

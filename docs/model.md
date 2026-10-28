@@ -290,7 +290,7 @@ mention takes its default.
 
 The design also includes `views/sections` (for example `"sections": [{"id": "A", "through": "f:hole:3"}]`). Feature `anchor` is read for recognition corrections, below; a feature's `note` is read since K1b (below).
 
-- **Fields read:** `sheet` (`size`, `scale`, `preferred_max_size`, `preferred_max_sheets`, `dimension_spacing`, `frame_gutter`, `title`, `references`, `fit_deviations`, `fit_limits`, `projection`, `default_finish`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`),
+- **Fields read:** `sheet` (`size`, `scale`, `preferred_max_size`, `preferred_max_sheets`, `dimension_spacing`, `frame_gutter`, `title`, `references`, `fit_deviations`, `fit_limits`, `projection`, `default_finish`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`, `half_section`),
   `iso_scale_factor`, `dimension_source`, `dimension_schemes/<name>` (`scheme`, `axis`, `targets`, `view`, `from`), `hole_table` (`auto`, `always`, `never`), `dimensions/<id>` (`omit`, `tolerance`, `fit`, `text`, `style`, `place`, `kind`, `between`, `along`, and the earlier `view`
   spelling), `annotations/<id>` (`omit`, `place`, `text` for prose callouts and automatic notes), `features/<id>` (`fit`, `datum`, `controls`, `finish`, `thread`, `knurl`, `note`, `anchor`, `reclassify`, `suppress`, `split`, `pattern`), `feature_declarations`,
   `faces/<face>` (`datum`, `controls`, `finish`, `note`: "Datums and controls authored in the Spec" and "Finish, threads,
@@ -349,8 +349,16 @@ circles with fewer than five holes: a bore or boss must prove the centre. A new 
 intersecting automatic groups; holes may belong to only one authored group. `split` dissolves
 a recognised hole or slot pattern and keeps its members. Normal sharing of identical hole
 sizes continues; their locations are individual and the pattern's pitch statements disappear.
-On a lone slot, `split` keeps it out of its congruent obround slots' `N× SLOT W × L` callout:
-it is dimensioned on its own (width, length, end radius, low-end location).
+On a lone slot, `split` keeps it out of its congruent obround slots' `N× SLOT W × L` callout.
+A full-round obround (its end radius half its width) split this way is dimensioned by its two
+end centres, as two arcs located: its width, its low end's centre located from the part's box
+(`location_slot.length`), and the centres' distance apart (`slot_centres.length`, the length less
+the width), with no length or end radius, which the width and the located centres fix. A
+centre mark is drawn at each end centre for those dimensions to end on. Review asks the same of
+it. Any other split slot (a keyhole, a straight slot, an obround whose ends are
+not full-round) is dimensioned singly (width, length, end radius, low-end location). Splitting
+one of two congruent slots leaves the other alone in its group, so it too is dimensioned singly;
+split both to dimension both by their centres. Without `split` nothing changes.
 
 `reclassify` accepts `hole`, `boss`, `turned_step`, `slot` or `pocket`. Supported changes are
 boss ↔ turned step and slot ↔ pocket, when defining faces prove the target grammar. Cylindrical
@@ -469,6 +477,18 @@ do not fit, the problem's `fix` sets the nearest pair that does, found by the en
 the pinned sheet at the scale the recovery picks for it, else the pinned scale on the smallest sheet
 that holds it, else the automatic pair; each is offered only when, pinned, its drawing fits. The
 message names it (`…; A4 at 1:1 fits.`).
+
+#### Half sections
+
+A part turned whole about one axis whose bore steps inside (a coaxial hole with a counterbore,
+spotface or countersink) has its profile view drawn as an ISO 128-50 half section when the plan
+has no full section: half as seen, half cut on the turning axis and hatched, with no hidden
+edges in either half and no caption or cutting-plane line. The cut half is the side the view's
+lengths are dimensioned on. Witnesses on internal edges of the half drawn as seen move to their
+mirror in the cut half, and an internal diameter becomes a half dimension: one arrow on the
+cut edge, its line running past the axis. `views/<name>/half_section` steers it: `true` forces it
+on a profile view of a turned part (a `section_not_shown` warning says when the view shows none),
+`false` forbids it.
 
 #### Line work per view (#76 item 6)
 
@@ -1320,6 +1340,13 @@ basis, placed, reference?, determined_by?}`:
     (a symmetric octagon's, a bracket's two chamfers) are stated once, `2× v`, as
     `…f<face>_<n>_<m>`, and lint reads a counted station as locating its mirror; the `linear`
     choice, or a Spec naming either station, states each on its own;
+  - a 45° chamfer across a right corner (such a cut whose two corners are both 135°, so its legs
+    are equal) is called out by its size instead, `C<leg>` as an edge chamfer is, with a leader
+    to the cut, and equal ones of a face share one counted callout, `4× C21.075` (maintainer
+    2026-10-28), `d:envelope/profile_chamfer.length.f<face>_e<i>`. Only its principal edges'
+    missing offsets get stations; its legs need none. Lint credits the callout with both
+    corners' 135° when its size is the cut's leg, and locates the cut from its principal edges'
+    offsets. A Spec naming either corner's angle (`{}` or `omit`) keeps that cut as before;
   - any other corner gets its angle in the principal view that shows it true,
     `d:envelope/profile_angle.angle.f<face>_e<i>_e<j>`. Completing it with stations is the
     explicit `linear` choice below: stations are ordinary dimensions, and completing every
@@ -1328,8 +1355,8 @@ basis, placed, reference?, determined_by?}`:
     sides are equal) gets one counted angle, `6× 120°` as
     `d:envelope/profile_angle.angle.f<face>`, never one per corner. Lint proves the count from
     the closed loop of visible edges through the drawn corner. An octagon of equal corners but
-    unequal sides (FTC-08's and STC-08's chamfered rectangle) is completed linearly instead, or
-    takes its counted `8× 135°` under the `angle` choice.
+    unequal sides (FTC-08's and STC-08's chamfered rectangle) takes its chamfers' `4× C21.075`
+    instead, or its counted `8× 135°` under the `angle` choice.
 
   Lint reports a corner whose angle is drawn but whose edges no drawn linear dimension places
   (`profile_corner_unlocated`): a principal edge needs its offset, an oblique edge both
@@ -2544,8 +2571,12 @@ explicit `ANGLE` column (counterclockwise from local +X). Missing positions do
 not imply equal spacing; the member X/Y remain supplementary locating evidence.
 Tags and origin labels avoid boundaries, bore silhouettes, other annotation ink
 and section furniture; their resolved `label_box` is also judged by structural
-lint and the SVG quality instrument. Pins keep their callout or location ink. Semantic PMI keeps its native
-source-carrying callout beside the schedule, and auto retains authored size
+lint and the SVG quality instrument. Pins keep their callout or location ink. A row replaces a
+semantic PMI size callout too: it prints the callout's text (band, fit or thread) verbatim, and
+the callout's PMI claim moves to the first row of its holes, so every PMI size is stated once.
+Where replacing those callouts would add an error the drawing without schedules lacks, or would
+detach a frame or datum symbol that attaches to a hole's mark with them kept, the schedules are
+installed again with them kept beside their rows. Auto retains authored size
 fits/tolerances. Coordinate tolerances keep their original span.
 
 Table-owned callouts remain as stable covered dimensions; retired linear spans
@@ -2790,8 +2821,9 @@ features, while principal planar datums supply ± dimension origins.
 
 Hole schedules state every size and coordinate, including coordinates already supplied
 by retained PMI. Those cells restate the same origin frame and do not add an independent
-locating constraint. Automatic schedules that would retain every source callout stay
-inline; `hole_table: "always"` can request that presentation explicitly. Selected table
+locating constraint. Whether an automatic schedule is drawn on a PMI part is still decided by
+the native callouts it frees: one whose rows would replace only PMI callouts stays inline;
+`hole_table: "always"` can request that presentation explicitly. Selected table
 origins are named in the basis and are labelled as origins rather than box minima.
 
 ### Specify PMI authorship

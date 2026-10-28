@@ -20,6 +20,7 @@ pub mod evaluation;
 pub mod finding;
 pub mod fixes;
 pub mod gears;
+pub mod half_section;
 pub mod hole_table;
 pub mod items;
 pub mod label_text;

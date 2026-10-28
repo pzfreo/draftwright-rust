@@ -192,6 +192,7 @@ pub(crate) fn plan(a: &Analysis, views: &mut [PlannedView]) {
             direction,
         }
     }));
+    let slot_ends = crate::dims::located_end_centres(a);
     let [lo, hi] = a.envelope;
     for v in views.iter_mut() {
         v.line_work.clear();
@@ -368,6 +369,27 @@ pub(crate) fn plan(a: &Analysis, views: &mut [PlannedView]) {
                 if let Some(w) = axis(a, v, id, at, h.direction, length, h.diameter, false) {
                     v.line_work.push(w);
                 }
+            }
+        }
+        // A slot dimensioned by its end centres: a centre mark at each, where its dimensions end.
+        for (f, deep, ends, r) in &slot_ends {
+            let mut d = [0.; 3];
+            d[*deep] = 1.;
+            let length = hi[*deep] - lo[*deep];
+            if !end_on(v, d)
+                || ends
+                    .iter()
+                    .any(|c| removed(v.cut.as_ref(), *c, d, length, 2. * r))
+            {
+                continue;
+            }
+            for (k, c) in ends.iter().enumerate() {
+                v.line_work.push(cross(
+                    format!("ink:{}:{}:end{k}", v.id, f.id),
+                    page(a, v, *c),
+                    r * v.scale,
+                    None,
+                ));
             }
         }
         for f in a.features.iter().filter(|f| f.kind == "double_d_bore") {

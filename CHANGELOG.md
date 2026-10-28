@@ -6,8 +6,85 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### Added
+
+- **Half sections for turned parts with internal steps (ISO 128-50).** A part turned whole about
+  one axis whose bore steps inside (a coaxial hole with a counterbore, spotface or countersink)
+  draws its profile view half as seen and half cut on the axis, hatched, with no hidden edges and
+  no caption or cutting-plane line, unless the plan already has a full section. The cut half is
+  the side the view's lengths are dimensioned on; witnesses on internal edges move to their
+  mirror in the cut half, and an internal diameter becomes a half dimension (one arrow on the cut
+  edge, its line past the axis, its witness from the repeated edge nearest the dimension line),
+  which lint's label-against-measurement check reads from the axis. Centre lines of holes the
+  half section cuts away go with them. dw-examples' bearing-lm10uu shows its ⌀16.4 × 1.4 recesses, ⌀11.2 × 0.7 rings and ⌀10 bore
+  as section edges instead of overlapping hidden lines, its `2× ⌀11.2` and `0.7`s on them;
+  cadgenbench's flanged spool 132 shows its ⌀62 bore and ⌀70 ↧ 10 spotface cut in the right half
+  of its front view. No other dw-examples drawing or quality part qualifies (lm8uu's and 608zz's
+  bores are plain). The
+  Spec's `views/<name>/half_section` forces (`true`) or forbids (`false`) it; forcing it on a view
+  with no turned profile seen side on leaves the view as it was with a `section_not_shown`
+  warning.
+
 ### Changed
 
+- **A 45° corner chamfer is called out by its size (#217).** A cut across a right corner of
+  principal edges whose two corners are both 135° (equal legs) now gets `C<leg>`, the edge
+  chamfers' house form, on a leader to the cut, and equal ones on a face share one counted
+  callout; only the principal edges' missing offsets get stations, never the legs. Lint credits
+  the callout with both corners' 135° when its size is the cut's leg and locates the cut from
+  those offsets. dw-examples' FTC-08 octagon gets `4× C21.075` with `2× 12.827` and `2× 11.938`
+  in place of four counted stations (`2× 33.902` and `2× 33.013` go): its plan view's left and
+  lower lanes empty, its hole table now fits (main: `hole_table_unavailable`), and
+  `extension_through_feature` goes 32 to 13, `annotation_ink_overlap` 24 to 3,
+  `leader_through_feature` 35 to 19 and `label_crowded` 15 to 3 at the same A2 1:5; the table
+  brings the ten `hole_pattern_requirement_missing` and one `feature_not_located` warnings that
+  STC-08's table drawing already has. l-plate-5-holes gets `C40` for its two `20`s; the NEMA 17
+  bracket's chamfers `2× C4` twice for `4`, `2× 4`, `2× 4` and `4`, and it moves from A3 1:1 to
+  A4 1:2. STC-08 gets the same callout and stations and stays on A1 at 1:1: a recess drawing
+  whose search under the established drawing's scale cap had to leave that drawing's paper for
+  larger now also tries the search without the cap, as an exhausted one already did, and takes it
+  where it reads better (the capped search had settled on A1 1:2 at 19% fill, beside the
+  established A2 1:2, with `extension_through_feature` 9 to 30). A profile corner station that a
+  re-seated recess location lands on moves out lane by lane to a line of its own (FTC-08's
+  `2× 11.938` had shared the line of the 64.999 seat location, a `dimension_line_shared` error).
+  The FTC-08 quality part goes from A2 1:2 back to A1 1:2 with its `detail_unplaceable`, as
+  before the stations reserved their lanes. Naming either
+  corner's angle in `dimensions` keeps that cut located by its legs, and
+  `faces/<face>/profile_corners` (`linear`, `angle`) still chooses for the whole profile.
+  Station IDs are numbered among the remaining stations (FTC-08's `…f1_0_3` is now `…f1_0_1`).
+
+- **A hole table row replaces a PMI size callout, and a wrapped callout keeps `↧ 10` together
+  (maintainer decisions).** Where a schedule exists, its row now replaces the callout of a hole
+  whose size comes from PMI, as it already replaced a native one: the row prints the callout's
+  text verbatim (band, fit class or thread) and carries its PMI claim once, on the first row of
+  its holes, so every PMI size is still stated once and no longer twice. dw-examples' STC-10 loses
+  its `4× ⌀6 ±0.15 THRU ⌴SF ⌀10 ↧ 1.8`, `3× ⌀3.5 ±0.2 THRU`, `3× ⌀3.5 G6 THRU` and
+  `8× ⌀2.5 ±0.15 THRU` beside rows E, D, C and A, and STC-07 three. Whether an automatic schedule
+  is drawn on a PMI part is still decided by the native callouts it frees, and the schedules are
+  installed again with the PMI callouts kept where replacing them would add an error the drawing
+  without schedules lacks (FTC-08's schedule would fit but put `64.999` and `2× 11.938` on one
+  dimension line), or would detach a frame or datum symbol that attaches to a hole's mark with
+  them kept (a row has no place for a frame on several holes, and a tag may have no room). So
+  FTC-10 keeps its cylindricity frame beneath the `4× ⌀7` callout and CTC-05 its datum B and
+  runout frame beneath `⌀254 ±0.0254 ↧ 92.08`, both with their PMI callouts as before. When a callout wraps, a depth,
+  counterbore or countersink symbol now moves to the next line with its value instead of ending a
+  line, a departure from draftwright's 48 mm wrap: STC-06's three counterbore callouts break
+  before `⌴`, and FTC-10's and STC-10's `⌴ ⌀10 ↧` / `10 BOTH SIDES` read `⌴ ⌀10` / `↧ 10 BOTH
+  SIDES`.
+
+- **`features/<id>/split` on a full-round slot dimensions it by its two end centres.** #241 made
+  congruent obround slots one `N× SLOT W × L` callout; a split slot used to fall back to its
+  width, length, `2× R` and low-end location. It now states its width, its low end's centre
+  located from the part's box, and the centres' distance apart (`slot_centres.length`), as two
+  arcs located, with no length or end radius (the width and the located centres fix the
+  full-round ends), and a centre mark at each end centre for those dimensions to end on;
+  review asks the same of it. On dw-examples' gantry-plate, splitting both long
+  slots gives `2× 20` between centres that stand on the hole columns (the low centre is located by
+  the `22.75` hole location) in place of `2× 25`, `20.25` and two `2× R2.5` leaders; on
+  nema17-mount-bracket, `10` and `2× 30` in place of `8`, `2× 34` and two `2× R2` (and the
+  sheet goes from A3 1:1 to A4 1:2). A keyhole, straight or not-full-round slot split this way
+  is still dimensioned singly. The editor now offers `split` on a lone slot. No plan of the 65
+  quality and dw-examples parts changes.
 - **A cut corner is located by its legs, and an angle with no position is reported (#217).** Two
   angles fix an edge's direction, not where it lies: dw-examples' l-plate-5-holes printed `135°` at
   both ends of its 45° cut and neither leg. A cut across a corner of principal edges now gets its
@@ -119,6 +196,26 @@ All notable changes to draftwright-rust are recorded here, in the style of
   route from them crosses something.
 
 ### Fixed
+
+- **A location stated twice by model noise is drawn once.** CTC-01's plan dimensioned the same
+  span (the bottom edge to the hex boss's and holes' centre line) twice, `225` and `225.000` side
+  by side: the boss's centre, averaged from its corners, lies 2.7e-5 mm short of the holes', so
+  the one-span-one-dimension merge (ARCH0009-6), which compared ends to 1e-6 mm and labels
+  exactly, kept both, the boss's printing three places. Ends now agree to 1e-4 mm (still far
+  below the file's 0.01 mm coincidence tolerance) and two defaults' nominals that differ only in
+  printed places agree; a precision the Spec states still keeps its own dimension. The hole
+  location survives and conveys the boss's.
+
+- **A boss on a hole's location line is located by it.** The location audit kept each feature
+  axis its own node, so a boss whose location the planner omitted as conveyed by a hole's or
+  pattern's (ARCH0009-6) was reported `feature_not_located`: CTC-01's hex boss on x (the holes'
+  `400`), and with the merge above on y too. A mark claiming a location whose feature stands
+  within 1e-4 mm of a boss's centre on that axis now claims the boss's too, as a grouped slot's
+  centre already was; the witness must still land on the boss's centre. CTC-01 loses both boss
+  findings and STC-06 the four on its ⌀31.75 bosses round holes 1 and 2, located by those holes'
+  `158.75`, `76.2` and `228.6`. A hole table row conveys nothing: it has no witness line, and
+  with the rows STC-07's bosses, each on two rows' x and y, read as located twice. No drawing on the 30 quality parts or the 35 dw-examples
+  drawings changes but CTC-01's plan.
 
 - **A rectangle of holes is no longer called out as a bolt circle (#223).** quiddity accepts a
   bolt circle whose holes are up to 2% off one radius and 4% off even spacing, so dw-examples'

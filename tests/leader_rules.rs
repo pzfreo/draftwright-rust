@@ -159,6 +159,7 @@ fn drawing(direction: [f64; 3], items: Vec<(Annotation, Drawn)>) -> Drawing {
                     up,
                     at: AT,
                     scale: SCALE,
+                    half_axis: None,
                 },
             )]),
         },

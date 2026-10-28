@@ -242,8 +242,8 @@ fn parallel_rows_on_the_same_stations_show_one_pitch() {
 }
 
 /// cgb245's two ø6 slots run side by side across the same 6 mm span: one width, counted
-/// (`2× 6`), claiming both, as draftwright's shared slot width prints it. Their 15.0 lengths lie
-/// on different spans and stay two, as on draftwright's sheet.
+/// (`2× 6`), claiming both, as draftwright's shared slot width prints it. The one split from the
+/// slot callout states its end centres' distance apart, the other its own length.
 #[test]
 fn slots_sharing_a_width_across_one_span_state_it_once_counted() {
     let Some(dir) = corpus::dir() else {
@@ -252,16 +252,23 @@ fn slots_sharing_a_width_across_one_span_state_it_once_counted() {
     };
     let mut a = native(&dir, "cadgenbench_inputs/cgb245.step");
     // The two are congruent, so one slot callout would state both: the second is split from
-    // the callout, so each keeps its own size dimensions and the shared width is tested.
+    // the callout, so each keeps its own size dimensions and the shared width is tested (the
+    // split one states its end centres' distance apart in place of its length).
     corpus::split_slot(&mut a, "f:slot:2");
     let plan = model::plan(&a, &Spec::default()).unwrap();
     let d = claiming(&plan, "f:slot:1", "slot_width.length");
     assert_eq!(d.label, "2× 6");
     assert_eq!(claiming(&plan, "f:slot:2", "slot_width.length").id, d.id);
+    let centres = claiming(&plan, "f:slot:2", "slot_centres.length");
     assert_ne!(
         claiming(&plan, "f:slot:1", "slot_length.length").id,
-        claiming(&plan, "f:slot:2", "slot_length.length").id
+        centres.id
     );
+    assert!(plan.dimensions.iter().all(|d| {
+        d.measurements
+            .iter()
+            .all(|m| m.feature != "f:slot:2" || m.parameter != "slot_length.length")
+    }));
     let issues = lint::check(&a, &marks(&plan));
     // Lint judges each slot's low end where the planner puts it (the exact centre of its faces
     // less half its length), not quiddity's separately rounded `lo`: on quiddity-rust 0.1.1 the

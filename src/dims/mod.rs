@@ -102,6 +102,7 @@ mod recesses;
 mod redundancy;
 mod schemes;
 mod slots;
+pub(crate) use slots::located_end_centres;
 mod steps;
 mod stock;
 mod tolerance;
@@ -2286,7 +2287,11 @@ fn recess_chain_scale_uncached(analysis: &Analysis) -> f64 {
                 // reservation is for the newly native recess information.
                 return native.then_some(crate::sheet_fit::MIN_OPENING / w.value);
             }
-            let feature = w.id.strip_suffix("/slot_length.length")?;
+            // A slot dimensioned by its end centres states their distance apart in its
+            // length's place, chained from the same location.
+            let feature =
+                w.id.strip_suffix("/slot_length.length")
+                    .or_else(|| w.id.strip_suffix("/slot_centres.length"))?;
             if !items
                 .iter()
                 .any(|other| other.id == format!("{feature}/location_slot.length"))
@@ -4248,7 +4253,7 @@ fn plan_inventory_ordered(
 }
 /// The sizes that one dimension states for every feature it spans ([`share`]), and whether its
 /// label then counts them (`n×`).
-const SHARED: [(&str, bool); 5] = [
+const SHARED: [(&str, bool); 6] = [
     ("notch_depth.length", true),
     // draftwright's `_coalesce_aligned_linear_pitch_dims`: parallel rows with the same stations
     // show one pitch, its label unchanged, claiming every row's.
@@ -4258,6 +4263,7 @@ const SHARED: [(&str, bool); 5] = [
     // The same rule for the other sizes a span can share (beyond draftwright, which repeats
     // them: ftc06's four 38.1 boss heights on one span).
     ("slot_length.length", true),
+    ("slot_centres.length", true),
     ("boss_height.length", true),
 ];
 
@@ -5406,7 +5412,70 @@ pub(crate) fn refine_inventory(
     for (i, p) in indices.into_iter().zip(placed) {
         inventory[i].placed = p;
     }
+    if recesses {
+        stations_outward(&frames, &page, inventory);
+    }
     reports
+}
+
+/// A profile corner station (#217) is settled ink that [`refine_inventory`]'s raw items do not
+/// model, so a recess location re-seated there can land on the station's dimension line
+/// (dw-examples' FTC-08: 64.999 on the line of 2× 11.938). The station then moves out lane by
+/// lane, as [`placement::respace`] moves an item off a taken line, to the nearest lane (of four)
+/// where its line and label are clear of every other dimension and on the page; else it stays,
+/// and the shared line is reported. Out, not in: the lanes by the outline keep the room the
+/// settled furniture there was planned around (FTC-08's hole-table origin mark).
+fn stations_outward(
+    frames: &BTreeMap<&str, Frame>,
+    page: &placement::Page,
+    inventory: &mut [PlannedDimension],
+) {
+    for s in 0..inventory.len() {
+        if !inventory[s].id.starts_with("d:envelope/profile_location_") {
+            continue;
+        }
+        let view = inventory[s].view.trim_start_matches("v:");
+        let (Some(p), Some(frame)) = (
+            inventory[s].placed.clone().filter(|p| p.arrows.len() == 2),
+            frames.get(view),
+        ) else {
+            continue;
+        };
+        let others: Vec<&Placed> = inventory
+            .iter()
+            .enumerate()
+            .filter(|(j, _)| *j != s)
+            .filter_map(|(_, d)| d.placed.as_ref())
+            .collect();
+        let shared = |c: &Placed| {
+            others.iter().any(|q| {
+                q.arrows.len() == 2 && crate::output::shared_dimension_line(&c.lines, &q.lines)
+            })
+        };
+        if !shared(&p) {
+            continue;
+        }
+        // The dimension line's normal axis (x for a vertical line) and the side of the view
+        // it lies on.
+        let k = usize::from(p.rotation == 0.0);
+        let line = p.arrows[0][0][k];
+        let out = if line < frame.outline()[k] { -1.0 } else { 1.0 };
+        let clear = |c: &Placed| {
+            !shared(c)
+                && page.fits(c, view)
+                && others.iter().all(|q| {
+                    !placement::boxes_overlap(c.label_box, q.label_box)
+                        && !c.lines.iter().any(|l| placement::crosses(*l, q.label_box))
+                        && !q.lines.iter().any(|l| placement::crosses(*l, c.label_box))
+                })
+        };
+        if let Some(c) = (1..=4)
+            .map(|n| in_lane(&p, line + out * f64::from(n) * lane_pitch()))
+            .find(|c| clear(c))
+        {
+            inventory[s].placed = Some(c);
+        }
+    }
 }
 
 /// Rejudge settled paper geometry after moving complete view blocks to another sheet.

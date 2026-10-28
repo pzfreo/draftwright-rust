@@ -1008,6 +1008,63 @@ pub(crate) fn evidence(a: &Analysis, marks: &[Mark]) -> Vec<Mark> {
     extra
 }
 
+/// How far apart two raw endpoints may be and still be one span, mm: geometric identity, not
+/// the label's rounding (quiddity's 0.01 mm record rounding is already undone where it is read),
+/// but above a model's coordinate noise: ctc01's hexagonal boss centre, averaged from its
+/// corners, lies at 224.999973 where the holes on the same line lie at 225.
+pub(crate) const SAME_SPAN: f64 = 1e-4;
+
+/// A boss whose centre stands on another feature's location line (a hole's or pattern's
+/// `location.length.<axis>`, within [`SAME_SPAN`], which the planner shares: lint reads no
+/// plan) has its own location omitted as conveyed by that line (`dims::holes::consolidate`, ARCH0009-6):
+/// ctc01's hexagonal boss shares its holes' `400` and `225`. A mark claiming such a location on
+/// the boss's axis claims the boss's too, for every rule; the location network still lands its
+/// witness on the boss's centre from the ink before the boss counts as located.
+pub(crate) fn conveyed_boss_locations(a: &Analysis, marks: &mut [Mark]) {
+    let bosses: Vec<(&str, usize, f64)> = a
+        .features
+        .iter()
+        .filter(|f| matches!(f.kind.as_str(), "boss" | "polygonal_boss"))
+        .flat_map(|f| {
+            (0..3).filter_map(move |k| {
+                node_feature(a, &f.id, k)?;
+                Some((f.id.as_str(), k, station(a, &f.id, k)?))
+            })
+        })
+        .collect();
+    if bosses.is_empty() {
+        return;
+    }
+    for m in marks {
+        // A hole table row's coordinate locates its own hole and has no witness line for a
+        // boss to share: STC-07's bosses, each on two rows' x and y, read as located twice.
+        if m.name.starts_with("hole_schedule_") || m.name.starts_with("hole_table_plan/") {
+            continue;
+        }
+        let mut conveyed = Vec::new();
+        for &(id, k, at) in &bosses {
+            let parameter = format!("location.length.{}", AXES[k]);
+            if m.claims
+                .iter()
+                .any(|c| c.feature == id && c.parameter == parameter)
+            {
+                continue;
+            }
+            if m.claims.iter().any(|c| {
+                c.feature != id
+                    && c.parameter == parameter
+                    && station(a, &c.feature, k).is_some_and(|v| (v - at).abs() <= SAME_SPAN)
+            }) {
+                conveyed.push(crate::output::Claim {
+                    feature: id.into(),
+                    parameter,
+                });
+            }
+        }
+        m.claims.extend(conveyed);
+    }
+}
+
 /// Finishes, threads and labels do not introduce dimensional station requirements.
 pub(crate) fn has_station_requirements(a: &Analysis) -> bool {
     matches!(&a.pmi, Some(Reading::Read(r)) if r.records.iter().any(|r| {
@@ -1088,5 +1145,57 @@ mod tests {
         let first = route(&edges, &[0., 100.], 0, 95., None, &BTreeSet::new()).unwrap();
         let blocked = first.into_iter().collect();
         assert!(route(&edges, &[0., 100.], 0, 95., None, &blocked).is_some());
+    }
+    /// ctc01: a boss whose centre (2.7e-5 short, from its corners) stands on a hole's location
+    /// line is claimed by a mark claiming that line, on that axis only; a hole 0.01 off is
+    /// another station and conveys nothing.
+    #[test]
+    fn a_bosss_centre_on_a_holes_location_line_is_claimed_by_it() {
+        let feature = |id: &str, kind: &str, at: [f64; 3]| {
+            serde_json::json!({
+                "id": id, "kind": kind, "faces": [], "parameters": {},
+                "fingerprint": { "version": "test", "family": "test", "subtype": "test",
+                                 "sizes": {}, "position": at, "axis": [0.0, 0.0, 1.0],
+                                 "neighbourhood": [] },
+            })
+        };
+        let a: Analysis = serde_json::from_value(serde_json::json!({
+            "schema": "draftwright.analysis/2",
+            "binding": { "source_sha256": "", "part": "test", "face_count": 9, "loader": "test" },
+            "envelope": [[0.0, 0.0, 0.0], [800.0, 450.0, 50.0]],
+            "features": [
+                feature("f:polygonal_boss:1", "polygonal_boss", [400.0, 224.999973, 40.0]),
+                feature("f:hole:1", "hole", [400.0, 225.0, 25.0]),
+                feature("f:hole:2", "hole", [500.0, 225.01, 25.0]),
+            ],
+            "iso_bounds": [0.0, 0.0, 0.0, 0.0],
+        }))
+        .unwrap();
+        let claimed = |feature: &str, parameter: &str| -> Vec<String> {
+            let mut marks = [Mark {
+                name: "d".into(),
+                view: Some("v:plan".into()),
+                text: "225".into(),
+                claims: vec![crate::output::Claim {
+                    feature: feature.into(),
+                    parameter: parameter.into(),
+                }],
+            }];
+            conveyed_boss_locations(&a, &mut marks);
+            marks[0].claims[1..]
+                .iter()
+                .map(|c| format!("{} {}", c.feature, c.parameter))
+                .collect()
+        };
+        assert_eq!(
+            claimed("f:hole:1", "location.length.y"),
+            ["f:polygonal_boss:1 location.length.y"]
+        );
+        assert_eq!(
+            claimed("f:hole:1", "location.length.x"),
+            ["f:polygonal_boss:1 location.length.x"]
+        );
+        assert!(claimed("f:hole:2", "location.length.y").is_empty());
+        assert!(claimed("f:hole:1", "hole_diameter.length").is_empty());
     }
 }
