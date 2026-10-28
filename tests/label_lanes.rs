@@ -235,7 +235,7 @@ fn precise_labels_keep_their_span_after_the_final_inventory_settles() {
     let fillet = p
         .dimensions
         .iter()
-        .find(|d| d.id == "d:f:fillet:7/fillet.radius")
+        .find(|d| d.id == "d:f:fillet:12/fillet.radius")
         .unwrap();
     assert!(
         fillet

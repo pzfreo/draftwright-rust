@@ -197,21 +197,16 @@ fn frames_citing_undrawn_datums_are_said() {
 }
 
 /// Where a datum's place on its hole's mark runs past the view's reserved area into vacant
-/// paper, that area grows to hold it: both of CTC-01's hole datums and CTC-02's datum F attach in
-/// the plan view, each with no finding of its own, and the grown area stays clear of every
-/// other view's.
+/// paper, that area grows to hold it: both of CTC-01's hole datums attach in the plan view, each
+/// with no finding of its own, and the grown area stays clear of every other view's. (CTC-02's
+/// datum F did too until quiddity-rust v0.2.2's R25 fillets took the paper beneath the plan; see
+/// `gdt_band`.)
 #[test]
 fn hole_datums_attach_where_their_view_area_can_grow() {
-    for (part, datums) in [
-        (
-            "nist_ctc_01_asme1_ap242-e1.stp.gz",
-            &["pmi:datum.datum:f75,76:t=C", "pmi:datum.datum:f89,90:t=B"][..],
-        ),
-        (
-            "nist_ctc_02_asme1_ap242-e2.stp.gz",
-            &["pmi:datum.datum:f620,621:t=F"][..],
-        ),
-    ] {
+    for (part, datums) in [(
+        "nist_ctc_01_asme1_ap242-e1.stp.gz",
+        &["pmi:datum.datum:f75,76:t=C", "pmi:datum.datum:f89,90:t=B"][..],
+    )] {
         let a = nist(part);
         let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
         let view = plan.views.iter().find(|v| v.id == "v:plan").unwrap();

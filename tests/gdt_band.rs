@@ -88,14 +88,17 @@ fn ctc_02_frames_and_datum_symbols_are_inside_their_bands_and_on_the_sheet() {
         .collect();
     assert!(outside.is_empty(), "past their areas: {outside:?}");
     // J and E stood left of the front view until #224 attached them to their holes' tags in the
-    // plan, which sees the holes end-on: E above its B1 tag, J left of its D3 tag, and F beneath
-    // its B2 tag, the plan's area growing into vacant paper to hold it. Each stays inside the
-    // sheet's drawing area.
+    // plan, which sees the holes end-on: E above its B1 tag and J left of its D3 tag. F sat beneath
+    // its B2 tag until quiddity-rust v0.2.2 (#120) made seven of the R25 rounds along z fillets:
+    // their `15× R25` callout and the displaced section-recess callout now take the paper beneath
+    // the plan, so F stays on its surface, right of the front view, as draftwright draws it (a
+    // cosmetic cost on this dense part, recorded in the leader-crossings baseline). Each stays
+    // inside the sheet's drawing area.
     let drawable = 10.0;
     for (id, side) in [
         ("datum:#75", ("v:plan", "above")),
         ("datum:#78", ("v:plan", "left")),
-        ("datum:#76", ("v:plan", "below")),
+        ("datum:#76", ("v:front", "right")),
     ] {
         let g = plan.gdt.iter().find(|g| g.source == id).unwrap();
         assert_eq!((g.view.as_str(), g.side.as_str()), side);

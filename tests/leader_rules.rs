@@ -917,10 +917,27 @@ fn recovered_ctc02_keeps_counted_radius_leaders_on_trimmed_arcs() {
             "{label} tip {tip:?} must touch a proven trimmed surface site"
         );
     }
+    // No radius tip misses its arc. Since quiddity-rust v0.2.2 (#120) the `16× R25` callout reads
+    // in the plan, where seven of its fillets lie along z; those are cast fillets drafted 2° off
+    // z, so no section is exactly end-on and lint can only call their tip unverifiable (an
+    // advisory finding), not mismatched.
+    let found = lint::lint(&a, &drawing);
     assert!(
-        !lint::lint(&a, &drawing)
+        !found
             .iter()
-            .any(|i| i.code.starts_with("radius_leader_target_"))
+            .any(|i| i.code == "radius_leader_target_mismatch"),
+        "{found:#?}"
+    );
+    let unverifiable: Vec<_> = found
+        .iter()
+        .filter(|i| i.code.starts_with("radius_leader_target_"))
+        .map(|i| i.annotation.as_deref().unwrap_or_default())
+        .collect();
+    assert!(
+        unverifiable
+            .iter()
+            .all(|n| *n == "d:f:fillet:30/fillet.radius"),
+        "{unverifiable:?}"
     );
 }
 
@@ -1173,7 +1190,7 @@ fn ctc04_radius_labels_keep_the_schedule_origin_leader_clear() {
     let d = p
         .dimensions
         .iter()
-        .find(|d| d.id == "d:f:fillet:2/fillet.radius")
+        .find(|d| d.id == "d:f:fillet:4/fillet.radius")
         .unwrap();
     let b = d.placed.as_ref().expect("retain the radius").label_box;
     let inside = |q: P| q[0] > b[0] && q[0] < b[2] && q[1] > b[1] && q[1] < b[3];
@@ -1468,9 +1485,10 @@ fn flat_cut_bands_chamfers_and_fillets_lead_to_their_own_faces() {
             &[
                 // The fillets on faces 1436 and 2104 (f:fillet:217 and :286 on alpha.8,
                 // 203 and 270 on quiddity-rust 0.1.1). quiddity-rust 0.2.0's fillet/blend
-                // reading numbers them 200 and 277.
-                "d:f:fillet:200/fillet.radius",
-                "d:f:fillet:277/fillet.radius",
+                // reading numbered them 200 and 277; quiddity-rust 0.2.2's #120 fillets 201 and
+                // 305, each its group's representative (14× R1, 67× R2).
+                "d:f:fillet:201/fillet.radius",
+                "d:f:fillet:305/fillet.radius",
             ][..],
         ),
     ] {
