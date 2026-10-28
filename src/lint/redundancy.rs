@@ -216,10 +216,22 @@ pub(crate) fn span(a: &Analysis, feature: &str, parameter: &str) -> Option<Span>
         if parameter == "slot_length.length" {
             return Some(Span::new(k, station("lo")?, station("hi")?));
         }
+        // A slot located by its end centres: the ends' stations, each inset by its radius.
+        let inset = || {
+            let r = p.get("end_radius")?.as_f64()?;
+            let (lo, hi) = (station("lo")?, station("hi")?);
+            Some((lo.min(hi) + r, lo.max(hi) - r))
+        };
+        if parameter == "slot_centres.length" && super::slots::ends_located(a, f) {
+            let (lo, hi) = inset()?;
+            return Some(Span::new(k, lo, hi));
+        }
         if parameter == "location_slot.length" {
             // A slot called out with its congruent slots is located by its centre.
             let at = if super::slots::grouped(a, f) {
                 0.5 * (station("lo")? + station("hi")?)
+            } else if super::slots::ends_located(a, f) {
+                inset()?.0
             } else {
                 station("lo")?
             };

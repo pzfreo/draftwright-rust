@@ -1487,7 +1487,9 @@ impl Session {
                     );
                 }
             }
-            if pattern || feature.is_some_and(|f| f.kind == "slot_pattern") {
+            if pattern
+                || feature.is_some_and(|f| matches!(f.kind.as_str(), "slot_pattern" | "slot"))
+            {
                 fields.insert(
                     format!("{base}/split"),
                     serde_json::json!({"choices":[false,true]}),

@@ -53,6 +53,19 @@ All notable changes to draftwright-rust are recorded here, in the style of
   before `⌴`, and FTC-10's and STC-10's `⌴ ⌀10 ↧` / `10 BOTH SIDES` read `⌴ ⌀10` / `↧ 10 BOTH
   SIDES`.
 
+- **`features/<id>/split` on a full-round slot dimensions it by its two end centres.** #241 made
+  congruent obround slots one `N× SLOT W × L` callout; a split slot used to fall back to its
+  width, length, `2× R` and low-end location. It now states its width, its low end's centre
+  located from the part's box, and the centres' distance apart (`slot_centres.length`), as two
+  arcs located, with no length or end radius (the width and the located centres fix the
+  full-round ends), and a centre mark at each end centre for those dimensions to end on;
+  review asks the same of it. On dw-examples' gantry-plate, splitting both long
+  slots gives `2× 20` between centres that stand on the hole columns (the low centre is located by
+  the `22.75` hole location) in place of `2× 25`, `20.25` and two `2× R2.5` leaders; on
+  nema17-mount-bracket, `10` and `2× 30` in place of `8`, `2× 34` and two `2× R2` (and the
+  sheet goes from A3 1:1 to A4 1:2). A keyhole, straight or not-full-round slot split this way
+  is still dimensioned singly. The editor now offers `split` on a lone slot. No plan of the 65
+  quality and dw-examples parts changes.
 - **A cut corner is located by its legs, and an angle with no position is reported (#217).** Two
   angles fix an edge's direction, not where it lies: dw-examples' l-plate-5-holes printed `135°` at
   both ends of its 45° cut and neither leg. A cut across a corner of principal edges now gets its

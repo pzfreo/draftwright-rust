@@ -102,6 +102,7 @@ mod recesses;
 mod redundancy;
 mod schemes;
 mod slots;
+pub(crate) use slots::located_end_centres;
 mod steps;
 mod stock;
 mod tolerance;
@@ -2286,7 +2287,11 @@ fn recess_chain_scale_uncached(analysis: &Analysis) -> f64 {
                 // reservation is for the newly native recess information.
                 return native.then_some(crate::sheet_fit::MIN_OPENING / w.value);
             }
-            let feature = w.id.strip_suffix("/slot_length.length")?;
+            // A slot dimensioned by its end centres states their distance apart in its
+            // length's place, chained from the same location.
+            let feature =
+                w.id.strip_suffix("/slot_length.length")
+                    .or_else(|| w.id.strip_suffix("/slot_centres.length"))?;
             if !items
                 .iter()
                 .any(|other| other.id == format!("{feature}/location_slot.length"))
@@ -4248,7 +4253,7 @@ fn plan_inventory_ordered(
 }
 /// The sizes that one dimension states for every feature it spans ([`share`]), and whether its
 /// label then counts them (`n×`).
-const SHARED: [(&str, bool); 5] = [
+const SHARED: [(&str, bool); 6] = [
     ("notch_depth.length", true),
     // draftwright's `_coalesce_aligned_linear_pitch_dims`: parallel rows with the same stations
     // show one pitch, its label unchanged, claiming every row's.
@@ -4258,6 +4263,7 @@ const SHARED: [(&str, bool); 5] = [
     // The same rule for the other sizes a span can share (beyond draftwright, which repeats
     // them: ftc06's four 38.1 boss heights on one span).
     ("slot_length.length", true),
+    ("slot_centres.length", true),
     ("boss_height.length", true),
 ];
 
