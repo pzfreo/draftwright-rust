@@ -63,6 +63,61 @@ All notable changes to draftwright-rust are recorded here, in the style of
   edge (CTC-03 2, cgb207 1, 10046 1, 10060 2), and 10007 and 10060 gain plate-face corners whose
   angles find no clear place (`angular_requirement_missing`).
 
+- **Congruent slots are dimensioned as slots.** dw-examples' nema17-bracket pieced each of its
+  six 4.5 × 7.5 slots together from a counted width, three counted lengths, six `2× R2.25`
+  leaders and locations mixing slot ends and centres. Lone obround slots that are congruent (the
+  same width, length and full-round ends, seen through the same axis, whichever way each runs)
+  now get one `6× SLOT 4.5 × 7.5` callout, its leader to a slot end, and each is located by its
+  centre along its length as well as across it, so the group reads centre to centre. A full-round
+  end radius (half the width, to quiddity's 0.01 mm rounding) is no longer called out, for slot
+  patterns too (gantry-plate's `6× SLOT 3 × 9.5` loses its `2× R1.5`): the slot callout implies it,
+  and review accepts it only from a `SLOT` callout claiming the width, and judges a slot's
+  location at its centre only when such a callout states it. gantry-plate's two long slots get
+  `2× SLOT 5 × 25` in place of `2× 5`, `2× 25` and two `2× R2.5`, and nema17-mount-bracket's get
+  `2× SLOT 4 × 34`. Straight slots (windows with blended corners, CTC-04's) and single slots are
+  dimensioned as before, and so are keyhole slots (a circular seat opening the slot at its
+  middle, FTC-08's and STC-08's), whose seat callout and axis carry the compound;
+  `features/<id>/split` on a slot keeps it out of the callout. A grouped slot whose centre stands
+  on a hole's, pattern's or seat's location line is located by that line (ARCH0009-6), and review
+  and the location audit credit it.
+- **Sheet choice keeps profile-corner angles.** A smaller candidate that leaves out a corner angle
+  the automatic baseline draws is refused, as one that drops a hole item is: smaller paper is not
+  bought by losing it. nema17-mount-bracket keeps its two `135°` corners on A3 1:1.
+- **A slot callout keeps off the hole table's origin and off its neighbours.** On NIST CTC-03 the
+  `2× SLOT` label, laid out with the plan view's hole table, took the datum corner the table's
+  X/Y origin mark needs, so the table failed at A3 1:5. When a slot callout takes that place, the
+  table presentation is planned once more with the mark's place reserved before the dimensions
+  (`hole_table::origin_reservations`); other table failures keep the original dimensions as
+  before. A slot callout's leader counts the features it crosses even on a part with semantic
+  PMI, whose other leaders keep their established routing, so FTC-09's no longer runs through
+  the wide slot beside its two slots, and it does not run along a location's extension line. A location that also conveys coincident slots' locations
+  starts its extension line at whichever of their centres is nearest its dimension line, so the
+  witness of a row of slots does not cross the near ones (nema17-bracket, gantry-plate, CTC-03).
+- **A baseline's lone inner link follows the rest across the view.** When a strip cannot hold a
+  baseline (one face, one axis), its outer links fall through to the strip across the view; the
+  one inner link left behind now follows them, innermost, where the whole baseline fits there and
+  its extension lines cross fewer features there: nema17-bracket's `5` joins `6.5`, `34.5` and
+  `36` on the right instead of running left across a slot and the flange's three holes
+  (`dims::placement::fall_through`; `dimensions/<id>/place/side` still chooses). No other part of
+  the 65 changes.
+- **A radius leader is not left off radial for another callout's sake.** The final leader pass
+  takes its repairs together, so when nema17-bracket's hole callout was refined out of its area
+  the trial was refused and its `R3` kept a route 97° off radial; the radius repair is now tried
+  alone when that happens.
+- **A slot leader on a full-round end is judged against the round end.** quiddity rounds the end
+  radius to 0.01 mm (R3.18 on FTC-09's 6.35 wide slots, R9.52 on CTC-03's 19.05), and the slot
+  tip check then read the ends as square, so a slot callout's tip on the end arc was reported as
+  `slot_leader_target_mismatch` (0.147 and 0.002 mm off).
+- Plans change on 8 of the 65 quality and dw-examples parts, all with congruent obround slots:
+  nema17-bracket now fits A4 1:1 (was A3 2:1); gantry-plate, nema17-mount-bracket, NIST STC-09,
+  cgb245 and the corpus CTC-03 and FTC-09 keep their sheets; dw-examples' CTC-03 keeps A3 1:5
+  and regains its hole table (dimensioned singly since the cited-datum change above).
+  `extension_through_feature`: nema17-bracket 10 to 8, gantry-plate 28 to 30, CTC-03 1 and 4
+  to 0, cgb245 5 to 1. FTC-09 trades its slot leader through a slot for one
+  crossing of slot 3's `38.1` extension line (`annotation_leader_crossing` 0 to 1): that
+  dimension's extension lines and dimension line box its two slots in below slot 3, so every
+  route from them crosses something.
+
 ### Fixed
 
 - **A rectangle of holes is no longer called out as a bolt circle (#223).** quiddity accepts a
@@ -163,63 +218,6 @@ All notable changes to draftwright-rust are recorded here, in the style of
   rule out A4–A2 at any scale, and a GD&T corridor pass takes A1 from 1:2 to 1:5), NIST FTC-08
   and STC-06 (no candidate on any paper is valid; layout density), and the 2020×50 V-slot (A4 2:1
   is set aside for one added leader through material; left for a decision).
-
-### Changed
-
-- **Congruent slots are dimensioned as slots.** dw-examples' nema17-bracket pieced each of its
-  six 4.5 × 7.5 slots together from a counted width, three counted lengths, six `2× R2.25`
-  leaders and locations mixing slot ends and centres. Lone obround slots that are congruent (the
-  same width, length and full-round ends, seen through the same axis, whichever way each runs)
-  now get one `6× SLOT 4.5 × 7.5` callout, its leader to a slot end, and each is located by its
-  centre along its length as well as across it, so the group reads centre to centre. A full-round
-  end radius (half the width, to quiddity's 0.01 mm rounding) is no longer called out, for slot
-  patterns too (gantry-plate's `6× SLOT 3 × 9.5` loses its `2× R1.5`): the slot callout implies it,
-  and review accepts it only from a `SLOT` callout claiming the width, and judges a slot's
-  location at its centre only when such a callout states it. gantry-plate's two long slots get
-  `2× SLOT 5 × 25` in place of `2× 5`, `2× 25` and two `2× R2.5`, and nema17-mount-bracket's get
-  `2× SLOT 4 × 34`. Straight slots (windows with blended corners, CTC-04's) and single slots are
-  dimensioned as before, and so are keyhole slots (a circular seat opening the slot at its
-  middle, FTC-08's and STC-08's), whose seat callout and axis carry the compound;
-  `features/<id>/split` on a slot keeps it out of the callout. A grouped slot whose centre stands
-  on a hole's, pattern's or seat's location line is located by that line (ARCH0009-6), and review
-  and the location audit credit it.
-- **Sheet choice keeps profile-corner angles.** A smaller candidate that leaves out a corner angle
-  the automatic baseline draws is refused, as one that drops a hole item is: smaller paper is not
-  bought by losing it. nema17-mount-bracket keeps its two `135°` corners on A3 1:1.
-- **A slot callout keeps off the hole table's origin and off its neighbours.** On NIST CTC-03 the
-  `2× SLOT` label, laid out with the plan view's hole table, took the datum corner the table's
-  X/Y origin mark needs, so the table failed at A3 1:5. When a slot callout takes that place, the
-  table presentation is planned once more with the mark's place reserved before the dimensions
-  (`hole_table::origin_reservations`); other table failures keep the original dimensions as
-  before. A slot callout's leader counts the features it crosses even on a part with semantic
-  PMI, whose other leaders keep their established routing, so FTC-09's no longer runs through
-  the wide slot beside its two slots, and it does not run along a location's extension line. A location that also conveys coincident slots' locations
-  starts its extension line at whichever of their centres is nearest its dimension line, so the
-  witness of a row of slots does not cross the near ones (nema17-bracket, gantry-plate, CTC-03).
-- **A baseline's lone inner link follows the rest across the view.** When a strip cannot hold a
-  baseline (one face, one axis), its outer links fall through to the strip across the view; the
-  one inner link left behind now follows them, innermost, where the whole baseline fits there and
-  its extension lines cross fewer features there: nema17-bracket's `5` joins `6.5`, `34.5` and
-  `36` on the right instead of running left across a slot and the flange's three holes
-  (`dims::placement::fall_through`; `dimensions/<id>/place/side` still chooses). No other part of
-  the 65 changes.
-- **A radius leader is not left off radial for another callout's sake.** The final leader pass
-  takes its repairs together, so when nema17-bracket's hole callout was refined out of its area
-  the trial was refused and its `R3` kept a route 97° off radial; the radius repair is now tried
-  alone when that happens.
-- **A slot leader on a full-round end is judged against the round end.** quiddity rounds the end
-  radius to 0.01 mm (R3.18 on FTC-09's 6.35 wide slots, R9.52 on CTC-03's 19.05), and the slot
-  tip check then read the ends as square, so a slot callout's tip on the end arc was reported as
-  `slot_leader_target_mismatch` (0.147 and 0.002 mm off).
-- Plans change on 8 of the 65 quality and dw-examples parts, all with congruent obround slots:
-  nema17-bracket now fits A4 1:1 (was A3 2:1); gantry-plate, nema17-mount-bracket, NIST STC-09,
-  cgb245 and the corpus CTC-03 and FTC-09 keep their sheets; dw-examples' CTC-03 keeps A3 1:5
-  and regains its hole table (dimensioned singly since the cited-datum change above).
-  `extension_through_feature`: nema17-bracket 10 to 8, gantry-plate 28 to 30, CTC-03 1 and 4
-  to 0, cgb245 5 to 1. FTC-09 trades its slot leader through a slot for one
-  crossing of slot 3's `38.1` extension line (`annotation_leader_crossing` 0 to 1): that
-  dimension's extension lines and dimension line box its two slots in below slot 3, so every
-  route from them crosses something.
 
 ## 0.2.0 (2026-10-27)
 
