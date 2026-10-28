@@ -842,8 +842,10 @@ def random_pins(plan, name, seed, count):
         candidates.append((v["id"], "views", {"relative_to": anchor["id"][2:], "side": side,
                            "gap": max(0, min(1000, gap)), "align": align, "pinned": True}))
     candidates.sort(key=lambda c: (hashlib.sha256(f"{seed}:{name}:{c[0]}".encode()).digest(), c[0]))
-    if count > len(candidates):
-        raise ValueError(f"{name}: requested {count} pins, only {len(candidates)} drawable candidates")
+    # A part with fewer drawable candidates than requested pins every one of them: removing a
+    # redundant dimension (cgb203's repeated `180`, 2026-10-27) must not turn a pin cell into an
+    # error, and pinning all candidates is at least as demanding as pinning `count` of them.
+    count = min(count, len(candidates))
     spec = {"schema": "draftwright.spec/2"}
     for id_, kind, place in candidates[:count]:
         spec.setdefault(kind, {})[id_[2:] if kind == "views" else id_] = {"place": place}
