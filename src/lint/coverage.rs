@@ -162,6 +162,21 @@ fn hole_diameter(h: &Hole, parameter: &str) -> Option<f64> {
     }
 }
 
+/// Hole *h*'s bore, counterbore, outer-step and spotface diameters, each with its parameter.
+fn sized_diameters(h: &Hole) -> Vec<(String, f64)> {
+    let mut out: Vec<(String, f64)> = HOLE_DIAMETERS[..3]
+        .iter()
+        .filter_map(|p| Some((p.to_string(), hole_diameter(h, p)?)))
+        .collect();
+    out.extend(
+        h.outer_steps
+            .iter()
+            .enumerate()
+            .map(|(i, r)| (format!("outer_steps.{i}.diameter"), r.diameter)),
+    );
+    out
+}
+
 /// The Analysis's readable holes by ID.
 fn holes_by_id(analysis: &Analysis) -> BTreeMap<&str, Hole<'_>> {
     holes::read(analysis)
@@ -196,20 +211,18 @@ pub fn mentions(holes: &BTreeMap<&str, Hole>, mark: &Mark) -> Mentions {
 }
 
 /// The part's distinct recognised diameters, ascending, each with the requirements that have it:
-/// every readable hole's bore, counterbore and spotface, and every boss's diameter.
+/// every readable hole's bore, counterbore, outer steps and spotface, and every boss's diameter.
 pub fn inventory(analysis: &Analysis) -> Vec<(f64, Vec<Requirement>)> {
     let mut found: Vec<(f64, Requirement)> = Vec::new();
     for (id, h) in holes_by_id(analysis) {
-        for parameter in &HOLE_DIAMETERS[..3] {
-            if let Some(d) = hole_diameter(&h, parameter) {
-                found.push((
-                    d,
-                    Requirement {
-                        feature: id.into(),
-                        parameter: (*parameter).into(),
-                    },
-                ));
-            }
+        for (parameter, d) in sized_diameters(&h) {
+            found.push((
+                d,
+                Requirement {
+                    feature: id.into(),
+                    parameter,
+                },
+            ));
         }
     }
     for f in analysis
@@ -399,7 +412,7 @@ pub fn count_mismatch(
 }
 
 /// The count findings on a drawing whose annotations are *marks*: each readable hole's bore,
-/// counterbore and spotface is an occurrence (a split through hole's segments once); a hole callout provides its stated diameters at its
+/// counterbore, outer steps and spotface is an occurrence (a split through hole's segments once); a hole callout provides its stated diameters at its
 /// quantity, its owner the holes it claims.
 pub fn counts(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     let holes = holes_by_id(analysis);
@@ -408,11 +421,7 @@ pub fn counts(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     let occurrences: Vec<f64> = holes
         .values()
         .filter(|h| !continuations.contains(h.feature.id.as_str()))
-        .flat_map(|h| {
-            HOLE_DIAMETERS[..3]
-                .iter()
-                .filter_map(|p| hole_diameter(h, p))
-        })
+        .flat_map(|h| sized_diameters(h).into_iter().map(|(_, d)| d))
         .collect();
     let (mut text, mut provided) = (Vec::new(), Vec::new());
     for m in marks {

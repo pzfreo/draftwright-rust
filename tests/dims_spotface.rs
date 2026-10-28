@@ -201,7 +201,7 @@ fn spool132s_spotface_is_drawn_and_searchable() {
     );
 }
 
-/// `bearing-lm10uu.step.gz` (dw-examples): the ø16.4 ↧ 1.4 recess is cut alike at both ends of
+/// `bearing-lm10uu.step.gz` (dw-examples): the ø16.4 ↧ 1.4 counterbore is cut alike at both ends of
 /// the ⌀10 bore. quiddity records it once, on the end it presents, so the callout says
 /// `BOTH SIDES` after the recess, and lint reads the callout as before (#104). A recess at one
 /// mouth (spool132's) keeps its plain callout, as above.
@@ -223,8 +223,61 @@ fn a_recess_at_both_mouths_says_both_sides() {
         .filter(|t| !t.trim().is_empty())
         .collect::<Vec<_>>()
         .join(" ");
-    assert_eq!(text, "⌀10 THRU ⌴SF ⌀16.4 ↧ 1.4 BOTH SIDES", "{}", d.label);
+    // quiddity-rust v0.2.2 (#118): a 1.4 mm deep step is a counterbore, not a spotface.
+    assert_eq!(text, "⌀10 THRU ⌴ ⌀16.4 ↧ 1.4 BOTH SIDES", "{}", d.label);
     assert!(d.basis.contains("both mouths"), "{}", d.basis);
+    let drawing = model::render(&part, &a, &plan, &Font::new(mono()).unwrap()).unwrap();
+    let found: Vec<_> = draftwright::lint::lint(&a, &drawing)
+        .into_iter()
+        .filter(|i| i.code.contains("hole") || i.message.contains("hole:1"))
+        .map(|i| i.message)
+        .collect();
+    assert!(found.is_empty(), "{found:?}");
+}
+
+/// `spotface_outer_steps.step` (quiddity-rust's #118 fixture): a ⌀6 through bore under a ⌀12 × 3
+/// counterbore, a ⌀20 × 2 outer counterbore step and a ⌀30 × 0.5 spotface. quiddity records the
+/// ⌀20 step in `outer_steps`; the callout states every step once, from the bore outward, each
+/// with its own depth, claims each size, and lint finds every requirement stated.
+#[test]
+fn outer_counterbore_steps_are_each_stated_once() {
+    let file = root().join("tests/fixtures/parts/spotface_outer_steps.step");
+    let (part, a) = model::analyse_native(&file).unwrap();
+    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let d = plan
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:f:hole:1/bore.diameter")
+        .unwrap();
+    let text = d
+        .terms
+        .iter()
+        .map(String::as_str)
+        .filter(|t| !t.trim().is_empty())
+        .collect::<Vec<_>>()
+        .join(" ");
+    assert_eq!(
+        text, "⌀6 THRU ⌴ ⌀12 ↧ 3 ⌴ ⌀20 ↧ 2 ⌴SF ⌀30 ↧ 0.5",
+        "{}",
+        d.label
+    );
+    assert!(d.placed.is_some(), "{} is drawn", d.id);
+    for (parameter, value) in [
+        ("counterbore.diameter", 12.0),
+        ("counterbore.depth", 3.0),
+        ("outer_steps.0.diameter", 20.0),
+        ("outer_steps.0.depth", 2.0),
+        ("spotface.diameter", 30.0),
+        ("spotface.depth", 0.5),
+    ] {
+        assert!(
+            d.measurements
+                .iter()
+                .any(|m| m.parameter == parameter && m.value == value),
+            "{parameter}: {:?}",
+            d.measurements
+        );
+    }
     let drawing = model::render(&part, &a, &plan, &Font::new(mono()).unwrap()).unwrap();
     let found: Vec<_> = draftwright::lint::lint(&a, &drawing)
         .into_iter()

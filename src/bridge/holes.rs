@@ -60,7 +60,12 @@ pub struct Hole<'a> {
     pub bottom: Option<&'a str>,
     /// The bore's depth (for a through hole, the thickness it passes through), if given.
     pub depth: Option<f64>,
+    /// The innermost counterbore-class step (quiddity's `cbore`).
     pub counterbore: Option<Recess>,
+    /// The larger counterbore-class steps outside it, outermost first, each depth its own
+    /// mouth-to-floor span (quiddity's `outer_steps`, quiddity-rust#118); empty when there are
+    /// none.
+    pub outer_steps: Vec<Recess>,
     pub spotface: Option<Recess>,
     pub countersink: Option<Countersink>,
     /// quiddity's frame it was read through, for its pattern's points.
@@ -139,6 +144,30 @@ fn sized(
     }
 }
 
+/// A record's `outer_steps` (`{diameter, depth}` each, outermost first): empty when absent, an
+/// error when unreadable.
+fn outer_steps(p: &Map<String, Value>) -> Result<Vec<Recess>, String> {
+    match p.get("outer_steps") {
+        None | Some(Value::Null) => Ok(Vec::new()),
+        Some(Value::Array(steps)) => steps
+            .iter()
+            .map(|step| {
+                let r = step
+                    .as_object()
+                    .ok_or_else(|| format!("its outer step {step} is not a record"))?;
+                Ok(Recess {
+                    diameter: r
+                        .get("diameter")
+                        .and_then(Value::as_f64)
+                        .ok_or("its outer step has no diameter")?,
+                    depth: r.get("depth").and_then(Value::as_f64),
+                })
+            })
+            .collect(),
+        Some(v) => Err(format!("its outer_steps is {v}, not a list")),
+    }
+}
+
 impl<'a> Hole<'a> {
     /// Reads hole feature *f*, whose coordinates are in quiddity's *frame*; an error says what
     /// cannot be read.
@@ -170,6 +199,7 @@ impl<'a> Hole<'a> {
             bottom,
             depth: p.get("depth").and_then(Value::as_f64),
             counterbore: recess("cbore")?,
+            outer_steps: outer_steps(p)?,
             spotface: recess("spotface")?,
             countersink: sized(p, "csink", "major_diameter", "included_angle")?
                 .map(|(diameter, angle)| Countersink { diameter, angle }),
@@ -196,11 +226,32 @@ impl<'a> Hole<'a> {
                 None => k.push(0),
             }
         }
+        // Outer steps last, so a hole without them keeps the key it had before they existed.
+        for r in &self.outer_steps {
+            k.extend([2, size_key(r.diameter), opt(r.depth)]);
+        }
         match self.countersink {
             Some(c) => k.extend([1, size_key(c.diameter), opt(c.angle)]),
             None => k.push(0),
         }
         k
+    }
+
+    /// Its recesses from the bore outward: the counterbore, the outer steps innermost first,
+    /// then the spotface.
+    pub fn recesses(&self) -> impl Iterator<Item = Recess> + '_ {
+        self.counterbore
+            .into_iter()
+            .chain(self.outer_steps.iter().rev().copied())
+            .chain(self.spotface)
+    }
+
+    /// The largest diameter it opens to: its bore's, or its widest recess's or countersink's.
+    pub fn opening_diameter(&self) -> f64 {
+        self.recesses()
+            .map(|r| r.diameter)
+            .chain(self.countersink.map(|c| c.diameter))
+            .fold(self.diameter, f64::max)
     }
 
     /// The drilling a plain through hole is a segment of: its requirement and the line its axis

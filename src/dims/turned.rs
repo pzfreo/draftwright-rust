@@ -194,7 +194,7 @@ fn coaxial_bores(analysis: &Analysis, k: usize, on: P3) -> Vec<String> {
             continue;
         }
         out.push(fmt(h.diameter));
-        for r in [h.counterbore, h.spotface].into_iter().flatten() {
+        for r in h.recesses() {
             out.push(fmt(r.diameter));
         }
     }

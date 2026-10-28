@@ -208,22 +208,13 @@ pub(crate) fn plan(a: &Analysis, views: &mut [PlannedView]) {
         // counterbore or spotface and then the bore. None when a depth is missing; then no side
         // axis is drawn, since running one across the part would read as THRU (ADR R1-6).
         let hole_span = |h: &holes::Hole<'_>| -> Option<f64> {
-            let recess = [h.counterbore, h.spotface]
-                .into_iter()
-                .flatten()
-                .map(|r| r.depth)
-                .sum::<Option<f64>>()?;
+            let recess = h.recesses().map(|r| r.depth).sum::<Option<f64>>()?;
             Some(recess + h.depth?)
         };
         let hole_axis = |h: &holes::Hole<'_>, length: f64| {
             [0, 1, 2].map(|k| h.at[k] + h.direction[k] * length / 2.)
         };
-        let hole_diameter = |h: &holes::Hole<'_>| {
-            h.counterbore
-                .map_or(h.diameter, |r| r.diameter)
-                .max(h.spotface.map_or(0., |r| r.diameter))
-                .max(h.countersink.map_or(0., |r| r.diameter))
-        };
+        let hole_diameter = |h: &holes::Hole<'_>| h.opening_diameter();
         let hole_removed = |h: &holes::Hole<'_>| {
             // Only whether the cut takes the hole away: the envelope span stands in for a
             // missing depth here, never for the drawn axis.

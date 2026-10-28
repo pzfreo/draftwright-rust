@@ -313,11 +313,7 @@ fn drop_cut_away_axes(analysis: &Analysis, v: &mut PlannedView) {
         .into_iter()
         .filter_map(|(_, r)| r.ok())
         .filter(|r| {
-            let radius = 0.5
-                * r.diameter
-                    .max(r.counterbore.map_or(0.0, |c| c.diameter))
-                    .max(r.spotface.map_or(0.0, |c| c.diameter))
-                    .max(r.countersink.map_or(0.0, |c| c.diameter));
+            let radius = 0.5 * r.opening_diameter();
             dot(r.direction, n).abs() < 1e-6
                 && dot([0, 1, 2].map(|k| r.at[k] - h.origin[k]), n) < -radius - 1e-6
         })

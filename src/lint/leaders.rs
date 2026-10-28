@@ -175,9 +175,17 @@ fn rims(h: &Hole) -> Vec<(V3, V3, f64)> {
     if let Some(d) = h.depth {
         out.push((at(d), h.direction, 0.5 * h.diameter));
     }
-    for r in [h.counterbore, h.spotface].into_iter().flatten() {
+    // The recesses from the opening inward, each from where the one outside it ends: each
+    // depth is its own mouth-to-floor span.
+    let recesses: Vec<_> = h.recesses().collect();
+    let mut mouth = Some(0.0);
+    for r in recesses.iter().rev() {
         out.push((h.at, h.direction, 0.5 * r.diameter));
-        if let Some(d) = r.depth {
+        if let Some(m) = mouth {
+            out.push((at(m), h.direction, 0.5 * r.diameter));
+        }
+        mouth = mouth.zip(r.depth).map(|(m, d)| m + d);
+        if let Some(d) = mouth {
             out.push((at(d), h.direction, 0.5 * r.diameter));
             out.push((at(d), h.direction, 0.5 * h.diameter));
         }

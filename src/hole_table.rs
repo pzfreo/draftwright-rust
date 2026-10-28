@@ -2588,17 +2588,6 @@ fn select_with(analysis: &Analysis, plan: &Plan, replace_pmi: bool) -> Selection
     selection
 }
 
-fn opening_diameter(h: &holes::Hole<'_>) -> f64 {
-    [
-        h.diameter,
-        h.counterbore.map_or(0.0, |r| r.diameter),
-        h.spotface.map_or(0.0, |r| r.diameter),
-        h.countersink.map_or(0.0, |r| r.diameter),
-    ]
-    .into_iter()
-    .fold(0.0, f64::max)
-}
-
 /// Place the schedules transactionally. Every row has a nearby tag; none needs a long leader.
 /// On failure the caller keeps the original complete plan and the legacy rescue still runs.
 pub(crate) fn install(analysis: &Analysis, plan: &mut Plan, selection: &Selection) -> bool {
@@ -2697,7 +2686,7 @@ fn model_ink(
         if length < 1e-6 {
             continue;
         }
-        let r = opening_diameter(h) * frame.s * 0.5;
+        let r = h.opening_diameter() * frame.s * 0.5;
         let offset = [-r * d[1] / length, r * d[0] / length];
         for sign in [-1.0, 1.0] {
             edge_segments.push([
@@ -3029,7 +3018,7 @@ fn install_at(analysis: &Analysis, plan: &mut Plan, selection: &Selection) -> bo
                 (
                     r.feature.as_str(),
                     frame.page(h.at),
-                    opening_diameter(h) * frame.s * 0.5,
+                    h.opening_diameter() * frame.s * 0.5,
                 )
             })
             .collect();
@@ -3071,7 +3060,7 @@ fn install_at(analysis: &Analysis, plan: &mut Plan, selection: &Selection) -> bo
             let hole = frame.page(h.at);
             let radius = members
                 .iter()
-                .map(|r| opening_diameter(&read[r.feature.as_str()]))
+                .map(|r| read[r.feature.as_str()].opening_diameter())
                 .fold(0.0, f64::max)
                 * frame.s
                 * 0.5;
@@ -3125,7 +3114,7 @@ fn install_at(analysis: &Analysis, plan: &mut Plan, selection: &Selection) -> bo
                         return true;
                     }
                     let c = frame.page(other.at);
-                    let r = opening_diameter(other) * frame.s * 0.5;
+                    let r = other.opening_diameter() * frame.s * 0.5;
                     // A circular seat's bounding-box corner is not material. Test the
                     // nearest point of the label box against the actual rim instead.
                     rim_gap(b, c, r) > RING * 0.5
