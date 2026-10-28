@@ -163,13 +163,23 @@ fn a_general_radius_note_can_be_hidden_and_moved_without_borrowing_prose_credit(
     assert!(mixed.notes_block.as_ref().unwrap().ruled);
     assert!(!mixed.radius_notes_block.as_ref().unwrap().ruled);
     assert!(mixed.notes.iter().all(|n| n.placed.is_some()));
+    // An exception leader states blends; since quiddity-rust v0.2.2 (#120) cgb245's R3 blends
+    // share their leader with the R3 fillets, so the leader may state fillets too.
+    let blends = |d: &draftwright::dims::PlannedDimension| {
+        d.measurements
+            .iter()
+            .filter(|m| m.parameter == "blend.radius")
+            .count()
+    };
     let exception = p
         .dimensions
         .iter()
         .find(|d| {
             d.placed.is_some()
-                && d.measurements.iter().all(|m| m.parameter == "blend.radius")
-                && !d.measurements.is_empty()
+                && d.measurements
+                    .iter()
+                    .all(|m| m.parameter == "blend.radius" || m.parameter == "fillet.radius")
+                && blends(d) > 0
         })
         .unwrap();
     let less = model::edit(&Spec::default(), &json!([
@@ -178,7 +188,16 @@ fn a_general_radius_note_can_be_hidden_and_moved_without_borrowing_prose_credit(
     let less = model::plan(&a, &less).unwrap();
     assert_eq!(
         missing(&a, &less, &part),
-        exception.measurements.len()
+        // The exception's blends that no other drawn leader states once it is hidden (a shared
+        // fillet leader's blends fall back to a leader of their own).
+        exception
+            .measurements
+            .iter()
+            .filter(|m| m.parameter == "blend.radius")
+            .filter(|m| !less.dimensions.iter().any(|d| {
+                d.placed.is_some() && d.measurements.iter().any(|n| n.feature == m.feature)
+            }))
+            .count()
             + note
                 .measurements
                 .iter()
@@ -241,9 +260,15 @@ fn a_general_radius_note_can_be_hidden_and_moved_without_borrowing_prose_credit(
         .iter()
         .position(|n| n.name == note.id)
         .unwrap();
+    // The note's own blends (quiddity-rust v0.2.2: cgb245's general radius is R2, 32 blends).
+    let noted = note
+        .measurements
+        .iter()
+        .filter(|m| m.parameter == "blend.radius")
+        .count();
     for text in [
-        "R3, 33 BLENDS; OTHER BLEND RADII UNSTATED",
-        "R3, 33 BLENDS; REF SITE XYZ (1, 2, 3)",
+        "R2, 32 BLENDS; OTHER BLEND RADII UNSTATED",
+        "R2, 32 BLENDS; REF SITE XYZ (1, 2, 3)",
     ] {
         let mut unlocated = drawing.clone();
         for &run in &unlocated.annotations[index].runs {
@@ -254,7 +279,7 @@ fn a_general_radius_note_can_be_hidden_and_moved_without_borrowing_prose_credit(
                 .iter()
                 .filter(|i| i.code == "blend_requirement_missing")
                 .count(),
-            33
+            noted
         );
     }
     let mut annotation = serde_json::to_value(&drawing.annotations[index]).unwrap();
@@ -753,10 +778,13 @@ fn radius_centre_table_credits_every_occurrence_and_rejects_wrong_locators(file:
 // A blend on an oblique axis has no arc in any principal view, so no leader of its own. An equal
 // fillet leader's count states it, so the general radius note is placed instead of withdrawn;
 // hiding that leader leaves the exception undrawn and the note withdrawn again, as an error.
+// Since quiddity-rust v0.2.2 (#120) most oblique rounds are fillets with a unit-vector axis,
+// counted the same way (cgb207, FTC-07 and CTC-03's oblique blends became fillets, and the first
+// two lost their general note with them).
 part_cases!(oblique_radius_exceptions_join_an_equal_fillet_leader;
-    cgb207 => "cadgenbench_inputs/cgb207.step",
+    cgb245 => "cadgenbench_inputs/cgb245.step",
     nist_ctc_03_asme1_rc => "nist/nist_ctc_03_asme1_rc.stp",
-    nist_ftc_07_asme1_rd => "nist/nist_ftc_07_asme1_rd.stp",
+    nist_ftc_08_asme1_rc => "nist/nist_ftc_08_asme1_rc.stp",
 );
 
 fn oblique_radius_exceptions_join_an_equal_fillet_leader(file: &str) {
@@ -771,20 +799,33 @@ fn oblique_radius_exceptions_join_an_equal_fillet_leader(file: &str) {
         .find(|n| n.text.starts_with("ALL UNSPECIFIED RADII") && n.placed.is_some())
         .expect("the general radius note, placed");
     let general = note.measurements[0].value;
-    // The exceptions: blends of another radius whose axis is along no principal direction.
+    // The exceptions: blends or fillets of another radius whose axis is along no principal
+    // direction.
     let oblique: Vec<&draftwright::bridge::Feature> = a
         .features
         .iter()
         .filter(|f| {
-            f.kind == "blend"
-                && f.parameters["radius"].as_f64() != Some(general)
-                && f.parameters["path"]["direction"]
-                    .as_array()
-                    .unwrap()
-                    .iter()
-                    .filter(|c| c.as_f64().unwrap().abs() > 1e-6)
-                    .count()
-                    > 1
+            let axis = match f.kind.as_str() {
+                "blend" => f
+                    .parameters
+                    .get("path")
+                    .and_then(|p| p["direction"].as_array()),
+                "fillet" => f
+                    .parameters
+                    .get("axis")
+                    .and_then(serde_json::Value::as_array),
+                _ => None,
+            };
+            f.parameters
+                .get("radius")
+                .and_then(serde_json::Value::as_f64)
+                != Some(general)
+                && axis.is_some_and(|d| {
+                    d.iter()
+                        .filter(|c| c.as_f64().unwrap().abs() > 1e-6)
+                        .count()
+                        > 1
+                })
         })
         .collect();
     assert!(!oblique.is_empty(), "{file}");

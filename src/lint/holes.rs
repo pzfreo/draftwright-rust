@@ -74,6 +74,8 @@ pub struct HoleSizes {
     /// through.
     pub depth: Option<f64>,
     pub counterbore: Option<Recess>,
+    /// The counterbore-class steps outside the counterbore, outermost first (quiddity-rust#118).
+    pub outer_steps: Vec<Recess>,
     pub spotface: Option<Recess>,
     pub countersink: Option<Countersink>,
 }
@@ -85,6 +87,7 @@ impl HoleSizes {
             through: h.through,
             depth: h.depth,
             counterbore: h.counterbore,
+            outer_steps: h.outer_steps.clone(),
             spotface: h.spotface,
             countersink: h.countersink,
         }
@@ -94,34 +97,37 @@ impl HoleSizes {
 impl HoleGroup {
     /// The group's physical requirements, each with the value its text must state: none for
     /// `bore.through`, the group's size for `grouping.count`, and none for a size the Analysis
-    /// does not give.
-    pub fn requirements(&self) -> Vec<(&'static str, Option<f64>)> {
+    /// does not give. Each outer step's are `outer_steps.{i}.diameter` and `.depth`, *i*
+    /// quiddity's index (outermost first).
+    pub fn requirements(&self) -> Vec<(String, Option<f64>)> {
         let s = &self.sizes;
-        let mut out = vec![("bore.diameter", Some(s.diameter))];
+        let mut out = vec![("bore.diameter".to_string(), Some(s.diameter))];
         if s.through {
-            out.push(("bore.through", None));
+            out.push(("bore.through".into(), None));
         } else {
-            out.push(("bore.depth", s.depth));
+            out.push(("bore.depth".into(), s.depth));
         }
         let recess = |r: Option<Recess>| r.map(|r| (r.diameter, r.depth));
-        for (sizes, names) in [
-            (
-                recess(s.counterbore),
-                ["counterbore.diameter", "counterbore.depth"],
-            ),
-            (recess(s.spotface), ["spotface.diameter", "spotface.depth"]),
-            (
-                s.countersink.map(|c| (c.diameter, c.angle)),
-                ["countersink.diameter", "countersink.angle"],
-            ),
-        ] {
+        let mut sizes = vec![("counterbore".to_string(), recess(s.counterbore))];
+        sizes.extend(
+            s.outer_steps
+                .iter()
+                .enumerate()
+                .map(|(i, r)| (format!("outer_steps.{i}"), recess(Some(*r)))),
+        );
+        sizes.push(("spotface".into(), recess(s.spotface)));
+        for (role, sizes) in sizes {
             if let Some((a, b)) = sizes {
-                out.push((names[0], Some(a)));
-                out.push((names[1], b));
+                out.push((format!("{role}.diameter"), Some(a)));
+                out.push((format!("{role}.depth"), b));
             }
         }
+        if let Some(c) = s.countersink {
+            out.push(("countersink.diameter".into(), Some(c.diameter)));
+            out.push(("countersink.angle".into(), c.angle));
+        }
         if self.drillings > 1 {
-            out.push(("grouping.count", Some(self.drillings as f64)));
+            out.push(("grouping.count".into(), Some(self.drillings as f64)));
         }
         out
     }
@@ -141,7 +147,7 @@ impl HoleGroup {
         } else {
             format!(" ↧ {}", f(s.depth))
         };
-        if let Some(r) = s.counterbore {
+        for r in s.counterbore.iter().chain(s.outer_steps.iter().rev()) {
             out += &format!(" ⌴ ⌀{} ↧ {}", fmt(r.diameter), f(r.depth));
         }
         if let Some(r) = s.spotface {
@@ -495,8 +501,10 @@ impl Callout {
     }
 
     /// The term stating *parameter*, a hole's size; *counterbore* says whether the hole has a
-    /// counterbore, which the port prints, as its first `⌴` segment, before its spotface's.
-    fn term(&self, parameter: &str, counterbore: bool) -> Option<(f64, usize)> {
+    /// counterbore, which the port prints, as its first `⌴` segment, before its spotface's, and
+    /// *outer* how many outer steps it has, which the port prints after the counterbore,
+    /// innermost first, each its own `⌴` segment (`outer_steps.{i}`, outermost first).
+    fn term(&self, parameter: &str, counterbore: bool, outer: usize) -> Option<(f64, usize)> {
         let recesses: Vec<&Segment> = self.segments[1..]
             .iter()
             .filter(|s| s.opened != Opened::Countersink)
@@ -511,8 +519,20 @@ impl Callout {
             recesses
                 .iter()
                 .find(|s| s.opened == Opened::Spotface)
-                .or_else(|| unmarked().nth(usize::from(counterbore)))
+                .or_else(|| unmarked().nth(usize::from(counterbore) + outer))
         };
+        // `outer_steps.{i}.diameter` or `.depth`: the unmarked segment after the counterbore
+        // and the outer steps inside step *i*.
+        if let Some(rest) = parameter.strip_prefix("outer_steps.") {
+            let (i, size) = rest.split_once('.')?;
+            let i: usize = i.parse().ok().filter(|&i| i < outer)?;
+            let s = unmarked().nth(usize::from(counterbore) + outer - 1 - i)?;
+            return match size {
+                "diameter" => s.diameter,
+                "depth" => s.depth,
+                _ => None,
+            };
+        }
         match parameter {
             "bore.diameter" => self.segments[0].diameter,
             "bore.depth" => self.segments[0].depth,
@@ -528,9 +548,9 @@ impl Callout {
 
     /// Whether the callout states *value* for *parameter*: its term prints a number that rounds
     /// from it. Text with no diameter at all (a plain dimension) states the one number it prints.
-    fn states(&self, parameter: &str, value: f64, counterbore: bool) -> bool {
+    fn states(&self, parameter: &str, value: f64, counterbore: bool, outer: usize) -> bool {
         let term = if self.segments.iter().any(|s| s.diameter.is_some()) {
-            self.term(parameter, counterbore)
+            self.term(parameter, counterbore, outer)
         } else {
             let numbers: Vec<(f64, usize)> = self
                 .segments
@@ -551,7 +571,7 @@ pub fn states_bore(text: &str, diameter: f64) -> bool {
     // A lone loose number may be a quantity, location or depth. Bore observations require
     // the explicit diameter term; the scalar fallback is for independent depth dimensions.
     Callout::read(text)
-        .term("bore.diameter", false)
+        .term("bore.diameter", false, 0)
         .is_some_and(|(number, decimals)| rounds(number, decimals, diameter))
 }
 
@@ -580,13 +600,18 @@ pub fn verified_schedule_size(analysis: &Analysis, mark: &Mark) -> bool {
     group
         .requirements()
         .iter()
-        .filter(|(p, _)| !matches!(*p, "grouping.count" | "bore.through"))
+        .filter(|(p, _)| !matches!(p.as_str(), "grouping.count" | "bore.through"))
         .all(|(parameter, value)| {
             mark.claims
                 .iter()
                 .any(|c| c.feature == bores[0].feature && c.parameter == *parameter)
                 && value.is_some_and(|v| {
-                    callout.states(parameter, v, group.sizes.counterbore.is_some())
+                    callout.states(
+                        parameter,
+                        v,
+                        group.sizes.counterbore.is_some(),
+                        group.sizes.outer_steps.len(),
+                    )
                 })
         })
         && (!group.sizes.through || says_thru(&mark.text))
@@ -670,6 +695,7 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     for g in groups(analysis) {
         let uncounted = uncounted(&g, marks);
         for (parameter, value) in g.requirements() {
+            let parameter = parameter.as_str();
             // THRU and the quantity are stated by the diameter's callout.
             let carrier = match parameter {
                 "bore.through" | "grouping.count" => "bore.diameter",
@@ -725,9 +751,10 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
                 }
             };
             let counterbore = g.sizes.counterbore.is_some();
+            let outer = g.sizes.outer_steps.len();
             let stated = |m: &&Mark| match parameter {
                 "bore.through" => says_thru(&m.text),
-                _ => Callout::read(&m.text).states(parameter, value, counterbore),
+                _ => Callout::read(&m.text).states(parameter, value, counterbore, outer),
             };
             if match parameter {
                 "grouping.count" => uncounted.is_empty(),
@@ -1262,7 +1289,12 @@ mod tests {
         faced["spotface"] = json!({ "diameter": 14.0, "depth": 0.5 });
         let a = part(&[blind, sunk, faced]);
         let g = groups(&a);
-        let names = |i: usize| g[i].requirements().iter().map(|r| r.0).collect::<Vec<_>>();
+        let names = |i: usize| {
+            g[i].requirements()
+                .into_iter()
+                .map(|r| r.0)
+                .collect::<Vec<_>>()
+        };
         assert_eq!(
             names(0),
             [
@@ -1374,7 +1406,7 @@ mod tests {
     fn a_size_is_read_from_its_own_term() {
         let term = |text: &str, parameter: &str, counterbore: bool| {
             Callout::read(text)
-                .term(parameter, counterbore)
+                .term(parameter, counterbore, 0)
                 .map(|(v, _)| v)
         };
         // The port's spotface symbol (`⌴SF`), and the earlier form with two `⌴` segments.
@@ -1426,14 +1458,40 @@ mod tests {
         // A bolt circle's diameter is not the bore's, nor a second segment.
         let circle = Callout::read("12× ø 8 THRU EQ SP ON ø110 BC UPPER FACE");
         assert_eq!(circle.segments.len(), 1);
-        assert!(circle.states("bore.diameter", 8.0, false));
-        assert!(!circle.states("bore.diameter", 110.0, false));
+        assert!(circle.states("bore.diameter", 8.0, false, 0));
+        assert!(!circle.states("bore.diameter", 110.0, false, 0));
         // A repeat count, a grid's shape or another size of the same value states no diameter.
-        assert!(!Callout::read("6× ⌀8 THRU").states("bore.diameter", 6.0, false));
-        assert!(!Callout::read("4× ⌀8 THRU (6×2)").states("bore.diameter", 6.0, false));
-        assert!(!Callout::read("⌀8 ↧ 6").states("bore.diameter", 6.0, false));
+        assert!(!Callout::read("6× ⌀8 THRU").states("bore.diameter", 6.0, false, 0));
+        assert!(!Callout::read("4× ⌀8 THRU (6×2)").states("bore.diameter", 6.0, false, 0));
+        assert!(!Callout::read("⌀8 ↧ 6").states("bore.diameter", 6.0, false, 0));
         // A plain dimension states its one number.
-        assert!(Callout::read("10.0").states("bore.depth", 10.0, false));
-        assert!(!Callout::read("10 12").states("bore.depth", 10.0, false));
+        assert!(Callout::read("10.0").states("bore.depth", 10.0, false, 0));
+        assert!(!Callout::read("10 12").states("bore.depth", 10.0, false, 0));
+    }
+
+    /// quiddity-rust#118: outer counterbore steps are printed after the counterbore, innermost
+    /// first, each its own `⌴` segment; `outer_steps.{i}` counts outermost first.
+    #[test]
+    fn outer_steps_are_read_from_their_own_segments() {
+        let text = "⌀6 THRU ⌴ ⌀12 ↧ 3 ⌴ ⌀20 ↧ 2 ⌴ ⌀25 ↧ 1.5 ⌴SF ⌀30 ↧ 0.5";
+        let term = |parameter: &str| Callout::read(text).term(parameter, true, 2).map(|(v, _)| v);
+        assert_eq!(term("counterbore.diameter"), Some(12.0));
+        assert_eq!(term("counterbore.depth"), Some(3.0));
+        assert_eq!(term("outer_steps.0.diameter"), Some(25.0));
+        assert_eq!(term("outer_steps.0.depth"), Some(1.5));
+        assert_eq!(term("outer_steps.1.diameter"), Some(20.0));
+        assert_eq!(term("outer_steps.1.depth"), Some(2.0));
+        assert_eq!(term("outer_steps.2.diameter"), None);
+        assert_eq!(term("spotface.diameter"), Some(30.0));
+        // draftwright's form, the spotface with the counterbore's `⌴`: after the outer steps.
+        let plain = Callout::read("⌀6 THRU ⌴ ⌀12 ↧ 3 ⌴ ⌀20 ↧ 2 ⌴ ⌀30 ↧ 0.5");
+        assert_eq!(
+            plain.term("spotface.diameter", true, 1).map(|t| t.0),
+            Some(30.0)
+        );
+        assert_eq!(
+            plain.term("outer_steps.0.diameter", true, 1).map(|t| t.0),
+            Some(20.0)
+        );
     }
 }

@@ -22,6 +22,19 @@ fn saved_spec(analysis: &Analysis, prefix: &str) -> Spec {
         .clone()
 }
 
+/// The saved sm-hanger specs predate quiddity-rust v0.2.2 (#120), which makes the R7 blend
+/// `f:blend:10` a fillet, counted with the others on one `14× R7` callout, `d:f:fillet:9` (the
+/// `16× R7` callout was `d:f:fillet:3`). Their two radius entries become that one.
+fn hanger_renumbered(mut spec: Spec) -> Spec {
+    let fillet = spec.dimensions.remove("d:f:fillet:3/fillet.radius");
+    let blend = spec.dimensions.remove("d:f:blend:10/blend.radius");
+    if let Some(entry) = fillet.or(blend) {
+        spec.dimensions
+            .insert("d:f:fillet:9/fillet.radius".into(), entry);
+    }
+    spec
+}
+
 fn plan(file: &str, prefix: &str) -> Option<Plan> {
     let dir = corpus::dir()?;
     let (_, analysis) = model::analyse_native(&dir.join(file)).unwrap();
@@ -56,7 +69,7 @@ fn adjacent_labels_have_readable_separation() {
 fn hanger_keeps_its_hole_callout_or_reports_it_by_name() {
     let Some(dir) = corpus::dir() else { return };
     let (_, analysis) = model::analyse_native(&dir.join("ttt_inputs/sm-hanger.step")).unwrap();
-    let spec = saved_spec(&analysis, "85c2add8");
+    let spec = hanger_renumbered(saved_spec(&analysis, "85c2add8"));
     let plan = model::plan_recovered(&analysis, &spec).unwrap();
     let hole = plan
         .omitted

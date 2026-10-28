@@ -233,6 +233,35 @@ fn a_callout_counts_members_along_other_axes() {
     assert!(c[0].basis.contains("1 of them"), "{}", c[0].basis);
 }
 
+/// quiddity-rust#120: a fillet between oblique tangent walls carries a unit-vector axis. Its radius
+/// is a true size: counted on the callout of equal principal fillets, or, with none, called out
+/// where its edge is seen most nearly end-on. Never refused, so a radius note is not withdrawn
+/// for an undrawn exception.
+#[test]
+fn an_oblique_fillet_is_counted_and_called_out() {
+    let s = std::f64::consts::FRAC_1_SQRT_2;
+    let json = prismatic_with(|i, f| {
+        if i == 3 {
+            f["record"]["axis"] = json!([s, s, 0.0]);
+        }
+    });
+    let plan = planned("prismatic", &json, &Spec::default());
+    let c = callouts(&plan);
+    assert_eq!(c.len(), 1, "{:?}", labels(&plan));
+    assert_eq!(c[0].label, "4× R2");
+    assert_eq!(c[0].measurements.len(), 4);
+    assert!(c[0].basis.contains("oblique fillet"), "{}", c[0].basis);
+    assert!(problems(&plan, "feature_not_dimensioned").is_empty());
+
+    let json = prismatic_with(|_, f| f["record"]["axis"] = json!([s, s, 0.0]));
+    let plan = planned("prismatic", &json, &Spec::default());
+    let c = callouts(&plan);
+    assert_eq!(c.len(), 1, "{:?}", labels(&plan));
+    assert_eq!(c[0].label, "4× R2");
+    assert!(c[0].placed.is_some(), "{}", c[0].id);
+    assert!(problems(&plan, "feature_not_dimensioned").is_empty());
+}
+
 /// Honest failure: a fillet whose record gives no radius is reported, and the others are still
 /// called out.
 #[test]

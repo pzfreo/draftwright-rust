@@ -391,7 +391,7 @@ fn non_hole_pins_keep_the_settled_schedule_and_isometric_frame() {
     assert!(!tables(&base).as_array().unwrap().is_empty());
     let ops: Vec<_> = [
         "d:f:slot:3/slot_width.length",
-        "d:f:fillet:7/fillet.radius",
+        "d:f:fillet:12/fillet.radius",
         "d:f:slot:4/location_slot.length",
     ]
     .iter()

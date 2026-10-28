@@ -426,6 +426,19 @@ fn session_edits_remove_and_restore_the_caption_in_items_and_furniture() {
     assert!(session.svg_fragments(Some(&delta))["furniture"].contains(NTS_CAPTION));
 }
 
+/// The saved sm-hanger specs predate quiddity-rust v0.2.2 (#120), which makes the R7 blend
+/// `f:blend:10` a fillet, counted with the others on one `14× R7` callout, `d:f:fillet:9` (the
+/// `16× R7` callout was `d:f:fillet:3`). Their two radius entries become that one.
+fn hanger_renumbered(mut spec: model::Spec) -> model::Spec {
+    let fillet = spec.dimensions.remove("d:f:fillet:3/fillet.radius");
+    let blend = spec.dimensions.remove("d:f:blend:10/blend.radius");
+    if let Some(entry) = fillet.or(blend) {
+        spec.dimensions
+            .insert("d:f:fillet:9/fillet.radius".into(), entry);
+    }
+    spec
+}
+
 fn saved_spec(analysis: &model::Analysis, prefix: &str) -> model::Spec {
     let root = Path::new(env!("CARGO_MANIFEST_DIR"));
     let saved: std::collections::BTreeMap<String, Vec<model::Spec>> = serde_json::from_slice(
@@ -454,7 +467,7 @@ fn hanger_authored_dimensions_leave_the_nts_caption_clear_of_ink() {
     let font =
         draftwright::text::Font::open(&root.join("fonts").join(draftwright::dims::FONT)).unwrap();
     for prefix in ["060815f5", "85c2add8"] {
-        let spec = saved_spec(&analysis, prefix);
+        let spec = hanger_renumbered(saved_spec(&analysis, prefix));
         let plan = model::plan_recovered(&analysis, &spec).unwrap();
         assert_eq!(plan.sheet.size, "A4");
         assert_eq!(plan.sheet.scale, "1:2");

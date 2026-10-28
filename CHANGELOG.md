@@ -6,6 +6,26 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+Now on quiddity-rust **v0.2.2**.
+
+### Changed
+
+- A near-side hole step deeper than 1 mm is now a counterbore, not a spotface. For
+  quiddity-rust#118. lm10uu reads `⌀10 THRU ⌴ ⌀16.4 ↧ 1.4 BOTH SIDES`, and the CTC-02 bores read
+  `⌀40 THRU ⌴ ⌀120 ↧ 8`. A hole's further counterbore steps (`outer_steps`) are no longer lost.
+  Each is called out once, as another `⌴ ⌀d ↧ depth` after the counterbore, reading from the
+  bore outward: `⌀6 THRU ⌴ ⌀12 ↧ 3 ⌴ ⌀20 ↧ 2 ⌴SF ⌀30 ↧ 0.5`. Each depth is that step's own,
+  as quiddity measures it. Lint requires and checks each step's diameter and depth.
+- Straight convex rounds between tangent walls are fillets at any wall angle (quiddity-rust#120).
+  Many former blends are now called out as `n× R` fillets, and some `ALL UNSPECIFIED RADII`
+  notes change radius or give way to callouts. No radius goes unstated. An oblique fillet is
+  counted on the callout of equal principal fillets, or called out where its edge is seen most
+  nearly end-on, so it no longer withdraws the radius note. CTC-05's four R203.2 faces are no
+  longer fillets in quiddity, so their callout goes.
+- A capped drawing that has left its established paper now takes an uncapped drawing at a larger
+  scale on paper no larger, unless that drawing has more hard findings, drops more or fits worse.
+  STC-08 stays on A1 1:1.
+
 ### WASM API
 
 - `Engine.openPart(name, bytes, part)` opens part *part* of an assembly (an index as `parts`

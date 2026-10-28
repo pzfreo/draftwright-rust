@@ -69,13 +69,26 @@ impl Hole<'_> {
     /// rust-correct, since the spotface is a machining requirement the callout would otherwise
     /// leave unstated. Each recess opens with its symbol: `⌴` for the counterbore, [`SPOTFACE`]
     /// for the spotface (draftwright prints a spotface with the counterbore's `⌴`).
-    fn recesses(&self) -> impl Iterator<Item = (&'static str, &'static str, holes::Recess)> {
-        [
-            ("counterbore", "⌴", self.counterbore),
-            ("spotface", SPOTFACE, self.spotface),
-        ]
-        .into_iter()
-        .filter_map(|(role, symbol, r)| r.map(|r| (role, symbol, r)))
+    ///
+    /// The counterbore-class steps outside the counterbore (quiddity's `outer_steps`,
+    /// quiddity-rust#118) follow it, each its own `⌴ ⌀d ↧ depth` segment, innermost first, so the
+    /// callout reads from the bore outward with every diameter growing, and each depth is the
+    /// step's own mouth-to-floor span as quiddity measures it. Their role is
+    /// `outer_steps.{i}`, *i* quiddity's index (outermost first). draftwright has no outer
+    /// steps: rust-correct, since otherwise a machined step is left unstated.
+    fn recesses(&self) -> Vec<(String, &'static str, holes::Recess)> {
+        self.counterbore
+            .map(|r| ("counterbore".to_string(), "⌴", r))
+            .into_iter()
+            .chain(
+                self.outer_steps
+                    .iter()
+                    .enumerate()
+                    .rev()
+                    .map(|(i, r)| (format!("outer_steps.{i}"), "⌴", *r)),
+            )
+            .chain(self.spotface.map(|r| ("spotface".to_string(), SPOTFACE, r)))
+            .collect()
     }
 
     /// The terms after the count: `⌀d`, `THRU` or `↧ depth`, the recesses, the countersink.

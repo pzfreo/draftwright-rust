@@ -356,12 +356,7 @@ impl Footprints {
             let Ok(h) = read else { continue };
             let at = frame.page(h.at);
             let along = frame.page([0, 1, 2].map(|k| h.at[k] + h.direction[k]));
-            let radial = h
-                .counterbore
-                .map_or(h.diameter, |r| r.diameter)
-                .max(h.spotface.map_or(0.0, |r| r.diameter))
-                .max(h.countersink.map_or(0.0, |r| r.diameter))
-                * 0.5;
+            let radial = h.opening_diameter() * 0.5;
             let shape = if (at[0] - along[0]).hypot(at[1] - along[1]) < 1e-6 {
                 Shape::Circle(at, radial * frame.scale())
             } else {
