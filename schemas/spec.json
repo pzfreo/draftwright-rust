@@ -1378,6 +1378,17 @@
             }
           ]
         },
+        "half_section": {
+          "anyOf": [
+            {
+              "type": "boolean",
+              "description": "ISO 128-50 half section on a profile view of a part turned whole: true forces it, false forbids it; unset draws it automatically when a coaxial hole steps inside (counterbore, spotface or countersink)."
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "sheet": {
           "anyOf": [
             {

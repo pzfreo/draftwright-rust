@@ -96,7 +96,7 @@ def document():
         'detail': obj({'around': {'type': ['string', 'array'], 'items': S, 'minItems': 1},
                        **optional({'from': {'type': 'string', 'pattern': r'^(front|plan|side|section_([a-h])\2)(?![\s\S])'},
                                    'scale_factor': {'type': 'number', 'exclusiveMinimum': 1}})}, ('around',)),
-        'view': obj({**line, **optional({'sheet': SHEET, 'place': ref('view_place'), 'detail': ref('detail')}), 'omit': B}),
+        'view': obj({**line, **optional({'half_section': {**B, 'description': 'ISO 128-50 half section on a profile view of a part turned whole: true forces it, false forbids it; unset draws it automatically when a coaxial hole steps inside (counterbore, spotface or countersink).'}, 'sheet': SHEET, 'place': ref('view_place'), 'detail': ref('detail')}), 'omit': B}),
         'note': obj({'id': S, 'text': S}, ('id', 'text')),
         'table': obj({'id': S, 'rows': arr(arr({'type': ['string', 'number']})),
                       'sheet': nullable(SHEET), 'prefer': nullable(enum('tr', 'tl', 'br', 'bl'))}, ('id', 'rows')),

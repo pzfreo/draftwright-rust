@@ -6,6 +6,24 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### Added
+
+- **Half sections for turned parts with internal steps (ISO 128-50).** A part turned whole about
+  one axis whose bore steps inside (a coaxial hole with a counterbore, spotface or countersink)
+  draws its profile view half as seen and half cut on the axis, hatched, with no hidden edges and
+  no caption or cutting-plane line, unless the plan already has a full section. The cut half is
+  the side the view's lengths are dimensioned on; witnesses on internal edges move to their
+  mirror in the cut half, and an internal diameter becomes a half dimension (one arrow on the cut
+  edge, its line past the axis), which lint's label-against-measurement check reads from the
+  axis. dw-examples' bearing-lm10uu shows its ⌀16.4 × 1.4 recesses, ⌀11.2 × 0.7 rings and ⌀10 bore
+  as section edges instead of overlapping hidden lines, its `2× ⌀11.2` and `0.7`s on them;
+  cadgenbench's flanged spool 132 shows its ⌀62 bore and ⌀70 ↧ 10 spotface cut in the right half
+  of its front view. No other dw-examples drawing or quality part qualifies (lm8uu's and 608zz's
+  bores are plain). The
+  Spec's `views/<name>/half_section` forces (`true`) or forbids (`false`) it; forcing it on a view
+  with no turned profile seen side on leaves the view as it was with a `section_not_shown`
+  warning.
+
 ### Changed
 
 - **A cut corner is located by its legs, and an angle with no position is reported (#217).** Two

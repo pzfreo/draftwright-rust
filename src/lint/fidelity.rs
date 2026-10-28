@@ -155,6 +155,21 @@ pub(super) fn check(drawing: &Drawing) -> Vec<LintIssue> {
                         drawing.sheet.precision.get(&d.name).copied(),
                         &mut rounded,
                     ));
+                } else if let Some(span) = drawing
+                    .sheet
+                    .frames
+                    .get(view.map_or("", |v| v.strip_prefix("v:").unwrap_or(v)))
+                    .and_then(|f| f.half_axis)
+                    .and_then(|axis| half_span(&d.lines, axis))
+                {
+                    issues.extend(label_vs_measured(
+                        d,
+                        text,
+                        span,
+                        scale,
+                        drawing.sheet.precision.get(&d.name).copied(),
+                        &mut rounded,
+                    ));
                 } else if let Some(span) = aligned_span(&d.lines) {
                     issues.extend(label_vs_measured(
                         d,
@@ -702,6 +717,17 @@ fn datum_leader(d: &Drawn) -> Option<LintIssue> {
 }
 
 /// Recognise perpendicular extension lines and a parallel dimension line at any rotation.
+/// A half dimension's span in a half section ([`crate::half_section`]): one witness parallel to
+/// the *axis* (the page coordinate crossing it, and its value there) and the dimension line
+/// across it, the diameter twice the witness's distance from the axis.
+fn half_span(lines: &[[P; 2]], (k, at): (usize, f64)) -> Option<f64> {
+    let [w, d] = lines else { return None };
+    let along =
+        |l: &[P; 2]| (l[0][k] - l[1][k]).abs() < 1e-6 && (l[0][1 - k] - l[1][1 - k]).abs() > 1e-6;
+    let across = (d[0][1 - k] - d[1][1 - k]).abs() < 1e-6 && (d[0][k] - d[1][k]).abs() > 1e-6;
+    (along(w) && across).then(|| 2.0 * (w[0][k] - at).abs())
+}
+
 fn aligned_span(lines: &[[P; 2]]) -> Option<f64> {
     let [a, b, d] = lines else { return None };
     let delta = [d[1][0] - d[0][0], d[1][1] - d[0][1]];

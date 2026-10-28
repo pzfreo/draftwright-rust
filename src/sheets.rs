@@ -841,6 +841,7 @@ fn auxiliary(
         line_work: Vec::new(),
         line_style: Default::default(),
         from_spec: Vec::new(),
+        half_section: None,
         cut: section.map(|s| {
             let [lo, hi] = analysis.envelope;
             model::Cut {
