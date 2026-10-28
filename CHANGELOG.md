@@ -6,6 +6,12 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### WASM API
+
+- `Engine.openPart(name, bytes, part)` opens part *part* of an assembly (an index as `parts`
+  lists them) alone, in its own frame and with its PMI only, as the command line's `--part`
+  does. `new Engine(name, bytes)` is unchanged.
+
 ## 0.2.1 (2026-10-28)
 
 Still on quiddity-rust **v0.2.1**. This release carries three rounds of fixes from a sheet-by-sheet
