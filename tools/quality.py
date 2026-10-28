@@ -842,12 +842,14 @@ def random_pins(plan, name, seed, count):
         candidates.append((v["id"], "views", {"relative_to": anchor["id"][2:], "side": side,
                            "gap": max(0, min(1000, gap)), "align": align, "pinned": True}))
     candidates.sort(key=lambda c: (hashlib.sha256(f"{seed}:{name}:{c[0]}".encode()).digest(), c[0]))
-    if count > len(candidates):
-        raise ValueError(f"{name}: requested {count} pins, only {len(candidates)} drawable candidates")
+    # A part with fewer drawable candidates than requested pins every one of them: removing a
+    # redundant dimension (cgb203's repeated `180`, 2026-10-27) must not turn a pin cell into an
+    # error, and pinning all candidates is at least as demanding as pinning `count` of them.
+    count = min(count, len(candidates))
     spec = {"schema": "draftwright.spec/2"}
     for id_, kind, place in candidates[:count]:
         spec.setdefault(kind, {})[id_[2:] if kind == "views" else id_] = {"place": place}
-    return spec, [c[0] for c in candidates[:count]]
+    return spec, [c[0] for c in candidates[:count]], len(candidates)
 
 
 def pin_bar(before, after):
@@ -865,7 +867,7 @@ def pinned_one(f, args, baseline):
         p = subprocess.run([args.dw, "plan", f], capture_output=True, text=True, timeout=args.timeout)
         if p.returncode:
             raise ValueError(p.stderr or p.stdout)
-        spec, ids = random_pins(json.loads(p.stdout), name, args.seed, args.pins)
+        spec, ids, candidates = random_pins(json.loads(p.stdout), name, args.seed, args.pins)
         path = f"{args.out}/pinned/{name}.spec.json"
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w") as output:
@@ -874,7 +876,7 @@ def pinned_one(f, args, baseline):
         if "error" in after:
             raise ValueError(after["error"])
         before = baseline[name]
-        return name, {"ids": ids, "unpinned": before, "pinned": after,
+        return name, {"ids": ids, "candidates": candidates, "unpinned": before, "pinned": after,
                       "ink_delta": after["ink"]-before["ink"],
                       "off_sheet_delta": after["off_sheet"]-before["off_sheet"],
                       "go": pin_bar(before, after)}

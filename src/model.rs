@@ -521,7 +521,8 @@ pub struct FeatureSpec {
     /// Remove a spurious recognition, including its feature requirements.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub suppress: bool,
-    /// Dissolve a recognised hole or slot pattern, retaining its members.
+    /// Dissolve a recognised hole or slot pattern, retaining its members; on a slot, dimension it
+    /// on its own rather than in its congruent slots' `N× SLOT W × L` callout.
     #[serde(skip_serializing_if = "std::ops::Not::not")]
     pub split: bool,
     /// Group existing holes under this stable, author-chosen pattern ID.
@@ -2352,9 +2353,15 @@ pub fn recover(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, In
             // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
             Sha256::digest(serde_json::to_vec(analysis).expect("Analysis serializes")).into()
         });
-    let bytes = serde_json::to_vec(&(analysis_key, spec, &first, crate::nominal::comparison()))
-        // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
-        .expect("plan inputs serialize");
+    let bytes = serde_json::to_vec(&(
+        analysis_key,
+        spec,
+        &first,
+        crate::nominal::comparison(),
+        UNCAPPED.get(),
+    ))
+    // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
+    .expect("plan inputs serialize");
     let key = crate::planning::spaced_digest(&Sha256::digest(&bytes).into());
     let mut plan = if let Some(plan) = MEMO.get(&key) {
         plan
@@ -2583,8 +2590,7 @@ pub(crate) fn established_drawing(analysis: &Analysis, spec: &Spec) -> Result<Pl
             "prepared-established-drawing",
             key.clone(),
             || {
-                let mut reference = analysis.clone();
-                reference.features.retain(|f| f.kind != "section_recess");
+                let reference = crate::lint::slots::without_recesses(analysis);
                 let mut base = Spec {
                     hole_table: spec.hole_table,
                     pmi: spec.pmi,
@@ -2691,6 +2697,23 @@ fn complete_candidate(findings: layout::Findings, extra_view_conflicts: usize) -
 
 #[cfg(test)]
 mod complete_candidate_tests {
+    /// The lifted cap is #217's last resort for one search; it must never leak into a
+    /// later plan on the same thread, even when that search fails.
+    #[test]
+    fn a_lifted_established_cap_is_restored_after_its_search() {
+        use super::*;
+        assert!(!UNCAPPED.get());
+        let inner = with_uncapped(true, || {
+            assert!(UNCAPPED.get());
+            with_uncapped(false, || UNCAPPED.get())
+        });
+        assert!(!inner);
+        assert!(!UNCAPPED.get());
+        let failed = std::panic::catch_unwind(|| with_uncapped(true, || panic!("search failed")));
+        assert!(failed.is_err());
+        assert!(!UNCAPPED.get());
+    }
+
     #[test]
     fn complete_sheet_never_accepts_additional_ink_over_foreign_views() {
         use super::*;
@@ -2715,10 +2738,55 @@ mod complete_candidate_tests {
 }
 
 fn recover_uncached(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, Invalid> {
+    // A first estimate without a table whose search under the established drawing's scale cap
+    // is exhausted gets [`recover_tables`]'s last resort too: the cap has removed every scale,
+    // so the ordinary ladder is searched without it and its drawing taken where it reads better
+    // (STC-08 once #217's corner stations and the cited datums both reach it, its first
+    // estimate placing no table). A table-free baseline (`hole_table: never`) is left to
+    // [`recover_tables`], which applies the same resort itself.
+    let open = (!UNCAPPED.get()
+        && first.hole_tables.is_empty()
+        && spec.hole_table != crate::hole_table::Setting::Never)
+        .then(|| first.clone());
+    let plan = recover_capped(analysis, spec, first)?;
+    if let Some(first) = open
+        && recovery_exhausted(&plan)
+    {
+        let ordinary = with_uncapped(true, || recover_capped(analysis, spec, first))?;
+        if !recovery_exhausted(&ordinary)
+            && recovery_rank(analysis, &ordinary) < recovery_rank(analysis, &plan)
+        {
+            return Ok(ordinary);
+        }
+    }
+    Ok(plan)
+}
+
+fn recover_capped(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, Invalid> {
     let mut plan = recover_callouts(analysis, spec, first)?;
     shorten_wrapped_callouts(analysis, spec, &mut plan);
     recover_recess_corridors(analysis, spec, &mut plan)?;
     Ok(plan)
+}
+
+/// Whether no standard sheet and legible scale gave *p* a valid complete drawing.
+fn recovery_exhausted(p: &Plan) -> bool {
+    p.problems
+        .iter()
+        .any(|q| q.code == "layout_recovery_exhausted")
+}
+
+/// How well a recovered drawing reads, lowest best: hard findings, drops, drawn items past
+/// the paper, ink findings, feature crossings.
+fn recovery_rank(analysis: &Analysis, p: &Plan) -> (usize, usize, bool, usize, usize) {
+    let f = findings(p);
+    (
+        f.hard,
+        f.dropped,
+        !drawn_items_fit(analysis, p),
+        ink_findings(p),
+        feature_crossings(p),
+    )
 }
 
 /// A schedule can make the first sheet complete while leaving a new recess
@@ -3226,7 +3294,8 @@ fn recover_candidates(
     // The existing crossing and leader budgets still constrain each candidate.
     let compare_diagram_fill = min_legible_scale + 1e-9 < first.sheet.scale_factor;
     let established_scale = established_scale.filter(|cap| {
-        *cap >= min_legible_scale
+        !UNCAPPED.get()
+            && *cap >= min_legible_scale
             && established_plan
                 .as_ref()
                 .is_none_or(|p| findings(p).clean())
@@ -4330,6 +4399,47 @@ fn retain_dropped_location(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
     }
 }
 
+thread_local! {
+    static UNCAPPED: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
+}
+
+/// Run *run* with the established drawing's scale cap on candidates lifted or kept
+/// ([`recover_tables`]'s last resort).
+fn with_uncapped<T>(uncapped: bool, run: impl FnOnce() -> T) -> T {
+    struct Restore(bool);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            UNCAPPED.set(self.0);
+        }
+    }
+    let _restore = Restore(UNCAPPED.replace(uncapped));
+    run()
+}
+
+/// Plans the hole schedules' presentation with *plan* and installs the schedules
+/// ([`crate::hole_table::install`]). Where they find no clear place because a slot callout took
+/// the place an origin mark needs, the presentation is planned once more with that place reserved
+/// before the dimensions are laid out ([`crate::hole_table::slot_callout_takes_origin`], CTC-03).
+/// `None` when the schedules are not installed.
+fn install_schedules(
+    analysis: &Analysis,
+    selection: &crate::hole_table::Selection,
+    plan: impl Fn(&crate::hole_table::Selection) -> Result<Plan, Invalid>,
+) -> Result<Option<Plan>, Invalid> {
+    let mut scheduled = plan(selection)?;
+    let first = scheduled.clone();
+    if crate::hole_table::install(analysis, &mut scheduled, selection) {
+        return Ok(Some(scheduled));
+    }
+    if !crate::hole_table::slot_callout_takes_origin(analysis, &first, selection) {
+        return Ok(None);
+    }
+    let mut reserved = selection.clone();
+    reserved.reserve_origins = true;
+    let mut scheduled = plan(&reserved)?;
+    Ok(crate::hole_table::install(analysis, &mut scheduled, &reserved).then_some(scheduled))
+}
+
 fn recover_tables(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan, Invalid> {
     // Establish the ordinary recovered geometry before changing presentation. A table must
     // not undo a scale recovery (nor spend one merely because its ladder has disappeared).
@@ -4337,7 +4447,33 @@ fn recover_tables(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan,
     baseline_spec.hole_table = crate::hole_table::Setting::Never;
     let mut seed = first.spec.clone();
     seed.hole_table = crate::hole_table::Setting::Never;
-    let mut baseline = recover(analysis, &baseline_spec, plan_escalated(analysis, &seed)?)?;
+    let unscheduled = plan_escalated(analysis, &seed)?;
+    let baseline = recover(analysis, &baseline_spec, unscheduled.clone())?;
+    let exhausted = recovery_exhausted;
+    let unrecovered = exhausted(&baseline);
+    let scheduled = schedule_recovered(analysis, spec, baseline)?;
+    // Nothing is valid without a table at any scale. The established drawing's scale caps
+    // the ordinary search, whose candidates may escalate to tables; when nothing under the
+    // cap is valid either, the cap has removed every scale rather than preserving an old
+    // corridor, so search the scales the ordinary ladder reaches without it, from the
+    // estimate without a table, as when the first estimate has none (STC-08). Its drawing
+    // is taken when it reads better than the schedule on the first estimate's sheet.
+    if unrecovered && exhausted(&recover(analysis, spec, unscheduled.clone())?) {
+        let ordinary = with_uncapped(true, || recover(analysis, spec, unscheduled))?;
+        let rank = |p: &Plan| recovery_rank(analysis, p);
+        if !exhausted(&ordinary) && rank(&ordinary) < rank(&scheduled) {
+            return Ok(ordinary);
+        }
+    }
+    Ok(scheduled)
+}
+
+/// [`recover_tables`]'s schedule on the sheet its table-free recovery chose.
+fn schedule_recovered(
+    analysis: &Analysis,
+    spec: &Spec,
+    mut baseline: Plan,
+) -> Result<Plan, Invalid> {
     baseline.spec = spec.clone();
     let selection = crate::hole_table::select(analysis, &baseline);
     if selection.tables.is_empty() {
@@ -4353,23 +4489,28 @@ fn recover_tables(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan,
         at.sheet.size = Some(baseline.sheet.size.clone());
         at.sheet.scale = Some(scale_name(baseline.sheet.scale_factor));
     }
-    let mut scheduled = plan_with_presentation(
-        analysis,
-        &at,
-        false,
-        replanned,
-        None,
-        ViewPolicy {
-            complete: true,
-            require_detail: false,
-        },
-        Some(&selection),
-    )?;
-    if replanned {
-        scheduled.spec = spec.clone();
-        scheduled.sheet.default = true;
-    }
-    if crate::hole_table::install(analysis, &mut scheduled, &selection) {
+    let installed = install_schedules(analysis, &selection, |selection| {
+        plan_with_presentation(
+            analysis,
+            &at,
+            false,
+            replanned,
+            None,
+            ViewPolicy {
+                complete: true,
+                require_detail: false,
+            },
+            Some(selection),
+        )
+        .map(|mut scheduled| {
+            if replanned {
+                scheduled.spec = spec.clone();
+                scheduled.sheet.default = true;
+            }
+            scheduled
+        })
+    })?;
+    if let Some(mut scheduled) = installed {
         // A genuine geometry recovery still belongs to the final plan; a resolved ladder's
         // exhausted-loss message does not. Preserve the successful recovery's trace.
         scheduled.problems.extend(
@@ -4501,21 +4642,21 @@ fn plan_escalated_uncached(
                 p.problems.push(Problem { id:"p:hole_table_unavailable:sheet".into(), code:"hole_table_unavailable".into(), severity:"warning".into(), message:"A hole table needs holes located in X and Y from a datum corner. This part has no holes located that way; use the individual hole dimensions shown instead.".into(), subjects:callouts, ..Default::default() });
             }
             if !selection.tables.is_empty() {
-                let mut scheduled =
+                let mut scheduled = install_schedules(analysis, &selection, |selection| {
                     plan_with_presentation(
-                    analysis,
-                    spec,
-                    beyond_lanes,
-                    automatic_pair || internal,
-                    candidate_arrangement,
-                    ViewPolicy { complete: true, require_detail: require_automatic },
-                    Some(&selection),
-                )?;
-                let mut installed = crate::hole_table::install(analysis, &mut scheduled, &selection);
+                        analysis,
+                        spec,
+                        beyond_lanes,
+                        automatic_pair || internal,
+                        candidate_arrangement,
+                        ViewPolicy { complete: true, require_detail: require_automatic },
+                        Some(selection),
+                    )
+                })?;
                 // Measured source corridors may outgrow the estimated sheet. An explicit
                 // schedule request still deserves a transaction on larger automatic paper,
                 // at the same scale, before falling back to the original dimensions.
-                if !installed
+                if scheduled.is_none()
                     && spec.hole_table == crate::hole_table::Setting::Always
                     && spec.sheet.size.is_none()
                     && !crate::placement_intent::has_pins(spec)
@@ -4526,21 +4667,22 @@ fn plan_escalated_uncached(
                     for (name, ..) in layout::PAGES.iter().skip(first + 1) {
                         let mut larger = spec.clone();
                         larger.sheet.size = Some((*name).into());
-                        let mut candidate = plan_with_presentation(
-                            analysis, &larger, beyond_lanes, automatic_pair,
-                            candidate_arrangement, ViewPolicy { complete: true, require_detail: require_automatic }, Some(&selection),
-                        )?;
-                        if crate::hole_table::install(analysis, &mut candidate, &selection) {
+                        let candidate = install_schedules(analysis, &selection, |selection| {
+                            plan_with_presentation(
+                                analysis, &larger, beyond_lanes, automatic_pair,
+                                candidate_arrangement, ViewPolicy { complete: true, require_detail: require_automatic }, Some(selection),
+                            )
+                        })?;
+                        if let Some(mut candidate) = candidate {
                             candidate.spec.clone_from(&p.spec);
                             candidate.sheet.default = true;
                             candidate.sheet.basis += "; larger automatic paper retains the requested schedule and measured corridors";
-                            scheduled = candidate;
-                            installed = true;
+                            scheduled = Some(candidate);
                             break;
                         }
                     }
                 }
-                if installed {
+                if let Some(scheduled) = scheduled {
                     p = scheduled;
                 } else if spec.hole_table == crate::hole_table::Setting::Always || findings(&p).dropped > 0 {
                     // A failed optional compaction is not a new drawing problem when
@@ -6252,7 +6394,7 @@ fn plan_with_presentation(
             &notes_given,
             &radius_notes,
             &inactive,
-            presentation.is_some(),
+            presentation.map(|p| p.reserve_origins),
         ))
         // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
         .expect("resolved candidate inputs serialize")
@@ -6347,6 +6489,12 @@ fn plan_with_presentation(
     crate::sheets::line_work(analysis, spec, &mut views);
     let mut furniture = crate::centrelines::obstacles(&views);
     furniture.extend(fixed.iter().cloned());
+    if let Some(p) = presentation {
+        // Only a second attempt reserves them (`install_schedules`).
+        furniture.extend(crate::hole_table::origin_reservations(
+            analysis, p, sheet.page, &views,
+        ));
+    }
     let ((mut dimensions, mut omitted, mut more), mut inventory) = crate::dims::plan_inventory(
         analysis,
         spec,
@@ -7952,6 +8100,19 @@ fn settle_finished_nominals(
                 radius_reference,
             );
         }
+    } else if pass == NominalPass::All {
+        // Another callout's refinement can cost the trial (nema17-bracket's hole callout left
+        // its area); the radius repair alone may still be taken, so a radius leader is not
+        // left off radial for a peer's sake.
+        settle_finished_nominals(
+            analysis,
+            original_spec,
+            plan,
+            omitted,
+            0,
+            NominalPass::Radius,
+            radius_reference,
+        );
     }
 }
 

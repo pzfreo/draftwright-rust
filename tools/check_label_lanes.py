@@ -118,8 +118,13 @@ if args.current:
     plan = json.loads((after / 'stc09.plan.json').read_text())
     dimensions = {d['id']: d for d in plan['dimensions']}
     slot = dimensions['d:f:slot:3/slot_length.length']['placed']
-    peer = dimensions['d:f:slot:1/slot_length.length']['placed']
-    assert abs(slot['arrows'][0][0][1] - peer['arrows'][0][0][1]) <= 14 + 1e-6, 'slot skipped its next lane'
+    # Slots 1 and 2 are congruent and now share one `2× SLOT` callout, so slot 3's length is
+    # held against the innermost lane on its side of the front view instead of slot 1's length.
+    view = dimensions['d:f:slot:3/slot_length.length']['view']
+    lanes = [d['placed']['arrows'][0][0][1] for d in plan['dimensions']
+             if d.get('placed') and d['kind'] == 'linear' and d.get('view') == view
+             and d['placed']['rotation'] == slot['rotation'] and d['placed']['arrows'][0][0][1] < slot['lines'][0][0][1]]
+    assert abs(slot['arrows'][0][0][1] - max(lanes)) <= 14 + 1e-6, 'slot skipped its next lane'
     assert all(abs(a[1] - b[1]) < 60 for a, b in slot['lines'][:2]), 'slot witnesses cross the tower'
     # string_post's inspection-end baseline replaces the old 1.1 mm chain link.
     # Its retained 1 mm terminal-band length (turned_step:3/step.length) is now

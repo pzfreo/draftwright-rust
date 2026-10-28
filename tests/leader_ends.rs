@@ -30,9 +30,16 @@ fn found(plan: &Plan, code: &str) -> Vec<Vec<String>> {
 
 #[test]
 fn leaders_across_their_own_view_are_reported() {
-    let Some(p) = plan("cadgenbench_inputs/cgb245.step") else {
+    let Some(dir) = corpus::dir() else {
+        eprintln!("SKIPPED (corpus part): the corpus is not found; set DRAFTWRIGHT_CORPUS");
         return;
     };
+    let (_, mut analysis) =
+        model::analyse_native(&dir.join("cadgenbench_inputs/cgb245.step")).unwrap();
+    // Its two obround slots are congruent, so one slot callout would state them: the second is
+    // split from the callout, so each keeps the radius leader this test reads.
+    corpus::split_slot(&mut analysis, "f:slot:2");
+    let p = model::plan_recovered(&analysis, &Spec::default()).unwrap();
     // Both slot-end 2× R3 leaders run from the slots near the plan's foot up across the view to
     // labels above and beside it.
     let mut across = found(&p, "leader_across_view");

@@ -147,7 +147,9 @@ def validate(kind, actual, baseline=None, shard=(1, 1)):
         complete(reference, expected)
         for part, row in actual['parts'].items():
             ids = row['ids']
-            require(len(ids) == actual['pins'] and len(set(ids)) == len(ids), f'{part}: incomplete selected pins')
+            # A part with fewer drawable candidates than the cell asks for pins all of them.
+            wanted = min(actual['pins'], row.get('candidates', actual['pins']))
+            require(len(ids) == wanted and len(set(ids)) == len(ids), f'{part}: incomplete selected pins')
             require(row['unpinned'] == reference[part], f'{part}: unpinned baseline differs from same-run evidence')
             for variant in ('unpinned', 'pinned'):
                 for key in ('ink', 'off_sheet'):
@@ -278,12 +280,13 @@ class Run:
                     return quality.one(files[name], binary, out / 'survey', review=False,
                                        timeout=getattr(args, 'part_timeout', None) or 3600)[1]
                 seed, pins = map(int, kind[5:].split('-'))
-                spec, ids = quality.random_pins(unpinned(name), name, seed, pins)
+                spec, ids, candidates = quality.random_pins(unpinned(name), name, seed, pins)
                 path = out / kind / 'pinned' / f'{name}.spec.json'
                 path.parent.mkdir(parents=True, exist_ok=True)
                 write(path, spec)
                 after = quality.one(files[name], binary, out / kind / 'pinned', path, timeout=timeout)[1]
-                return {'error': after['error']} if 'error' in after else {'ids': ids, 'pinned': after}
+                return ({'error': after['error']} if 'error' in after
+                        else {'ids': ids, 'candidates': candidates, 'pinned': after})
             except (OSError, ValueError, KeyError, subprocess.TimeoutExpired) as error:
                 return {'error': str(error)}
 
@@ -391,7 +394,8 @@ class Run:
                     parts[name] = {'error': before.get('error') or row['error'], 'go': False}
                     continue
                 after = row['pinned']
-                parts[name] = {'ids': row['ids'], 'unpinned': before, 'pinned': after,
+                parts[name] = {'ids': row['ids'], 'candidates': row['candidates'],
+                               'unpinned': before, 'pinned': after,
                                'ink_delta': after['ink'] - before['ink'],
                                'off_sheet_delta': after['off_sheet'] - before['off_sheet'],
                                'go': quality.pin_bar(before, after)}

@@ -25,7 +25,7 @@ const SAME_LINE: f64 = 0.01;
 /// ⌀8 THRU leader, 5.2° off its axis, reads as it; gt2-pulley's two leaders fanning onto a rim
 /// either side of an axis, about 8° off it, read as their own lines.
 const ALONG_ANGLE: f64 = 6.0 * std::f64::consts::PI / 180.0;
-const ALONG_GAP: f64 = 2.0;
+pub(super) const ALONG_GAP: f64 = 2.0;
 const ALONG_LENGTH: f64 = 5.0;
 /// A callout leader at least this long, page mm, that crosses at least [`EXTRA_LINES`] more of
 /// its view's lines (visible or hidden) than the clearest straight way out of the view from its
@@ -385,11 +385,10 @@ fn contacts(plan: &Plan) -> Vec<Problem> {
                     }
                     if d.kind == "callout"
                         && let Some(&shaft) = p.lines.first()
-                        && let Some((sin, off, along)) = beside(shaft, c)
+                        && let Some((_, off, _)) = beside(shaft, c)
                         // Exactly collinear strokes are lint's `leader_centerline_overlap`.
                         && off.iter().any(|o| o.abs() > 1e-6)
-                        && sin < ALONG_ANGLE.sin()
-                        && near_length(shaft, off, along) > ALONG_LENGTH
+                        && along_centreline(shaft, c)
                         && seen.insert("leader_along_centreline")
                     {
                         out.push(problem(
@@ -407,6 +406,16 @@ fn contacts(plan: &Plan) -> Vec<Problem> {
         }
     }
     out
+}
+
+/// Whether leader *shaft* reads as centre-line stroke *c*: within [`ALONG_ANGLE`] of it and
+/// within [`ALONG_GAP`] of it over more than [`ALONG_LENGTH`]. The leader router weighs a route
+/// this reports as running beside the stroke ([`super::leaders`]), so it keeps clear of what
+/// this pass reports.
+pub(super) fn along_centreline(shaft: [P; 2], c: [P; 2]) -> bool {
+    beside(shaft, c).is_some_and(|(sin, off, along)| {
+        sin < ALONG_ANGLE.sin() && near_length(shaft, off, along) > ALONG_LENGTH
+    })
 }
 
 /// The length of *shaft* both within [`ALONG_GAP`] of a centre line, its ends' signed offsets

@@ -217,7 +217,13 @@ pub(crate) fn span(a: &Analysis, feature: &str, parameter: &str) -> Option<Span>
             return Some(Span::new(k, station("lo")?, station("hi")?));
         }
         if parameter == "location_slot.length" {
-            return Some(Span::new(k, a.envelope[0][k], station("lo")?));
+            // A slot called out with its congruent slots is located by its centre.
+            let at = if super::slots::grouped(a, f) {
+                0.5 * (station("lo")? + station("hi")?)
+            } else {
+                station("lo")?
+            };
+            return Some(Span::new(k, a.envelope[0][k], at));
         }
         if parameter == "slot_width.length" {
             return slot_walls(a, feature).map(|(s, _)| s);

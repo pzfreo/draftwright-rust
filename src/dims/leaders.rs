@@ -653,6 +653,13 @@ fn boss_profile(w: &Want) -> bool {
         && matches!(&w.shape, Shape::Callout { sites, .. } if !sites.is_empty() && sites.iter().all(|(_, r)| *r == 0.0))
 }
 
+/// A slot callout (`N× SLOT W × L`, `dims::slots`): its leader may land on any of its slots, so
+/// a feature its leader crosses weighs double, as a recess callout's does, so the leader reaches
+/// another of them rather than crossing a neighbouring feature to the nearest (FTC-09's slot 3).
+fn slot_callout(w: &Want) -> bool {
+    matches!(w.shape, Shape::Callout { .. }) && w.terms.get(1).is_some_and(|t| t == "SLOT")
+}
+
 type Site = (P2, f64, Option<crate::arc::Span>);
 
 /// One callout's job: its view's outline, its sites on the page (centre, radius), its label's ink
@@ -674,6 +681,8 @@ struct Job<'a> {
     /// what an angle off the silhouette may not buy ([`Candidate::astray`]).
     model: Option<&'a SegmentIndex>,
     corridors: bool,
+    /// A slot callout ([`slot_callout`]): a crossed feature weighs double.
+    slot: bool,
     directed: bool,
     short_profile: bool,
     inward: bool,
@@ -686,8 +695,21 @@ struct Job<'a> {
     ink_min: P2,
     ink_max: P2,
     stroke_pad: f64,
+    /// The page radius of the callout's own outermost circle (its counterbore, spotface or
+    /// countersink, else its bore), [`own_reach`]: a centre mark past its overrun is shared.
+    reach: f64,
     /// Below, above, left, right: the distance past that edge clear of the strip's dimensions.
     beyond: [f64; 4],
+}
+
+/// The page radius of a callout's own outermost circle: the largest diameter it states (a
+/// counterbore, spotface or countersink round its bore), at the view's *scale*.
+fn own_reach(measurements: &[super::Measurement], scale: f64) -> f64 {
+    measurements
+        .iter()
+        .filter(|m| m.parameter.ends_with(".diameter"))
+        .map(|m| m.value / 2. * scale)
+        .fold(0., f64::max)
 }
 
 /// Compound requirements need paper around their extra signs and smaller stacked figures.
@@ -1227,6 +1249,7 @@ fn place_with_obstacles_uncached(
                     && !semantic_pmi
                     && !crate::planning::lookup::<bool>(analysis, "established-route-policy", &[])
                         .unwrap_or(false),
+                slot: slot_callout(w),
                 corridors: boss_profile(w)
                     || w.measurements
                         .iter()
@@ -1241,6 +1264,7 @@ fn place_with_obstacles_uncached(
                 } else {
                     stroke_clearance(&w.terms)
                 },
+                reach: own_reach(&w.measurements, f.scale()),
                 beyond,
             },
         ));
@@ -1302,6 +1326,10 @@ fn place_with_obstacles_uncached(
         for (k, &c) in selected.iter().enumerate() {
             let a = &inv[k][c];
             count += a.hard - a.furniture_hard + a.crossings - a.furniture_text + a.outside;
+            // A slot callout's crossed feature is a defect too ([`slot_callout`]).
+            if jobs[k].1.slot {
+                count += jobs[k].1.footprints.crossing_count([a.tip, a.elbow]) as u32;
+            }
             for (j, &other) in selected.iter().enumerate().take(k) {
                 count += conflict(a, &inv[j][other]);
             }
@@ -1326,9 +1354,19 @@ fn place_with_obstacles_uncached(
     for (k, (_, job)) in jobs.iter().enumerate() {
         let b = &baseline[k][baseline_choice[k]];
         let ceiling = b.hard + b.crossings + b.outside;
+        // A slot callout's crossed feature is a crossing like any other ([`slot_callout`]): a
+        // route crossing a line instead of the baseline's feature stays a candidate.
+        let features = if job.slot {
+            job.footprints.crossing_count([b.tip, b.elbow]) as u32
+        } else {
+            0
+        };
         inventories[k].retain(|c| {
-            c.feature_crossings <= b.feature_crossings
-                && c.hard - c.furniture_hard + c.crossings - c.furniture_text + c.outside <= ceiling
+            c.feature_crossings <= b.feature_crossings.max(features)
+                && c.hard - c.furniture_hard + c.crossings - c.furniture_text
+                    + c.outside
+                    + if job.slot { c.feature_crossings } else { 0 }
+                    <= ceiling + features
         });
         let right = b.end[0] > b.elbow[0];
         // Invariant: The incumbent route passed the same feasibility check before refinement.
@@ -1395,8 +1433,10 @@ fn place_with_obstacles_uncached(
         inventories[k].push(prior);
     }
     if semantic_pmi {
-        for inv in &mut inventories {
-            for c in inv {
+        // A slot callout is new to these drawings, so it has no legacy route to keep: its
+        // leader still counts the features it crosses ([`slot_callout`]).
+        for (inv, (_, job)) in inventories.iter_mut().zip(&jobs) {
+            for c in inv.iter_mut().filter(|_| !job.slot) {
                 c.aware = false;
             }
         }
@@ -1745,6 +1785,7 @@ pub(crate) fn settle_after_furniture(
             directed: false,
             // Enable the existing bounded corridor retry for a newly contacted route.
             corridors: !compact,
+            slot: slot_callout(w),
             short_profile: boss_profile(w),
             inward: false,
             edge_attachment: true,
@@ -1756,6 +1797,7 @@ pub(crate) fn settle_after_furniture(
             ink_min: ink.min,
             ink_max: ink.max,
             stroke_pad: stroke_clearance(&d.terms),
+            reach: own_reach(&w.measurements, frame.scale()),
             beyond: [CLEAR; 4],
         };
         let others: Vec<_> = items
@@ -2571,6 +2613,7 @@ pub(crate) fn settle_radius_leaders(
             silhouette: None,
             model: model.as_ref().map(|m| &m.as_ref().0),
             corridors: false,
+            slot: false,
             directed: false,
             short_profile: false,
             inward: false,
@@ -2584,6 +2627,7 @@ pub(crate) fn settle_radius_leaders(
             ink_min: ink.min,
             ink_max: ink.max,
             stroke_pad: stroke_clearance(&d.terms),
+            reach: 0.0,
             beyond: [CLEAR; 4],
         };
         let others: Vec<_> = items
@@ -3198,8 +3242,7 @@ fn refine_uncached(
             // scale, whatever the candidate's dimension spacing.
             crate::dims::with_compact(false, || {
                 crate::planning::memo(analysis, "bare-leader-reference", key, || {
-                    let mut base = analysis.clone();
-                    base.features.retain(|f| f.kind != "section_recess");
+                    let base = crate::lint::slots::without_recesses(analysis);
                     let mut recipe = crate::model::Spec::default();
                     recipe.sheet.size = Some(sheet.size.clone());
                     recipe.sheet.scale = Some(sheet.scale.clone());
@@ -3469,6 +3512,7 @@ fn refine_uncached(
                 .and_then(|e| e.place.as_ref())
                 .and_then(crate::placement_intent::side_hint),
             stroke_pad: stroke_clearance(&w.terms),
+            reach: own_reach(&w.measurements, frame.scale()),
             view,
             footprints: &footprints[view],
             outline: frame.outline(),
@@ -3496,6 +3540,7 @@ fn refine_uncached(
                 })
                 .flatten(),
             directed,
+            slot: slot_callout(w),
             corridors: boss_profile(w)
                 || w.measurements
                     .iter()
@@ -6054,7 +6099,7 @@ fn measure_at_bounds(
         grazing: u32::from(grazing),
         astray: 0,
         feature_crossings: 0,
-        recess: job.corridors && !job.short_profile,
+        recess: (job.corridors && !job.short_profile) || job.slot,
         directed: job.directed,
         inside,
         features_measured: false,
@@ -6103,23 +6148,56 @@ fn measure_fixed(c: &mut Candidate, job: &Job, fixed: &Fixed) {
     let mut furniture_text = Vec::new();
     let mut besides = Vec::new();
     let lines = segs.map(Line::new);
-    fixed.grid.near(0, near, |n| {
+    // A hole's own centre mark is looked for as far off as the drawing's check reads a leader
+    // as running along it.
+    let wide = grow(
+        bounds,
+        job.stroke_pad
+            .max(LABEL_PAD)
+            .max(super::contacts::ALONG_GAP),
+    );
+    fixed.grid.near(0, wide, |n| {
         let (i, f) = &fixed.segments[n];
-        if !segment_near(*f, near) {
+        if !segment_near(*f, wide) {
+            return;
+        }
+        // A centre mark through the hole's centre, its own or another hole's on the same line,
+        // is where a radial leader attaches. Its own (the cross centred there) shared with a
+        // larger coaxial circle than the callout's own outermost one ([`Job::reach`]) runs on
+        // past that circle's overrun (#104).
+        let site = (fixed.crosses.contains(i) && !job.sites.is_empty())
+            .then(|| nearest(&job.sites, tip))
+            .filter(|s| through(*f, s.0));
+        let shared = fixed.furniture.contains_key(i)
+            && site.is_some_and(|(c, r, _)| {
+                let mid = [(f[0][0] + f[1][0]) / 2., (f[0][1] + f[1][1]) / 2.];
+                let reach = job.reach.max(r);
+                (mid[0] - c[0]).hypot(mid[1] - c[1]) < 1e-3
+                    && (f[1][0] - f[0][0]).hypot(f[1][1] - f[0][1]) / 2.
+                        > reach + crate::centrelines::overrun(reach) + 1e-3
+            });
+        let close = segment_near(*f, near);
+        if !close && !shared {
             return;
         }
         // Exact collinear travel stays hard; a shaft's near-parallel travel is weighted
         // ([`BESIDE`]).
         let mut beside = false;
         let mut collinear = false;
-        let meets = if let Some(&global) = fixed.furniture.get(i) {
+        let meets = if !close {
+            beside = super::contacts::along_centreline(segs[0], *f);
+            beside
+        } else if let Some(&global) = fixed.furniture.get(i) {
             // The shaft only: a short shelf beside a stroke's end is not a run along it. A
-            // radial leader leaving its own hole along that hole's centre mark is its
-            // attachment, not travel along another feature's line.
-            beside = crate::centrelines::runs_beside(segs[0], *f)
-                && !(fixed.crosses.contains(i)
-                    && !job.corridors
-                    && through(*f, nearest(&job.sites, tip).0));
+            // radial leader leaving its hole along a centre mark through the hole's centre is
+            // its attachment, not travel along another feature's line, outside a corridor
+            // route. A shared mark runs on, though, and a shaft the finished drawing's check
+            // reads as running along it ([`super::contacts::along_centreline`]) is weighed as
+            // beside it; that check's length exceeds an overrun, so a mark ending at its own
+            // never trips it.
+            beside = (shared && super::contacts::along_centreline(segs[0], *f))
+                || (crate::centrelines::runs_beside(segs[0], *f)
+                    && !(site.is_some() && !job.corridors));
             collinear = lines.iter().any(|s| s.collinear(*f));
             beside
                 || collinear
@@ -6219,6 +6297,16 @@ fn measure_fixed(c: &mut Candidate, job: &Job, fixed: &Fixed) {
             })
         }
     };
+    if job.slot {
+        // A slot callout's leader may land on any of its slots: one that runs along a
+        // location's extension line (to the slot that line locates) reads as that line, and
+        // the leader to another slot is taken instead ([`slot_callout`]).
+        hard += fixed
+            .extensions
+            .iter()
+            .filter(|(_, e)| segs.iter().any(|s| crate::centrelines::runs_beside(*s, *e)))
+            .count() as u32;
+    }
     if job.corridors {
         // The same finite 1 mm extension corridor used by the route acceptance
         // check participates in the initial solve, before a route becomes fixed.
@@ -6351,10 +6439,12 @@ pub fn clear_routes(
         profile_proof: None,
         directed: false,
         corridors: false,
+        slot: false,
         steer: std::cell::Cell::new(None),
         ink_min: ink.min,
         ink_max: ink.max,
         stroke_pad: stroke_clearance(&d.terms),
+        reach: own_reach(&w.measurements, f.scale()),
         beyond: [CLEAR; 4],
     };
     let rest = || {
@@ -7152,6 +7242,7 @@ pub(super) fn settled_routes(
         silhouette: want.and_then(|w| grazing(&frame, w)),
         model: model.as_ref(),
         corridors: false,
+        slot: false,
         directed: false,
         short_profile: false,
         profile_proof: None,
@@ -7162,6 +7253,7 @@ pub(super) fn settled_routes(
         ink_min,
         ink_max,
         stroke_pad: stroke_clearance(&d.terms).max(LABEL_PAD),
+        reach: want.map_or(0.0, |w| own_reach(&w.measurements, frame.scale())),
         beyond: [CLEAR; 4],
     };
     let mut fixed = Fixed::new(
@@ -7273,6 +7365,26 @@ pub(super) fn settled_routes(
 
 #[cfg(test)]
 mod tests {
+    /// A counterbore or spotface is the callout's own outermost circle: a centre mark sized to
+    /// it (CTC-02's ⌀40 THRU ⌴SF ⌀120) is the hole's own, not a coaxial circle's (#104).
+    #[test]
+    fn own_reach_is_the_largest_stated_diameter_at_scale() {
+        use super::*;
+        let m = |parameter: &str, value: f64| crate::dims::Measurement {
+            feature: "f:hole:1".into(),
+            parameter: parameter.into(),
+            value,
+        };
+        let spotfaced = [
+            m("bore.diameter", 40.0),
+            m("spotface.diameter", 120.0),
+            m("spotface.depth", 8.0),
+        ];
+        assert!((own_reach(&spotfaced, 0.2) - 12.0).abs() < 1e-9);
+        assert!((own_reach(&[m("bore.diameter", 8.0)], 2.0) - 8.0).abs() < 1e-9);
+        assert_eq!(own_reach(&[m("blend.radius", 5.0)], 1.0), 0.0);
+    }
+
     #[test]
     fn refinement_grid_keeps_duplicate_strokes_and_boundary_contacts() {
         use super::*;
@@ -7589,10 +7701,13 @@ mod tests {
             );
             return;
         };
-        let a = crate::model::analyse_native(&corpus.join("cadgenbench_inputs/cgb245.step"))
+        let mut a = crate::model::analyse_native(&corpus.join("cadgenbench_inputs/cgb245.step"))
             .unwrap()
             .1;
         assert!(a.features.iter().all(|f| f.kind != "section_recess"));
+        // Its two obround slots are congruent, so a slot callout would state their ends: one is
+        // split from the callout, so each keeps its own radius leader.
+        split_slot(&mut a, "f:slot:2");
         let plan = crate::model::plan_recovered(&a, &crate::model::Spec::default()).unwrap();
         let id = "d:f:slot:1/slot_end_radius.radius";
         let d = plan.dimensions.iter().find(|d| d.id == id).unwrap();
@@ -7615,6 +7730,16 @@ mod tests {
         assert!(length(&p.lines) <= MAX_LEADER + SHOULDER);
         assert!((elbow[0] - tip[0]) * (p.lines[1][1][0] - elbow[0]) >= -1e-9);
         assert_eq!(p.lines[1][0][1], p.lines[1][1][1]);
+    }
+
+    /// Splits slot *id* from its congruent slots' callout, as `features/<id>/split` does, so it
+    /// and its twin are dimensioned singly, each radius leader its own (`dims::slots`).
+    fn split_slot(a: &mut crate::model::Analysis, id: &str) {
+        let f = a.features.iter_mut().find(|f| f.id == id).unwrap();
+        f.parameters.insert(
+            crate::lint::slots::ALONE.into(),
+            serde_json::Value::Bool(true),
+        );
     }
 
     #[test]

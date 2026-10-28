@@ -6,6 +6,118 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### Changed
+
+- **A cut corner is located by its legs, and an angle with no position is reported (#217).** Two
+  angles fix an edge's direction, not where it lies: dw-examples' l-plate-5-holes printed `135°` at
+  both ends of its 45° cut and neither leg. A cut across a corner of principal edges now gets its
+  missing stations, each from the nearer side of the box and drawn on the side its corner lies on,
+  so the witness leaves the part at once, instead of angles (the l-plate gets `20` above and `20`
+  on the left, not through the plate; a `dimensions/<id>` side places one elsewhere; a station
+  on such an open side reserves its lane when the sheet is laid out, which takes mfcadpp/10046
+  from A4 2:1 to A4 1:1 for its `18.759` on the side view's left, with two more of its corner
+  angles dropped and one `detail_unplaceable`; the NEMA 17
+  bracket's motor-plate chamfers `2× 4` and `4`, where two of their angles had been dropped;
+  10049's cut is located). A plate's face is now hidden only by a nearer face of
+  the same plate, so the bracket's base-plate chamfers, behind the motor plate's end face and never
+  reported, get `2× 4` and `4` too; a notch's flank corners are left to the notch (CTC-01's plate
+  adds nothing; 1013's `2× 113.974°` and 10020's `100.614°` beside their notches go). The counted
+  angle needs a regular polygon: FTC-08's and STC-08's chamfered-rectangle octagon loses `8× 135°`
+  for its stations (`profile_corners: angle` keeps the counted angle). Two equal stations from
+  opposite sides of the box are stated once, `2× v`, and lint reads a counted station as locating
+  its mirror: the symmetric octagon gets four (`2× 12.827`, `2× 33.902`, `2× 11.938`, `2× 33.013`),
+  not eight in repeated pairs; FTC-08 stays at 1:2 (dw-examples' copy on A2 1:5) and STC-08
+  on A1 1:1 with its hole table: where a first estimate places no table and its established scale
+  cap leaves nothing valid, the search runs once more without the cap, as it already did for a
+  table (without it, STC-08 with the cited datums drawn went to A2 1:5 with no table and 51
+  crossings). STC-08 costs two more `extension_through_feature` (7 to 9) and one
+  `extension_off_centreline`. Where a linear solve leaves two dimensions on one dimension line, it
+  is solved once more with the new recess witnesses kept off the lines of the settled locations
+  that yielded to them (a yielded location comes back where it was and may find no other clear
+  lane), and taken where fewer lines are shared. On a part with section recesses every station
+  reserves its lane when the sheet is laid out, not only one on an open side: the recess locations
+  yield to the callouts and come back around them, so a strip left a station short overflowed
+  across the view into the callouts' place (dw-examples' FTC-08 piled `2× ø10.16 × 3.429 LONG`
+  and `4× ⌀5.410 THRU` on `157.709`, `49.124` and `136.754` right of its plan view). The plan
+  view now stands clear of its left-hand locations, which all stay on that side, and FTC-08 has
+  no overlapping labels or shared lines (main: two overlapping pairs, `225.654` on `215.494`'s
+  line and `2× ⌀6.147` on `2× ⌀6.35`), with `annotation_leader_crossing` 81 to 67 and
+  `leader_through_feature` 38 to 35, but the left baseline's long witnesses cost
+  `extension_through_feature` 25 to 32, `annotation_ink_overlap` 4 to 12 (seven of them witnesses
+  running through the `192.23` and `158.75` slot labels), `extension_off_centreline` 1 to 3 and
+  two `leader_across_view`. The FTC-08 quality part goes from A1 1:2 to A2 1:2 and loses its
+  `detail_unplaceable`, with one more `label_crowded`; no other quality part or dw-example
+  changes with this reservation.
+  A settled location whose witness would cross a feature now starts it beyond the near face, as a
+  corridor repair would: FTC-08's `141.827` slot location stays clear of the 12.7 slot, and CTC-02
+  rc (3) and mfcadpp/1004 (1) lose their `extension_through_feature` findings. vslot-2020x50's slot
+  openings get `2× 1.8`, `2× 5.15` and `2× 6.95` for their sixteen angles and move from A4 1:1
+  (five leader crossings) to A3 2:1. FTC-08's fillet callout reads `8× R1.524`, not `8× R1.5` (the
+  new route loses the established one-decimal text; the retention check in `tests/label_lanes.rs`
+  now uses mfcadpp/1004); FTC-08 gains one `label_crowded`.
+  `profile_corners: linear`, or naming one station in the Spec, states each station on its own. A
+  45° corner chamfer gets its leg stations, not a chamfer callout (the issue's alternative, left
+  for later). Other corners are unchanged and stay unlocated (shf08's slanted top shows neither
+  angle nor station, its planned angles being dropped, as on 0.2.0; corner-bracket-2020 too);
+  lint now reports `profile_corner_unlocated` where no linear dimension places a drawn angle's
+  edge (CTC-03 2, cgb207 1, 10046 1, 10060 2), and 10007 and 10060 gain plate-face corners whose
+  angles find no clear place (`angular_requirement_missing`).
+
+- **Congruent slots are dimensioned as slots.** dw-examples' nema17-bracket pieced each of its
+  six 4.5 × 7.5 slots together from a counted width, three counted lengths, six `2× R2.25`
+  leaders and locations mixing slot ends and centres. Lone obround slots that are congruent (the
+  same width, length and full-round ends, seen through the same axis, whichever way each runs)
+  now get one `6× SLOT 4.5 × 7.5` callout, its leader to a slot end, and each is located by its
+  centre along its length as well as across it, so the group reads centre to centre. A full-round
+  end radius (half the width, to quiddity's 0.01 mm rounding) is no longer called out, for slot
+  patterns too (gantry-plate's `6× SLOT 3 × 9.5` loses its `2× R1.5`): the slot callout implies it,
+  and review accepts it only from a `SLOT` callout claiming the width, and judges a slot's
+  location at its centre only when such a callout states it. gantry-plate's two long slots get
+  `2× SLOT 5 × 25` in place of `2× 5`, `2× 25` and two `2× R2.5`, and nema17-mount-bracket's get
+  `2× SLOT 4 × 34`. Straight slots (windows with blended corners, CTC-04's) and single slots are
+  dimensioned as before, and so are keyhole slots (a circular seat opening the slot at its
+  middle, FTC-08's and STC-08's), whose seat callout and axis carry the compound;
+  `features/<id>/split` on a slot keeps it out of the callout. A grouped slot whose centre stands
+  on a hole's, pattern's or seat's location line is located by that line (ARCH0009-6), and review
+  and the location audit credit it.
+- **Sheet choice keeps profile-corner angles.** A smaller candidate that leaves out a corner angle
+  the automatic baseline draws is refused, as one that drops a hole item is: smaller paper is not
+  bought by losing it. nema17-mount-bracket keeps its two `135°` corners on A3 1:1.
+- **A slot callout keeps off the hole table's origin and off its neighbours.** On NIST CTC-03 the
+  `2× SLOT` label, laid out with the plan view's hole table, took the datum corner the table's
+  X/Y origin mark needs, so the table failed at A3 1:5. When a slot callout takes that place, the
+  table presentation is planned once more with the mark's place reserved before the dimensions
+  (`hole_table::origin_reservations`); other table failures keep the original dimensions as
+  before. A slot callout's leader counts the features it crosses even on a part with semantic
+  PMI, whose other leaders keep their established routing, so FTC-09's no longer runs through
+  the wide slot beside its two slots, and it does not run along a location's extension line. A location that also conveys coincident slots' locations
+  starts its extension line at whichever of their centres is nearest its dimension line, so the
+  witness of a row of slots does not cross the near ones (nema17-bracket, gantry-plate, CTC-03).
+- **A baseline's lone inner link follows the rest across the view.** When a strip cannot hold a
+  baseline (one face, one axis), its outer links fall through to the strip across the view; the
+  one inner link left behind now follows them, innermost, where the whole baseline fits there and
+  its extension lines cross fewer features there: nema17-bracket's `5` joins `6.5`, `34.5` and
+  `36` on the right instead of running left across a slot and the flange's three holes
+  (`dims::placement::fall_through`; `dimensions/<id>/place/side` still chooses). No other part of
+  the 65 changes.
+- **A radius leader is not left off radial for another callout's sake.** The final leader pass
+  takes its repairs together, so when nema17-bracket's hole callout was refined out of its area
+  the trial was refused and its `R3` kept a route 97° off radial; the radius repair is now tried
+  alone when that happens.
+- **A slot leader on a full-round end is judged against the round end.** quiddity rounds the end
+  radius to 0.01 mm (R3.18 on FTC-09's 6.35 wide slots, R9.52 on CTC-03's 19.05), and the slot
+  tip check then read the ends as square, so a slot callout's tip on the end arc was reported as
+  `slot_leader_target_mismatch` (0.147 and 0.002 mm off).
+- Plans change on 8 of the 65 quality and dw-examples parts, all with congruent obround slots:
+  nema17-bracket now fits A4 1:1 (was A3 2:1); gantry-plate, nema17-mount-bracket, NIST STC-09,
+  cgb245 and the corpus CTC-03 and FTC-09 keep their sheets; dw-examples' CTC-03 keeps A3 1:5
+  and regains its hole table (dimensioned singly since the cited-datum change above).
+  `extension_through_feature`: nema17-bracket 10 to 8, gantry-plate 28 to 30, CTC-03 1 and 4
+  to 0, cgb245 5 to 1. FTC-09 trades its slot leader through a slot for one
+  crossing of slot 3's `38.1` extension line (`annotation_leader_crossing` 0 to 1): that
+  dimension's extension lines and dimension line box its two slots in below slot 3, so every
+  route from them crosses something.
+
 ### Fixed
 
 - **A rectangle of holes is no longer called out as a bolt circle (#223).** quiddity accepts a
@@ -106,6 +218,30 @@ All notable changes to draftwright-rust are recorded here, in the style of
   rule out A4–A2 at any scale, and a GD&T corridor pass takes A1 from 1:2 to 1:5), NIST FTC-08
   and STC-06 (no candidate on any paper is valid; layout density), and the 2020×50 V-slot (A4 2:1
   is set aside for one added leader through material; left for a decision).
+
+- **Turned and round parts: coaxial bores are not located from a silhouette, a recess at both
+  mouths says so, and leaders leave a shared centre line (#104).** A hole on the axis of a round
+  face that is the part's whole outline in its end view is no longer located from that face's
+  tangents: dw-examples' 608ZZ bearing loses its two `11` dimensions (half its ø22), the Hirth
+  joint its two `10`s and cgb203 its two `180`s; the centre lines locate the bore, and
+  `origin/<axis>: min` keeps the box sides. A counterbore or spotface quiddity finds alike at
+  both mouths of a through hole, which its record states once, is called out `BOTH SIDES`
+  (LM10UU's `⌀10 THRU ⌴SF ⌀16.4 ↧ 1.4`, FTC-10's and STC-10's `4× ⌀7 THRU ⌴ ⌀10 ↧ 10`); a like
+  recess of another hole farther along the same line is not counted. A leader to a bore whose
+  centre mark runs on to a larger coaxial circle than the callout's own outermost one (its
+  counterbore or spotface, else its bore) is no longer free to run down or beside it: the router
+  weighs a leader that review's `leader_along_centreline` reads as that line (within 6° and 2 mm
+  of it over more than 5 mm) as beside it. 608ZZ, LM10UU, LM8UU, the GT2 pulley, the sprocket,
+  the Hirth joint, FTC-11, cgb203, GRM-03 and FTC-06 lose that finding, and STC-06 one of its
+  three (leader crossings 23 to 21). A mark sized to the callout's own recess (CTC-02's
+  `⌀40 THRU ⌴SF ⌀120 ↧ 8`) and another hole's mark on the same line keep their old weighing, so
+  CTC-02 plans as before. `BOTH SIDES` rides on the requirement's last line: the 48 mm wrap
+  applies to the requirement, so LM10UU's callout and the corpus FTC-10's stay one line (FTC-10
+  keeps A2 1:1 on two sheets; a two-line callout took it to one sheet at 1:2) and STC-10's
+  wrapped one ends `10 BOTH SIDES`. LM10UU's longer label runs past its view's area over empty
+  paper (`annotation_outside_area`, info). A section's address beside other ink on its line now
+  keeps 3 mm from it rather than 1 mm, where the corpus FTC-10's `SECTION A–A, SHEET 2, ZONE D9`
+  read as one line with the longer callout; it and the corpus CTC-04's address move 2 mm.
 
 ## 0.2.0 (2026-10-27)
 

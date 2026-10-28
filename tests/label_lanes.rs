@@ -136,7 +136,10 @@ fn stc09_slot_length_stays_beside_its_peer_and_gdt_corridors() {
     std::fs::create_dir_all(&dir).unwrap();
     let path = dir.join("stc09.stp");
     std::fs::write(&path, step).unwrap();
-    let a = model::analyse_native(&path).unwrap().1;
+    let mut a = model::analyse_native(&path).unwrap().1;
+    // Its slots 1 and 2 are congruent, so one slot callout would state them: slot 2 is split
+    // from the callout, so slot 1 keeps the length that is slot 3's peer here.
+    corpus::split_slot(&mut a, "f:slot:2");
     let p = model::plan_recovered(&a, &Spec::default()).unwrap();
     let placed = |id: &str| {
         p.dimensions
@@ -234,14 +237,25 @@ fn precise_labels_keep_their_span_after_the_final_inventory_settles() {
         .iter()
         .find(|d| d.id == "d:f:fillet:7/fillet.radius")
         .unwrap();
-    assert_eq!(fillet.label, "8× R1.5");
     assert!(
         fillet
             .measurements
             .iter()
             .all(|m| (m.value - 1.524).abs() < 1e-6)
     );
-    assert!(fillet.basis.contains("one-decimal text retained"));
+    // Exact since the octagon's stations (#217) changed the inventory around it; mfcadpp/1004
+    // below keeps the established one-decimal text on its unchanged ink run.
+    assert_eq!(fillet.label, "8× R1.524");
+    if let Some(p) = plan_with("mfcadpp/1004.step", &Spec::default()) {
+        let hole = p
+            .dimensions
+            .iter()
+            .find(|d| d.id == "d:f:hole:1/bore.diameter")
+            .unwrap();
+        assert!((hole.measurements[0].value - 7.44654).abs() < 1e-4);
+        assert_eq!(hole.label, "⌀7.4 ↧ 5.9");
+        assert!(hole.basis.contains("one-decimal text retained"));
+    }
     assert!(
         !p.problems.iter().any(|q| {
             matches!(

@@ -803,6 +803,8 @@ fn dimension_marks(
             }],
         });
     }
+    // A grouped slot's centre conveyed by another feature's location line is located by it.
+    crate::lint::slots::conveyed_locations(a, &mut marks);
     marks
 }
 

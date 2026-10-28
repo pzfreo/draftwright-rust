@@ -209,9 +209,12 @@ fn automatic_overflow_never_uses_an_illegible_scale() {
 #[test]
 fn ctc03_valid_complete_sheet_beats_invalid_seed_despite_material_crossings() {
     let Some(dir) = corpus::dir() else { return };
-    let a = model::analyse_native(&dir.join("nist/nist_ctc_03_asme1_rc.stp"))
+    let mut a = model::analyse_native(&dir.join("nist/nist_ctc_03_asme1_rc.stp"))
         .unwrap()
         .1;
+    // The seed was captured when the two congruent slots were dimensioned singly: one is split
+    // from their slot callout, so the plan recovered from it has the items it holds.
+    corpus::split_slot(&mut a, "f:slot:2");
     use std::io::Read as _;
     let mut bytes = Vec::new();
     flate2::read::GzDecoder::new(
@@ -551,9 +554,13 @@ fn small_10255_fits_one_a3_sheet() {
 #[test]
 fn a_part_needing_large_paper_at_full_size_keeps_large_paper() {
     let Some(dir) = corpus::dir() else { return };
-    let a = model::analyse_native(&dir.join("nist/nist_ftc_09_asme1_rd.stp"))
+    let mut a = model::analyse_native(&dir.join("nist/nist_ftc_09_asme1_rd.stp"))
         .unwrap()
         .1;
+    // Its congruent slots 1 and 2, called out together, drop the slot radius leader that kept
+    // A2 at 1:2 from being clean, and the part fits A2 at 1:2 (the default drawing now): slot 2
+    // is split from their callout so this guard keeps reading the full-size large-paper case.
+    corpus::split_slot(&mut a, "f:slot:2");
     let p = model::plan_recovered(
         &a,
         &serde_json::from_value(serde_json::json!({"sheet":{"preferred_max_size":"A0"}})).unwrap(),

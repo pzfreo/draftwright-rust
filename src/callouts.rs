@@ -35,6 +35,9 @@ pub(crate) fn is_break(term: &str) -> bool {
 }
 
 pub const WIDTH: f64 = 48.0;
+/// The qualifier of a recess cut alike at both mouths of a through hole (#104). Ending a
+/// callout, it rides on the requirement's last line: the 48 mm wrap applies to the requirement.
+pub const BOTH_SIDES: &str = "BOTH SIDES";
 /// The same font-derived baseline advance used by ordinary multiline font text.
 pub fn line_spacing() -> f64 {
     crate::dims::font().line_spacing(crate::dims::TEXT)
@@ -102,9 +105,14 @@ fn wrap_measured(terms: &[String], width: &dyn Fn(&[String]) -> f64) -> Vec<Stri
         if i > 0 {
             out.push(BREAK.into());
         }
+        let (forced, tail) = match forced.split_last() {
+            Some((last, body)) if last == BOTH_SIDES && !body.is_empty() => (body, Some(last)),
+            _ => (*forced, None),
+        };
         // As in Python, short labels keep their original token cells and spacing.
         if width(forced) <= WIDTH {
             out.extend_from_slice(forced);
+            out.extend(tail.cloned());
             continue;
         }
         let mut line: Vec<String> = Vec::new();
@@ -112,7 +120,7 @@ fn wrap_measured(terms: &[String], width: &dyn Fn(&[String]) -> f64) -> Vec<Stri
             out.append(line);
             out.push(SOFT_BREAK.into());
         };
-        for token in *forced {
+        for token in forced {
             let words: Vec<_> = if token.contains('\n') {
                 vec![token.as_str()]
             } else {
@@ -134,6 +142,7 @@ fn wrap_measured(terms: &[String], width: &dyn Fn(&[String]) -> f64) -> Vec<Stri
         if out.last().is_some_and(|s| s == SOFT_BREAK) {
             out.pop();
         }
+        out.extend(tail.cloned());
     }
     out
 }

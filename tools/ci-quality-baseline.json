@@ -89,7 +89,7 @@
     "1004": {
       "hidden_on_visible": 0,
       "ink": 0,
-      "line_through_feature": 1,
+      "line_through_feature": 0,
       "off_sheet": 0,
       "repeated_label": 0,
       "repeated_measure": 0,
@@ -221,9 +221,9 @@
     "cgb245": {
       "hidden_on_visible": 0,
       "ink": 0,
-      "line_through_feature": 3,
+      "line_through_feature": 1,
       "off_sheet": 0,
-      "repeated_label": 1,
+      "repeated_label": 0,
       "repeated_measure": 0,
       "repeated_span": 0,
       "section_hidden": 0,
@@ -245,7 +245,7 @@
     "nist_ctc_02_asme1_rc": {
       "hidden_on_visible": 0,
       "ink": 0,
-      "line_through_feature": 4,
+      "line_through_feature": 2,
       "off_sheet": 0,
       "repeated_label": 0,
       "repeated_measure": 0,
@@ -257,7 +257,7 @@
     "nist_ctc_03_asme1_rc": {
       "hidden_on_visible": 0,
       "ink": 0,
-      "line_through_feature": 1,
+      "line_through_feature": 0,
       "off_sheet": 0,
       "repeated_label": 0,
       "repeated_measure": 0,
@@ -328,7 +328,7 @@
     },
     "nist_ftc_09_asme1_rd": {
       "hidden_on_visible": 0,
-      "ink": 0,
+      "ink": 1,
       "line_through_feature": 0,
       "off_sheet": 0,
       "repeated_label": 0,
@@ -413,7 +413,7 @@
     ],
     "10046": [
       "A4",
-      "2:1",
+      "1:1",
       1
     ],
     "10047": [
@@ -502,7 +502,7 @@
       1
     ],
     "nist_ftc_08_asme1_rc": [
-      "A1",
+      "A2",
       "1:2",
       1
     ],
@@ -528,6 +528,6 @@
     ]
   },
   "source": "Recorded from the complete quality.py --record audit",
-  "source_commit": "98637e8ff3944b755fdd1a6de7e62baedf2721e0",
-  "verified_binary_sha256": "b490c3da1bbeddeacee136d0f207ff1f6255fbcd98875862322d4d6e95afb6ca"
+  "source_commit": "3bf780ab02542177d91297c742b4b3dcefbc8743",
+  "verified_binary_sha256": "310a8f11fe949eab1f05b810042c7bd42928394bb51390004e0e19fea56cd2af"
 }
