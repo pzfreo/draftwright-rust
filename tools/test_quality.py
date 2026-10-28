@@ -459,8 +459,9 @@ class RandomPins(unittest.TestCase):
 
     def test_selection_is_repeatable_and_pins_all_supported_kinds(self):
         plan = self.plan()
-        spec, ids = quality.random_pins(plan, 'part', 1, 3)
-        self.assertEqual((spec, ids), quality.random_pins(plan, 'part', 1, 3))
+        spec, ids, candidates = quality.random_pins(plan, 'part', 1, 3)
+        self.assertEqual((spec, ids, candidates), quality.random_pins(plan, 'part', 1, 3))
+        self.assertEqual(candidates, 3)
         self.assertEqual(set(ids), {'d:a/length', 'pmi:a', 'v:plan'})
         self.assertTrue(spec['dimensions']['d:a/length']['place']['pinned'])
         self.assertTrue(spec['annotations']['pmi:a']['place']['pinned'])
@@ -469,9 +470,10 @@ class RandomPins(unittest.TestCase):
                                 'align': 'projection', 'pinned': True})
         self.assertNotIn('at', view)
 
-    def test_not_enough_items_is_an_error(self):
-        with self.assertRaises(ValueError):
-            quality.random_pins(self.plan(), 'part', 1, 8)
+    def test_fewer_candidates_than_pins_pins_every_candidate(self):
+        spec, ids, candidates = quality.random_pins(self.plan(), 'part', 1, 8)
+        self.assertEqual((sorted(ids), candidates), (['d:a/length', 'pmi:a', 'v:plan'], 3))
+        self.assertEqual(len(spec['dimensions']) + len(spec['annotations']) + len(spec['views']), 3)
 
     def test_selection_is_independent_of_plan_order_and_nested_for_n(self):
         plan = self.plan()
@@ -488,7 +490,7 @@ class RandomPins(unittest.TestCase):
             dict(id='v:plan', sheet=2, area=[10,10,30,30]),
             dict(id='v:iso', sheet=2, area=[10,40,30,60]),
         ]
-        spec, ids = quality.random_pins(plan, 'part', 1, 4)
+        spec, ids, _ = quality.random_pins(plan, 'part', 1, 4)
         self.assertEqual(len(ids),4)
         pages = {v['id'][2:]:v['sheet'] for v in plan['views']}
         for name, item in spec.get('views',{}).items():

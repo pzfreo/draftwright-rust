@@ -849,7 +849,7 @@ def random_pins(plan, name, seed, count):
     spec = {"schema": "draftwright.spec/2"}
     for id_, kind, place in candidates[:count]:
         spec.setdefault(kind, {})[id_[2:] if kind == "views" else id_] = {"place": place}
-    return spec, [c[0] for c in candidates[:count]]
+    return spec, [c[0] for c in candidates[:count]], len(candidates)
 
 
 def pin_bar(before, after):
@@ -867,7 +867,7 @@ def pinned_one(f, args, baseline):
         p = subprocess.run([args.dw, "plan", f], capture_output=True, text=True, timeout=args.timeout)
         if p.returncode:
             raise ValueError(p.stderr or p.stdout)
-        spec, ids = random_pins(json.loads(p.stdout), name, args.seed, args.pins)
+        spec, ids, candidates = random_pins(json.loads(p.stdout), name, args.seed, args.pins)
         path = f"{args.out}/pinned/{name}.spec.json"
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w") as output:
@@ -876,7 +876,7 @@ def pinned_one(f, args, baseline):
         if "error" in after:
             raise ValueError(after["error"])
         before = baseline[name]
-        return name, {"ids": ids, "unpinned": before, "pinned": after,
+        return name, {"ids": ids, "candidates": candidates, "unpinned": before, "pinned": after,
                       "ink_delta": after["ink"]-before["ink"],
                       "off_sheet_delta": after["off_sheet"]-before["off_sheet"],
                       "go": pin_bar(before, after)}

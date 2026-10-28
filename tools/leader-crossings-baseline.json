@@ -1,5 +1,5 @@
 {
-  "base": "145073dcec044855ccfc0250a2b7a2e45bd478f9",
+  "base": "3bf780ab02542177d91297c742b4b3dcefbc8743",
   "format": "draftwright.leader-crossings/1",
   "parts": {
     "1000": {
@@ -85,7 +85,7 @@
     "10060": {
       "dimension_dimension": 0,
       "leader_arrow": 0,
-      "leader_dimension_line": 1,
+      "leader_dimension_line": 0,
       "leader_extension_line": 0,
       "leader_leader": 0,
       "leader_text": 0
@@ -164,10 +164,10 @@
     },
     "nist_ctc_02_asme1_ap242-e2": {
       "dimension_dimension": 0,
-      "leader_arrow": 8,
-      "leader_dimension_line": 11,
-      "leader_extension_line": 7,
-      "leader_leader": 1,
+      "leader_arrow": 2,
+      "leader_dimension_line": 3,
+      "leader_extension_line": 3,
+      "leader_leader": 0,
       "leader_text": 0
     },
     "nist_ctc_02_asme1_rc": {
@@ -213,8 +213,8 @@
     "nist_ftc_07_asme1_ap242-e2": {
       "dimension_dimension": 0,
       "leader_arrow": 8,
-      "leader_dimension_line": 19,
-      "leader_extension_line": 14,
+      "leader_dimension_line": 12,
+      "leader_extension_line": 13,
       "leader_leader": 10,
       "leader_text": 0
     },
@@ -238,7 +238,7 @@
       "dimension_dimension": 0,
       "leader_arrow": 0,
       "leader_dimension_line": 0,
-      "leader_extension_line": 0,
+      "leader_extension_line": 1,
       "leader_leader": 0,
       "leader_text": 0
     },
