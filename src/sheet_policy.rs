@@ -479,17 +479,12 @@ const UNREADABLE: &[&str] = &[
 /// Usable relative to the automatic baseline: never clipped and never below the readable
 /// floor; otherwise disqualified only by unreadable, error or loss findings (code + subjects,
 /// printed-step breaches, drops) that the automatic baseline does not have. Warnings the
-/// baseline shares never make a crowded-but-readable drawing lose to an enlargement. A
-/// profile-corner angle the baseline draws is a drop too: smaller paper does not buy room by
-/// leaving it out (nema17-mount-bracket's 135° corners).
+/// baseline shares never make a crowded-but-readable drawing lose to an enlargement.
 fn usable(analysis: &Analysis, plan: &Plan, reference: &Plan, floor: f64) -> bool {
     let drops = |p: &Plan| {
         p.problems
             .iter()
-            .filter(|q| {
-                crate::hole_table::DROPS.contains(&q.code.as_str())
-                    || q.code == "angular_dimension_dropped"
-            })
+            .filter(|q| crate::hole_table::DROPS.contains(&q.code.as_str()))
             .map(problem_key)
             .collect::<BTreeSet<_>>()
     };
@@ -2420,25 +2415,6 @@ mod tests {
         dimension.label_box[2] += clipped.sheet.page[0];
         assert!(!sheet_fit::inside_frames(&a, &clipped));
         assert!(!usable(&a, &clipped, &p, 0.));
-    }
-
-    /// nema17-mount-bracket: a candidate that leaves out a profile-corner angle the baseline
-    /// draws is not usable, however clean the rest of it is; one the baseline drops too is.
-    #[test]
-    fn a_candidate_dropping_an_angle_the_baseline_draws_is_refused() {
-        let a = fixture();
-        let p = model::plan_automatic(&a, &Spec::default()).unwrap();
-        assert!(usable(&a, &p, &p, 0.));
-        let mut dropped = p.clone();
-        dropped.problems.push(model::Problem {
-            id: "p:angular_dimension_dropped:d:envelope/profile_angle.angle.f1".into(),
-            code: "angular_dimension_dropped".into(),
-            severity: "info".into(),
-            subjects: vec!["d:envelope/profile_angle.angle.f1".into()],
-            ..Default::default()
-        });
-        assert!(!usable(&a, &dropped, &p, 0.));
-        assert!(usable(&a, &dropped, &dropped, 0.));
     }
 
     #[test]

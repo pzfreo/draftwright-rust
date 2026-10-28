@@ -157,9 +157,6 @@ All notable changes to draftwright-rust are recorded here, in the style of
   `features/<id>/split` on a slot keeps it out of the callout. A grouped slot whose centre stands
   on a hole's, pattern's or seat's location line is located by that line (ARCH0009-6), and review
   and the location audit credit it.
-- **Sheet choice keeps profile-corner angles.** A smaller candidate that leaves out a corner angle
-  the automatic baseline draws is refused, as one that drops a hole item is: smaller paper is not
-  bought by losing it. nema17-mount-bracket keeps its two `135°` corners on A3 1:1.
 - **A slot callout keeps off the hole table's origin and off its neighbours.** On NIST CTC-03 the
   `2× SLOT` label, laid out with the plan view's hole table, took the datum corner the table's
   X/Y origin mark needs, so the table failed at A3 1:5. When a slot callout takes that place, the
