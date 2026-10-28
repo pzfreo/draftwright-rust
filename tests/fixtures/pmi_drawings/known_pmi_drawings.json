@@ -4463,13 +4463,13 @@
      "boxed": false,
      "kind": "dimension",
      "rides_on": "bore.diameter",
-     "text": "4× ⌀7 ±0.25 THRU ⌴ ⌀10 ↧ 10",
+     "text": "4× ⌀7 ±0.25 THRU ⌴ ⌀10 ↧ 10 BOTH SIDES",
      "view": "plan"
     }
    ]
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright's drawing: not drawn, refused (authored_dim_source_unresolved); the port's: '4× ⌀7 ±0.25 THRU ⌴ ⌀10 ↧ 10' (dimension, plan view, on bore.diameter). As known_pmi_dimensions.json (outcome, rust-correct): draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø7 ±0.25' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀7 ±0.25 THRU ⌴ ⌀10 ↧ 10'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here."
+  "evidence": "draftwright's drawing: not drawn, refused (authored_dim_source_unresolved); the port's: '4× ⌀7 ±0.25 THRU ⌴ ⌀10 ↧ 10 BOTH SIDES' (dimension, plan view, on bore.diameter). As known_pmi_dimensions.json (outcome, rust-correct): draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø7 ±0.25' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀7 ±0.25 THRU ⌴ ⌀10 ↧ 10 BOTH SIDES' (the ⌀10 ↧ 10 counterbore is cut at both ends of each ⌀7 bore, #104). Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here."
  },
  {
   "file": "nist_ftc_10_asme1_ap242-e2.stp",
@@ -8347,13 +8347,13 @@
      "boxed": false,
      "kind": "dimension",
      "rides_on": "bore.diameter",
-     "text": "4× ⌀7 ±0.25 THRU ⌴ ⌀10 ↧ 10",
+     "text": "4× ⌀7 ±0.25 THRU ⌴ ⌀10 ↧ 10 BOTH SIDES",
      "view": "plan"
     }
    ]
   },
   "verdict": "rust-correct",
-  "evidence": "The hole's references are its cylindrical face and a rim edge of that face. draftwright refuses the record (pmi_not_extracted: 'one diameter reference is not a face'; with it authored_dim_source_unresolved). Every point of the edge lies on the referenced cylinder within its extent, so it names the same hole again and adds nothing to measure; the port reads the size from the cylinders (pmi_lowering cylinder_geometry, edge_on_cylinder), matches them to the recognised hole callout of those holes (same axis line and diameter) and states it there and in its hole table rows. An edge off the referenced cylinders still refuses (tests/pmi_dimensions.rs a_hole_size_naming_its_rim_edge_reaches_its_callout_and_schedule)."
+  "evidence": "The hole's references are its cylindrical face and a rim edge of that face. draftwright refuses the record (pmi_not_extracted: 'one diameter reference is not a face'; with it authored_dim_source_unresolved). Every point of the edge lies on the referenced cylinder within its extent, so it names the same hole again and adds nothing to measure; the port reads the size from the cylinders (pmi_lowering cylinder_geometry, edge_on_cylinder), matches them to the recognised hole callout of those holes (same axis line and diameter) and states it there and in its hole table rows. An edge off the referenced cylinders still refuses (tests/pmi_dimensions.rs a_hole_size_naming_its_rim_edge_reaches_its_callout_and_schedule). The callout says BOTH SIDES: each ⌀7 bore (z 0-75) has its ⌀10 ↧ 10 counterbore at both ends (z 0-10 and 65-75), as FTC-10's (#104)."
  },
  {
   "file": "spool_fits.step",

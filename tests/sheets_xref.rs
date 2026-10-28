@@ -477,3 +477,44 @@ fn cited_zones_stay_when_switched_off_and_are_reported_once() {
         assert_centring_marks(&d);
     }
 }
+
+/// The corpus FTC-10's section address on sheet 1 sits on the line of the `4× ⌀7 THRU ⌴ ⌀10 ↧ 10
+/// BOTH SIDES` callout. 1 mm after that text it read as one line with it; it keeps a word's gap
+/// (more than 2 mm) from a label on its line (#104).
+#[test]
+fn a_section_address_keeps_a_words_gap_from_a_label_on_its_line() {
+    let path = PathBuf::from(std::env::var("DRAFTWRIGHT_CORPUS").unwrap())
+        .join("nist/nist_ftc_10_asme1_rb.stp");
+    let (p, _) = api::render_from(
+        &path,
+        api::Features::Native,
+        &Default::default(),
+        &["svg"],
+        24.,
+    )
+    .unwrap();
+    let v = p.views.iter().find(|v| v.id == "v:section_aa").unwrap();
+    let to = v.cut.as_ref().unwrap().xref.as_ref().unwrap();
+    let font = draftwright::text::Font::new(api::MONO.to_vec()).unwrap();
+    let text = format!("SECTION A–A, SHEET {}, ZONE {}", to.sheet, to.zone);
+    let laid = font.text(&text, draftwright::section::FONT_SIZE);
+    let address = [
+        to.at[0] + laid.min[0],
+        to.at[1] + laid.min[1],
+        to.at[0] + laid.max[0],
+        to.at[1] + laid.max[1],
+    ];
+    let callout = p
+        .dimensions
+        .iter()
+        .find(|d| d.label.ends_with("BOTH SIDES"))
+        .and_then(|d| d.placed.as_ref())
+        .unwrap();
+    let b = callout.label_box;
+    assert!(
+        b[1] < address[3] && address[1] < b[3],
+        "not on one line: {b:?} {address:?}"
+    );
+    let gap = (address[0] - b[2]).max(b[0] - address[2]);
+    assert!(gap > 2.0, "gap {gap} mm: {b:?} {address:?}");
+}
