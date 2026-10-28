@@ -31,7 +31,7 @@ use super::envelope::profile_views;
 use super::turned::Turned;
 use super::{AXES, Context, Measurement, P3, Planner, Problem, Shape, Want, end_on, fmt, key};
 use crate::bridge::Feature;
-use crate::bridge::holes::{point, principal};
+use crate::bridge::holes::{self, point, principal};
 use crate::lint::turned::Band;
 
 pub(super) const PLANNER: Planner = Planner {
@@ -96,13 +96,28 @@ fn edge<'a>(cx: &Context, f: &'a Feature) -> Result<Edge<'a>, String> {
         .map(|l| frame.point(l))
         .ok_or("its record gives no point on it (at)")?;
     let turned = f.parameters.get("turned").and_then(Value::as_bool) == Some(true);
-    let oriented = f.kind == "oriented_chamfer";
+    let mut oriented = f.kind == "oriented_chamfer";
     let axis = if oriented {
         crate::oriented_chamfers::read(cx.analysis, f)?.view_axis
     } else {
-        let letter = f.parameters.get("axis").ok_or("its record gives no axis")?;
-        let d = frame.letter(letter).ok_or("its axis is not x, y or z")?;
-        principal(d).ok_or("its axis is not along x, y or z in the part's frame")?
+        let given = f.parameters.get("axis").ok_or("its record gives no axis")?;
+        match frame.letter(given) {
+            Some(d) => principal(d).ok_or("its axis is not along x, y or z in the part's frame")?,
+            // An oblique fillet (quiddity-rust#120: a unit-vector axis) is read like an oriented
+            // chamfer: its radius, a true size, is called out where its edge is seen most nearly
+            // end-on, and counted with equal principal fillets when there are any.
+            None if f.kind == "fillet" && !turned => {
+                let d = crate::lint::parameters::direction(&holes::frame(cx.analysis), Some(given))
+                    .filter(|d| d.iter().all(|c| c.is_finite()) && d.iter().any(|c| *c != 0.0))
+                    .ok_or("its axis is neither x, y, z nor a direction")?;
+                oriented = principal(d).is_none();
+                match principal(d) {
+                    Some(k) => k,
+                    None => super::holes::oblique_axes(d)[0],
+                }
+            }
+            None => return Err("its axis is not x, y or z".into()),
+        }
     };
     let m = |parameter: &str, value: f64| Measurement {
         feature: f.id.clone(),
@@ -361,7 +376,11 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             basis += "; its legs differ or its angle is not 45°, so it states its first leg and its angle";
         }
         if members.iter().any(|e| e.oriented) {
-            basis += "; oblique-edge bevels use their true support-plane size and angle, not a foreshortened projection";
+            basis += if family == 0 {
+                "; oblique-edge bevels use their true support-plane size and angle, not a foreshortened projection"
+            } else {
+                "; an oblique fillet's radius is its true size, called out where its edge is seen most nearly end-on"
+            };
         }
         let elsewhere = n - visible.len();
         if elsewhere > 0 {
