@@ -213,7 +213,8 @@ All notable changes to draftwright-rust are recorded here, in the style of
   within 1e-4 mm of a boss's centre on that axis now claims the boss's too, as a grouped slot's
   centre already was; the witness must still land on the boss's centre. CTC-01 loses both boss
   findings and STC-06 the four on its ⌀31.75 bosses round holes 1 and 2, located by those holes'
-  `158.75`, `76.2` and `228.6`. No drawing on the 30 quality parts or the 35 dw-examples
+  `158.75`, `76.2` and `228.6`. A hole table row conveys nothing: it has no witness line, and
+  with the rows STC-07's bosses, each on two rows' x and y, read as located twice. No drawing on the 30 quality parts or the 35 dw-examples
   drawings changes but CTC-01's plan.
 
 - **A rectangle of holes is no longer called out as a bolt circle (#223).** quiddity accepts a
