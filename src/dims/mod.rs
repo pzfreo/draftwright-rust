@@ -4248,7 +4248,7 @@ fn plan_inventory_ordered(
 }
 /// The sizes that one dimension states for every feature it spans ([`share`]), and whether its
 /// label then counts them (`n×`).
-const SHARED: [(&str, bool); 5] = [
+const SHARED: [(&str, bool); 6] = [
     ("notch_depth.length", true),
     // draftwright's `_coalesce_aligned_linear_pitch_dims`: parallel rows with the same stations
     // show one pitch, its label unchanged, claiming every row's.
@@ -4258,6 +4258,7 @@ const SHARED: [(&str, bool); 5] = [
     // The same rule for the other sizes a span can share (beyond draftwright, which repeats
     // them: ftc06's four 38.1 boss heights on one span).
     ("slot_length.length", true),
+    ("slot_centres.length", true),
     ("boss_height.length", true),
 ];
 

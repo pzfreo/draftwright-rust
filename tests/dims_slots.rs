@@ -1083,14 +1083,34 @@ fn congruent_lone_slots_are_dimensioned_as_slots_located_by_their_centres() {
     }
 }
 
-/// The spec's override (`features/<id>/split` on a slot): a slot split from its congruent slots'
-/// callout is dimensioned on its own (its width and end radius; its length, on the same span in y
-/// as the others', is stated once by the callout's, ARCH0009-6), and the callout counts the rest.
+/// The spec's override (`features/<id>/split` on a slot): a full-round slot split from its
+/// congruent slots' callout is dimensioned by its two end centres, as two arcs located: its width,
+/// its low end's centre located from the part's box and the centres' distance apart, and no
+/// length or end radius (the width with the located centres fixes the full-round ends). The
+/// callout counts the rest; without the override the callout states all three. The review finds
+/// every requirement of the split slot stated.
 #[test]
-fn a_slot_split_by_the_spec_is_dimensioned_on_its_own() {
-    let a = slot_fixture("slot_array", |j| {
-        j["quiddity"]["derived"]["slot_patterns"][0]["pitch"] = 26.0.into();
-    });
+fn a_slot_split_by_the_spec_is_dimensioned_by_its_end_centres() {
+    // Three lone congruent slots: the fixture's array without its pattern.
+    let mut a = slot_fixture("slot_array", |_| {});
+    a.features.retain(|f| f.kind != "slot_pattern");
+    let claims = |plan: &Plan, parameter: &str| -> Vec<String> {
+        plan.dimensions
+            .iter()
+            .filter(|d| d.placed.is_some())
+            .filter(|d| {
+                d.measurements
+                    .iter()
+                    .any(|m| m.feature == "f:slot:2" && m.parameter == parameter)
+            })
+            .map(|d| d.label.clone())
+            .collect()
+    };
+
+    let unsplit = model::plan_recovered(&a, &Spec::default()).unwrap();
+    assert_eq!(claims(&unsplit, "slot_width.length"), ["3× SLOT 6 × 20"]);
+    assert!(claims(&unsplit, "slot_centres.length").is_empty());
+
     let spec: Spec =
         serde_json::from_value(serde_json::json!({"features": {"f:slot:2": {"split": true}}}))
             .unwrap();
@@ -1101,26 +1121,39 @@ fn a_slot_split_by_the_spec_is_dimensioned_on_its_own() {
         .find(|d| d.label.contains("SLOT"))
         .unwrap();
     assert_eq!(callout.label, "2× SLOT 6 × 20");
-    assert!(
-        callout
-            .measurements
-            .iter()
-            .all(|m| m.feature != "f:slot:2" || m.parameter == "slot_length.length")
-    );
-    let own = |parameter: &str| {
-        plan.dimensions
-            .iter()
-            .filter(|d| d.placed.is_some())
-            .find(|d| {
-                d.measurements
-                    .iter()
-                    .any(|m| m.feature == "f:slot:2" && m.parameter == parameter)
-            })
-            .map(|d| d.label.as_str())
-    };
-    assert_eq!(own("slot_width.length"), Some("6"));
-    assert_eq!(own("slot_end_radius.radius"), Some("2× R3"));
-    assert!(own("slot_length.length").is_some());
+    assert!(callout.measurements.iter().all(|m| m.feature != "f:slot:2"));
+    assert_eq!(claims(&plan, "slot_width.length"), ["6"]);
+    // 20 long with R3 ends: centres 14 apart.
+    assert_eq!(claims(&plan, "slot_centres.length"), ["14"]);
+    assert!(claims(&plan, "slot_length.length").is_empty());
+    assert!(claims(&plan, "slot_end_radius.radius").is_empty());
+    // Its low end's centre is located from the part's box, R3 in from the low end.
+    let f = a.features.iter().find(|f| f.id == "f:slot:2").unwrap();
+    let o = draftwright::lint::slots::outline(&a, f).unwrap();
+    let located = plan
+        .dimensions
+        .iter()
+        .find(|d| {
+            d.measurements
+                .iter()
+                .any(|m| m.feature == "f:slot:2" && m.parameter == "location_slot.length")
+        })
+        .expect("the low end's centre located");
+    assert!((located.value - (o.ends[0] + 3.0 - a.envelope[0][o.long])).abs() < 1e-6);
+
+    // The review reads the slot as the plan dimensions it: nothing of it is missing.
+    let dir =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/recognition/slot_patterns");
+    let (part, _) = model::analyse(&dir.join("slot_array.step")).unwrap();
+    let mut split = a.clone();
+    corpus::split_slot(&mut split, "f:slot:2");
+    let font = draftwright::text::Font::new(draftwright::api::MONO.to_vec()).unwrap();
+    let drawing = model::render(&part, &split, &plan, &font).unwrap();
+    let missing: Vec<_> = draftwright::lint::lint(&split, &drawing)
+        .into_iter()
+        .filter(|i| i.code.starts_with("slot_requirement_"))
+        .collect();
+    assert!(missing.is_empty(), "{missing:#?}");
 }
 
 /// nist_ftc_08's two keyhole slots (15.24 × 31.75, full-round, each opened at its middle by a

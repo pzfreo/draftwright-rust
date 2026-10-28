@@ -17,6 +17,9 @@
 //! each is located by its centre along its long axis rather than its low end. An obround's end
 //! radius that is half its width is stated by a slot callout (`SLOT` and the width) that claims
 //! the slot's width: such a callout leaves no separate radius to find (the same for a pattern).
+//! A full-round obround split from the callout is dimensioned by its two end centres
+//! ([`ends_located`]): it wants its width, its centre-to-centre distance (`slot_centres.length`)
+//! and its low end's centre located (`location_slot.length`), and no length or end radius.
 //!
 //! A slot that is a member of a recognised slot pattern (quiddity's `SlotArray` or `SlotGrid`, a
 //! `slot_pattern` feature whose faces include the slot's) is the pattern's, not a lone slot,
@@ -43,13 +46,15 @@ use crate::model::Analysis;
 const AXES: [&str; 3] = ["x", "y", "z"];
 
 /// A slot's location: the part's axis its long axis lies along, and the offset of its low end
-/// along it from the part's box (the Analysis's envelope), or of its centre for a slot the
-/// planner calls out with its congruent slots ([`grouped`]); or why it cannot be read.
+/// along it from the part's box (the Analysis's envelope), of its centre for a slot the planner
+/// calls out with its congruent slots ([`grouped`]), or of its low end's centre for a slot
+/// located by its end centres ([`ends_located`]); or why it cannot be read.
 pub fn location(analysis: &Analysis, f: &Feature) -> Result<(&'static str, f64), String> {
     location_to(analysis, f, grouped(analysis, f))
 }
 
-/// [`location`] to the slot's centre when *centre*, else to its low end.
+/// [`location`] to the slot's centre when *centre*, else to its low end, or to that end's
+/// centre for a slot located by its end centres ([`ends_located`]).
 fn location_to(
     analysis: &Analysis,
     f: &Feature,
@@ -75,11 +80,15 @@ fn location_to(
     // to 0.01 mm each, so the recorded `lo` and that end can round apart on a 0.005 tie (cgb245:
     // 95.96 recorded, 95.9648 from the centre); lint judges the end the drawing states.
     let together = centre;
+    let inset = match parameters::size(f, "end_radius") {
+        Ok(r) if !together && ends_located(analysis, f) => r,
+        _ => 0.0,
+    };
     let low = match outline(analysis, f) {
         Ok(o) if o.long == k && together => 0.5 * (o.ends[0] + o.ends[1]),
-        Ok(o) if o.long == k => o.ends[0],
+        Ok(o) if o.long == k => o.ends[0] + inset,
         _ if together => 0.5 * (ends[0] + ends[1]),
-        _ => ends[0].min(ends[1]),
+        _ => ends[0].min(ends[1]) + inset,
     };
     Ok((AXES[k], low - analysis.envelope[0][k]))
 }
@@ -244,6 +253,15 @@ pub fn grouped(analysis: &Analysis, f: &Feature) -> bool {
     }
 }
 
+/// Whether lone slot *f*, split from its congruent slots' callout ([`alone`]), is dimensioned by
+/// its two end centres: a full-round obround that is no keyhole ([`keyed`]) is located at its low
+/// end's centre and states its centre-to-centre distance (`slot_centres.length`) and its width,
+/// which with the centres fixes the full-round ends, in place of its length and end radius. Any
+/// other split slot is dimensioned singly by its length, end radius and low end.
+pub fn ends_located(analysis: &Analysis, f: &Feature) -> bool {
+    alone(f) && full_round(f) && !keyed(analysis, f)
+}
+
 /// How far twice an end radius may differ from the width and the ends still be full-round:
 /// quiddity rounds both to 0.01 mm (nist_ctc_03's 19.05 wide slots record R9.52, not 9.525).
 pub const FULL_ROUND: f64 = 0.016;
@@ -317,10 +335,25 @@ pub fn wanted(analysis: &Analysis) -> Vec<Wanted<'_>> {
     let (_, lone) = split(analysis);
     let mut out = Vec::new();
     for f in lone {
+        let by_centres = ends_located(analysis, f);
         for (parameter, field) in [
             ("slot_width.length", "width"),
             ("slot_length.length", "length"),
         ] {
+            if by_centres && field == "length" {
+                // Its end centres' distance apart: the length less the full-round ends.
+                let v = parameters::size(f, "length")
+                    .and_then(|l| Ok(l - 2.0 * parameters::size(f, "end_radius")?));
+                out.push(Wanted {
+                    feature: f,
+                    parameter: "slot_centres.length".into(),
+                    callout: v.as_ref().map_or("its end centres' distance".into(), |v| {
+                        format!("end centres {} apart", fmt(*v))
+                    }),
+                    values: v.map(|v| vec![v]),
+                });
+                continue;
+            }
             let v = parameters::size(f, field);
             out.push(Wanted {
                 feature: f,
@@ -332,7 +365,10 @@ pub fn wanted(analysis: &Analysis) -> Vec<Wanted<'_>> {
             });
         }
         // An end radius quiddity did not prove (null) is no requirement: the ends may be square.
-        if let Some(r) = f.parameters.get("end_radius").and_then(|v| v.as_f64()) {
+        // Full-round ends whose centres are located are fixed by the width.
+        if let Some(r) = f.parameters.get("end_radius").and_then(|v| v.as_f64())
+            && !by_centres
+        {
             out.push(Wanted {
                 feature: f,
                 parameter: "slot_end_radius.radius".into(),
@@ -347,6 +383,8 @@ pub fn wanted(analysis: &Analysis) -> Vec<Wanted<'_>> {
             callout: at.as_ref().map_or("its location".into(), |(axis, v)| {
                 let at = if grouped(analysis, f) {
                     "centre"
+                } else if by_centres {
+                    "low end's centre"
                 } else {
                     "low end"
                 };
@@ -505,7 +543,8 @@ pub fn pattern_wanted<'a>(
     Ok(out)
 }
 
-/// A grouped slot's centre ([`grouped`]) can stand on another feature's location line (a hole's
+/// A grouped slot's centre ([`grouped`]), or the low end centre of a slot located by its end
+/// centres ([`ends_located`]), can stand on another feature's location line (a hole's
 /// or pattern's `location….<axis>`, a seat's `seat_location.location.<axis>`, another slot's
 /// `location_slot_across.length`): the planner omits the slot's location as conveyed by that line
 /// (`dims::holes::consolidate`, ARCH0009-6). A mark in the slot's view claiming such a location on
@@ -516,7 +555,7 @@ pub(crate) fn conveyed_locations(analysis: &Analysis, marks: &mut [Mark]) {
     let (_, lone) = split(analysis);
     let at: Vec<(&str, (&str, f64), usize)> = lone
         .iter()
-        .filter(|f| grouped(analysis, f))
+        .filter(|f| grouped(analysis, f) || ends_located(analysis, f))
         .filter_map(|f| {
             Some((
                 f.id.as_str(),
@@ -656,7 +695,13 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
         if centre != grouped(analysis, w.feature) {
             let at = location_to(analysis, w.feature, centre);
             w.callout = at.as_ref().map_or("its location".into(), |(axis, v)| {
-                let from = if centre { "centre" } else { "low end" };
+                let from = if centre {
+                    "centre"
+                } else if ends_located(analysis, w.feature) {
+                    "low end's centre"
+                } else {
+                    "low end"
+                };
                 format!("its {from} {} from the part's {axis} edge", fmt(*v))
             });
             w.values = at.map(|(_, v)| vec![v]);

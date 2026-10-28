@@ -349,8 +349,15 @@ circles with fewer than five holes: a bore or boss must prove the centre. A new 
 intersecting automatic groups; holes may belong to only one authored group. `split` dissolves
 a recognised hole or slot pattern and keeps its members. Normal sharing of identical hole
 sizes continues; their locations are individual and the pattern's pitch statements disappear.
-On a lone slot, `split` keeps it out of its congruent obround slots' `N× SLOT W × L` callout:
-it is dimensioned on its own (width, length, end radius, low-end location).
+On a lone slot, `split` keeps it out of its congruent obround slots' `N× SLOT W × L` callout.
+A full-round obround (its end radius half its width) split this way is dimensioned by its two
+end centres, as two arcs located: its width, its low end's centre located from the part's box
+(`location_slot.length`), and the centres' distance apart (`slot_centres.length`, the length less
+the width), with no length or end radius, which the width and the located centres fix. Review
+asks the same of it. Any other split slot (a keyhole, a straight slot, an obround whose ends are
+not full-round) is dimensioned singly (width, length, end radius, low-end location). Splitting
+one of two congruent slots leaves the other alone in its group, so it too is dimensioned singly;
+split both to dimension both by their centres. Without `split` nothing changes.
 
 `reclassify` accepts `hole`, `boss`, `turned_step`, `slot` or `pocket`. Supported changes are
 boss ↔ turned step and slot ↔ pocket, when defining faces prove the target grammar. Cylindrical

@@ -26,7 +26,10 @@
 //! window with blended corners) or an obround whose ends are not full-round is dimensioned on its
 //! own, as are a keyhole (a circular seat opening the slot at its middle, whose axis and callout
 //! carry the compound: `lint::slots::keyed`) and a slot the spec splits from the callout
-//! (`features/<id>/split`).
+//! (`features/<id>/split`). A full-round obround split that way is dimensioned by its two end
+//! centres (`lint::slots::ends_located`): its width, its low end's centre located from the part's
+//! box, and the centres' distance apart (`slot_centres.length`), as two arcs located; the width
+//! with the located centres fixes its full-round ends, so no length or end radius is stated.
 //!
 //! A **slot pattern** (quiddity's `SlotArray` or `SlotGrid`, a `slot_pattern` feature naming its
 //! member slots) is called out once, as draftwright's `render_slot_patterns` does, in the view that
@@ -610,6 +613,55 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
                 turning: None,
                 basis: format!(
                     "a slot called out with its congruent slots is located along its length ({}) from the part's {} face to its centre, so the group reads centre to centre, in the view that looks through it",
+                    AXES[s.long],
+                    ["left", "front", "bottom"][s.long]
+                ),
+                shape: Shape::Linear {
+                    a,
+                    b,
+                    axis: s.long,
+                    a_edge: true,
+                    b_edge: false,
+                    order: 1,
+                },
+            });
+            continue;
+        }
+        if let (Some(r), true) = (
+            s.end_radius,
+            crate::lint::slots::ends_located(analysis, s.feature),
+        ) {
+            // Split from its congruent slots' callout: dimensioned by its two end centres, as two
+            // arcs located, and its width (above), which with the centres fixes the full-round
+            // ends. The low end's centre is located from the part's box, the other by the
+            // centres' distance apart.
+            let c = [s.ends[0] + r, s.ends[1] - r];
+            let apart = c[1] - c[0];
+            out.push(Want {
+                id: want_id(id, "slot_centres.length"),
+                views: vec![view],
+                value: apart,
+                terms: vec![fmt(apart)],
+                measurements: vec![m("slot_centres.length", apart)],
+                turning: None,
+                basis: "a slot split from its congruent slots' callout (features/<id>/split) is dimensioned by its two end centres: their distance apart along it, in the view that looks through it".into(),
+                shape: size(s, view, s.long, c[0], c[1], 0),
+            });
+            let Shape::Linear { mut a, b, .. } = size(s, view, s.long, c[0], c[0], 1) else {
+                // Invariant: size constructs Shape::Linear unconditionally.
+                unreachable!("a size is linear")
+            };
+            a[s.long] = lo[s.long];
+            let d = c[0] - lo[s.long];
+            out.push(Want {
+                id: want_id(id, "location_slot.length"),
+                views: vec![view],
+                value: d,
+                terms: vec![fmt(d)],
+                measurements: vec![m("location_slot.length", d)],
+                turning: None,
+                basis: format!(
+                    "a slot dimensioned by its end centres is located along its length ({}) from the part's {} face to its near end's centre, in the view that looks through it",
                     AXES[s.long],
                     ["left", "front", "bottom"][s.long]
                 ),
