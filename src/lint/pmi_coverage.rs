@@ -613,11 +613,17 @@ fn mismatch(r: &Record, text: &str) -> Option<String> {
         }
     }
     // The compartments after the characteristic's symbol: one states the zone, the magnitude
-    // and the material condition, the rest a datum letter each.
+    // and the material condition, the rest a datum letter each. A count of the features the
+    // frame applies to (`4×`, over a frame on a leader to one of them) comes first.
+    let mut cells = text.split_whitespace().peekable();
+    cells.next_if(|c| {
+        c.strip_suffix('×')
+            .is_some_and(|n| !n.is_empty() && n.chars().all(|d| d.is_ascii_digit()))
+    });
     let mut values = Vec::new();
     let mut zones = Vec::new();
     let mut letters = Vec::new();
-    for cell in text.split_whitespace().skip(1) {
+    for cell in cells.skip(1) {
         let (zone, rest) = if let Some(rest) = cell.strip_prefix("S⌀") {
             (Some("spherical_diameter_zone"), rest)
         } else if let Some(rest) = cell.strip_prefix('⌀') {
@@ -1191,6 +1197,9 @@ mod tests {
         assert!(mismatch(&r, "⌖ ⌀0.05 A").is_some());
         assert!(mismatch(&r, "⌖ ⌀0.05 A B 7").is_some());
         assert!(mismatch(&r, "⌖ A B").unwrap().contains("no numeric value"));
+        // A count of the features over the frame is read past, not as a value.
+        assert_eq!(mismatch(&r, "4× ⌖ ⌀0.05Ⓜ A B"), None);
+        assert!(mismatch(&r, "4× ⌖ ⌀0.06Ⓜ A B").is_some());
         // Within the display's rounding of the 13th significant digit.
         let r = frame(0.1 + 0.2, &[], &[]);
         assert_eq!(mismatch(&r, "⏥ 0.3"), None);

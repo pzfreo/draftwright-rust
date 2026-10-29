@@ -244,11 +244,11 @@
     },
     "nist_ftc_10_asme1_ap242-e2": {
       "dimension_dimension": 0,
-      "leader_arrow": 26,
-      "leader_dimension_line": 29,
-      "leader_extension_line": 46,
-      "leader_leader": 42,
-      "leader_text": 5
+      "leader_arrow": 29,
+      "leader_dimension_line": 28,
+      "leader_extension_line": 50,
+      "leader_leader": 46,
+      "leader_text": 4
     },
     "nist_ftc_10_asme1_rb": {
       "dimension_dimension": 0,

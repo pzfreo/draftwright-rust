@@ -147,7 +147,7 @@ pub struct GdtText {
 /// (`_gdt_metrics`: cell padding, the zone sign's and the material ring's radii), and the
 /// datum symbol's triangle and frame (`DatumFeature`).
 const H: f64 = 2.0 * TEXT;
-const SHELF: f64 = 2.0;
+pub(super) const SHELF: f64 = 2.0;
 const PAD: f64 = 0.6 * TEXT;
 const ZONE_R: f64 = 0.42 * TEXT;
 const MATERIAL_R: f64 = 0.62 * TEXT;
@@ -279,6 +279,19 @@ fn characteristic(name: &str, c: P2, laid: &mut Laid) {
 fn width(s: &str, size: f64) -> f64 {
     let l = font().text(s, size);
     l.max[0] - l.min[0]
+}
+
+/// Frame *p* with the count of the *n* features it applies to (`4×`) over its box at its left end
+/// (ISO 1101: the number of features above the tolerance frame), its box grown to hold it.
+pub(super) fn with_count(p: &mut GdtPlaced, n: usize) {
+    let count = format!("{n}×");
+    let b = p.label_box;
+    let w = width(&count, TEXT);
+    let at = [b[0] + 0.5 * w, b[3] + PAD + 0.5 * TEXT];
+    // Drawn from the font, as the frame's own text is, and first on its text layer.
+    p.letters.push(text(&count, at, TEXT));
+    p.runs.insert(0, text(&count, at, TEXT));
+    p.label_box[3] = b[3] + 2.0 * PAD + TEXT;
 }
 
 /// A feature control frame laid out from its lower left corner (`FeatureControlFrame`).

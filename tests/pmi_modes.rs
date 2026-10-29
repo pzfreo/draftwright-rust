@@ -785,18 +785,27 @@ fn generated_hole_schedules_state_each_size_and_coordinate_without_extra_locator
             .filter(|q| q.code == "feature_located_twice")
             .collect::<Vec<_>>()
     );
-    let retained: std::collections::BTreeSet<_> = p
-        .dimensions
+    // A PMI size callout is replaced by its rows (the maintainer's decision, 2026-10-28): none
+    // is drawn beside a row of its holes, the frames on those holes attaching to the holes
+    // themselves instead (2026-10-29).
+    let tabled: std::collections::BTreeSet<_> = p
+        .hole_table
         .iter()
-        .filter(|d| {
+        .chain(&p.hole_tables)
+        .flat_map(|t| &t.rows)
+        .map(|r| r.feature.as_str())
+        .collect();
+    assert!(
+        !p.dimensions.iter().any(|d| {
             d.kind == "callout"
                 && d.placed.is_some()
                 && d.measurements.iter().any(|m| m.feature.starts_with("pmi:"))
-        })
-        .flat_map(|d| &d.measurements)
-        .filter(|m| m.feature.starts_with("f:hole:"))
-        .map(|m| m.feature.as_str())
-        .collect();
+                && d.measurements
+                    .iter()
+                    .any(|m| tabled.contains(m.feature.as_str()))
+        }),
+        "a PMI size callout is drawn beside its schedule rows"
+    );
     assert!(!serde_json::to_string(&p).unwrap().contains("station_"));
     assert!(
         !p.dimensions
@@ -805,6 +814,7 @@ fn generated_hole_schedules_state_each_size_and_coordinate_without_extra_locator
         "reference PMI is omitted by default"
     );
     let mut checked = 0;
+    let mut pmi_claims = std::collections::BTreeSet::new();
     let mut sizes = std::collections::BTreeMap::new();
     for row in p
         .hole_table
@@ -820,23 +830,38 @@ fn generated_hole_schedules_state_each_size_and_coordinate_without_extra_locator
         if let Some(size) = sizes.insert(letter, row.cells[1].clone()) {
             assert_eq!(size, row.cells[1]);
         }
-        if retained.contains(row.feature.as_str()) {
+        let claims: Vec<_> = row
+            .measurements
+            .iter()
+            .filter(|m| m.feature.starts_with("pmi:"))
+            .collect();
+        if !claims.is_empty() {
             assert!(
                 !row.cells[1].is_empty(),
                 "schedule must state the source size for {}",
                 row.feature
             );
+            // The row's own hole (its sizes and coordinates) and the PMI sizes it now states; no
+            // other feature's locator.
             assert!(
                 row.measurements
                     .iter()
-                    .all(|m| m.parameter.starts_with("location."))
+                    .all(|m| m.feature.starts_with("pmi:") || m.feature == row.feature),
+                "{row:?}"
             );
+            for claim in claims {
+                assert!(
+                    pmi_claims.insert((claim.feature.clone(), claim.parameter.clone())),
+                    "{} twice",
+                    claim.feature
+                );
+            }
             checked += 1;
         }
     }
     assert!(
         checked > 0,
-        "the fixture must exercise retained PMI size callouts"
+        "the fixture must exercise PMI size callouts replaced by schedule rows"
     );
 }
 

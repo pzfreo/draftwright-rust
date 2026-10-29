@@ -1504,6 +1504,36 @@
   "evidence": "draftwright states '60 ±0.5' (dimension, plan view); the port states '60° ±0.5°' (dimension, plan view). An angle's record label leaves its unit to the record's kind (draftwright's implicit_degrees), which a reader of the sheet cannot see: a bare '60 ±0.5' reads as millimetres beside the automatic notch angle's '60°'. The port prints the unit on the nominal and its deviation (ISO 129-1)."
  },
  {
+  "file": "nist_ctc_01_merge.step",
+  "record": "datum:0:1:4:3",
+  "port": "datum:#35",
+  "field": "drawing",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "datum_ref",
+     "rides_on": null,
+     "text": "B",
+     "view": "front"
+    }
+   ]
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "datum_ref",
+     "rides_on": null,
+     "text": "B",
+     "view": "plan"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: 'B' (datum ref, front view); the port's: 'B' (datum ref, plan view). Datum B is one hole's bore, a feature of size: draftwright draws its symbol edge-on in the front view, on the bore's silhouette, which is hidden there. The port draws it in the plan view, which sees the bore end-on, standing on the hole's perpendicularity frame beneath its size callout (2026-10-29: a datum symbol with no clear place on its mark stands on a frame of its hole), as ASME Y14.5 and ISO 5459 attach a datum feature symbol to its feature's control frame; datum C beside it stands on its own callout the same way (#224). A view or side in annotations/<id>/place keeps draftwright's attachment."
+ },
+ {
   "file": "nist_ctc_02_asme1_ap242-e2.stp",
   "record": "dimension:0:1:4:110",
   "port": "dimension:#403",
@@ -4225,14 +4255,14 @@
     {
      "boxed": false,
      "kind": "dimension",
-     "rides_on": "bore.diameter",
-     "text": "4× ⌀6 ±0.15 THRU ⌴ ⌀10 ↧ 2",
+     "rides_on": "size",
+     "text": "⌀6 ±0.15 THRU ⌴ ⌀10 ↧ 2",
      "view": "front"
     }
    ]
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright's drawing: '⌀6 ±0.15' (dimension, front view); the port's: '4× ⌀6 ±0.15 THRU ⌴ ⌀10 ↧ 2' (dimension, front view, on bore.diameter). As known_pmi_dimensions.json (outcome, rust-correct): draftwright found no owner and drew it standalone ('⌀6 ±0.15') beside the callout that already states that hole's size. The port's cylinders match the callout's holes (axis lines, axis, diameter), so by draftwright's rule the callout takes the band and states the size once: '4× ⌀6 ±0.15 THRU ⌴ ⌀10 ↧ 2 (2×2)'."
+  "evidence": "draftwright's drawing: '⌀6 ±0.15' (dimension, front view); the port's: '4× ⌀6 ±0.15 THRU ⌴ ⌀10 ↧ 2' (dimension, front view, on bore.diameter). As known_pmi_dimensions.json (outcome, rust-correct): draftwright found no owner and drew it standalone ('⌀6 ±0.15') beside the callout that already states that hole's size. The port's cylinders match the callout's holes (axis lines, axis, diameter), so by draftwright's rule the callout takes the band and states the size once: '4× ⌀6 ±0.15 THRU ⌴ ⌀10 ↧ 2 (2×2)'. Since 2026-10-28 (maintainer decision) the hole table row replaces this PMI size callout where a schedule exists: each of its holes' rows prints the callout's text (without the count, one row per hole) in its size cell, and the first row carries the claim, so the requirement is stated once, in the schedule. Since 2026-10-29 a frame on these holes no longer keeps the callout beside the rows: it attaches to the holes themselves (a leader to one of them, with their count)."
  },
  {
   "file": "nist_ftc_10_asme1_ap242-e2.stp",
@@ -4255,14 +4285,14 @@
     {
      "boxed": false,
      "kind": "dimension",
-     "rides_on": "bore.diameter",
-     "text": "4× ⌀6 ±0.15 THRU ⌴ ⌀10 ↧ 2",
+     "rides_on": "size",
+     "text": "⌀6 ±0.15 THRU ⌴ ⌀10 ↧ 2",
      "view": "front"
     }
    ]
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright's drawing: '⌀6 ±0.15' (dimension, front view); the port's: '4× ⌀6 ±0.15 THRU ⌴ ⌀10 ↧ 2' (dimension, front view, on bore.diameter). As known_pmi_dimensions.json (outcome, rust-correct): draftwright found no owner and drew it standalone ('⌀6 ±0.15') beside the callout that already states that hole's size. The port's cylinders match the callout's holes (axis lines, axis, diameter), so by draftwright's rule the callout takes the band and states the size once: '4× ⌀6 ±0.15 THRU ⌴ ⌀10 ↧ 2 (2×2)'."
+  "evidence": "draftwright's drawing: '⌀6 ±0.15' (dimension, front view); the port's: '4× ⌀6 ±0.15 THRU ⌴ ⌀10 ↧ 2' (dimension, front view, on bore.diameter). As known_pmi_dimensions.json (outcome, rust-correct): draftwright found no owner and drew it standalone ('⌀6 ±0.15') beside the callout that already states that hole's size. The port's cylinders match the callout's holes (axis lines, axis, diameter), so by draftwright's rule the callout takes the band and states the size once: '4× ⌀6 ±0.15 THRU ⌴ ⌀10 ↧ 2 (2×2)'. Since 2026-10-28 (maintainer decision) the hole table row replaces this PMI size callout where a schedule exists: each of its holes' rows prints the callout's text (without the count, one row per hole) in its size cell, and the first row carries the claim, so the requirement is stated once, in the schedule. Since 2026-10-29 a frame on these holes no longer keeps the callout beside the rows: it attaches to the holes themselves (a leader to one of them, with their count)."
  },
  {
   "file": "nist_ftc_10_asme1_ap242-e2.stp",
@@ -4280,14 +4310,14 @@
     {
      "boxed": false,
      "kind": "dimension",
-     "rides_on": "bore.diameter",
-     "text": "4× ⌀6 ±0.15 THRU ⌴ ⌀10 ↧ 2",
+     "rides_on": "size",
+     "text": "⌀6 ±0.15 THRU ⌴ ⌀10 ↧ 2",
      "view": "front"
     }
    ]
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright's drawing: not drawn, refused (authored_dim_source_unresolved); the port's: '4× ⌀6 ±0.15 THRU ⌴ ⌀10 ↧ 2' (dimension, front view, on bore.diameter). As known_pmi_dimensions.json (outcome, rust-correct): draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø6 ±0.15' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀6 ±0.15 THRU ⌴ ⌀10 ↧ 2 (2×2)'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here."
+  "evidence": "draftwright's drawing: not drawn, refused (authored_dim_source_unresolved); the port's: '4× ⌀6 ±0.15 THRU ⌴ ⌀10 ↧ 2' (dimension, front view, on bore.diameter). As known_pmi_dimensions.json (outcome, rust-correct): draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø6 ±0.15' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀6 ±0.15 THRU ⌴ ⌀10 ↧ 2 (2×2)'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Since 2026-10-28 (maintainer decision) the hole table row replaces this PMI size callout where a schedule exists: each of its holes' rows prints the callout's text (without the count, one row per hole) in its size cell, and the first row carries the claim, so the requirement is stated once, in the schedule. Since 2026-10-29 a frame on these holes no longer keeps the callout beside the rows: it attaches to the holes themselves (a leader to one of them, with their count)."
  },
  {
   "file": "nist_ftc_10_asme1_ap242-e2.stp",
@@ -7942,12 +7972,12 @@
      "kind": "datum_ref",
      "rides_on": null,
      "text": "C",
-     "view": "side"
+     "view": "front"
     }
    ]
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright's drawing: not drawn, refused (pmi_not_extracted, pmi_not_lowered); the port's: 'C' (datum ref, side view). As known_pmi_lowering.json (lowered, rust-correct): draftwright leaves it raw because it cannot find the datum's faces (\"datum feature #114 has no representation items; referenced geometry is unavailable; datum reference surface is unavailable\"; known_pmi.json lists the faces draftwright cannot find as rust-correct); the port resolves the faces, proves the attachment and draws the symbol."
+  "evidence": "draftwright's drawing: not drawn, refused (pmi_not_extracted, pmi_not_lowered); the port's: 'C' (datum ref, front view). As known_pmi_lowering.json (lowered, rust-correct): draftwright leaves it raw because it cannot find the datum's faces (\"datum feature #114 has no representation items; referenced geometry is unavailable; datum reference surface is unavailable\"; known_pmi.json lists the faces draftwright cannot find as rust-correct); the port resolves the faces, proves the attachment and draws the symbol. Since 2026-10-29 the port draws it in the front view, which sees its hole's bore end-on, standing on that hole's ⌀0.5 A B position frame, which takes a leader to the hole (a datum feature symbol attached to its feature's control frame, ASME Y14.5, ISO 5459)."
  },
  {
   "file": "nist_stc_10_asme1_ap242-e2.stp",
@@ -9840,13 +9870,73 @@
     {
      "boxed": false,
      "kind": "dimension",
-     "rides_on": "bore.diameter",
-     "text": "8× ⌀2.5 ±0.15 THRU",
+     "rides_on": "size",
+     "text": "⌀2.5 ±0.15 THRU",
      "view": "front"
     }
    ]
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright prints the grid's arrangement after its callout; ISO 129 has no notation for it and the grid's pitches already show it, so the port prints none (#225). Size, tolerance and count are the same."
+  "evidence": "draftwright prints the grid's arrangement after its callout; ISO 129 has no notation for it and the grid's pitches already show it, so the port prints none (#225). Size, tolerance and count are the same. Since 2026-10-28 (maintainer decision) the hole table row replaces this PMI size callout where a schedule exists: each of its holes' rows prints the callout's text (without the count, one row per hole) in its size cell, and the first row carries the claim, so the requirement is stated once, in the schedule. Since 2026-10-29 a frame on these holes no longer keeps the callout beside the rows: it attaches to the holes themselves (a leader to one of them, with their count)."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:10",
+  "port": "datum:#18135",
+  "field": "drawing",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "datum_ref",
+     "rides_on": null,
+     "text": "C",
+     "view": "side"
+    }
+   ]
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "datum_ref",
+     "rides_on": null,
+     "text": "C",
+     "view": "front"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: 'C' (datum ref, side view); the port's: 'C' (datum ref, front view). Datum C is one hole's bore (hole E2), a feature of size: draftwright draws its symbol edge-on in the side view, on the bore's silhouette, which is hidden there and does not say which of the holes on that line it is. The port draws it in the front view, which sees the bore end-on, standing on the hole's ⌀0.5 A B position frame, which takes a leader to the hole (2026-10-29), as ASME Y14.5 and ISO 5459 attach a datum feature symbol to its feature's control frame. A view or side in annotations/<id>/place keeps draftwright's attachment."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:129",
+  "port": "dimension:#20370",
+  "field": "drawing",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "3× ⌀3.5 ±0.2 THRU",
+     "view": "front"
+    }
+   ]
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "size",
+     "text": "⌀3.5 ±0.2 THRU",
+     "view": "front"
+    }
+   ]
+  },
+  "verdict": "equivalent",
+  "evidence": "draftwright's drawing: '3× ⌀3.5 ±0.2 THRU' (dimension, front view, on bore.diameter); the port's: '⌀3.5 ±0.2 THRU' (the size cell of each of its holes' hole table rows). The same band on the same holes: Since 2026-10-28 (maintainer decision) the hole table row replaces this PMI size callout where a schedule exists: each of its holes' rows prints the callout's text (without the count, one row per hole) in its size cell, and the first row carries the claim, so the requirement is stated once, in the schedule. Since 2026-10-29 a frame on these holes no longer keeps the callout beside the rows: it attaches to the holes themselves (a leader to one of them, with their count)."
  }
 ]

@@ -4463,9 +4463,8 @@ fn with_uncapped<T>(uncapped: bool, run: impl FnOnce() -> T) -> T {
 /// A row replaces a callout whose size comes from PMI. Where that drawing has an error the plan
 /// without schedules (*unscheduled*, which the selection was made from) does not, the schedules
 /// are installed once more with those callouts kept beside their rows, as they were before; and
-/// so they are where a frame or datum symbol attaches to a hole's mark with the callouts kept but
-/// not with them replaced, since a row has no place for a frame on several holes and a tag may
-/// have no room (dw-examples FTC-10's cylindricity, CTC-05's datum B and runout).
+/// so they are where a frame or datum symbol on a callout the rows replace can attach to its hole
+/// in no other way (a tag, a frame of the same hole, or for a frame a leader to the hole itself).
 fn install_schedules(
     analysis: &Analysis,
     unscheduled: &Plan,
@@ -4493,20 +4492,32 @@ fn install_schedules(
     if !errors(replacing).is_subset(&errors(unscheduled)) {
         return keeping();
     }
+    // A frame or datum symbol held a PMI callout back where it attached to a callout the rows
+    // replace; it now attaches to the hole itself (a leader, a tag, or its hole's frame), and
+    // only where it can attach nowhere do the callouts stay. Glyphs on callouts the rows keep,
+    // or moved by the freed layout, are the layout's to place.
+    let shown: BTreeSet<&str> = replacing
+        .dimensions
+        .iter()
+        .filter(|d| d.state == crate::items::State::Shown && d.placed.is_some())
+        .map(|d| d.id.as_str())
+        .collect();
+    let held_back: BTreeSet<String> = crate::dims::hole_marks::attachments(analysis, unscheduled)
+        .into_iter()
+        .filter(|(_, callout)| callout.as_deref().is_some_and(|c| !shown.contains(c)))
+        .map(|(g, _)| g)
+        .collect();
+    if held_back.is_empty() {
+        return Ok(installed);
+    }
     let attached = |p: &Plan| -> BTreeSet<String> {
         crate::dims::hole_marks::attachments(analysis, p)
             .into_keys()
+            .filter(|g| held_back.contains(g))
             .collect()
     };
-    // Only a glyph that attaches without the schedule can lose its place: to a replaced callout,
-    // or to the layout the freed callouts let move (FTC-10's plan view, with the `4× ⌀7` callout
-    // kept but no clear paper beneath it).
-    let unscheduled_attached = attached(unscheduled);
-    if unscheduled_attached.is_empty() {
-        return Ok(installed);
-    }
     let held = attached(replacing);
-    if unscheduled_attached.is_subset(&held) {
+    if held_back.is_subset(&held) {
         return Ok(installed);
     }
     match keeping()? {
