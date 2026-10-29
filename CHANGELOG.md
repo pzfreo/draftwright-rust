@@ -25,6 +25,14 @@ Now on quiddity-rust **v0.2.2**.
 - A capped drawing that has left its established paper now takes an uncapped drawing at a larger
   scale on paper no larger, unless that drawing has more hard findings, drops more or fits worse.
   STC-08 stays on A1 1:1.
+- The automatic half section covers more turned parts. Besides a coaxial counterbore, spotface or
+  countersink, it now fires when the bore changes diameter along the axis, when a groove is turned
+  inside the material, or when a through bore runs under an outer groove, as on a bush or linear
+  bearing. The rule is whether the section shows something hidden lines cannot show cleanly: a
+  plain bore under a plain or merely stepped outline stays a plain view (gt2-pulley's ⌀5 bore,
+  t8-flange-nut). dw-examples' lm8uu now draws its side view half cut, the thin wall under each
+  ⌀13.4 groove a section edge. No other dw-examples drawing or quality part changes.
+  `views/<name>/half_section` still forces (`true`) or forbids (`false`) it.
 
 ### WASM API
 

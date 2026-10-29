@@ -480,9 +480,14 @@ message names it (`…; A4 at 1:1 fits.`).
 
 #### Half sections
 
-A part turned whole about one axis whose bore steps inside (a coaxial hole with a counterbore,
-spotface or countersink) has its profile view drawn as an ISO 128-50 half section when the plan
-has no full section: half as seen, half cut on the turning axis and hatched, with no hidden
+A part turned whole about one axis whose inside a section shows more cleanly than hidden lines
+has its profile view drawn as an ISO 128-50 half section when the plan has no full section. That
+is when a coaxial hole has a counterbore, spotface or countersink, the coaxial bore changes
+diameter along the axis, a groove is turned inside the material, or a through bore runs under an
+outer groove (a bush or linear bearing, whose thin wall at the groove only a section shows). A
+plain bore under a plain or merely stepped outline stays a plain view, its hidden lines already
+clean; a part recognition does not give as turned whole gets no automatic half section. The view
+is drawn half as seen, half cut on the turning axis and hatched, with no hidden
 edges in either half and no caption or cutting-plane line. The cut half is the side the view's
 lengths are dimensioned on. Witnesses on internal edges of the half drawn as seen move to their
 mirror in the cut half, and an internal diameter becomes a half dimension: one arrow on the

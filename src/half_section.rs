@@ -1,7 +1,10 @@
-//! Half sections (ISO 128-50 half view, half section): a part turned whole whose bore steps
-//! inside (a coaxial hole with a counterbore, spotface or countersink) has its profile view
-//! drawn half as seen and half cut, split on the turning axis, so the internal steps read as
-//! section edges rather than overlapping hidden lines.
+//! Half sections (ISO 128-50 half view, half section): a part turned whole whose inside a
+//! section shows more cleanly than hidden lines (a coaxial hole with a counterbore, spotface or
+//! countersink, a bore that changes diameter along the axis, an internal groove, or a through
+//! bore under an outer groove, as on a bush or linear bearing) has its profile view drawn half as
+//! seen and half cut, split on the turning axis, so the internal steps and walls read as section
+//! edges rather than overlapping hidden lines. A plain bore under a plain or merely stepped
+//! outline stays a plain view: its hidden lines already read cleanly.
 //!
 //! The cut half reuses the full section's projection ([`crate::model::Cut`] through
 //! `hlr::project_section`) and hatching; the boundary between the halves is the view's own axis
@@ -181,15 +184,59 @@ fn turned(analysis: &Analysis) -> Option<Turned> {
 }
 
 impl Turned {
-    /// Whether a hole along the axis steps inside: a counterbore, spotface or countersink.
-    fn stepped_bore(&self, analysis: &Analysis) -> bool {
-        holes::read(analysis).into_iter().any(|(_, h)| {
-            h.is_ok_and(|h| {
+    /// Why a half section shows what hidden lines cannot show cleanly, if it does: a hole along
+    /// the axis steps inside (a counterbore, spotface or countersink), the bore changes diameter
+    /// along the axis, a groove is turned inside the material (an internal groove), or a through
+    /// bore runs under an outer groove (a bush or bearing, whose thin wall at the groove only a
+    /// section shows). A plain bore under a plain or merely stepped outline is left to hidden
+    /// lines.
+    fn inside(&self, analysis: &Analysis) -> Option<&'static str> {
+        let bores: Vec<holes::Hole> = holes::read(analysis)
+            .into_iter()
+            .filter_map(|(_, h)| h.ok())
+            .filter(|h| {
                 h.principal.map(|(k, _)| k) == Some(self.axis)
                     && (0..3).all(|j| j == self.axis || (h.at[j] - self.on[j]).abs() < 1e-3)
-                    && (h.counterbore.is_some() || h.spotface.is_some() || h.countersink.is_some())
             })
-        })
+            .collect();
+        if bores
+            .iter()
+            .any(|h| h.counterbore.is_some() || h.spotface.is_some() || h.countersink.is_some())
+        {
+            return Some("a hole along the axis steps inside");
+        }
+        if bores
+            .iter()
+            .any(|h| (h.diameter - bores[0].diameter).abs() > 1e-3)
+        {
+            return Some("its bore changes diameter along the axis");
+        }
+        let frame = holes::frame(analysis);
+        let grooves: Vec<(f64, f64)> = analysis
+            .features
+            .iter()
+            .filter(|f| f.kind == "groove")
+            .filter_map(|f| {
+                let p = &f.parameters;
+                let at = holes::to_part(&frame, holes::point(p.get("at"))?);
+                let letter = p.get("axis")?.as_str()?;
+                let mut d = [0.0; 3];
+                d[["x", "y", "z"].iter().position(|x| *x == letter)?] = 1.0;
+                let k = holes::principal(holes::dir_to_part(&frame, d))?;
+                let diameter = p.get("diameter")?.as_f64()?;
+                (k == self.axis
+                    && (0..3).all(|j| j == self.axis || (at[j] - self.on[j]).abs() < 1e-3))
+                .then_some((at[k], diameter))
+            })
+            .collect();
+        if grooves
+            .iter()
+            .any(|&(t, diameter)| self.outer(t) > 0.5 * diameter + 1e-3)
+        {
+            return Some("a groove is turned inside it");
+        }
+        (!grooves.is_empty() && bores.iter().any(|h| h.through))
+            .then_some("its through bore runs under a groove, whose wall only a section shows")
     }
 
     /// The outer radius of the turned profile at station *t* along the axis (0 off the part).
@@ -216,7 +263,7 @@ fn spec_name(v: &PlannedView) -> &str {
 
 /// Draws the plan's half section, when its part has one: on the profile view the Spec asks for
 /// (`views/<name>/half_section: true`), or automatically on the profile view carrying most
-/// dimensions of a part turned whole whose bore steps inside, when the plan has no full section
+/// dimensions of a part turned whole whose inside it shows ([`Turned::inside`]), when the plan has no full section
 /// and the Spec does not forbid it. Idempotent: a plan that has one is left as it is.
 pub(crate) fn apply(analysis: &Analysis, plan: &mut Plan) {
     if plan.views.iter().any(|v| v.half_section.is_some()) {
@@ -265,10 +312,10 @@ pub(crate) fn apply(analysis: &Analysis, plan: &mut Plan) {
             });
         }
     }
-    let automatic = chosen.is_empty()
-        && !plan.views.iter().any(|v| v.cut.is_some())
-        && turned.as_ref().is_some_and(|t| t.stepped_bore(analysis));
-    if automatic {
+    let automatic = (chosen.is_empty() && !plan.views.iter().any(|v| v.cut.is_some()))
+        .then(|| turned.as_ref().and_then(|t| t.inside(analysis)))
+        .flatten();
+    if automatic.is_some() {
         let carried = |v: &PlannedView| plan.dimensions.iter().filter(|d| d.view == v.id).count();
         chosen.extend(
             plan.views
@@ -288,10 +335,11 @@ pub(crate) fn apply(analysis: &Analysis, plan: &mut Plan) {
     for i in chosen {
         let half = choose(analysis, plan, &plan.views[i], &t);
         let v = &mut plan.views[i];
-        v.basis.push_str(if automatic {
-            "; drawn as a half section (ISO 128-50), half as seen and half cut on the turning axis, because a hole along the axis steps inside"
-        } else {
-            "; drawn as a half section (ISO 128-50), half as seen and half cut on the turning axis, as the spec asks"
+        v.basis.push_str(&match automatic {
+            Some(why) => format!(
+                "; drawn as a half section (ISO 128-50), half as seen and half cut on the turning axis, because {why}"
+            ),
+            None => "; drawn as a half section (ISO 128-50), half as seen and half cut on the turning axis, as the spec asks".into(),
         });
         v.half_section = Some(half);
         drop_cut_away_axes(analysis, &mut plan.views[i]);
@@ -488,4 +536,127 @@ fn nearest_instance(
         .iter()
         .map(|&(at, dir)| split.o + (at + u * dir - split.origin) * split.per_mm)
         .min_by(|a, b| (a - toward).abs().total_cmp(&(b - toward).abs()))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::{Value, json};
+
+    /// A part turned about z, ⌀15 × 24 with the given *steps* (diameter, lo, hi) over its
+    /// whole length, and *extra* hole or groove records.
+    fn part(steps: &[(f64, f64, f64)], extra: &[(&str, Value)]) -> Analysis {
+        let profile = json!({ "axis": "z", "axis_origin": [0.0, 0.0, 0.0] });
+        let features: Vec<Value> = steps
+            .iter()
+            .map(|&(d, lo, hi)| {
+                (
+                    "turned_step",
+                    json!({ "axis": "z", "diameter": d, "lo": lo, "hi": hi,
+                                         "profile": profile }),
+                )
+            })
+            .chain(extra.iter().cloned())
+            .enumerate()
+            .map(|(i, (kind, p))| {
+                json!({
+                    "id": format!("f:{kind}:{}", i + 1), "kind": kind, "faces": [i],
+                    "parameters": p,
+                    "fingerprint": { "version": "test", "family": kind, "subtype": kind,
+                                     "sizes": {}, "position": [0.0, 0.0, 0.0],
+                                     "neighbourhood": [] },
+                })
+            })
+            .collect();
+        serde_json::from_value(json!({
+            "schema": crate::model::ANALYSIS_SCHEMA,
+            "binding": { "source_sha256": "", "part": "test", "face_count": features.len(),
+                         "loader": "test" },
+            "envelope": [[-7.5, -7.5, 0.0], [7.5, 7.5, 24.0]],
+            "features": features,
+            "iso_bounds": [0.0, 0.0, 0.0, 0.0],
+        }))
+        .unwrap()
+    }
+
+    fn bore(d: f64, z: f64, depth: f64, bottom: &str) -> (&'static str, Value) {
+        (
+            "hole",
+            json!({ "axis": [0.0, 0.0, -1.0], "location": [0.0, 0.0, z], "diameter": d,
+                         "depth": depth, "bottom": bottom }),
+        )
+    }
+
+    fn groove(d: f64, z: f64) -> (&'static str, Value) {
+        (
+            "groove",
+            json!({ "axis": "z", "at": [0.0, 0.0, z], "diameter": d, "width": 1.2 }),
+        )
+    }
+
+    fn why(a: &Analysis) -> Option<&'static str> {
+        turned(a).unwrap().inside(a)
+    }
+
+    /// The automatic half section's trigger: a section must show what hidden lines cannot show
+    /// cleanly. A plain sleeve, or a plain bore under a stepped outline, stays a plain view; a
+    /// stepped bore, a bore that changes diameter, an internal groove, or a through bore under an
+    /// outer groove (a bush or linear bearing) is drawn as a half section.
+    #[test]
+    fn a_half_section_is_drawn_only_where_it_shows_the_inside() {
+        let sleeve = [(15.0, 0.0, 24.0)];
+        assert_eq!(why(&part(&sleeve, &[])), None);
+        assert_eq!(
+            why(&part(&sleeve, &[bore(12.4, 24.0, 24.0, "through")])),
+            None
+        );
+        let stepped = [(18.0, 0.0, 8.0), (15.0, 8.0, 24.0)];
+        let envelope = |mut a: Analysis| {
+            a.envelope = [[-9.0, -9.0, 0.0], [9.0, 9.0, 24.0]];
+            a
+        };
+        assert_eq!(
+            why(&envelope(part(
+                &stepped,
+                &[bore(5.0, 24.0, 24.0, "through")]
+            ))),
+            None
+        );
+        let grooved = [(15.0, 0.0, 7.6), (13.4, 7.6, 8.8), (15.0, 8.8, 24.0)];
+        assert_eq!(why(&part(&grooved, &[groove(13.4, 8.2)])), None);
+        assert!(
+            why(&part(
+                &grooved,
+                &[groove(13.4, 8.2), bore(12.4, 24.0, 24.0, "through")]
+            ))
+            .unwrap()
+            .contains("groove, whose wall")
+        );
+        assert!(
+            why(&part(
+                &sleeve,
+                &[groove(13.0, 12.0), bore(10.0, 24.0, 24.0, "through")]
+            ))
+            .unwrap()
+            .contains("turned inside")
+        );
+        assert!(
+            why(&part(
+                &sleeve,
+                &[
+                    bore(10.0, 24.0, 8.0, "flat"),
+                    bore(6.0, 16.0, 16.0, "through")
+                ]
+            ))
+            .unwrap()
+            .contains("changes diameter")
+        );
+        let mut cbore = bore(6.0, 24.0, 24.0, "through");
+        cbore.1["cbore"] = json!({ "diameter": 10.0, "depth": 3.0 });
+        assert!(
+            why(&part(&sleeve, &[cbore]))
+                .unwrap()
+                .contains("steps inside")
+        );
+    }
 }
