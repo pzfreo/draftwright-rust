@@ -16,9 +16,16 @@
 //!   pattern's `4×` callout would make the whole pattern the datum), else its hole table tag. The
 //!   triangle's base stands just off the mark's text, its line running away from the hole, the
 //!   frame in the nearest of a few tiers.
+//! - **Without a clear place on a mark** (a hole table row replaced the callout, or the callout
+//!   has no clear paper beside it), a frame takes a leader to the hole itself in that view
+//!   (ASME Y14.5: a frame attached to its feature by a leader): its arrowhead on the bore's
+//!   circle, the leader radial to it, then a shelf and the frame; one on several holes leads to
+//!   the hole their callout points at and carries their count over it (`4×`, ISO 1101). A datum
+//!   symbol without a clear place on its mark stands on a frame so attached to its hole.
 //!
 //! Each takes a place only when it is clear of every other item, other views and sheet
-//! furniture, on blank paper of its own view, with no finding of its own; otherwise it stays
+//! furniture, on blank paper of its own view, with no finding of its own (a leader to the hole
+//! may pass through material no more often than the leader it replaces); otherwise it stays
 //! where lowering put it. A place past its view's reserved area alone grows that area, where the
 //! grown area stays clear of the margins, the title block, every other view's area and every
 //! table, notes block and caption it did not already meet. A frame with an all-around or
@@ -67,6 +74,8 @@ pub(crate) fn attach(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
     let mut rechecked_codes = BTreeSet::new();
     // The frames already on each callout, so the next one continues their stack.
     let mut stacks: BTreeMap<String, Vec<String>> = BTreeMap::new();
+    // The frames attached to each set of holes, which a datum symbol on one of them may take.
+    let mut framed: BTreeMap<BTreeSet<&str>, Vec<String>> = BTreeMap::new();
     // Frames first: a datum symbol on the same callout then keeps clear of them.
     for kind in ["control_frame", "datum_feature"] {
         for gi in 0..plan.gdt.len() {
@@ -83,100 +92,107 @@ pub(crate) fn attach(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
                 continue;
             };
             let view = &plan.views[vi];
-            let Some(mark) = mark(plan, &named, &view.id) else {
+            let own = mark(plan, &named, &view.id);
+            // A datum symbol stands on its hole's mark or on a frame of its hole; a frame may
+            // also take a leader to the hole itself.
+            if own.is_none() && !frame && !framed.contains_key(&named) {
                 continue;
-            };
-            // The mark, and the frames stacked on it, may touch it.
-            let mut attached: BTreeSet<String> = stacks
-                .get(&mark.id)
-                .cloned()
-                .unwrap_or_default()
-                .into_iter()
-                .collect();
-            attached.insert(mark.id.clone());
-            let candidates: Vec<(&'static str, gdt::GdtPlaced)> = if frame {
-                // Beneath the text, or over it when beneath has no room; a second frame
-                // continues the first's stack.
-                let stacked: Vec<[f64; 4]> = stacks
-                    .get(&mark.id)
-                    .into_iter()
-                    .flatten()
-                    .filter_map(|id| plan.gdt.iter().find(|q| &q.id == id)?.placed.as_ref())
-                    .map(|p| p.label_box)
-                    .collect();
-                let b = mark.label_box;
-                let below = stacked.iter().map(|q| q[1]).fold(b[1] - GAP, f64::min);
-                let above = stacked.iter().map(|q| q[3]).fold(b[3] + GAP, f64::max);
-                let over = stacked.iter().any(|q| q[1] > b[1]);
-                // Invariant: the loop admits only placed glyphs.
-                let old = g.placed.as_ref().expect("placed");
-                let h = old.label_box[3] - old.label_box[1];
-                let under = ("below", beneath(old, [b[0], below]));
-                let atop = ("above", beneath(old, [b[0], above + h]));
-                match (stacked.is_empty(), over) {
-                    (true, _) => vec![under, atop],
-                    (false, false) => vec![under],
-                    (false, true) => vec![atop],
-                }
-            } else {
-                let letter = g.cells.first().cloned().unwrap_or_default();
-                let b = mark.label_box;
-                // Nearest tier first, wherever along the text it stands.
-                let mut out = Vec::new();
-                for side in sides(&mark) {
-                    for tier in 0..TIERS {
-                        for at in along(&mark, side) {
-                            // The base stands GAP off the text, as a frame beneath it does.
-                            let tip = match side {
-                                "below" => [at, b[1] - GAP],
-                                "above" => [at, b[3] + GAP],
-                                "left" => [b[0] - GAP, at],
-                                _ => [b[2] + GAP, at],
-                            };
-                            out.push((side, gdt::datum_at(&letter, tip, side, tier)));
-                        }
+            }
+            // The marks to try, in order: the holes' own mark, then (for a datum symbol) a frame
+            // already attached to the same hole, which the triangle may stand on (ASME Y14.5,
+            // ISO 5459: a datum feature symbol attached to the feature's control frame).
+            let mut marks: Vec<Mark> = own.into_iter().collect();
+            if !frame {
+                for id in framed.get(&named).into_iter().flatten() {
+                    if let Some(p) = plan
+                        .gdt
+                        .iter()
+                        .find(|q| &q.id == id)
+                        .and_then(|q| q.placed.as_ref())
+                    {
+                        marks.push(Mark {
+                            id: id.clone(),
+                            label_box: p.label_box,
+                            from: p.lines.last().map_or(p.tip, |l| l[1]),
+                            tag: false,
+                            name: ON_FRAME.into(),
+                        });
                     }
                 }
-                out
-            };
-            let id = g.id.clone();
-            let Some((side, next, area, before)) = settle(
-                analysis,
-                plan,
-                gi,
-                view,
-                candidates,
-                &attached,
-                (&exterior, &interior),
-                &cache,
-            ) else {
+            }
+            let mut settled = None;
+            for mark in marks.iter().map(Some).chain(frame.then_some(None)) {
+                let candidates = match (frame, mark) {
+                    (true, Some(mark)) => frame_candidates(plan, &stacks, g, mark),
+                    (true, None) => {
+                        leader_candidates(analysis, view, &holes, &named, g, marks.first())
+                    }
+                    (false, Some(mark)) => datum_candidates(g, mark),
+                    (false, None) => Vec::new(),
+                };
+                // The mark, and the frames stacked on it, may touch it.
+                let mut attached: BTreeSet<String> = BTreeSet::new();
+                if let Some(mark) = mark {
+                    attached.extend(stacks.get(&mark.id).cloned().unwrap_or_default());
+                    attached.insert(mark.id.clone());
+                }
+                if let Some(found) = settle(
+                    analysis,
+                    plan,
+                    gi,
+                    view,
+                    candidates,
+                    &attached,
+                    (&exterior, &interior),
+                    &cache,
+                ) {
+                    settled = Some((mark, found));
+                    break;
+                }
+            }
+            let Some((mark, (side, next, area, before))) = settled else {
                 continue;
             };
+            let id = g.id.clone();
             rechecked_codes.extend(before.into_iter().map(|p| p.code));
             let g = &mut plan.gdt[gi];
             g.view.clone_from(&view.id);
             g.side = side.into();
             g.placed = Some(next);
-            g.basis += &if frame {
-                stacks
-                    .entry(mark.id.clone())
-                    .or_default()
-                    .push(g.id.clone());
-                format!(
-                    "; {} {} in the {} view{ATTACHED}s end-on, in place of a leader to its faces (a view or side in annotations/{}/place keeps the leader)",
-                    if side == "below" { "beneath" } else { "over" },
-                    mark.name,
+            g.basis += &match (frame, mark) {
+                (true, Some(mark)) => {
+                    stacks
+                        .entry(mark.id.clone())
+                        .or_default()
+                        .push(g.id.clone());
+                    format!(
+                        "; {} {} in the {} view{ATTACHED}s end-on, in place of a leader to its faces (a view or side in annotations/{}/place keeps the leader)",
+                        if side == "below" { "beneath" } else { "over" },
+                        mark.name,
+                        view.id.trim_start_matches("v:"),
+                        g.id
+                    )
+                }
+                (true, None) => format!(
+                    "; on a leader to {} in the {} view{ATTACHED}s end-on, in place of a leader to its faces (a view or side in annotations/{}/place keeps that leader)",
+                    if named.len() > 1 {
+                        "one of its holes"
+                    } else {
+                        "its hole"
+                    },
                     view.id.trim_start_matches("v:"),
                     g.id
-                )
-            } else {
-                format!(
+                ),
+                (false, mark) => format!(
                     "; attached to {} in the {} view{ATTACHED} end-on where its surface is hidden (a view or side in annotations/{}/place keeps it on its surface)",
-                    mark.name,
+                    mark.map_or("its mark", |m| m.name.as_str()),
                     view.id.trim_start_matches("v:"),
                     g.id
-                )
+                ),
             };
+            if frame {
+                framed.entry(named.clone()).or_default().push(g.id.clone());
+            }
             changed.insert(id);
             if let Some((vi, area)) = area {
                 plan.views[vi].area = area;
@@ -189,6 +205,178 @@ pub(crate) fn attach(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
     let mut all = plan.dimensions.clone();
     all.extend(plan.gdt.iter().filter_map(gdt::proxy));
     callout_routes::refresh(analysis, plan, &all, &cache, &changed, &rechecked_codes);
+}
+
+/// What a datum symbol standing on its hole's frame calls that frame.
+const ON_FRAME: &str = "the control frame of its hole";
+/// The `side` a frame on a leader to its hole settles with.
+const LEADER: &str = "leader";
+/// How far beyond the hole's rim a leader's bend may stand, paper mm, nearest first.
+const REACH: [f64; 9] = [4.0, 6.0, 8.0, 11.0, 15.0, 20.0, 27.0, 36.0, 48.0];
+
+/// Where frame *g* may sit on *mark*: beneath its text, or over it when beneath has no room; a
+/// second frame continues the first's stack (*stacks*).
+fn frame_candidates(
+    plan: &Plan,
+    stacks: &BTreeMap<String, Vec<String>>,
+    g: &gdt::PlannedGdt,
+    mark: &Mark,
+) -> Vec<(&'static str, gdt::GdtPlaced)> {
+    let stacked: Vec<[f64; 4]> = stacks
+        .get(&mark.id)
+        .into_iter()
+        .flatten()
+        .filter_map(|id| plan.gdt.iter().find(|q| &q.id == id)?.placed.as_ref())
+        .map(|p| p.label_box)
+        .collect();
+    let b = mark.label_box;
+    let below = stacked.iter().map(|q| q[1]).fold(b[1] - GAP, f64::min);
+    let above = stacked.iter().map(|q| q[3]).fold(b[3] + GAP, f64::max);
+    let over = stacked.iter().any(|q| q[1] > b[1]);
+    // Invariant: only placed glyphs attach.
+    let old = g.placed.as_ref().expect("placed");
+    let h = old.label_box[3] - old.label_box[1];
+    let under = ("below", beneath(old, [b[0], below]));
+    let atop = ("above", beneath(old, [b[0], above + h]));
+    match (stacked.is_empty(), over) {
+        (true, _) => vec![under, atop],
+        (false, false) => vec![under],
+        (false, true) => vec![atop],
+    }
+}
+
+/// Where datum symbol *g* may stand on *mark*: the nearest tier first, wherever along the text.
+fn datum_candidates(g: &gdt::PlannedGdt, mark: &Mark) -> Vec<(&'static str, gdt::GdtPlaced)> {
+    let letter = g.cells.first().cloned().unwrap_or_default();
+    let b = mark.label_box;
+    let mut out = Vec::new();
+    for side in sides(mark) {
+        for tier in 0..TIERS {
+            for at in along(mark, side) {
+                // The base stands GAP off the text, as a frame beneath it does.
+                let tip = match side {
+                    "below" => [at, b[1] - GAP],
+                    "above" => [at, b[3] + GAP],
+                    "left" => [b[0] - GAP, at],
+                    _ => [b[2] + GAP, at],
+                };
+                out.push((side, gdt::datum_at(&letter, tip, side, tier)));
+            }
+        }
+    }
+    out
+}
+
+/// Where frame *g* may sit on a leader to one of its holes *named* in *view*, which sees them
+/// end-on (ASME Y14.5: a frame attached to its feature by a leader): the arrowhead on the bore's
+/// circle, the leader radial to it out to its bend, then a shelf and the frame. The hole *mark*
+/// points at first (so a callout and its frame name the same hole), then the others by distance
+/// from it; the nearest bend first, pointing away from the view's middle first.
+fn leader_candidates(
+    analysis: &Analysis,
+    view: &crate::model::PlannedView,
+    holes: &[&Hole],
+    named: &BTreeSet<&str>,
+    g: &gdt::PlannedGdt,
+    mark: Option<&Mark>,
+) -> Vec<(&'static str, gdt::GdtPlaced)> {
+    let Some(old) = g.placed.as_ref() else {
+        return Vec::new();
+    };
+    let frame = placement::Frame::new(analysis, view);
+    let o = frame.outline();
+    let middle = [0.5 * (o[0] + o[2]), 0.5 * (o[1] + o[3])];
+    let mut circles: Vec<(P2, f64)> = holes
+        .iter()
+        .filter(|h| named.contains(h.feature.id.as_str()))
+        .map(|h| (frame.page(h.at), 0.5 * h.diameter * frame.scale()))
+        .collect();
+    if let Some(m) = mark {
+        let d = |c: P2| (c[0] - m.from[0]).hypot(c[1] - m.from[1]);
+        circles.sort_by(|a, b| d(a.0).total_cmp(&d(b.0)));
+    }
+    circles.truncate(3);
+    // Every other hole seen end-on here, at its outermost step: a leader through one would seem
+    // to point at it.
+    let axis = (0..3).max_by(|&i, &j| view.direction[i].abs().total_cmp(&view.direction[j].abs()));
+    let others: Vec<(P2, f64)> = holes
+        .iter()
+        .filter(|h| h.principal.map(|(k, _)| k) == axis)
+        .map(|h| {
+            let outer = h
+                .counterbore
+                .iter()
+                .chain(&h.outer_steps)
+                .chain(&h.spotface)
+                .map(|r| r.diameter)
+                .chain(h.countersink.map(|c| c.diameter))
+                .fold(h.diameter, f64::max);
+            (frame.page(h.at), 0.5 * outer * frame.scale())
+        })
+        .collect();
+    let size = [
+        old.label_box[2] - old.label_box[0],
+        old.label_box[3] - old.label_box[1],
+    ];
+    let mut out = Vec::new();
+    for reach in REACH {
+        for &(c, r) in &circles {
+            let mut directions: Vec<P2> = (0..8)
+                .map(|i| {
+                    let a = f64::from(i) * std::f64::consts::FRAC_PI_4;
+                    [a.cos(), a.sin()]
+                })
+                .collect();
+            let away = [c[0] - middle[0], c[1] - middle[1]];
+            directions.sort_by(|a, b| {
+                (b[0] * away[0] + b[1] * away[1]).total_cmp(&(a[0] * away[0] + a[1] * away[1]))
+            });
+            for u in directions {
+                let tip = [c[0] + r * u[0], c[1] + r * u[1]];
+                let elbow = [c[0] + (r + reach) * u[0], c[1] + (r + reach) * u[1]];
+                if others.iter().any(|&(o, q)| {
+                    (o[0] - c[0]).hypot(o[1] - c[1]) > 1e-6 && near([tip, elbow], o, q)
+                }) {
+                    continue;
+                }
+                // The shelf runs on away from the hole; a vertical leader's to either side.
+                let shelves: &[f64] = if u[0].abs() < 1e-9 {
+                    &[1.0, -1.0]
+                } else if u[0] > 0.0 {
+                    &[1.0]
+                } else {
+                    &[-1.0]
+                };
+                for &dir in shelves {
+                    let end = [elbow[0] + dir * gdt::SHELF, elbow[1]];
+                    let x0 = if dir > 0.0 { end[0] } else { end[0] - size[0] };
+                    let mut next = beneath(old, [x0, end[1] + 0.5 * size[1]]);
+                    next.tip = tip;
+                    next.lines = vec![[tip, elbow], [elbow, end]];
+                    next.arrows = vec![placement::arrow(tip, elbow)];
+                    // On one hole of several, the frame says how many it controls.
+                    if named.len() > 1 {
+                        gdt::with_count(&mut next, named.len());
+                    }
+                    out.push((LEADER, next));
+                }
+            }
+        }
+    }
+    out
+}
+
+/// Whether segment *s* comes within *r* (and a half-millimetre gap) of point *c*.
+fn near(s: [P2; 2], c: P2, r: f64) -> bool {
+    let d = [s[1][0] - s[0][0], s[1][1] - s[0][1]];
+    let l = d[0] * d[0] + d[1] * d[1];
+    let t = if l > 0.0 {
+        (((c[0] - s[0][0]) * d[0] + (c[1] - s[0][1]) * d[1]) / l).clamp(0.0, 1.0)
+    } else {
+        0.0
+    };
+    let p = [s[0][0] + t * d[0], s[0][1] + t * d[1]];
+    (p[0] - c[0]).hypot(p[1] - c[1]) < r + 0.5
 }
 
 /// Where glyph *gi* of *plan* goes in *view*: the first of *candidates* clear of every item but
@@ -278,6 +466,24 @@ pub(super) fn settle(
         trial.placed = Some(next.clone());
         all[i] = gdt::proxy(&trial).expect("just placed");
         let problems = placement::collisions_for(analysis, &all, sheet, &plan.views, cache, id);
+        // A leader to the hole may pass through material as often as the leader it replaces
+        // did: the frame then says which hole it controls at no new cost.
+        let tolerated = |ps: &[crate::model::Problem]| -> Vec<crate::model::Problem> {
+            let through = |ps: &[crate::model::Problem]| {
+                ps.iter()
+                    .filter(|p| p.code == "leader_through_feature")
+                    .count()
+            };
+            if side == LEADER && through(ps) <= through(&before) {
+                ps.iter()
+                    .filter(|p| p.code != "leader_through_feature")
+                    .cloned()
+                    .collect()
+            } else {
+                ps.to_vec()
+            }
+        };
+        let problems = tolerated(&problems);
         if problems.is_empty() {
             chosen = Some((side, next, None));
             break;
@@ -295,7 +501,11 @@ pub(super) fn settle(
                 .position(|v| v.id == view.id)
                 .expect("its view");
             views[vi].area = area;
-            if placement::collisions_for(analysis, &all, sheet, &views, cache, id).is_empty() {
+            if tolerated(&placement::collisions_for(
+                analysis, &all, sheet, &views, cache, id,
+            ))
+            .is_empty()
+            {
                 chosen = Some((side, next, Some((vi, area))));
                 break;
             }
@@ -390,11 +600,10 @@ fn target<'h>(
     Some((vi, owners.iter().map(|h| h.feature.id.as_str()).collect()))
 }
 
-/// The frames and datum symbols of *plan* that attach to a hole's mark ([`attach`]) when the
-/// drawing is finished as it stands, each with the size callout it attaches to (none for a table
-/// tag). A table row cannot take such a callout's place: a frame on several holes has no tag to
-/// attach to and a tag may have no room, so the glyph would keep a leader to faces that do not say
-/// which hole it controls (dw-examples CTC-05's datum B and runout, FTC-10's cylindricity).
+/// The frames and datum symbols of *plan* that attach to their holes ([`attach`]) when the
+/// drawing is finished as it stands, each with the size callout it attaches to: none for a table
+/// tag, a frame on the same hole or a leader to the hole itself. One that cannot attach keeps a
+/// leader to faces that do not say which hole it controls.
 pub(crate) fn attachments(analysis: &Analysis, plan: &Plan) -> BTreeMap<String, Option<String>> {
     let mut finished = plan.clone();
     attach(analysis, &plan.spec, &mut finished);
@@ -404,10 +613,14 @@ pub(crate) fn attachments(analysis: &Analysis, plan: &Plan) -> BTreeMap<String, 
         .gdt
         .iter()
         .filter(|g| attached(g))
-        .filter_map(|g| {
-            let (vi, named) = target(analysis, &plan.spec, &finished, &holes, g)?;
-            let m = mark(&finished, &named, &finished.views[vi].id)?;
-            Some((g.id.clone(), (!m.tag).then_some(m.id)))
+        .map(|g| {
+            let on_callout = g.side != LEADER && !g.basis.contains(ON_FRAME);
+            let callout = target(analysis, &plan.spec, &finished, &holes, g)
+                .filter(|_| on_callout)
+                .and_then(|(vi, named)| mark(&finished, &named, &finished.views[vi].id))
+                .filter(|m| !m.tag)
+                .map(|m| m.id);
+            (g.id.clone(), callout)
         })
         .collect()
 }

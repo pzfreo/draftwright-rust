@@ -26,6 +26,26 @@ Now on quiddity-rust **v0.2.2**.
   counted on the callout of equal principal fillets, or called out where its edge is seen most
   nearly end-on, so it no longer withdraws the radius note. CTC-05's four R203.2 faces are no
   longer fillets in quiddity, so their callout goes.
+- A frame or datum symbol no longer keeps a PMI hole callout beside its hole table row
+  (maintainer decision). Where a frame on holes has no clear place on their size callout or
+  tag, it takes a leader to one of the holes in the view that sees them end-on: the arrowhead on
+  the bore's circle, the leader radial to it and clear of every other hole. A frame on several
+  holes leads to the hole their callout points at and carries their count over it (`4×`, as
+  ISO 1101 states it). A datum symbol with no clear place on its mark stands on such a frame of
+  its hole. The rows then replace the PMI callouts as they do elsewhere. The callouts stay only
+  where a frame or symbol on a replaced callout can attach in no other way. A leader to a hole
+  may pass through material no more often than the leader it replaces. On dw-examples, FTC-10
+  loses `3× ⌀3.5 ±0.2 THRU`, `4× ⌀6 ±0.15 THRU ⌴ ⌀10 ↧ 2` and `8× ⌀2.5 ±0.15 THRU`. Its
+  cylindricity and `⌀0.0Ⓜ` position frames lead to the ⌀7 holes, and datum C stands on its
+  hole's position frame. CTC-05 loses `⌀254 ±0.0254 ↧ 92.08` beside row B1, and its total runout
+  frame leads to the bore with datum B on it. STC-10's cylindricity and the position frames on
+  its ⌀7 holes, ⌀2.5 holes (`8×`) and datum C's hole lead to their holes. So do FTC-07's `2×`
+  ⌀1.143 position frame, which was led to a different hole, and CTC-04's ⌀0.35 frame on B5.
+  Leader crossings: FTC-10 111 to 118 (its freed layout), STC-10 97 to 92, FTC-07 31 to 26.
+  Leaders through features: STC-10 53 to 38, FTC-10 34 to 33, CTC-04 24 to 22. The FTC-10
+  AP242 fixture's leader-crossing record is re-recorded (leader to leader 42 to 46, to
+  extension line 46 to 50, to arrowhead 26 to 29). Lint reads a frame's count past, as it does
+  its symbol, when checking the frame states its source.
 - A capped drawing that has left its established paper now takes an uncapped drawing at a larger
   scale on paper no larger, unless that drawing has more hard findings, drops more or fits worse.
   STC-08 stays on A1 1:1.

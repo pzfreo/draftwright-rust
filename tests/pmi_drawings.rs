@@ -421,7 +421,18 @@ fn rust_projection(
                 // against its runs.
                 let g = plan.gdt.iter().find(|g| g.id == a.name).unwrap();
                 let shown: Vec<&str> = g.cells.iter().map(String::as_str).collect();
-                let runs: Vec<&str> = text.iter().copied().filter(|t| !t.is_empty()).collect();
+                let mut runs: Vec<&str> = text.iter().copied().filter(|t| !t.is_empty()).collect();
+                // A frame on a leader to one of several holes first states their count (`4×`).
+                if g.kind == "control_frame"
+                    && runs
+                        .first()
+                        .and_then(|t| t.strip_suffix('×'))
+                        .is_some_and(|n| {
+                            n.parse::<usize>().is_ok_and(|n| n > 1) && g.side == "leader"
+                        })
+                {
+                    runs.remove(0);
+                }
                 assert!(
                     runs.iter().all(|t| shown.contains(t)),
                     "{}: runs {runs:?} not among its cells {shown:?}",
