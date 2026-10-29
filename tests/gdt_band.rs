@@ -74,6 +74,56 @@ fn reported<'a>(plan: &'a Plan, code: &str) -> Vec<&'a draftwright::dims::gdt::P
 fn ctc_02_frames_and_datum_symbols_are_inside_their_bands_and_on_the_sheet() {
     let a = analysed("nist_ctc_02_asme1_ap242-e2");
     let plan = cache::default_plan(&a, true);
+    assert_eq!(plan.sheet.size, "A2", "a tall table must not force A0");
+    assert_eq!(plan.sheet.scale, "1:5");
+    assert!(plan.sheets.is_empty());
+    for (id, count) in [("hole_schedule_plan", 61), ("hole_schedule_side", 22)] {
+        let table = plan.hole_tables.iter().find(|t| t.id == id).unwrap();
+        assert_eq!(table.rows.len(), count);
+        if id == "hole_schedule_plan" {
+            assert!(table.blocks.len() >= 2);
+        }
+        let headers = &table.blocks[0].rows[..2];
+        let mut read = Vec::new();
+        for block in &table.blocks {
+            assert_eq!(&block.rows[..2], headers);
+            read.extend(
+                block.rows[2..]
+                    .iter()
+                    .filter(|r| r.iter().any(|c| !c.is_empty()))
+                    .cloned(),
+            );
+        }
+        assert_eq!(
+            read,
+            table
+                .rows
+                .iter()
+                .map(|r| r.cells.clone())
+                .collect::<Vec<_>>()
+        );
+    }
+    // Unsupported datum targets remain source errors, as on A0; no symbol changes sheet.
+    for datum in ["datum:#125", "datum:#126", "datum:#127"] {
+        assert!(
+            plan.problems
+                .iter()
+                .any(|p| p.code == "pmi_not_lowered" && p.refs.iter().any(|r| r == datum))
+        );
+    }
+    assert!(
+        !plan
+            .problems
+            .iter()
+            .any(|p| p.code == "datum_not_identified")
+    );
+    let iso = plan.views.iter().find(|v| v.id == "v:iso").unwrap();
+    let caption = plan.captions.iter().find(|c| c.view == iso.id).unwrap();
+    let bottom = iso.at[1] + iso.scale * a.iso_bounds[1];
+    assert!(
+        caption.ink[3] < bottom && caption.ink[1] > bottom - 12.0,
+        "the NTS caption must stay beneath the isometric, not under a table"
+    );
     // Datum D among them since its feature, naming no face, is read as its usage's faces.
     assert_eq!(plan.gdt.len(), 11, "five frames and six datum symbols");
     assert!(plan.gdt.iter().all(|g| g.placed.is_some()));

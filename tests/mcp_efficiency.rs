@@ -154,6 +154,7 @@ fn options_explain_sheet_and_bare_view_keys() {
     ] {
         assert!(sheet["settable"].get(format!("sheet/{field}")).is_some());
     }
+    assert!(sheet["settable"].get("sheet/table_columns").is_some());
     assert!(
         sheet["settable"]["sheet/title"]["fields"]
             .as_array()

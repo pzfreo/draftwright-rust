@@ -1183,6 +1183,8 @@ fn a_manufacturing_table_with_no_place_falls_back_to_full_callouts() {
         // Both declared datums drawn, as when this case was recorded: undrawn, datum A leaves
         // the table room on A4 at 5:1.
         sheet["uncited_datums"] = serde_json::json!(true);
+        // Keep this a genuine no-place fallback: the new split form has its own test below.
+        sheet["table_columns"] = serde_json::json!({"manufacturing_requirements":1});
         serde_json::from_value(serde_json::json!({ "sheet": sheet })).unwrap()
     };
     // With room, the requirements go to the table, as before.
@@ -1259,6 +1261,56 @@ fn a_manufacturing_table_with_no_place_falls_back_to_full_callouts() {
             .map(|i| i.id)
             .collect();
         assert!(found.is_empty(), "{found:?}");
+    }
+}
+
+#[test]
+fn a_split_manufacturing_table_keeps_every_requirement_and_its_claims() {
+    let (part, a) = analysed("GRM-03_thumbwheel_drive_screw_AP242_PMI");
+    let mut spec: Spec = serde_json::from_value(serde_json::json!({
+        "sheet":{"callouts":{"style":"note"},"uncited_datums":true}
+    }))
+    .unwrap();
+    let roomy = model::plan(&a, &spec).unwrap();
+    let original = roomy
+        .tables
+        .iter()
+        .find(|t| t.id == "manufacturing_requirements")
+        .unwrap();
+    spec.sheet.size = Some("A4".into());
+    spec.sheet.scale = Some("5:1".into());
+    let font =
+        draftwright::text::Font::open(&root().join("fonts").join(draftwright::dims::FONT)).unwrap();
+    for plan in [
+        model::plan(&a, &spec).unwrap(),
+        model::plan_recovered(&a, &spec).unwrap(),
+    ] {
+        let table = plan.tables.iter().find(|t| t.id == original.id).unwrap();
+        assert!(table.placed.as_ref().unwrap().blocks.len() >= 2);
+        assert_eq!(table.rows, original.rows);
+        assert_eq!(table.row_claims, original.row_claims);
+        assert!(
+            !plan
+                .problems
+                .iter()
+                .any(|p| p.code == "manufacturing_table_fallback" || p.code == "table_not_placed")
+        );
+        let drawing = model::render(&part, &a, &plan, &font).unwrap();
+        for header in &table.rows[0] {
+            assert_eq!(
+                drawing.text.iter().filter(|t| t.text == *header).count(),
+                table.placed.as_ref().unwrap().blocks.len(),
+                "every block repeats {header}"
+            );
+        }
+        let errors: Vec<_> = draftwright::lint::lint(&a, &drawing)
+            .into_iter()
+            .chain(draftwright::lint::structural::check_sheets(
+                std::slice::from_ref(&drawing),
+            ))
+            .filter(|i| i.severity == draftwright::lint::Severity::Error)
+            .collect();
+        assert!(errors.is_empty(), "{errors:?}");
     }
 }
 

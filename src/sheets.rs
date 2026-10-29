@@ -177,6 +177,31 @@ pub(crate) fn validate(spec: &Spec) -> Result<(), Invalid> {
             also: Vec::new(),
         });
     }
+    for (id, &n) in &spec.sheet.table_columns {
+        if !hole_table::SPLIT_TABLES.contains(&id.as_str()) && !crate::tables::split_id(id, spec) {
+            return Err(Invalid {
+                message: format!(
+                    "sheet.table_columns names {id:?}; it sets a table's side-by-side blocks: a declared table ID, t:radius-centres, manufacturing_requirements, gear_data_<owner>, hole_table_plan or hole_schedule_<view> (front, plan or side)."
+                ),
+                choices: hole_table::SPLIT_TABLES.map(String::from).to_vec(),
+                path: Some(format!("sheet/table_columns/{id}")),
+                also: Vec::new(),
+            });
+        }
+        if !(1..=hole_table::MAX_COLUMNS as u32).contains(&n) {
+            return Err(Invalid {
+                message: format!(
+                    "sheet.table_columns/{id} is {n}; a table is drawn in 1 to {} side-by-side blocks (1 never splits it).",
+                    hole_table::MAX_COLUMNS
+                ),
+                choices: (1..=hole_table::MAX_COLUMNS)
+                    .map(|n| n.to_string())
+                    .collect(),
+                path: Some(format!("sheet/table_columns/{id}")),
+                also: Vec::new(),
+            });
+        }
+    }
     if spec.sheets.is_none()
         && spec.views.values().all(|v| v.sheet.is_none())
         && spec.tables.iter().all(|t| t.sheet.is_none())
@@ -1031,7 +1056,8 @@ fn pack_with_overflow(
             continue;
         }
         let sheet = extra_sheet(&plan.sheet, n);
-        let (items, findings) = crate::tables::plan(&tables, analysis, &sheet, &[], &[], None);
+        let (items, findings) =
+            crate::tables::plan(&tables, analysis, &sheet, &[], &[], None, spec);
         plan.tables.extend(items);
         problems.extend(findings);
         sheets.insert(n, sheet);
@@ -1065,7 +1091,7 @@ fn pack_with_overflow(
             return false;
         };
         let sheet = extra_sheet(&plan.sheet, n);
-        let parts = hole_table::place_on_sheet(&table, &sheet);
+        let parts = hole_table::place_on_sheet(&table, &sheet, spec);
         if let Some(parts) = parts {
             table.blocks = parts;
             table.sheet = n;
@@ -1374,7 +1400,7 @@ pub(crate) fn separate_views(
     size: &str,
     max: usize,
 ) -> Option<Plan> {
-    separate_views_inner(analysis, source, size, max, None)
+    separate_views_inner(analysis, source, size, max, None, None)
 }
 
 /// Pin replay transports the same owned ink into the already selected view
@@ -1425,7 +1451,198 @@ pub(crate) fn replay_views(analysis: &Analysis, source: &Plan, frame: &Plan) -> 
         &frame.sheet.size,
         1 + frame.sheets.len(),
         Some(&fixed),
+        None,
     )
+}
+
+/// Repack only when existing ruled furniture is taller than the requested page. The
+/// settled dimensions, datum symbols, tags and required rows all survive as owned ink.
+pub(crate) fn reflow_tall_tables(analysis: &Analysis, source: &Plan, size: &str) -> Option<Plan> {
+    let (_, _, height) = layout::PAGES.iter().find(|p| p.0 == size)?;
+    let drawable = height - 2.0 * layout::margin();
+    let tall = source
+        .hole_tables
+        .iter()
+        .chain(&source.hole_table)
+        .any(|t| {
+            crate::tables::ROW * (t.rows.len() + if t.view.is_some() { 2 } else { 1 }) as f64
+                > drawable
+        })
+        || source
+            .tables
+            .iter()
+            .chain(source.radius_table.iter().map(|t| &t.table))
+            .any(|t| crate::tables::ROW * t.rows.len() as f64 > drawable);
+    if !tall
+        || !source.sheets.is_empty()
+        || source.spec.sheet.projection.as_deref() == Some("first")
+        || source.notes.iter().any(|n| {
+            source
+                .spec
+                .annotations
+                .get(&n.id)
+                .is_some_and(|a| a.place.is_some())
+        })
+    {
+        return None;
+    }
+    // Paper-policy baselines precede the final attachment pass. Pack the same
+    // finished marks a published drawing carries, rather than their provisional
+    // long leaders and strips (also how canonical pin replay settles its marks).
+    let mut settled = source.clone();
+    crate::dims::callout_routes::prefer_interior(analysis, &source.spec, &mut settled, None);
+    crate::dims::callout_routes::finish(analysis, &source.spec, &mut settled);
+    crate::dims::hole_marks::attach(analysis, &source.spec, &mut settled);
+    crate::dims::size_datums::attach(analysis, &source.spec, &mut settled);
+    crate::dims::gdt::cited_undrawn(&mut settled);
+    let source = &settled;
+    let mut forms = vec![source.spec.sheet.table_columns.clone()];
+    for table in source.hole_tables.iter().chain(&source.hole_table) {
+        if source.spec.sheet.table_columns.contains_key(&table.id) {
+            continue;
+        }
+        forms = forms
+            .into_iter()
+            .flat_map(|form| {
+                (1..=hole_table::MAX_COLUMNS as u32).map(move |n| {
+                    let mut form = form.clone();
+                    form.insert(table.id.clone(), n);
+                    form
+                })
+            })
+            .collect();
+    }
+    forms.sort_by_key(|c| c.values().sum::<u32>());
+    for table_columns in forms {
+        let mut trial = source.clone();
+        trial.spec.sheet.table_columns = table_columns;
+        trial.views.sort_by_key(|v| v.id == "v:iso");
+        if trial.hole_tables.iter().chain(&trial.hole_table).any(|t| {
+            hole_table::split_sizes(t, &trial.spec)
+                .first()
+                .is_some_and(|s| s[1] > drawable)
+        }) {
+            continue;
+        }
+        let free_iso = source.spec.iso_scale_factor.is_none()
+            && !source.dimensions.iter().any(|d| d.view == "v:iso")
+            && !source.gdt.iter().any(|g| g.view == "v:iso");
+        for late_tables in [false, true] {
+            let fractions = if late_tables && free_iso {
+                vec![1.0, 0.9, 0.8, 0.7, 0.6, 0.5, 0.4]
+            } else {
+                vec![1.0]
+            };
+            for fraction in fractions {
+                let mut trial = trial.clone();
+                if late_tables {
+                    trial.views.sort_by_key(|v| {
+                        if ["v:front", "v:plan", "v:side"].contains(&v.id.as_str()) {
+                            0
+                        } else if v.id == "v:iso" {
+                            1
+                        } else {
+                            2
+                        }
+                    });
+                    if free_iso && let Some(i) = trial.views.iter().position(|v| v.id == "v:iso") {
+                        trial.views[i] = auxiliary(
+                            analysis,
+                            "iso",
+                            source.sheet.scale_factor * fraction,
+                            1,
+                            source.sheet.scale_factor,
+                        )?;
+                    }
+                }
+                for tier in 0..=8 {
+                    let reflow = TableReflow {
+                        row_lift: 6.0 * tier as f64,
+                        late_tables,
+                    };
+                    if let Some(mut p) =
+                        separate_views_inner(analysis, &trial, size, 1, None, Some(reflow))
+                    {
+                        p.spec = source.spec.clone();
+                        return Some(p);
+                    }
+                }
+            }
+        }
+    }
+    None
+}
+
+fn reflow_table_furniture(plan: &mut Plan, obstacles: &mut Vec<[f64; 4]>) -> Option<()> {
+    for t in plan.hole_tables.iter_mut().chain(&mut plan.hole_table) {
+        t.blocks = hole_table::reflow_blocks(
+            t,
+            &plan.sheet,
+            obstacles,
+            hole_table::columns(&plan.spec, &t.id),
+        )?;
+        t.sheet = 1;
+        obstacles.extend(
+            t.blocks
+                .iter()
+                .filter_map(|b| b.placed.as_ref().map(|p| p.cells)),
+        );
+    }
+    for t in plan
+        .tables
+        .iter_mut()
+        .chain(plan.radius_table.iter_mut().map(|t| &mut t.table))
+    {
+        let corner = plan
+            .spec
+            .tables
+            .iter()
+            .find(|given| given.id == t.id)
+            .map_or(layout::Corner::TopRight, |given| given.corner().1);
+        let placed = crate::tables::place_split(
+            &t.rows,
+            &plan.sheet,
+            obstacles,
+            corner,
+            hole_table::columns(&plan.spec, &t.id),
+        )?;
+        obstacles.push(placed.cells);
+        t.placed = Some(placed);
+    }
+    // Notes remain on this page, but give required table rows their first clear place.
+    for block in plan
+        .notes_block
+        .iter_mut()
+        .chain(&mut plan.radius_notes_block)
+    {
+        let old = block.cells;
+        let size = [old[2] - old[0], old[3] - old[1]];
+        let at = crate::tables::place(size, &plan.sheet, obstacles, layout::Corner::TopRight)?;
+        let delta = [at[0] - old[0], at[1] - old[1]];
+        crate::placement_intent::move_box(&mut block.cells, delta);
+        crate::placement_intent::move_point(&mut block.title_at, delta);
+        for note in &mut plan.notes {
+            if let Some(p) = &mut note.placed
+                && p.cells[0] >= old[0] - 1e-9
+                && p.cells[1] >= old[1] - 1e-9
+                && p.cells[2] <= old[2] + 1e-9
+                && p.cells[3] <= old[3] + 1e-9
+            {
+                crate::placement_intent::move_box(&mut p.cells, delta);
+                for at in &mut p.rows_at {
+                    crate::placement_intent::move_point(at, delta);
+                }
+            }
+        }
+        obstacles.push(block.cells);
+    }
+    Some(())
+}
+
+#[derive(Clone, Copy)]
+struct TableReflow {
+    row_lift: f64,
+    late_tables: bool,
 }
 
 fn separate_views_inner(
@@ -1434,7 +1651,11 @@ fn separate_views_inner(
     size: &str,
     max: usize,
     frame: Option<&Plan>,
+    table_reflow: Option<TableReflow>,
 ) -> Option<Plan> {
+    let reflow = table_reflow.is_some();
+    let row_lift = table_reflow.map_or(0.0, |r| r.row_lift);
+    let late_tables = table_reflow.is_some_and(|r| r.late_tables);
     use crate::placement_intent::{move_box, move_point};
     if (frame.is_none() && source.spec.views.values().any(|v| v.place.is_some()))
         || source.spec.sheets.as_ref().is_some_and(|s| {
@@ -1534,13 +1755,19 @@ fn separate_views_inner(
         use crate::placement_intent::{move_box, move_point};
         t.sheet = 1;
         if let Some(p) = &mut t.placed {
-            move_box(&mut p.cells, delta);
-            for x in &mut p.columns {
-                *x += delta[0];
+            fn shift(p: &mut crate::tables::PlacedTable, delta: [f64; 2]) {
+                move_box(&mut p.cells, delta);
+                for x in &mut p.columns {
+                    *x += delta[0];
+                }
+                for at in p.cells_at.iter_mut().flatten().flatten() {
+                    move_point(at, delta);
+                }
+                for block in &mut p.blocks {
+                    shift(block, delta);
+                }
             }
-            for at in p.cells_at.iter_mut().flatten().flatten() {
-                move_point(at, delta);
-            }
+            shift(p, delta);
         }
     }
     for t in &mut plan.tables {
@@ -1557,6 +1784,13 @@ fn separate_views_inner(
     furniture.gdt.clear();
     furniture.hole_table = None;
     furniture.hole_tables.clear();
+    if reflow {
+        furniture.tables.clear();
+        furniture.radius_table = None;
+        furniture.notes_block = None;
+        furniture.radius_notes_block = None;
+        furniture.notes.clear();
+    }
     furniture.balloons.clear();
     furniture.captions.clear();
     if !crate::sheet_fit::inside_frames(analysis, &furniture) {
@@ -1587,8 +1821,7 @@ fn separate_views_inner(
     let mut pages = vec![occupied];
     let principal = |id: &str| ["v:front", "v:plan", "v:side"].contains(&id);
     let mut primary_frames = BTreeMap::<usize, ([f64; 2], Vec<[f64; 4]>)>::new();
-    for i in 0..plan.views.len() {
-        let id = plan.views[i].id.clone();
+    let owned = |id: &str| {
         let mut own = source.clone();
         own.views.retain(|v| v.id == id);
         own.dimensions.retain(|d| d.view == id);
@@ -1602,13 +1835,68 @@ fn separate_views_inner(
         own.hole_tables
             .retain(|t| t.view.as_deref().unwrap_or("v:plan") == id);
         own.requirements.clear();
+        if reflow {
+            own.hole_table = None;
+            own.hole_tables.clear();
+            if id == "v:iso" {
+                own.captions.clear();
+            }
+        }
+        own
+    };
+    let column_left = if reflow {
+        ["v:front", "v:plan"]
+            .iter()
+            .filter(|id| source.views.iter().any(|v| v.id == **id))
+            .flat_map(|id| crate::sheet_fit::view_ink(analysis, &owned(id)))
+            .map(|b| b[0])
+            .fold(f64::INFINITY, f64::min)
+    } else {
+        0.0
+    };
+    let mut tables_placed = !reflow;
+    let mut refined = !reflow;
+    for i in 0..plan.views.len() {
+        let id = plan.views[i].id.clone();
+        if !refined && !principal(&id) {
+            // Empty corners of annotation bands are usable paper. Reserve each settled
+            // component, including arrowheads and centre lines, rather than its view's
+            // whole enclosing rectangle when fitting the remaining furniture.
+            let areas: Vec<_> = plan
+                .views
+                .iter()
+                .filter(|v| principal(&v.id))
+                .map(|v| v.area)
+                .collect();
+            pages[0].retain(|b| !areas.contains(b));
+            let mut settled = plan.clone();
+            settled.dimensions =
+                crate::placement_intent::held_dimensions(Some(source), &plan.views);
+            settled.views.retain(|v| principal(&v.id));
+            settled.dimensions.retain(|d| principal(&d.view));
+            settled.gdt.retain(|g| principal(&g.view));
+            settled.balloons.retain(|b| principal(&b.view));
+            settled.captions.retain(|c| principal(&c.view));
+            settled.tables.clear();
+            settled.hole_tables.clear();
+            settled.hole_table = None;
+            settled.radius_table = None;
+            settled.requirements.clear();
+            pages[0].extend(crate::sheet_fit::view_ink(analysis, &settled));
+            refined = true;
+            if !late_tables {
+                reflow_table_furniture(&mut plan, &mut pages[0])?;
+                tables_placed = true;
+            }
+        }
+        let own = owned(&id);
         let mut ink = crate::sheet_fit::view_ink(analysis, &own);
         ink.extend(
             crate::sheet_fit::furniture_footprints(analysis, &own)
                 .into_iter()
                 .skip(1 + usize::from(own.sheet.projection_symbol.is_some())),
         );
-        let bounds = ink.into_iter().reduce(|a, b| {
+        let mut bounds = ink.into_iter().reduce(|a, b| {
             [
                 a[0].min(b[0]),
                 a[1].min(b[1]),
@@ -1616,7 +1904,43 @@ fn separate_views_inner(
                 a[3].max(b[3]),
             ]
         })?;
-        let block = [bounds[2] - bounds[0], bounds[3] - bounds[1]];
+        if reflow && matches!(id.as_str(), "v:front" | "v:plan") {
+            bounds[0] = bounds[0].min(column_left);
+        }
+        if reflow
+            && id == "v:iso"
+            && (plan.views[i].scale / plan.sheet.scale_factor - 1.0).abs() >= 1e-6
+        {
+            // Keep the scale disclaimer with its view. A whole clear caption band is
+            // reserved before the neighbouring section and tables claim the paper.
+            bounds[1] -= 3.0 * crate::section::FONT_SIZE + crate::tables::PAD;
+        }
+        if late_tables && id == "v:iso" {
+            // Stack the orientation view and sections in one clear column, leaving
+            // continuous room beside them for a long schedule.
+            let width = source
+                .views
+                .iter()
+                .filter(|v| !principal(&v.id) && v.id != "v:iso")
+                .filter_map(|v| {
+                    crate::sheet_fit::view_ink(analysis, &owned(&v.id))
+                        .into_iter()
+                        .reduce(|a, b| {
+                            [
+                                a[0].min(b[0]),
+                                a[1].min(b[1]),
+                                a[2].max(b[2]),
+                                a[3].max(b[3]),
+                            ]
+                        })
+                })
+                .map(|b| b[2] - b[0])
+                .fold(bounds[2] - bounds[0], f64::max);
+            let extra = (width - (bounds[2] - bounds[0])) / 2.0;
+            bounds[0] -= extra;
+            bounds[2] += extra;
+        }
+        let mut block = [bounds[2] - bounds[0], bounds[3] - bounds[1]];
         let mut allocation = if let Some(frame) = frame {
             let target = frame.views.iter().find(|v| v.id == id)?;
             if (target.scale - plan.views[i].scale).abs() > 1e-9 {
@@ -1645,6 +1969,55 @@ fn separate_views_inner(
                 {
                     // Projections sharing a page retain their established alignment
                     // and relative spacing. A different page is a separate frame.
+                    let mut delta = *delta;
+                    if reflow && id == "v:plan" {
+                        delta[1] = peers.first()?[3] + 6.0 - bounds[1];
+                    } else if reflow && id == "v:side" {
+                        delta[0] = peers.iter().map(|b| b[2]).fold(f64::NEG_INFINITY, f64::max)
+                            + 6.0
+                            - bounds[0];
+                    }
+                    if reflow && id == "v:side" {
+                        let mut fixed: Vec<_> = obstacles
+                            .iter()
+                            .filter(|b| !peers.contains(b))
+                            .copied()
+                            .collect();
+                        for peer in plan
+                            .views
+                            .iter()
+                            .filter(|v| matches!(v.id.as_str(), "v:front" | "v:plan"))
+                        {
+                            let old = source.views.iter().find(|v| v.id == peer.id)?;
+                            let d = [peer.at[0] - old.at[0], peer.at[1] - old.at[1]];
+                            fixed.extend(
+                                crate::sheet_fit::view_ink(analysis, &owned(&peer.id))
+                                    .into_iter()
+                                    .map(|b| [b[0] + d[0], b[1] + d[1], b[2] + d[0], b[3] + d[1]]),
+                            );
+                        }
+                        let ink = crate::sheet_fit::view_ink(analysis, &own);
+                        for inset in (0..=24).rev() {
+                            let d = [delta[0] - 2.0 * inset as f64, delta[1]];
+                            let clear = ink.iter().all(|b| {
+                                let b = [
+                                    b[0] + d[0] - 2.0,
+                                    b[1] + d[1] - 2.0,
+                                    b[2] + d[0] + 2.0,
+                                    b[3] + d[1] + 2.0,
+                                ];
+                                b[0] >= layout::margin()
+                                    && b[1] >= layout::margin()
+                                    && b[2] <= w - layout::margin()
+                                    && b[3] <= h - layout::margin()
+                                    && fixed.iter().all(|f| !overlap(b, *f))
+                            });
+                            if clear {
+                                return Some((n + 1, [bounds[0] + d[0], bounds[1] + d[1]]));
+                            }
+                        }
+                        return None;
+                    }
                     let at = [bounds[0] + delta[0], bounds[1] + delta[1]];
                     let rect = [at[0], at[1], at[0] + block[0], at[1] + block[1]];
                     if rect[0] < region[0]
@@ -1659,13 +2032,70 @@ fn separate_views_inner(
                         .filter(|b| !peers.contains(b))
                         .copied()
                         .collect();
+                    if reflow
+                        && crate::sheet_fit::view_ink(analysis, &own)
+                            .into_iter()
+                            .all(|b| {
+                                let b = [
+                                    b[0] + delta[0] - 2.0,
+                                    b[1] + delta[1] - 2.0,
+                                    b[2] + delta[0] + 2.0,
+                                    b[3] + delta[1] + 2.0,
+                                ];
+                                fixed.iter().all(|f| !overlap(b, *f))
+                            })
+                    {
+                        return Some((n + 1, at));
+                    }
                     return layout::fit_box(block, rect, &fixed, layout::Corner::BottomLeft, 2.)
                         .map(|at| (n + 1, at));
                 }
-                layout::fit_box(block, region, obstacles, layout::Corner::BottomLeft, 2.)
-                    .map(|at| (n + 1, at))
+                let mut region = region;
+                if reflow && principal(&id) {
+                    region[1] += row_lift;
+                }
+                let corner = if late_tables && !principal(&id) {
+                    layout::Corner::TopRight
+                } else {
+                    layout::Corner::BottomLeft
+                };
+                layout::fit_box(block, region, obstacles, corner, 2.).map(|at| (n + 1, at))
             })
         };
+        if allocation.is_none()
+            && reflow
+            && id == "v:iso"
+            && source.spec.iso_scale_factor.is_none()
+            && !source.dimensions.iter().any(|d| d.view == id)
+            && !source.gdt.iter().any(|g| g.view == id)
+        {
+            // The orientation view already fits freely in ordinary sheet layout. Fit it
+            // after the tables and dimensioned views, with room for its NTS caption.
+            let world = [
+                analysis.iso_bounds[2] - analysis.iso_bounds[0],
+                analysis.iso_bounds[3] - analysis.iso_bounds[1],
+            ];
+            let gap = layout::largest_empty_rect(region, &pages[0], world);
+            let scale = ((gap[2] - gap[0] - 4.0) / world[0])
+                .min((gap[3] - gap[1] - 11.0) / world[1])
+                .min(source.sheet.scale_factor);
+            if scale > 0.0 && world[0].max(world[1]) * scale >= 20.0 {
+                let iso = auxiliary(analysis, "iso", scale, 1, source.sheet.scale_factor)?;
+                bounds = [
+                    iso.at[0] + scale * analysis.iso_bounds[0],
+                    iso.at[1] + scale * analysis.iso_bounds[1]
+                        - 3.0 * crate::section::FONT_SIZE
+                        - crate::tables::PAD,
+                    iso.at[0] + scale * analysis.iso_bounds[2],
+                    iso.at[1] + scale * analysis.iso_bounds[3],
+                ];
+                block = [bounds[2] - bounds[0], bounds[3] - bounds[1]];
+                plan.views[i] = iso;
+                allocation =
+                    layout::fit_box(block, region, &pages[0], layout::Corner::BottomLeft, 2.0)
+                        .map(|at| (1, at));
+            }
+        }
         if allocation.is_none() {
             let n = pages.len() + 1;
             if n > max {
@@ -1684,7 +2114,11 @@ fn separate_views_inner(
         plan.views[i].sheet = next as u32;
         shift(&mut plan.views[i], delta);
         plan.views[i].area = [at[0], at[1], at[0] + block[0], at[1] + block[1]];
-        plan.views[i].basis += "; whole view and its annotations allocated to a separate sheet";
+        plan.views[i].basis += if reflow {
+            "; whole view and its annotations repacked beside split tables on the same sheet"
+        } else {
+            "; whole view and its annotations allocated to a separate sheet"
+        };
         for g in plan.gdt.iter_mut().filter(|g| g.view == id) {
             if let Some(p) = &mut g.placed {
                 move_point(&mut p.tip, delta);
@@ -1747,6 +2181,9 @@ fn separate_views_inner(
         }
         pages[next - 1].push(plan.views[i].area);
     }
+    if !tables_placed {
+        reflow_table_furniture(&mut plan, &mut pages[0])?;
+    }
     plan.dimensions = crate::placement_intent::held_dimensions(Some(source), &plan.views);
     crate::centrelines::trim_to_frame(&mut plan.views, plan.sheet.page);
     cross_references(analysis, &mut plan);
@@ -1772,7 +2209,12 @@ fn separate_views_inner(
         )
     });
     plan.problems.extend(crate::dims::recheck(analysis, &plan));
-    plan.problems.extend(check(&plan));
+    // Reflow never changes a datum's sheet: it is the same single-sheet inventory. Keep
+    // its existing source completeness findings rather than adding allocation diagnostics
+    // for symbols that were already unavailable before any table moved.
+    if !reflow {
+        plan.problems.extend(check(&plan));
+    }
     // A frame replay is an author's explicit pin edit, not an automatic
     // candidate. Preserve its requested ink and the off-sheet findings above,
     // as on one sheet. Every automatic allocation still rejects clipping.

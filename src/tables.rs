@@ -261,7 +261,7 @@ pub struct TableSpec {
 
 impl TableSpec {
     /// The corner it goes towards, its name and the layout's.
-    fn corner(&self) -> (&str, Corner) {
+    pub(crate) fn corner(&self) -> (&str, Corner) {
         match self.prefer.as_deref().unwrap_or("tr") {
             "tl" => ("tl", Corner::TopLeft),
             "br" => ("br", Corner::BottomRight),
@@ -325,6 +325,9 @@ pub struct RowClaims {
 pub struct PlacedTable {
     /// Each cell's ink centre, by row and column; none for a cell that draws nothing.
     pub cells_at: Vec<Vec<Option<[f64; 2]>>>,
+    /// Side-by-side ruled blocks; empty for an unsplit table.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub blocks: Vec<PlacedTable>,
     /// The x of each column's left edge, and of the table's right edge.
     pub columns: Vec<f64>,
     /// The whole table, `[x0, y0, x1, y1]`, a row of [`ROW`] per row.
@@ -455,8 +458,138 @@ pub(crate) fn widths(rows: &[Vec<String>]) -> Vec<f64> {
 }
 
 /// A table's size, mm, from its cells.
-fn measure(rows: &[Vec<String>]) -> [f64; 2] {
+pub(crate) fn measure(rows: &[Vec<String>]) -> [f64; 2] {
     [widths(rows).iter().sum(), ROW * rows.len() as f64]
+}
+
+/// Whether an override names a shared table rather than a hole schedule.
+pub(crate) fn split_id(id: &str, spec: &crate::model::Spec) -> bool {
+    spec.tables.iter().any(|t| t.id == id)
+        || id == crate::dims::blends::RADIUS_TABLE
+        || id == crate::pmi_lowering::SCHEDULE_ID
+        || id
+            .strip_prefix("gear_data_")
+            .is_some_and(|owner| !owner.is_empty())
+}
+
+/// Keep a fitting table whole. Otherwise try the fewest blocks whose height fits.
+pub(crate) fn counts(fixed: Option<usize>, headers: usize, body: usize, page: [f64; 2]) -> usize {
+    fixed.unwrap_or_else(|| {
+        (1..=crate::hole_table::MAX_COLUMNS)
+            .find(|&n| {
+                ROW * (headers + body.div_ceil(n)) as f64
+                    <= page[1] - 2.0 * (FRAME + frame_clearance())
+            })
+            .unwrap_or(1)
+    })
+}
+
+pub(crate) fn forms(rows: &[Vec<String>], fixed: Option<usize>) -> Vec<[f64; 2]> {
+    let w: f64 = widths(rows).iter().sum();
+    fixed
+        .map_or(1..=crate::hole_table::MAX_COLUMNS, |n| n..=n)
+        .map(|n| {
+            [
+                w * n as f64 + crate::hole_table::BLOCK_GAP * (n - 1) as f64,
+                ROW * (1 + (rows.len() - 1).div_ceil(n)) as f64,
+            ]
+        })
+        .collect()
+}
+
+pub(crate) fn size_on(rows: &[Vec<String>], fixed: Option<usize>, page: [f64; 2]) -> [f64; 2] {
+    let n = counts(fixed, 1, rows.len() - 1, page);
+    forms(rows, Some(n))[0]
+}
+
+/// The shared table placement keeps source rows and their claims in their original order.
+/// Repeated headers live in the ruled blocks, without duplicating source provenance.
+pub(crate) fn place_split(
+    rows: &[Vec<String>],
+    sheet: &PlannedSheet,
+    obstacles: &[Rect],
+    corner: Corner,
+    fixed: Option<usize>,
+) -> Option<PlacedTable> {
+    let first = counts(fixed, 1, rows.len() - 1, sheet.page);
+    let (n, at) = (first..=fixed.unwrap_or(crate::hole_table::MAX_COLUMNS))
+        .find_map(|n| place(forms(rows, Some(n))[0], sheet, obstacles, corner).map(|at| (n, at)))?;
+    let widths = widths(rows);
+    if n == 1 {
+        return Some(lay(rows, &widths, at));
+    }
+    let per = (rows.len() - 1).div_ceil(n);
+    let blocks: Vec<_> = crate::hole_table::split(&rows[..1], &rows[1..], n)
+        .iter()
+        .enumerate()
+        .map(|(k, rows)| {
+            lay(
+                rows,
+                &widths,
+                [
+                    at[0] + k as f64 * (widths.iter().sum::<f64>() + crate::hole_table::BLOCK_GAP),
+                    at[1],
+                ],
+            )
+        })
+        .collect();
+    let mut cells_at = vec![blocks[0].cells_at[0].clone()];
+    cells_at.extend((0..rows.len() - 1).map(|i| blocks[i / per].cells_at[1 + i % per].clone()));
+    let size = forms(rows, Some(n))[0];
+    Some(PlacedTable {
+        cells_at,
+        columns: blocks[0].columns.clone(),
+        cells: [at[0], at[1], at[0] + size[0], at[1] + size[1]],
+        blocks,
+    })
+}
+
+/// Rules for each block, without drawing lines across the gaps.
+pub(crate) fn rules(p: &PlacedTable) -> Vec<[[f64; 2]; 2]> {
+    if p.blocks.is_empty() {
+        ruling(p.cells, &p.columns)
+    } else {
+        p.blocks.iter().flat_map(rules).collect()
+    }
+}
+
+type CellRow<'a> = (usize, &'a [String], &'a [Option<[f64; 2]>]);
+
+/// Text rows with their original source index, including repeated headers.
+pub(crate) fn cell_rows(table: &PlannedTable) -> Vec<CellRow<'_>> {
+    let Some(p) = &table.placed else {
+        return Vec::new();
+    };
+    let mut rows: Vec<_> = table
+        .rows
+        .iter()
+        .zip(&p.cells_at)
+        .enumerate()
+        .map(|(i, (row, at))| (i, row.as_slice(), at.as_slice()))
+        .collect();
+    rows.extend(
+        p.blocks
+            .iter()
+            .skip(1)
+            .map(|b| (0, table.rows[0].as_slice(), b.cells_at[0].as_slice())),
+    );
+    rows
+}
+
+pub(crate) fn sizes_on(
+    tables: &[TableSpec],
+    spec: &crate::model::Spec,
+    page: [f64; 2],
+) -> Vec<([f64; 2], Corner)> {
+    tables
+        .iter()
+        .map(|t| {
+            (
+                size_on(&t.cells(), crate::hole_table::columns(spec, &t.id), page),
+                t.corner().1,
+            )
+        })
+        .collect()
 }
 
 /// Each table's size and corner, in the spec's order: what the sheet reserves for them.
@@ -477,6 +610,7 @@ pub fn plan(
     views: &[PlannedView],
     dims: &[PlannedDimension],
     notes: Option<Rect>,
+    spec: &crate::model::Spec,
 ) -> (Vec<PlannedTable>, Vec<Problem>) {
     if tables.is_empty() {
         return (Vec::new(), Vec::new());
@@ -489,15 +623,10 @@ pub fn plan(
         .enumerate()
         .map(|(i, t)| {
             let rows = t.cells();
-            let widths = widths(&rows);
-            let [w, h] = [widths.iter().sum::<f64>(), ROW * rows.len() as f64];
+            let [w, h] = size_on(&rows, crate::hole_table::columns(spec, &t.id), sheet.page);
             let (prefer, corner) = t.corner();
-            let at = place([w, h], sheet, &obstacles, corner);
-            let placed = at.map(|at| {
-                let p = lay(&rows, &widths, at);
-                obstacles.push(p.cells);
-                p
-            });
+            let placed = place_split(&rows, sheet, &obstacles, corner, crate::hole_table::columns(spec, &t.id));
+            if let Some(p) = &placed { obstacles.push(p.cells); }
             if placed.is_none() {
                 problems.push(Problem {
                     id: format!("p:table_not_placed:{}", t.id),
@@ -553,6 +682,7 @@ pub(crate) fn lay(rows: &[Vec<String>], widths: &[f64], at: [f64; 2]) -> PlacedT
     // Invariant: columns starts with the left edge, even before any widths are appended.
     let x1 = *columns.last().expect("a column");
     PlacedTable {
+        blocks: Vec::new(),
         cells_at,
         columns,
         cells: [x0, y0, x1, top],
@@ -561,14 +691,9 @@ pub(crate) fn lay(rows: &[Vec<String>], widths: &[f64], at: [f64; 2]) -> PlacedT
 
 /// Every cell a placed table draws, with its ink centre.
 pub fn texts(table: &PlannedTable) -> Vec<(&str, [f64; 2])> {
-    let Some(p) = &table.placed else {
-        return Vec::new();
-    };
-    table
-        .rows
-        .iter()
-        .zip(&p.cells_at)
-        .flat_map(|(row, at)| row.iter().zip(at))
+    cell_rows(table)
+        .into_iter()
+        .flat_map(|(_, row, at)| row.iter().zip(at))
         .filter_map(|(cell, at)| at.map(|at| (cell.as_str(), at)))
         .collect()
 }
@@ -577,6 +702,20 @@ pub fn texts(table: &PlannedTable) -> Vec<(&str, [f64; 2])> {
 /// or none when there is none: what the sheet reserves for it, top right.
 pub fn manufacturing_size(rows: &[Vec<String>]) -> Option<[f64; 2]> {
     (!rows.is_empty()).then(|| measure(rows))
+}
+
+pub(crate) fn manufacturing_size_on(
+    rows: &[Vec<String>],
+    spec: &crate::model::Spec,
+    page: [f64; 2],
+) -> Option<[f64; 2]> {
+    (!rows.is_empty()).then(|| {
+        size_on(
+            rows,
+            crate::hole_table::columns(spec, crate::pmi_lowering::SCHEDULE_ID),
+            page,
+        )
+    })
 }
 
 /// The manufacturing requirements table (draftwright's `_place_manufacturing_schedule`): the
@@ -602,19 +741,32 @@ pub fn manufacturing(
         return (None, Vec::new());
     }
     let id = crate::pmi_lowering::SCHEDULE_ID;
-    let widths = widths(&rows);
-    let [w, h] = [widths.iter().sum::<f64>(), ROW * rows.len() as f64];
-    let at = place(
-        [w, h],
+    let [w, h] = size_on(&rows, crate::hole_table::columns(spec, id), sheet.page);
+    let placed = place_split(
+        &rows,
         sheet,
         &obstacles(analysis, sheet, views, dims),
         Corner::TopRight,
-    );
-    let placed = at.map(|at| {
-        let mut p = lay(&rows, &widths, at);
-        for (row, cells) in rows.iter().zip(&mut p.cells_at) {
+        crate::hole_table::columns(spec, id),
+    )
+    .map(|mut p| {
+        let per = p
+            .blocks
+            .first()
+            .map_or(rows.len() - 1, |b| b.cells_at.len() - 1);
+        for (i, (row, cells)) in rows.iter().zip(&mut p.cells_at).enumerate() {
+            let left = if p.blocks.is_empty() {
+                p.columns[1]
+            } else {
+                p.blocks[i.saturating_sub(1) / per].columns[1]
+            };
             if let (Some(s), Some(c)) = (span(&row[1]), cells[1].as_mut()) {
-                c[0] = p.columns[1] + PAD + 0.5 * (s[1] - s[0]);
+                c[0] = left + PAD + 0.5 * (s[1] - s[0]);
+            }
+        }
+        for block in &mut p.blocks {
+            if let (Some(s), Some(c)) = (span(&rows[0][1]), block.cells_at[0][1].as_mut()) {
+                c[0] = block.columns[1] + PAD + 0.5 * (s[1] - s[0]);
             }
         }
         p
@@ -694,4 +846,63 @@ pub fn proxy(t: &PlannedTable) -> Option<PlannedDimension> {
             label_box: p.cells,
         }),
     })
+}
+
+#[cfg(test)]
+mod split_tests {
+    use super::*;
+
+    #[test]
+    fn shared_tables_split_without_losing_source_rows_or_repeating_claims() {
+        let sheet = crate::model::PlannedSheet {
+            page: [594.0, 420.0],
+            ..serde_json::from_value(serde_json::json!({
+                "size":"A2", "page":[594.0,420.0], "scale":"1:1", "scale_factor":1.0,
+                "default":true, "basis":"test", "arrangement":"columns", "state":{"kind":"shown"}, "title":{}, "title_block":[400.0,13.0,581.0,50.0]
+            })).unwrap()
+        };
+        let mut rows = vec![vec!["HEADER".to_string()]];
+        rows.extend((0..61).map(|i| vec![i.to_string()]));
+        let p = place_split(&rows, &sheet, &[], Corner::TopRight, None).unwrap();
+        assert_eq!(p.blocks.len(), 2);
+        assert_eq!(p.cells_at.len(), rows.len());
+        assert_eq!(p.blocks[0].cells_at[0].len(), 1);
+        for i in 1..rows.len() {
+            assert_eq!(
+                p.cells_at[i],
+                p.blocks[(i - 1) / 31].cells_at[1 + (i - 1) % 31]
+            );
+        }
+        assert!(p.blocks[0].cells[2] < p.blocks[1].cells[0]);
+        assert!(place_split(&rows, &sheet, &[], Corner::TopRight, Some(1)).is_none());
+        assert_eq!(
+            place_split(&rows, &sheet, &[], Corner::TopRight, Some(3))
+                .unwrap()
+                .blocks
+                .len(),
+            3
+        );
+        // A table that fits the height can still need a shorter shape above fixed ink.
+        let crowded = &rows[..18];
+        let obstacle = [[0.0, 0.0, 594.0, 325.0]];
+        assert!(place_split(crowded, &sheet, &obstacle, Corner::TopRight, Some(1)).is_none());
+        assert_eq!(
+            place_split(crowded, &sheet, &obstacle, Corner::TopRight, None)
+                .unwrap()
+                .blocks
+                .len(),
+            2
+        );
+        let small = &rows[..5];
+        let whole = place_split(small, &sheet, &[], Corner::TopRight, None).unwrap();
+        assert!(whole.blocks.is_empty());
+        assert_eq!(
+            whole,
+            lay(
+                small,
+                &widths(small),
+                place(measure(small), &sheet, &[], Corner::TopRight).unwrap()
+            )
+        );
+    }
 }

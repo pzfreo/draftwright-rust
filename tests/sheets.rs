@@ -522,7 +522,7 @@ fn r5_off_sheet_hole_table_keeps_all_rows_and_balloons() {
     let mut sheet = p.sheet.clone();
     sheet.number = 2;
     sheet.projection_symbol = None;
-    table.blocks = hole_table::place_on_sheet(table, &sheet).unwrap();
+    table.blocks = hole_table::place_on_sheet(table, &sheet, &Spec::default()).unwrap();
     assert!(
         table
             .blocks
