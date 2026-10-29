@@ -31,7 +31,8 @@ Now on quiddity-rust **v0.2.2**.
   bearing. The rule is whether the section shows something hidden lines cannot show cleanly: a
   plain bore under a plain or merely stepped outline stays a plain view (gt2-pulley's ⌀5 bore,
   t8-flange-nut). dw-examples' lm8uu now draws its side view half cut, the thin wall under each
-  ⌀13.4 groove a section edge. No other dw-examples drawing or quality part changes.
+  ⌀13.4 groove a section edge. No other dw-examples drawing or quality part changes;
+  in the wider corpus, cadgenbench/threaded_connector_109 now draws its front view half cut too.
   `views/<name>/half_section` still forces (`true`) or forbids (`false`) it.
 
 ### WASM API

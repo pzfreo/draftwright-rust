@@ -229,10 +229,12 @@ impl Turned {
                 .then_some((at[k], diameter))
             })
             .collect();
-        if grooves
-            .iter()
-            .any(|&(t, diameter)| self.outer(t) > 0.5 * diameter + 1e-3)
-        {
+        // An internal groove opens off a bore: without a narrower coaxial bore, a groove floor
+        // under the profile is an outer groove the profile does not record as a step.
+        if grooves.iter().any(|&(t, diameter)| {
+            self.outer(t) > 0.5 * diameter + 1e-3
+                && bores.iter().any(|h| h.diameter < diameter - 1e-3)
+        }) {
             return Some("a groove is turned inside it");
         }
         (!grooves.is_empty() && bores.iter().any(|h| h.through))
@@ -640,6 +642,7 @@ mod tests {
             .unwrap()
             .contains("turned inside")
         );
+        assert_eq!(why(&part(&sleeve, &[groove(13.0, 12.0)])), None);
         assert!(
             why(&part(
                 &sleeve,
