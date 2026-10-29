@@ -519,3 +519,309 @@ fn a_datum_read_through_a_nonconformance_is_drawn() {
             .any(|q| q.code == "frame_datum_not_drawn" && q.refs.contains(&"datum D".into()))
     );
 }
+
+const CTC05_CIRCULARITY: &str = "pmi:geometric_tolerance.circularity:f72";
+const CTC05_CONCENTRICITY: &str =
+    "pmi:geometric_tolerance.concentricity:f10:ref=A:mod=diameter_zone";
+
+fn ctc05() -> Analysis {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/rule_pins/nist_ctc_05_asme1_ap242.stp.gz");
+    model::analyse_native(&path).unwrap().1
+}
+
+/// Project independently of the attachment planner, using the public camera and envelope.
+fn page(a: &Analysis, v: &model::PlannedView, p: [f64; 3]) -> [f64; 2] {
+    let camera = haecceity::hlr::View::new(v.direction, v.up).unwrap();
+    let middle = [0, 1, 2].map(|k| 0.5 * (a.envelope[0][k] + a.envelope[1][k]));
+    let (p, c) = (camera.map(p), camera.map(middle));
+    [0, 1].map(|k| v.at[k] + v.scale * (p[k] - c[k]))
+}
+
+fn assert_cylinder_attachment(a: &Analysis, plan: &Plan, id: &str) {
+    let g = plan.gdt.iter().find(|g| g.id == id).unwrap();
+    let p = g.placed.as_ref().expect("the frame stays drawn");
+    let v = plan.views.iter().find(|v| v.id == g.view).unwrap();
+    let f = &a.face_attachments[g.faces[0]];
+    let k = f.axis.unwrap();
+    let across: Vec<_> = (0..3).filter(|&j| j != k).collect();
+    let radius = (f.sites[0][across[0]] - f.support[0]).hypot(f.sites[0][across[1]] - f.support[1]);
+    if p.lines.is_empty() {
+        // The frame touches the correct size dimension, in the same view. Numeric equality
+        // alone cannot borrow a diameter from another feature.
+        let d = plan.dimensions.iter().find(|d| {
+            d.view == g.view
+                && d.placed.as_ref().is_some_and(|m| {
+                    let b = m.label_box;
+                    p.label_box[0] < b[2]
+                        && p.label_box[2] > b[0]
+                        && ((p.label_box[3] - b[1]).abs() <= 0.5 + 1e-6
+                            || (p.label_box[1] - b[3]).abs() <= 0.5 + 1e-6)
+                })
+                && d.measurements.iter().any(|m| {
+                    m.parameter.ends_with("diameter")
+                        && (m.value - 2.0 * radius).abs() < 1e-3
+                        && a.features.iter().any(|f| {
+                            f.id == m.feature && g.faces.iter().all(|i| f.faces.contains(i))
+                        })
+                })
+        });
+        assert!(
+            d.is_some(),
+            "{id}: a frame must touch its own size dimension"
+        );
+        assert!(p.arrows.is_empty());
+        return;
+    }
+    assert!(v.direction[k].abs() > 0.999, "{id}: end-on view");
+    let mut axis = [0.0; 3];
+    for (&j, &s) in across.iter().zip(&f.support) {
+        axis[j] = s;
+    }
+    let c = page(a, v, axis);
+    let r = radius * v.scale;
+    let distance = (p.tip[0] - c[0]).hypot(p.tip[1] - c[1]);
+    assert!(distance > 1.0, "{id}: axis-point leader {p:?}");
+    assert!((distance - r).abs() < 1e-5, "{id}: on its own rim");
+    assert_eq!(p.arrows.len(), 1);
+    let [tip, elbow] = p.lines[0];
+    let u = [tip[0] - c[0], tip[1] - c[1]];
+    let d = [elbow[0] - tip[0], elbow[1] - tip[1]];
+    assert!((u[0] * d[1] - u[1] * d[0]).abs() < 1e-5, "radial");
+    assert!(u[0] * d[0] + u[1] * d[1] > 0.0, "outward");
+    // No leg travels along either the cylinder's axis strokes or another feature's centre
+    // mark. Proper crossings are allowed; nearly parallel travel is ambiguous.
+    for s in &p.lines {
+        for t in v
+            .line_work
+            .iter()
+            .flat_map(draftwright::centrelines::segments)
+        {
+            let d = [s[1][0] - s[0][0], s[1][1] - s[0][1]];
+            let n = d[0].hypot(d[1]);
+            if n < 0.5 {
+                continue;
+            }
+            let u = d.map(|x| x / n);
+            let q = t.map(|p| [p[0] - s[0][0], p[1] - s[0][1]]);
+            let parallel = q.iter().all(|p| (p[0] * u[1] - p[1] * u[0]).abs() < 1.0);
+            let ends = q.map(|p| p[0] * u[0] + p[1] * u[1]);
+            let overlap = n.min(ends[0].max(ends[1])) - 0.0_f64.max(ends[0].min(ends[1]));
+            assert!(
+                !parallel || overlap < 0.5,
+                "{id}: centre-line travel {s:?} {t:?}"
+            );
+        }
+    }
+    // In particular, the first leg may not run through CTC-05's off-axis holes (A2 in the
+    // reported drawing). Use all cylindrical attachments, independent of recognised owners.
+    for (fi, f) in a.face_attachments.iter().enumerate() {
+        if f.surface.as_deref() != Some("cylinder") || f.axis != Some(k) || f.sites.is_empty() {
+            continue;
+        }
+        let mut at = [0.0; 3];
+        for (&j, &s) in across.iter().zip(&f.support) {
+            at[j] = s;
+        }
+        let other = page(a, v, at);
+        if (other[0] - c[0]).hypot(other[1] - c[1]) < 1e-6 {
+            continue;
+        }
+        let r = (f.sites[0][across[0]] - f.support[0]).hypot(f.sites[0][across[1]] - f.support[1])
+            * v.scale;
+        // The enclosing stock circle supports this hole; it is not a second hole. A
+        // leader to an off-axis hole in a round plate necessarily crosses that outline.
+        let hole = a
+            .features
+            .iter()
+            .any(|h| h.kind == "hole" && h.faces.contains(&fi));
+        if !hole && (other[0] - c[0]).hypot(other[1] - c[1]) + radius * v.scale < r {
+            continue;
+        }
+        let n2 = d[0] * d[0] + d[1] * d[1];
+        let t = (((other[0] - tip[0]) * d[0] + (other[1] - tip[1]) * d[1]) / n2).clamp(0.0, 1.0);
+        let closest = [tip[0] + t * d[0], tip[1] + t * d[1]];
+        assert!(
+            (closest[0] - other[0]).hypot(closest[1] - other[1]) > r,
+            "{id}: passes through another cylinder"
+        );
+    }
+}
+
+/// The two CTC-05 frames used to share an axis-point leader down the vertical centre line,
+/// through A2, despite controlling two different cylinders. A clear size dimension wins;
+/// otherwise each arrow must reach its own circle with a radial, unambiguous leader.
+#[test]
+fn ctc05_cylinder_frames_identify_their_own_surfaces() {
+    let a = ctc05();
+    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    for id in [CTC05_CIRCULARITY, CTC05_CONCENTRICITY] {
+        assert_cylinder_attachment(&a, &p, id);
+    }
+    let frames: Vec<_> = p
+        .gdt
+        .iter()
+        .filter(|g| [CTC05_CIRCULARITY, CTC05_CONCENTRICITY].contains(&g.id.as_str()))
+        .filter_map(|g| g.placed.as_ref().filter(|p| !p.lines.is_empty()))
+        .collect();
+    if let [a, b] = frames.as_slice() {
+        assert!(
+            (a.tip[0] - b.tip[0]).hypot(a.tip[1] - b.tip[1]) > 1.0,
+            "different cylinders need different leaders"
+        );
+    }
+}
+
+#[test]
+fn cylinder_frame_placement_is_overridable() {
+    let a = ctc05();
+    let spec: Spec = serde_json::from_value(serde_json::json!({"annotations": {
+        CTC05_CIRCULARITY: {"place": {"view": "plan", "side": "above"}},
+        CTC05_CONCENTRICITY: {"place": {"side": "above"}},
+    }}))
+    .unwrap();
+    let p = model::plan_recovered(&a, &spec).unwrap();
+    for id in [CTC05_CIRCULARITY, CTC05_CONCENTRICITY] {
+        let g = p.gdt.iter().find(|g| g.id == id).unwrap();
+        assert!(
+            !g.basis.contains("its cylinder's"),
+            "explicit placement wins"
+        );
+        assert!(!g.placed.as_ref().unwrap().lines.is_empty());
+    }
+}
+
+#[test]
+fn ctc05_without_size_dimensions_uses_two_radial_rim_leaders() {
+    let a = ctc05();
+    let spec: Spec = serde_json::from_value(serde_json::json!({"dimensions": {
+        "d:f:turned_step:2/step.diameter": {"omit": true},
+        "d:f:turned_step:3/step.diameter": {"omit": true},
+    }}))
+    .unwrap();
+    let p = model::plan_recovered(&a, &spec).unwrap();
+    let mut tips = Vec::new();
+    for id in [CTC05_CIRCULARITY, CTC05_CONCENTRICITY] {
+        assert_cylinder_attachment(&a, &p, id);
+        let g = p.gdt.iter().find(|g| g.id == id).unwrap();
+        let placed = g.placed.as_ref().unwrap();
+        assert!(!placed.lines.is_empty(), "no size annotation to carry {id}");
+        assert!(
+            !p.problems
+                .iter()
+                .any(|p| p.code == "leader_to_hidden_edge" && p.subjects.contains(&id.to_owned())),
+            "both rims are visible"
+        );
+        tips.push(placed.tip);
+    }
+    assert!((tips[0][0] - tips[1][0]).hypot(tips[0][1] - tips[1][1]) > 1.0);
+}
+
+/// A hidden hole that already had a rim leader must not regress to its axis merely because
+/// its old cardinal shaft used a centre-mark arm. Re-aim the shaft while retaining a clear
+/// frame, or use another clear radial route, with the hidden-edge warning still reported.
+#[test]
+fn stricter_centreline_clearance_keeps_thumbwheel_frame_on_its_rim() {
+    let a = nist("thumbwheel_thread_knurl.step.gz");
+    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    const ID: &str = "pmi:geometric_tolerance.position:f12:ref=A,B:mod=diameter_zone";
+    assert_cylinder_attachment(&a, &p, ID);
+    let g = p.gdt.iter().find(|g| g.id == ID).unwrap();
+    if !g.placed.as_ref().unwrap().lines.is_empty() {
+        assert!(
+            p.problems
+                .iter()
+                .any(|p| p.code == "leader_to_hidden_edge" && p.subjects.contains(&ID.to_owned()))
+        );
+    }
+}
+
+/// The shallow diagonal to this hole has room beside the round plate where the cardinal
+/// shaft follows its centre mark and 45-degree routes enter the part or another view.
+#[test]
+fn intermediate_radial_directions_do_not_regress_an_existing_rim_attachment() {
+    let a = nist("hw_every_kind.step.gz");
+    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    assert_cylinder_attachment(&a, &p, "pmi:geometric_tolerance.flatness:f0");
+}
+
+/// Repairing other axis-point frames must not displace #251's two-hole frame back onto
+/// the different hole at their midpoint. Its circle is small, so measure the actual rim
+/// rather than treating every tip within 1 mm of an axis as an axis-point attachment.
+#[test]
+fn ctc_axis_repairs_preserve_stc09s_own_hole_attachment() {
+    let a = nist("nist_stc_09_asme1_ap242-e4.stp.gz");
+    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    const ID: &str = "pmi:geometric_tolerance.position:f80,81,82,83:ref=A,D,B:mod=diameter_zone";
+    let g = p.gdt.iter().find(|g| g.id == ID).unwrap();
+    let placed = g.placed.as_ref().unwrap();
+    let v = p.views.iter().find(|v| v.id == g.view).unwrap();
+    assert!(!placed.lines.is_empty());
+    let on_own_rim = g.faces.iter().any(|&fi| {
+        let f = &a.face_attachments[fi];
+        let k = f.axis.unwrap();
+        let across: Vec<_> = (0..3).filter(|&j| j != k).collect();
+        let mut c = [0.0; 3];
+        for (&j, &s) in across.iter().zip(&f.support) {
+            c[j] = s;
+        }
+        let r = (f.sites[0][across[0]] - c[across[0]]).hypot(f.sites[0][across[1]] - c[across[1]])
+            * v.scale;
+        let c = page(&a, v, c);
+        ((placed.tip[0] - c[0]).hypot(placed.tip[1] - c[1]) - r).abs() < 1e-5
+    });
+    assert!(
+        on_own_rim,
+        "the frame must identify one of its own two holes"
+    );
+    assert!(
+        !p.problems
+            .iter()
+            .any(|p| p.code == "annotation_ink_overlap" && p.subjects.contains(&ID.to_owned()))
+    );
+}
+
+#[test]
+fn a_spool_frame_clears_the_reporters_centreline_contact_band() {
+    let a = nist("hw_spool_fits_intent.step.gz");
+    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    const ID: &str = "pmi:geometric_tolerance.perpendicularity:f55:ref=A:mod=diameter_zone";
+    assert_cylinder_attachment(&a, &p, ID);
+    assert!(
+        !p.problems
+            .iter()
+            .any(|p| p.code == "leader_along_centreline" && p.subjects.contains(&ID.to_owned()))
+    );
+}
+
+#[test]
+fn axis_repairs_keep_stc10s_eight_hole_frame_on_its_own_rim() {
+    let a = nist("nist_stc_10_asme1_ap242-e2.stp.gz");
+    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    const ID: &str =
+        "pmi:geometric_tolerance.position:f93,94,95,96,97,98,99,100:ref=A,B,C:mod=diameter_zone";
+    let g = p.gdt.iter().find(|g| g.id == ID).unwrap();
+    let placed = g.placed.as_ref().unwrap();
+    if placed.lines.is_empty() {
+        assert!(g.basis.contains("size callout") || g.basis.contains("control frame"));
+        return;
+    }
+    let v = p.views.iter().find(|v| v.id == g.view).unwrap();
+    assert!(
+        g.faces.iter().any(|&fi| {
+            let f = &a.face_attachments[fi];
+            let k = f.axis.unwrap();
+            let across: Vec<_> = (0..3).filter(|&j| j != k).collect();
+            let mut c = [0.0; 3];
+            for (&j, &s) in across.iter().zip(&f.support) {
+                c[j] = s;
+            }
+            let r = (f.sites[0][across[0]] - c[across[0]])
+                .hypot(f.sites[0][across[1]] - c[across[1]])
+                * v.scale;
+            let c = page(&a, v, c);
+            ((placed.tip[0] - c[0]).hypot(placed.tip[1] - c[1]) - r).abs() < 1e-5
+        }),
+        "the eight-hole frame must keep identifying one of its own surfaces"
+    );
+}

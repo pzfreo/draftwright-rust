@@ -75,8 +75,8 @@ pub(crate) fn report(analysis: &Analysis, plan: &mut Plan) {
     plan.problems.retain(|p| !CODES.contains(&p.code.as_str()));
     let mut found = contacts(plan);
     found.extend(leader_ends(analysis, plan));
-    // A frame on holes no view shows visible, with no place on their mark, leads to a dashed
-    // circle as a last resort ([`super::hole_marks`]).
+    // A frame with no visible rim or place on its size mark leads to its own hidden circle
+    // as a last resort ([`super::hole_marks`]).
     for g in plan
         .gdt
         .iter()
@@ -84,12 +84,23 @@ pub(crate) fn report(analysis: &Analysis, plan: &mut Plan) {
         // A frame stacked on the shelf of another shares its leader, reported once.
         .filter(|g| g.placed.as_ref().is_some_and(|p| !p.lines.is_empty()))
     {
+        let (surface, reason) = if g.basis.contains(super::hole_marks::CYLINDER_HIDDEN) {
+            (
+                "its cylinder's rim",
+                "no view shows its rim visible and its size mark has no place for it",
+            )
+        } else {
+            (
+                "a hole",
+                "no view shows its holes visible and their mark has no place for it",
+            )
+        };
         found.push(problem(
             "leader_to_hidden_edge",
             &g.id,
             vec![g.id.clone(), g.view.clone()],
             format!(
-                "The leader of {} ends on a hole {} shows hidden, so it points at dashed line-work: no view shows its holes visible and their mark has no place for it.",
+                "The leader of {} ends on {surface} {} shows hidden, so it points at dashed line-work: {reason}.",
                 crate::wording::item(&g.id, &g.kind, &g.cells.join(" ")),
                 crate::wording::view(&g.view)
             ),
