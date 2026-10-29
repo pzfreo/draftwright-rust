@@ -325,10 +325,14 @@ pub fn bosses(analysis: &Analysis) -> Vec<Axis> {
     analysis
         .features
         .iter()
-        .filter(|f| f.kind == "boss")
         .filter_map(|f| {
-            let at = to_part(&frame, point(f.parameters.get("location"))?);
-            let d = dir_to_part(&frame, point(f.parameters.get("axis"))?);
+            let (place, direction) = match f.kind.as_str() {
+                "boss" => ("location", "axis"),
+                "turned_body" => ("axis_point", "axis"),
+                _ => return None,
+            };
+            let at = to_part(&frame, point(f.parameters.get(place))?);
+            let d = crate::lint::parameters::direction(&frame, f.parameters.get(direction))?;
             let n = (d[0] * d[0] + d[1] * d[1] + d[2] * d[2]).sqrt();
             (n > 0.0).then(|| Axis {
                 at,

@@ -1077,6 +1077,9 @@ pub(crate) fn runs_beside(line: [P; 2], fixed: [P; 2]) -> bool {
         return false;
     }
     let (mut lo, mut hi) = (ta.min(tb).max(0.), ta.max(tb).min(lu));
+    if hi <= lo {
+        return false; // travel only beyond a stroke's end is not beside it
+    }
     // The stroke's offset is linear in the leader's parameter: keep where it is within BESIDE.
     let slope = (ob - oa) / (tb - ta);
     let offset = |t: f64| oa + slope * (t - ta);
@@ -1088,6 +1091,25 @@ pub(crate) fn runs_beside(line: [P; 2], fixed: [P; 2]) -> bool {
         let [x, y] = [-BESIDE, BESIDE].map(|o| ta + (o - oa) / slope);
         lo = lo.max(x.min(y));
         hi = hi.min(x.max(y));
+    }
+    // A shaft that overlaps a stroke's end can remain within its 1 mm
+    // neighbourhood beyond the endpoint. Include that rounded end, as the
+    // independent drawing check does; a wholly disjoint projection stays exempt.
+    if hi < lo {
+        lo = f64::INFINITY;
+        hi = f64::NEG_INFINITY;
+    }
+    for p in fixed {
+        let transverse = off(p);
+        if transverse.abs() < BESIDE {
+            let reach = (BESIDE * BESIDE - transverse * transverse).sqrt();
+            let a = (at(p) - reach).max(0.);
+            let b = (at(p) + reach).min(lu);
+            if b > a {
+                lo = lo.min(a);
+                hi = hi.max(b);
+            }
+        }
     }
     hi - lo > BESIDE_RUN && offset((lo + hi) / 2.).abs() < BESIDE
 }
@@ -1191,6 +1213,12 @@ mod tests {
         assert!(!runs_beside([[123.5, 162.49], [123.5, 126.03]], axis));
         assert!(!runs_beside([[115.206, 126.03], [122.206, 162.49]], axis));
         assert!(!runs_beside([[110., 150.], [130., 150.]], axis));
+        // #127 adds cgb207's concave rounds. R9.948 formerly overlapped this
+        // centre stroke by only 0.013 mm, then ran 1 mm beside its rounded end.
+        assert!(runs_beside(
+            [[62.66989, 150.89815], [62.66989, 160.74530]],
+            [[62.76327, 146.91088], [62.76327, 150.91088]]
+        ));
         // Beside only past the stroke's end does not count.
         assert!(!runs_beside([[121.9, 120.], [121.9, 126.]], axis));
     }

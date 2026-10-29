@@ -197,10 +197,12 @@ fn intent_spool_fit_callouts_clear_late_gdt_without_losing_scale() {
             od.placed.as_ref().unwrap().label_box[0] >= 12.0 - 1e-9,
             "the fit label needs paper between its ink and the sheet border"
         );
+        // v0.2.3 (#127): six residual cylindrical scallops share the two
+        // existing R10 rounds; all eight must remain stated through fit layout.
         assert!(
             plan.dimensions
                 .iter()
-                .any(|d| d.label == "2× R10" && d.placed.is_some())
+                .any(|d| d.label == "8× R10" && d.placed.is_some())
         );
     }
 }

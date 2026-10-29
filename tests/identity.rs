@@ -493,7 +493,7 @@ fn version_1_specs_migrate_and_plan_identically() {
         ),
     ];
     for (part, step, python) in cases {
-        let spec: Spec = serde_json::from_str(
+        let mut spec: Spec = serde_json::from_str(
             &std::fs::read_to_string(fixture(&format!("identity/{part}.spec1.json"))).unwrap(),
         )
         .unwrap();
@@ -502,6 +502,29 @@ fn version_1_specs_migrate_and_plan_identically() {
             serde_json::from_slice(&gunzip(&fixture(&format!("identity/{part}.plan1.json.gz"))))
                 .unwrap();
         let features = python.map_or(api::Features::Native, api::Features::Python);
+        if part == "bracket_positions" {
+            // v0.2.3 (#127) inserts concave fillets and changes the grouped presenter.
+            // Keep this historical schema-migration scenario on its same physical R1.5
+            // round (face 23), independently of both ordinal IDs and the migration code.
+            let (_, a) = model::analyse_native(&step).unwrap();
+            let f = a
+                .features
+                .iter()
+                .find(|f| f.kind == "fillet" && f.faces == [23])
+                .unwrap();
+            assert_eq!(f.parameters["radius"], 1.5);
+            let current = model::plan(&a, &Spec::default()).unwrap();
+            let d = current
+                .dimensions
+                .iter()
+                .find(|d| d.measurements.iter().any(|m| m.feature == f.id))
+                .unwrap();
+            let entry = spec
+                .dimensions
+                .remove("d:f:fillet:1/fillet.radius@front")
+                .unwrap();
+            spec.dimensions.insert(format!("{}@front", d.id), entry);
+        }
         let plan = api::plan_from(&step, features, &spec).unwrap();
         assert_eq!(plan.spec.schema, model::SPEC_SCHEMA);
         let (_, analysis) = match python {

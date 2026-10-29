@@ -389,9 +389,21 @@ fn non_hole_pins_keep_the_settled_schedule_and_isometric_frame() {
     let (_, analysis) = cache::native(&Path::new(&corpus).join("nist/nist_ftc_08_asme1_rc.stp"));
     let base = cache::default_plan(&analysis, true);
     assert!(!tables(&base).as_array().unwrap().is_empty());
+    // v0.2.3 inserts inside rounds in face order. Keep the same complete
+    // non-hole pin contract using the current radius presenter's actual ID.
+    let radius = base
+        .dimensions
+        .iter()
+        .find(|d| {
+            d.placed.is_some()
+                && d.measurements
+                    .iter()
+                    .any(|m| m.parameter == "fillet.radius")
+        })
+        .unwrap();
     let ops: Vec<_> = [
         "d:f:slot:3/slot_width.length",
-        "d:f:fillet:12/fillet.radius",
+        radius.id.as_str(),
         "d:f:slot:4/location_slot.length",
     ]
     .iter()
@@ -1252,4 +1264,75 @@ fn a_schedule_coordinate_cannot_change_its_approved_axis_or_owner() {
                 .is_empty()
         );
     }
+}
+
+/// #127's expanded radii make the recovered FTC-08 drawing tabular while its
+/// primitive paper trial can still have a hole ladder. A pin on a new radius
+/// and an existing view must retain the published size carrier, not that trial.
+#[test]
+fn a_profile_radius_and_view_pin_keep_the_recovered_hole_schedule() {
+    let Some(corpus) = corpus::dir() else { return };
+    let (_, analysis) = cache::native(&corpus.join("nist/nist_ftc_08_asme1_rc.stp"));
+    let base = cache::default_plan(&analysis, true);
+    let mut spec = Spec::default();
+    for id in [
+        "d:f:slot:3/location_slot_across.length",
+        "d:f:slot:2/slot_end_radius.radius",
+        "d:f:cylindrical_profile:11/cylindrical_profile.radius",
+        "d:f:slot:1/location_slot.length",
+        "d:f:section_recess:1/seat_diameter.diameter",
+        "d:envelope/width.length",
+        "d:f:plate:1/thickness.length",
+    ] {
+        assert!(
+            base.dimensions
+                .iter()
+                .any(|d| d.id == id && d.placed.is_some())
+        );
+        spec.dimensions.entry(id.into()).or_default().place =
+            Some(serde_json::from_value(serde_json::json!({"pinned":true})).unwrap());
+    }
+    let front = base.views.iter().find(|v| v.id == "v:front").unwrap();
+    let side = base.views.iter().find(|v| v.id == "v:side").unwrap();
+    spec.views.entry("side".into()).or_default().place = Some(
+        serde_json::from_value(serde_json::json!({
+            "relative_to":"front", "side":"right", "align":"projection",
+            "gap":side.area[0]-front.area[2], "pinned":true
+        }))
+        .unwrap(),
+    );
+    let after = model::plan_recovered(&analysis, &spec).unwrap();
+    let before_tables = tables(&base);
+    let after_tables = tables(&after);
+    assert!(!before_tables.as_array().unwrap().is_empty());
+    assert_eq!(
+        before_tables.as_array().unwrap().len(),
+        after_tables.as_array().unwrap().len()
+    );
+    for (before, after) in before_tables
+        .as_array()
+        .unwrap()
+        .iter()
+        .zip(after_tables.as_array().unwrap())
+    {
+        for field in ["id", "origin", "rows", "covered", "state"] {
+            assert_eq!(before[field], after[field], "{field}");
+        }
+    }
+    for id in spec.dimensions.keys() {
+        assert_eq!(
+            base.dimensions.iter().find(|d| &d.id == id).unwrap().placed,
+            after
+                .dimensions
+                .iter()
+                .find(|d| &d.id == id)
+                .unwrap()
+                .placed,
+            "{id}"
+        );
+    }
+    assert!(!after.problems.iter().any(|p| matches!(
+        p.code.as_str(),
+        "annotation_overlap" | "annotation_ink_overlap" | "annotation_leader_crossing"
+    )));
 }

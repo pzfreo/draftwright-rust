@@ -644,6 +644,7 @@ fn key(x: f64) -> i64 {
 /// whole.
 struct Context<'a> {
     analysis: &'a Analysis,
+    spec: &'a Spec,
     frame: QFrame,
     turned: Option<turned::Turned>,
 }
@@ -788,6 +789,7 @@ fn wants_uncached(
     ));
     let cx = Context {
         analysis,
+        spec,
         turned: turned::turned(analysis, &frame),
         frame,
     };
@@ -998,6 +1000,7 @@ fn restate(analysis: &Analysis, spec: &Spec, wants: &mut Vec<Want>, problems: &m
     ));
     let cx = Context {
         analysis,
+        spec,
         turned: turned::turned(analysis, &frame),
         frame,
     };
@@ -1212,10 +1215,12 @@ fn detail_routes(a: &Analysis, wants: &mut [Want], views: &[PlannedView]) {
             |p: P3| (0..3).all(|k| d.bounds[0][k] - 1e-6 <= p[k] && p[k] <= d.bounds[1][k] + 1e-6);
         for w in wants.iter_mut() {
             let explicit = d.dimensions.contains(&w.id);
-            let blend = w
-                .measurements
-                .iter()
-                .any(|m| m.parameter == "blend.radius" || m.parameter == "fillet.radius");
+            let blend = w.measurements.iter().any(|m| {
+                matches!(
+                    m.parameter.as_str(),
+                    "blend.radius" | "fillet.radius" | "cylindrical_profile.radius"
+                )
+            });
             let sites = match &w.shape {
                 Shape::Callout { sites, .. } => sites.iter().any(|(p, _)| inside(*p)),
                 _ => false,
@@ -3455,9 +3460,12 @@ fn plan_inventory_ordered(
     // place another presentation needs (CTC-03's schedule origin mark).
     let radius_incumbents = held.iter().any(|d| {
         d.placed.is_some()
-            && d.measurements
-                .iter()
-                .any(|m| matches!(m.parameter.as_str(), "fillet.radius" | "blend.radius"))
+            && d.measurements.iter().any(|m| {
+                matches!(
+                    m.parameter.as_str(),
+                    "fillet.radius" | "blend.radius" | "cylindrical_profile.radius"
+                )
+            })
     });
     let mut incumbents = vec![false; all.len()];
     let nominal_context = leaders::nominal_context(analysis, spec, &all);
@@ -5798,6 +5806,77 @@ mod tests {
                 )
             })
             .collect()
+    }
+
+    /// quiddity-rust#127: residual profiles retain their own radius requirements and
+    /// concave inside rounds count with equal principal fillets (#246).
+    #[test]
+    fn cylindrical_profiles_and_concave_fillets_keep_their_radii() {
+        let a = block(&[
+            (
+                "cylindrical_profile",
+                &[1],
+                serde_json::json!({"axis":"z", "axis_point":[20.0,20.0,0.0], "radius":203.2}),
+            ),
+            (
+                "cylindrical_profile",
+                &[2],
+                serde_json::json!({"axis":"z", "axis_point":[40.0,20.0,0.0], "radius":203.2}),
+            ),
+            (
+                "fillet",
+                &[3],
+                serde_json::json!({"axis":"z", "at":[10.0,10.0,0.0], "radius":3.0, "turned":false, "side":"concave"}),
+            ),
+            (
+                "fillet",
+                &[4],
+                serde_json::json!({"axis":"z", "at":[90.0,10.0,0.0], "radius":3.0, "turned":false}),
+            ),
+        ]);
+        let (ws, ps, _) = wants_uncached(&a, &Spec::default());
+        assert!(ps.is_empty(), "{ps:?}");
+        let profiles = own(&ws, "f:cylindrical_profile:1");
+        assert_eq!(profiles.len(), 1);
+        assert_eq!(profiles[0].2, "2× R203.2");
+        assert_eq!(profiles[0].3, ["cylindrical_profile.radius"; 2]);
+        let fillets = own(&ws, "f:fillet:1");
+        assert_eq!(fillets.len(), 1);
+        assert_eq!(fillets[0].2, "2× R3");
+    }
+
+    /// quiddity-rust#123: a complete single-diameter body owns OD once, and both
+    /// conical face walls retain their angles; cylindrical walls need no angle.
+    #[test]
+    fn a_turned_body_states_its_od_and_face_recess_without_a_boss() {
+        let mut a = block(&[
+            (
+                "turned_body",
+                &[0, 1, 2, 3],
+                serde_json::json!({"axis":"z", "axis_point":[0.0,0.0,3.5], "od":22.0, "length":7.0}),
+            ),
+            (
+                "face_groove",
+                &[1, 2, 3],
+                serde_json::json!({"axis":[0.0,0.0,1.0], "axis_point":[0.0,0.0,7.0], "outer_diameter":18.5, "inner_diameter":13.0, "depth":0.25, "outer_wall_angle":45.0, "inner_wall_angle":45.0}),
+            ),
+        ]);
+        a.envelope = [[-11.0, -11.0, 0.0], [11.0, 11.0, 7.0]];
+        let (ws, ps, _) = wants_uncached(&a, &Spec::default());
+        assert!(ps.is_empty(), "{ps:?}");
+        assert_eq!(ws.iter().filter(|w| w.terms == ["ø22"]).count(), 1);
+        let recess = own(&ws, "f:face_groove:1");
+        assert_eq!(recess.len(), 1, "concentric recess shares the turning axis");
+        assert_eq!(recess[0].2, "⌀18.5 × ⌀13 ↧ 0.25 OUTER 45° INNER 45°");
+        assert_eq!(recess[0].3.len(), 5);
+        a.features[1]
+            .parameters
+            .insert("inner_wall_angle".into(), serde_json::json!(90.0));
+        let (ws, _, _) = wants_uncached(&a, &Spec::default());
+        assert_eq!(
+            own(&ws, "f:face_groove:1")[0].2,
+            "⌀18.5 × ⌀13 ↧ 0.25 OUTER 45°"
+        );
     }
 
     /// #233: an annular groove is called out down its axis and located, unless the hole and boss

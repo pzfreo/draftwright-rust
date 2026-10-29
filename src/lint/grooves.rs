@@ -117,9 +117,22 @@ pub fn annular_wanted(analysis: &Analysis) -> Vec<Wanted<'_>> {
     for f in analysis
         .features
         .iter()
-        .filter(|f| f.kind == "annular_groove")
+        .filter(|f| matches!(f.kind.as_str(), "annular_groove" | "face_groove"))
     {
-        let radius = |name| parameters::size(f, name).map(|r| 2.0 * r);
+        let radius = |name| {
+            if f.kind == "face_groove" {
+                parameters::size(
+                    f,
+                    if name == "outer_radius" {
+                        "outer_diameter"
+                    } else {
+                        "inner_diameter"
+                    },
+                )
+            } else {
+                parameters::size(f, name).map(|r| 2.0 * r)
+            }
+        };
         for (parameter, value, word) in [
             ("annular_groove_outer.diameter", radius("outer_radius"), "ø"),
             ("annular_groove_inner.diameter", radius("inner_radius"), "ø"),
@@ -139,6 +152,22 @@ pub fn annular_wanted(analysis: &Analysis) -> Vec<Wanted<'_>> {
             });
         }
     }
+    for f in analysis.features.iter().filter(|f| f.kind == "face_groove") {
+        for name in ["outer_wall_angle", "inner_wall_angle"] {
+            let angle = parameters::size(f, name);
+            if angle.as_ref().is_ok_and(|a| (*a - 90.0).abs() <= 1e-3) {
+                continue;
+            }
+            out.push(Wanted {
+                feature: f,
+                parameter: format!("face_groove_{name}.angle"),
+                callout: angle
+                    .as_ref()
+                    .map_or("its wall angle".into(), |a| format!("{}°", fmt(*a))),
+                values: angle.map(|a| vec![a]),
+            });
+        }
+    }
     out
 }
 
@@ -148,7 +177,7 @@ pub fn annular_coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
     for f in analysis
         .features
         .iter()
-        .filter(|f| f.kind == "annular_groove")
+        .filter(|f| matches!(f.kind.as_str(), "annular_groove" | "face_groove"))
     {
         if let Some(owners) = annular_owners(analysis, f) {
             all.extend(parameters::relay(marks, f, &owners));

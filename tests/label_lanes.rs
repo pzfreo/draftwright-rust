@@ -235,7 +235,11 @@ fn precise_labels_keep_their_span_after_the_final_inventory_settles() {
     let fillet = p
         .dimensions
         .iter()
-        .find(|d| d.id == "d:f:fillet:12/fillet.radius")
+        .find(|d| {
+            d.measurements
+                .iter()
+                .any(|m| m.parameter == "fillet.radius" && (m.value - 1.524).abs() < 1e-6)
+        })
         .unwrap();
     assert!(
         fillet
@@ -245,7 +249,8 @@ fn precise_labels_keep_their_span_after_the_final_inventory_settles() {
     );
     // Exact since the octagon's stations (#217) changed the inventory around it; mfcadpp/1004
     // below keeps the established one-decimal text on its unchanged ink run.
-    assert_eq!(fillet.label, "8× R1.524");
+    // v0.2.3 (#127) adds eight proved inside rounds to the same radius.
+    assert_eq!(fillet.label, "16× R1.524");
     if let Some(p) = plan_with("mfcadpp/1004.step", &Spec::default()) {
         let hole = p
             .dimensions

@@ -646,7 +646,37 @@ fn unexplained_shapes_warn_beside_the_unclaimed_count() {
 #[test]
 fn unexplained_shapes_are_read_from_the_part() {
     let root = std::path::Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/pmi/step");
-    let (_, spool) = model::analyse_native(&root.join("spool_fits.step.gz")).unwrap();
+    let (part, mut spool) = model::analyse_native(&root.join("spool_fits.step.gz")).unwrap();
+    // v0.2.3 (#127) now states all six scallops as cylindrical profiles, counted with the two existing R10 rounds,
+    // rather than leaving their periodic shape unexplained. Prove that stronger
+    // native contract before exercising the legacy unexplained-topology detector.
+    let profiles: Vec<_> = spool
+        .features
+        .iter()
+        .filter(|f| f.kind == "cylindrical_profile")
+        .collect();
+    assert_eq!(profiles.len(), 6);
+    assert!(profiles.iter().all(|f| f.parameters["radius"] == 10.0));
+    let native = model::plan(&spool, &Spec::default()).unwrap();
+    for f in &profiles {
+        assert!(native.dimensions.iter().any(|d| {
+            d.placed.is_some()
+                && d.label == "8× R10"
+                && d.measurements
+                    .iter()
+                    .any(|m| m.feature == f.id && m.parameter == "cylindrical_profile.radius")
+        }));
+    }
+    let scallops: Vec<_> = profiles
+        .iter()
+        .flat_map(|f| f.faces.iter().copied())
+        .collect();
+    let accounting = spool.face_accounting.as_mut().unwrap();
+    for face in scallops {
+        accounting[face] = model::FaceGroup::Unexplained;
+    }
+    spool.features.retain(|f| f.kind != "cylindrical_profile");
+    spool.unexplained_shapes = draftwright::unexplained::shapes(&part, accounting);
     let kinds = |a: &Analysis, kind: Kind| -> Vec<draftwright::unexplained::Shape> {
         a.unexplained_shapes
             .iter()

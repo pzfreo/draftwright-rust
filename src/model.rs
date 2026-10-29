@@ -5116,8 +5116,33 @@ fn plan_with_presentation(
     crate::gears::check(&spec.gears)?;
     let mut problems = Vec::new();
     // The spec the plan follows: across a revision, without the entries that cannot be trusted.
-    let canonical = if crate::placement_intent::has_pins(spec) {
+    let canonical = if crate::placement_intent::has_pins(spec)
+        && let Some(published) = crate::planning::pin_reference()
+    {
+        Some(published)
+    } else if crate::placement_intent::has_pins(spec) {
         let mut base = pin_base(spec);
+        // Naming an already shown principal view must not change a no-op view
+        // pin's canonical composition. New radius inventories can make the
+        // explicitly named-view search choose another iso arrangement (1000).
+        // Keep names only when they actually restore a view the default omits.
+        if !base.views.is_empty()
+            && spec
+                .views
+                .values()
+                .any(|v| v.place.as_ref().is_some_and(|p| p.pinned))
+        {
+            let mut unnamed = base.clone();
+            unnamed.views.clear();
+            if let Ok(default) = plan_automatic(analysis, &unnamed)
+                && base
+                    .views
+                    .keys()
+                    .all(|name| default.views.iter().any(|v| v.id == format!("v:{name}")))
+            {
+                base.views.clear();
+            }
+        }
         // A multi-sheet request is planned by R5 allocation steps whose sheet-1 spec omits
         // the moved views; its canonical is that allocation, not a single-sheet layout.
         if crate::planning::is_fixed_pair()
@@ -5147,6 +5172,7 @@ fn plan_with_presentation(
         let replay = |base: &Spec| {
             if complete_views || crate::planning::nominals_deferred() {
                 let mut finished = plan_automatic(analysis, base)?;
+                finish_nominal_plan(analysis, base, &mut finished);
                 // A bare pin holds the published route, including final-inventory
                 // interior/GD&T repair, rather than an intermediate paper trial.
                 crate::dims::callout_routes::prefer_interior(analysis, base, &mut finished, None);
@@ -6544,9 +6570,12 @@ fn plan_with_presentation(
     let radius_inventory = radius_reference.as_ref().is_some_and(|r| {
         r.dimensions.iter().any(|d| {
             d.placed.is_some()
-                && d.measurements
-                    .iter()
-                    .any(|m| matches!(m.parameter.as_str(), "blend.radius" | "fillet.radius"))
+                && d.measurements.iter().any(|m| {
+                    matches!(
+                        m.parameter.as_str(),
+                        "blend.radius" | "fillet.radius" | "cylindrical_profile.radius"
+                    )
+                })
         })
     });
     let held_for = |views: &[PlannedView]| {
@@ -7268,11 +7297,11 @@ fn plan_with_presentation(
             .iter()
             .any(|n| n.id == crate::dims::blends::RELIEF_NOTE && n.placed.is_some()))
         || analysis.features.iter().any(|f| {
-            matches!(f.kind.as_str(), "blend" | "fillet")
+            matches!(f.kind.as_str(), "blend" | "fillet" | "cylindrical_profile")
                 && !crate::lint::blends::is_relief(analysis, f)
                 && !stated.contains(f.id.as_str())
                 && !radius_notes.iter().flat_map(|(_, ms)| ms).any(|m| {
-                    f.kind == "fillet"
+                    matches!(f.kind.as_str(), "fillet" | "cylindrical_profile")
                         && f.parameters
                             .get("radius")
                             .and_then(|v| v.as_f64())
@@ -7340,7 +7369,7 @@ fn plan_with_presentation(
         .filter(|d| d.placed.is_some() || matches!(&d.state, ItemState::Covered { by } if by == crate::dims::blends::RADIUS_TABLE))
         .flat_map(|d| &d.measurements)
         .chain(notes.iter().filter(|n| n.placed.is_some()).flat_map(|n| &n.measurements))
-        .filter(|m| matches!(m.parameter.as_str(), "blend.radius" | "fillet.radius"))
+        .filter(|m| matches!(m.parameter.as_str(), "blend.radius" | "fillet.radius" | "cylindrical_profile.radius"))
         .map(|m| m.feature.as_str()).collect();
     problems.retain(|p| {
         p.code != "feature_not_dimensioned"
@@ -7348,7 +7377,7 @@ fn plan_with_presentation(
             || !p.subjects.iter().all(|id| {
                 analysis.features.iter().any(|f| {
                     f.id == *id
-                        && matches!(f.kind.as_str(), "blend" | "fillet")
+                        && matches!(f.kind.as_str(), "blend" | "fillet" | "cylindrical_profile")
                         && (stated_radii.contains(id.as_str())
                             || crate::lint::blends::is_relief(analysis, f))
                 })
@@ -7812,7 +7841,7 @@ fn plan_with_presentation(
 
 /// Precision repairs belong to the selected drawing, after sheet candidates have
 /// been judged. Rejected candidates must not each launch another route search.
-fn finish_nominal_plan(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
+pub(crate) fn finish_nominal_plan(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
     if crate::nominal::comparison() {
         return;
     }
@@ -7820,9 +7849,12 @@ fn finish_nominal_plan(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
         .dimensions
         .iter()
         .any(|d| {
-            d.measurements
-                .iter()
-                .any(|m| matches!(m.parameter.as_str(), "blend.radius" | "fillet.radius"))
+            d.measurements.iter().any(|m| {
+                matches!(
+                    m.parameter.as_str(),
+                    "blend.radius" | "fillet.radius" | "cylindrical_profile.radius"
+                )
+            })
         })
         .then(|| radius_edit_reference(analysis, spec, false))
         .flatten();
@@ -7901,7 +7933,7 @@ pub(crate) fn radius_edit_reference(
         || !analysis
             .features
             .iter()
-            .any(|f| matches!(f.kind.as_str(), "blend" | "fillet"))
+            .any(|f| matches!(f.kind.as_str(), "blend" | "fillet" | "cylindrical_profile"))
     {
         return None;
     }
@@ -7990,9 +8022,12 @@ fn settle_finished_nominals(
     let radius_only = pass == NominalPass::Radius;
     if radius_only
         && !plan.dimensions.iter().any(|d| {
-            d.measurements
-                .iter()
-                .any(|m| matches!(m.parameter.as_str(), "blend.radius" | "fillet.radius"))
+            d.measurements.iter().any(|m| {
+                matches!(
+                    m.parameter.as_str(),
+                    "blend.radius" | "fillet.radius" | "cylindrical_profile.radius"
+                )
+            })
         })
     {
         return;
@@ -8047,7 +8082,7 @@ fn settle_finished_nominals(
         && !items.iter().any(|d| {
             d.measurements
                 .iter()
-                .any(|m| matches!(m.parameter.as_str(), "blend.radius" | "fillet.radius"))
+                .any(|m| matches!(m.parameter.as_str(), "blend.radius" | "fillet.radius" | "cylindrical_profile.radius"))
         })
         && route_leaders
         && omitted.is_empty()

@@ -221,9 +221,12 @@ pub(super) fn count_oblique(a: &Analysis, wants: &mut [Want], problems: &mut Vec
         let Some(w) = wants.iter_mut().find(|w| {
             matches!(w.shape, Shape::Callout { .. })
                 && !w.measurements.is_empty()
-                && w.measurements
-                    .iter()
-                    .all(|m| m.parameter == "fillet.radius")
+                && w.measurements.iter().all(|m| {
+                    matches!(
+                        m.parameter.as_str(),
+                        "fillet.radius" | "cylindrical_profile.radius"
+                    )
+                })
                 && fmt(w.value) == fmt(r)
         }) else {
             continue;
@@ -266,19 +269,23 @@ pub(super) fn count_equal(spec: &crate::model::Spec, wants: &mut [Want]) {
         let fillets: Vec<_> = (0..wants.len())
             .filter(|&j| {
                 matches!(wants[j].shape, Shape::Callout { .. })
-                    && wants[j]
-                        .measurements
-                        .iter()
-                        .any(|m| m.parameter == "fillet.radius")
+                    && wants[j].measurements.iter().any(|m| {
+                        matches!(
+                            m.parameter.as_str(),
+                            "fillet.radius" | "cylindrical_profile.radius"
+                        )
+                    })
                     && fmt(wants[j].value) == r
             })
             .collect();
         if let [j] = fillets[..]
             && !overridden(spec, spec, &wants[j].id)
-            && wants[j]
-                .measurements
-                .iter()
-                .all(|m| m.parameter == "fillet.radius" || m.parameter == "blend.radius")
+            && wants[j].measurements.iter().all(|m| {
+                matches!(
+                    m.parameter.as_str(),
+                    "fillet.radius" | "blend.radius" | "cylindrical_profile.radius"
+                )
+            })
         {
             let w = &mut wants[j];
             w.terms = vec![
@@ -331,7 +338,7 @@ pub(crate) fn exceptions_unstated(
     a.features
         .iter()
         .filter(|f| {
-            matches!(f.kind.as_str(), "blend" | "fillet") && !crate::lint::blends::is_relief(a, f)
+            matches!(f.kind.as_str(), "blend" | "fillet" | "cylindrical_profile") && !crate::lint::blends::is_relief(a, f)
         })
         .any(|f| {
             radius(f).is_none_or(|r| fmt(r) != fmt(value))
@@ -415,12 +422,18 @@ pub(crate) fn consolidate(
         }
         let Some(j) = dimensions.iter().position(|d| {
             d.placed.is_some()
-                && d.measurements
-                    .iter()
-                    .all(|m| m.parameter == "fillet.radius" || m.parameter == "blend.radius")
-                && d.measurements
-                    .iter()
-                    .any(|m| m.parameter == "fillet.radius")
+                && d.measurements.iter().all(|m| {
+                    matches!(
+                        m.parameter.as_str(),
+                        "fillet.radius" | "blend.radius" | "cylindrical_profile.radius"
+                    )
+                })
+                && d.measurements.iter().any(|m| {
+                    matches!(
+                        m.parameter.as_str(),
+                        "fillet.radius" | "cylindrical_profile.radius"
+                    )
+                })
                 && fmt(d.value) == fmt(dimensions[i].value)
                 && !overridden(spec, given, &d.id)
         }) else {
@@ -472,9 +485,12 @@ pub(crate) fn cover_fillets(
         for d in dimensions.iter_mut().filter(|d| {
             d.placed.is_some()
                 && !d.measurements.is_empty()
-                && d.measurements
-                    .iter()
-                    .all(|m| m.parameter == "fillet.radius")
+                && d.measurements.iter().all(|m| {
+                    matches!(
+                        m.parameter.as_str(),
+                        "fillet.radius" | "cylindrical_profile.radius"
+                    )
+                })
                 && fmt(d.value) == fmt(value)
                 && !overridden(spec, given, &d.id)
         }) {

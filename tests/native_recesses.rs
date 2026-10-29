@@ -884,3 +884,60 @@ fn quiddity_recess_families_are_read_and_stated() {
         }
     }
 }
+
+/// quiddity-rust#127: every residual cylinder retains its true radius. CTC-05's
+/// four shallow outer profiles count once, with ordinary Spec text steering.
+#[test]
+fn ctc05_cylindrical_profiles_are_counted_radii_with_spec_overrides() {
+    let (_, a) = read("rule_pins/nist_ctc_05_asme1_ap242.stp.gz");
+    let profiles: Vec<_> = a
+        .features
+        .iter()
+        .filter(|f| f.kind == "cylindrical_profile")
+        .collect();
+    assert_eq!(profiles.len(), 7);
+    let p = model::plan_recovered(&a, &Spec::default()).unwrap();
+    for f in &profiles {
+        let drawn: Vec<_> = p
+            .dimensions
+            .iter()
+            .filter(|d| {
+                d.placed.is_some()
+                    && d.measurements
+                        .iter()
+                        .any(|m| m.feature == f.id && m.parameter == "cylindrical_profile.radius")
+            })
+            .collect();
+        assert_eq!(
+            drawn.len(),
+            1,
+            "{}: its radius must reach the drawing once",
+            f.id
+        );
+        assert!(drawn[0].label.contains('R'));
+    }
+    let outer = p
+        .dimensions
+        .iter()
+        .find(|d| d.label == "4× R203.2")
+        .unwrap();
+    assert_eq!(
+        outer
+            .measurements
+            .iter()
+            .filter(|m| m.parameter == "cylindrical_profile.radius")
+            .count(),
+        4
+    );
+    let spec =
+        serde_json::from_value(json!({"dimensions":{&outer.id:{"text":{"suffix":" PROFILE"}}}}))
+            .unwrap();
+    let steered = model::plan_recovered(&a, &spec).unwrap();
+    let edited = steered
+        .dimensions
+        .iter()
+        .find(|d| d.id == outer.id)
+        .unwrap();
+    assert!(edited.label.ends_with(" PROFILE"), "{}", edited.label);
+    assert_eq!(edited.measurements, outer.measurements);
+}

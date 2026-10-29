@@ -8,6 +8,8 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Changed
 
+- Pin quiddity-rust v0.2.3. For quiddity-rust#123, use complete turned bodies for overall diameters and half-section eligibility, and call out annular face recesses with rim diameters, depth and sloping wall angles. For quiddity-rust#127, draw cylindrical profiles as grouped radius callouts and include concave fillets with equal edge rounds.
+
 - Feature control frames on shafts, bosses and other cylinders use the hole-frame attachment
   order: their own size callout or diameter dimension where there is room, otherwise a radial
   leader to their own end-on rim, visible before hidden. Leaders avoid centre-line travel and

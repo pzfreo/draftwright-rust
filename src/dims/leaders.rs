@@ -2549,6 +2549,8 @@ pub(crate) fn settle_radius_leaders(
         let has = |p: &str| d.measurements.iter().any(|m| m.parameter == p);
         let parameter = if has("fillet.radius") {
             "fillet.radius"
+        } else if has("cylindrical_profile.radius") {
+            "cylindrical_profile.radius"
         } else if has("slot_end_radius.radius") {
             "slot_end_radius.radius"
         } else {
@@ -2586,8 +2588,21 @@ pub(crate) fn settle_radius_leaders(
         // routes still compare both sides: accepting the first legal side can
         // otherwise retain a long shaft when the opposite side has clear paper.
         // Drawn lint audits retained routes without a duplicate plan problem.
-        let compliant = arcs.iter().any(|a| a.accepts(shaft));
-        let centred = arcs.iter().any(|a| a.centred(shaft));
+        // Slot-end radius repairs have always required an exactly radial, outward
+        // shaft. A newly populated radius inventory must not polish one to a 7.5°
+        // near-radial alternative merely because general fillet lint permits it.
+        let exact_slot = parameter == "slot_end_radius.radius";
+        let accepts = |a: &crate::radius::Projected, [tip, elbow]: [P2; 2]| {
+            let u = [tip[0] - a.centre[0], tip[1] - a.centre[1]];
+            let v = [elbow[0] - tip[0], elbow[1] - tip[1]];
+            let n = u[0].hypot(u[1]) * v[0].hypot(v[1]);
+            a.accepts([tip, elbow])
+                && (!exact_slot
+                    || ((u[0] * v[1] - u[1] * v[0]).abs() <= 1e-9 * n
+                        && u[0] * v[0] + u[1] * v[1] > 0.0))
+        };
+        let compliant = arcs.iter().any(|a| accepts(a, shaft));
+        let centred = compliant && arcs.iter().any(|a| a.centred(shaft));
         if arcs.is_empty()
             || (reference.is_none()
                 && centred
@@ -2637,12 +2652,27 @@ pub(crate) fn settle_radius_leaders(
             .map(|(_, d)| d)
             .chain(obstacles)
             .collect();
-        let fixed = Fixed::new(
+        let mut fixed = Fixed::new(
             others
                 .iter()
                 .enumerate()
                 .filter_map(|(j, d)| Some((j, d.placed.as_ref()?))),
         );
+        // Final radius polishing sees the same centre-stroke semantics as the
+        // main router. Treating those proxies as ordinary lines could introduce
+        // a near-parallel run when a newly counted radius changes the inventory.
+        fixed.furniture = others
+            .iter()
+            .enumerate()
+            .filter(|(_, d)| d.kind == "ink")
+            .map(|(j, d)| (j, d.basis == "global_axis"))
+            .collect();
+        fixed.crosses = others
+            .iter()
+            .enumerate()
+            .filter(|(_, d)| d.kind == "ink" && d.basis == "cross")
+            .map(|(j, _)| j)
+            .collect();
         let end = old.lines.get(1).map_or(shaft[1], |s| s[1]);
         let before = measure_at(
             &job,
@@ -2711,7 +2741,14 @@ pub(crate) fn settle_radius_leaders(
                 MAX_LEADER + SHOULDER
             };
             for arc in &arcs {
-                for &tip in &arc.tips {
+                // Keep the current physical arc station available: a shallow
+                // tag overlap may need only a sub-millimetre radial extension.
+                for tip in arc
+                    .tips
+                    .iter()
+                    .copied()
+                    .chain(arc.on_arc(shaft[0]).then_some(shaft[0]))
+                {
                     let u = arc.radial_direction(tip);
                     let n = u[0].hypot(u[1]);
                     if n <= 1e-12 {
@@ -2723,12 +2760,16 @@ pub(crate) fn settle_radius_leaders(
                         let (sin, cos) = degrees.to_radians().sin_cos();
                         let u = [(cos * u[0] - sin * u[1]) / n, (sin * u[0] + cos * u[1]) / n];
                         let exit = exit_distance(tip, u, job.outline);
-                        for reach in SWEEP_REACH.into_iter().chain(ESCAPES.map(|off| exit + off)) {
+                        for reach in SWEEP_REACH
+                            .into_iter()
+                            .chain(ESCAPES.map(|off| exit + off))
+                            .chain((1..=4).map(|n| length(&[shaft]) + 0.5 * f64::from(n)))
+                        {
                             let elbow = [tip[0] + reach * u[0], tip[1] + reach * u[1]];
                             // Every shoulder has this length. Reject over-budget reaches
                             // before measuring the much more expensive peer contacts.
                             if reach + SHOULDER > length_budget
-                                || !arc.accepts([tip, elbow])
+                                || !accepts(arc, [tip, elbow])
                                 || (compliant && !centred && !arc.centred([tip, elbow]))
                             {
                                 continue;
@@ -7126,6 +7167,12 @@ fn radius_route_evidence(
         .any(|m| m.parameter == "fillet.radius")
     {
         "fillet.radius"
+    } else if d
+        .measurements
+        .iter()
+        .any(|m| m.parameter == "cylindrical_profile.radius")
+    {
+        "cylindrical_profile.radius"
     } else if d.measurements.iter().any(|m| m.parameter == "blend.radius") {
         "blend.radius"
     } else {
@@ -7642,7 +7689,16 @@ mod tests {
         let d = plan
             .dimensions
             .iter()
-            .find(|d| d.id == "d:f:blend:23/blend.radius")
+            .find(|d| {
+                d.measurements.iter().any(|m| {
+                    m.parameter == "fillet.radius"
+                        && analysis.features.iter().any(|f| {
+                            f.id == m.feature
+                                && f.faces == [98]
+                                && f.parameters["side"] == "concave"
+                        })
+                })
+            })
             .unwrap();
         let view = plan.views.iter().find(|v| v.id == d.view).unwrap();
         let mut wants = super::super::wants(&analysis).0;

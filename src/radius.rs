@@ -27,7 +27,7 @@ pub fn evidence(part: &haecceity::Part, features: &[Feature]) -> BTreeMap<String
     let mut out = BTreeMap::new();
     for f in features
         .iter()
-        .filter(|f| matches!(f.kind.as_str(), "blend" | "fillet"))
+        .filter(|f| matches!(f.kind.as_str(), "blend" | "fillet" | "cylindrical_profile"))
     {
         let Some(r) = f.parameters.get("radius").and_then(|v| v.as_f64()) else {
             continue;
