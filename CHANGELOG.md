@@ -32,6 +32,28 @@ All notable changes to draftwright-rust are recorded here, in the style of
   AP242 fixture's leader-crossing record is re-recorded (leader to leader 42 to 46, to
   extension line 46 to 50, to arrowhead 26 to 29). Lint reads a frame's count past, as it does
   its symbol, when checking the frame states its source.
+- A frame on holes attaches in this order (maintainer decision, 2026-10-29). First, as before,
+  its holes' size callout or tag. Next, a leader to one of its holes that the end-on view draws
+  visible: ASME Y14.2 and ISO 128-22 end leaders on visible outlines. A hole counts as visible
+  when no planar face of the part lies nearer the viewer over its opening, or over its exit for a
+  through hole. Then the callout kept beside its hole table row. Last, a leader to one of its own
+  holes drawn hidden, with a `leader_to_hidden_edge` warning. A frame never keeps a leader to its
+  faces that ends on another hole's centre: such a frame re-aims its own leader at the rim of one
+  of its holes, or takes a new one, and either may cross other leaders as often as the old one
+  did. A second frame on the same holes may stack under the first on its leader. Leader bends now
+  reach up to 85 mm past the rim (was 48 mm), and a frame's leader no longer ends where another
+  leader ends.
+  - CTC-05: `⌀254 ±0.0254 ↧ 92.08` is back beside row B1, with the total runout frame and
+    datum B on it. That callout's `leader_to_hidden_edge` warning returns, as in 0.2.2.
+  - FTC-07: the four position frames on the ⌀15.082 holes all lead to their own holes, each with
+    its `2×` count. Before, three of them led to the middle of their two holes' faces, which is the
+    centre of a hole of the other pair, and the fourth led to a dashed circle with no warning. The
+    far-wall pair's stack (`⌀1.143`, with `⌀1.016Ⓜ` under it) leads to a dashed hole and warns.
+    Leader crossings go from 26 to 17.
+  - STC-09: the `⌀0.508 A D B` position frame on two holes leads to one of them, where before its
+    leader to its faces ran about 130 mm to another hole's centre. Leader crossings go from 302 to
+    277, ink overlaps from 34 to 28, and leaders along a centre line from 4 to 3.
+  - FTC-10, STC-10 and CTC-04 are unchanged; their frames already lead to visible holes.
 - When moving the isometric to a second sheet clears sheet 1, the isometric now comes back to
   sheet 1 if the finished sheet has room for it. It is centred in the largest clear area and may
   shrink to 0.6× (drawn NTS), as on a single sheet. A sheet with nothing but the isometric is now

@@ -1010,6 +1010,36 @@
   "evidence": "draftwright reads no AP242 surface texture (ISO 10303-1110; OpenCascade's XCAF has none), so it has no record and its drawing silently lacks it. The port reads it (draftwright-rust #18): the face texture (Ra 0.8 and Rz 4, material removal required, on the profile tolerance's two faces) would be drawn as an ISO 1302 symbol on its face's edge line, but one face is neither planar nor cylindrical, so no view shows it edge-on and it is refused (pmi_not_lowered), not guessed."
  },
  {
+  "file": "hw_every_kind.step",
+  "record": "datum:0:1:4:8",
+  "port": "datum:#6511",
+  "field": "drawing",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "datum_ref",
+     "rides_on": null,
+     "text": "A",
+     "view": "front"
+    }
+   ]
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "datum_ref",
+     "rides_on": null,
+     "text": "A",
+     "view": "plan"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "draftwright's drawing: 'A' (datum ref, front view); the port's: 'A' (datum ref, plan view). Datum A is one ⌀10 hole's bore, a feature of size: draftwright draws its symbol edge-on in the front view, on the bore's silhouette. The port draws it in the plan view, which sees the bore end-on and draws it visible. The symbol stands on the hole's ⏥ 0.02 flatness frame, which takes a leader to the hole's rim (2026-10-29: leader bends reach up to 85 mm, so the frame's own leader to its hole now has a clear place), as ASME Y14.5 and ISO 5459 attach a datum feature symbol to its feature's control frame. A view or side in annotations/<id>/place keeps draftwright's attachment."
+ },
+ {
   "file": "hw_spool_fits_intent.step",
   "record": "dimension:0:1:4:3",
   "port": "dimension:#6398",

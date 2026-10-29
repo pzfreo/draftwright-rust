@@ -123,52 +123,41 @@ fn ftc10_hole_frames_and_datums_attach_to_their_marks() {
     }
 }
 
-/// CTC-05's ⌀254 bore: its hole table row replaces its PMI callout, and its total runout frame,
-/// which stood beneath that callout, takes a leader to the bore instead, datum B standing on the
-/// frame (a datum feature symbol attached to its feature's control frame).
+/// CTC-05's ⌀254 bore opens away from the plan view, the only view that sees it end-on, so its
+/// circle there is hidden (dashed). Its total runout frame takes no leader to that circle (ASME
+/// Y14.2, ISO 128-22: a leader ends on a visible outline); it stays beneath the bore's PMI size
+/// callout, which is kept beside its hole table row to carry it, with datum B on that callout
+/// (2026-10-29).
 #[test]
-fn ctc05_bore_frame_leads_to_the_bore_and_carries_its_datum() {
+fn ctc05_hidden_bore_frame_stays_on_its_callout() {
     let path = Path::new(env!("CARGO_MANIFEST_DIR"))
         .join("tests/fixtures/rule_pins/nist_ctc_05_asme1_ap242.stp.gz");
     let a = model::analyse_native(&path).unwrap().1;
     let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
-    assert!(
-        !plan
-            .dimensions
-            .iter()
-            .any(|d| d.kind == "callout" && d.placed.is_some() && d.label.starts_with("⌀254")),
-        "the ⌀254 callout beside its table row"
-    );
+    let callout = plan
+        .dimensions
+        .iter()
+        .find(|d| d.kind == "callout" && d.placed.is_some() && d.label.starts_with("⌀254"))
+        .expect("the ⌀254 callout, carrying the bore's frame");
     let frame = plan
         .gdt
         .iter()
         .find(|g| g.id == "pmi:geometric_tolerance.total_runout:f37:ref=A")
         .unwrap();
     let f = frame.placed.as_ref().unwrap();
-    assert_eq!(frame.side, "leader", "{}", frame.basis);
-    assert_eq!(f.arrows.len(), 1);
+    assert_ne!(frame.side, "leader", "{}", frame.basis);
+    assert!(f.lines.is_empty() && f.arrows.is_empty(), "{f:?}");
+    assert_eq!(frame.view, callout.view);
+    assert!(frame.basis.contains("size callout"), "{}", frame.basis);
+    let m = mark_box(&plan, f.label_box, 1.0).expect("a callout beside the frame");
+    assert!((m[0] - f.label_box[0]).abs() < 1e-6);
     let datum = plan
         .gdt
         .iter()
         .find(|g| g.id == "pmi:datum.datum:f37:t=B")
         .unwrap();
-    assert!(
-        datum.basis.contains("control frame of its hole"),
-        "{}",
-        datum.basis
-    );
+    assert!(datum.basis.contains("size callout"), "{}", datum.basis);
     assert_eq!(datum.view, frame.view);
-    // The triangle's base stands on the frame's top or bottom edge.
-    let base: Vec<f64> = datum.placed.as_ref().unwrap().fills[0]
-        .iter()
-        .map(|q| q[1])
-        .collect();
-    let b = f.label_box;
-    assert!(
-        base.iter()
-            .any(|y| (y - (b[3] + 0.5)).abs() < 1e-6 || (y - (b[1] - 0.5)).abs() < 1e-6),
-        "{base:?} vs {b:?}"
-    );
     for id in [frame.id.as_str(), datum.id.as_str()] {
         let own: Vec<_> = plan
             .problems
@@ -176,6 +165,78 @@ fn ctc05_bore_frame_leads_to_the_bore_and_carries_its_datum() {
             .filter(|p| p.code.starts_with("annotation_") && p.subjects.iter().any(|s| s == id))
             .collect();
         assert!(own.is_empty(), "{id}: {own:#?}");
+    }
+}
+
+/// FTC-07's four ⌀15.082 holes: two in the enclosure's near wall, drawn visible in the plan
+/// view, and two in its far wall, drawn hidden there (no view shows them visible). No callout
+/// names just one pair, and a leader to a pair's faces ends at their midpoint, on the centre of
+/// a hole of the other pair (2026-10-29: never such a leader). Each pair's two position frames
+/// lead to that pair's own holes, the far pair's to a dashed circle with its
+/// `leader_to_hidden_edge` warning, each carrying the count `2×` over its stack.
+#[test]
+fn ftc07_frames_lead_to_their_own_holes() {
+    use draftwright::output::Curve;
+    let a = nist("nist_ftc_07_asme1_ap242-e2.stp.gz");
+    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let view = plan.views.iter().find(|v| v.id == "v:plan").unwrap();
+    let r = 0.5 * 15.082 * view.scale;
+    // Each hole's centre mark in the plan view, by the faces of its hole.
+    let centres: Vec<([f64; 2], &[usize])> = view
+        .line_work
+        .iter()
+        .filter(|w| w.kind == "cross")
+        .filter_map(|w| {
+            let f = a
+                .features
+                .iter()
+                .find(|f| w.id == format!("ink:v:plan:{}", f.id))?;
+            let Some(Curve::Line(p, q)) = w.curves.first() else {
+                return None;
+            };
+            Some((
+                [0.5 * (p[0] + q[0]), 0.5 * (p[1] + q[1])],
+                f.faces.as_slice(),
+            ))
+        })
+        .collect();
+    for (faces, far) in [("f261,262,263,264", true), ("f237,238,239,240", false)] {
+        let frames: Vec<_> = plan
+            .gdt
+            .iter()
+            .filter(|g| {
+                g.id.starts_with(&format!("pmi:geometric_tolerance.position:{faces}:"))
+            })
+            .collect();
+        assert_eq!(frames.len(), 2, "{faces}");
+        let led: Vec<_> = frames.iter().filter(|g| g.side == "leader").collect();
+        assert!(!led.is_empty(), "{faces}: no frame leads to a hole");
+        for g in &frames {
+            assert!(g.basis.contains("sees the holes end-on"), "{}", g.basis);
+            assert_eq!(far, g.basis.contains("drawn hidden"), "{}", g.basis);
+        }
+        for g in led {
+            let p = g.placed.as_ref().unwrap();
+            assert_eq!(p.runs[0].text, "2×", "{}", g.id);
+            // On the rim of one of its own holes, and on no hole's centre.
+            let own = centres.iter().any(|(c, f)| {
+                f.iter().any(|x| g.faces.contains(x))
+                    && ((c[0] - p.tip[0]).hypot(c[1] - p.tip[1]) - r).abs() < 0.05
+            });
+            assert!(own, "{}: {:?}", g.id, p.tip);
+            assert!(
+                centres
+                    .iter()
+                    .all(|(c, _)| (c[0] - p.tip[0]).hypot(c[1] - p.tip[1]) > 1.0),
+                "{}",
+                g.id
+            );
+            let hidden = plan
+                .problems
+                .iter()
+                .any(|q| q.code == "leader_to_hidden_edge" && q.subjects.contains(&g.id));
+            assert_eq!(far, hidden, "{}", g.id);
+        }
     }
 }
 

@@ -132,6 +132,7 @@ pub(crate) fn attach(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
                 &attached,
                 (&exterior, &interior),
                 &cache,
+                false,
             ) else {
                 plan.gdt.pop();
                 plan.dimensions[di].placed = Some(held.clone());
