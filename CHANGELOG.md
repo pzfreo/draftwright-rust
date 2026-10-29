@@ -16,6 +16,10 @@ Now on quiddity-rust **v0.2.2**.
   Each is called out once, as another `⌴ ⌀d ↧ depth` after the counterbore, reading from the
   bore outward: `⌀6 THRU ⌴ ⌀12 ↧ 3 ⌴ ⌀20 ↧ 2 ⌴SF ⌀30 ↧ 0.5`. Each depth is that step's own,
   as quiddity measures it. Lint requires and checks each step's diameter and depth.
+- A hole callout with more than one counterbore or spotface step reads one step per line: the bore
+  on the first line, then each `⌴` or `⌴SF` step on its own, innermost first (`⌀6 THRU` /
+  `⌴ ⌀12 ↧ 3` / `⌴ ⌀20 ↧ 2` / `⌴SF ⌀30 ↧ 0.5`). A hole with one recess keeps its callout, and
+  hole-table rows still read on one line. No dw-examples or quality-set drawing has such a hole.
 - Straight convex rounds between tangent walls are fillets at any wall angle (quiddity-rust#120).
   Many former blends are now called out as `n× R` fillets, and some `ALL UNSPECIFIED RADII`
   notes change radius or give way to callouts. No radius goes unstated. An oblique fillet is
