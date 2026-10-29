@@ -52,7 +52,7 @@ is refused instead of drawn as an empty box.
 
 Over the 94 corpus parts and the 23 PMI fixtures, against 0.2.0: errors fall from 226 to 218,
 unlocated features from 209 to 203, lines through features from 392 to 379, leader crossings from
-691 to 671, and warnings other than `shape_not_recognised` from 2198 to 2113; claimed faces (6873)
+691 to 669, and warnings other than `shape_not_recognised` from 2198 to 2115; claimed faces (6873)
 and `shape_not_recognised` (156) are unchanged. On the dw-examples drawings: NIST FTC-08 gets its
 hole table and loses its overlapping labels and shared dimension line (158 warnings to 105, leader
 crossings 81 to 52), STC-06 draws its datum B, so 12 more of its frames have every datum drawn,
@@ -69,14 +69,13 @@ Measured on this release against 0.2.0, on the same parts.
 
 - **cgb245 plans 1.45× slower.** The cost arrived with #241's congruent slots dimensioned as
   slots; its drawing improves (lines through features 3 to 1).
-- **Leader crossings on two parts:** 10092 (1 to 3, as it moves from A4 2:1 to A3 5:1) and NIST
-  FTC-09 (0 to 1: a slot callout's leader crosses one slot location's extension line). STC-10
-  AP242 has one more leader through a feature (lines through features 66 to 67). On dw-examples,
-  FTC-06 (3 to 14) and STC-07 (4 to 12) gain crossings around their newly drawn datum symbols.
+- **Leader crossings on one part:** NIST FTC-09 (0 to 1: a slot callout's leader crosses one
+  slot location's extension line). STC-10 AP242 has one more leader through a feature (lines
+  through features 66 to 67). On dw-examples, FTC-06 (3 to 14) and STC-07 (4 to 12) gain
+  crossings around their newly drawn datum symbols.
 - **Sheet changes:** 10046 A4 2:1 to A4 1:1 (with one `detail_unplaceable`), 1017 A4 2:1 to A4 1:1,
   408 A4 1:2 to A4 1:1, 10155 A3 2:1 to A4 1:1, 274 A3 2:1 to A4 2:1, sm-hanger A3 1:2 to A4 1:2,
-  10092 A4 2:1 to A3 5:1, 10190 A4 1:1 to A3 2:1, 388 A3 2:1 to A2 5:1; on dw-examples,
-  vslot-2020x50 A4 1:1 to A3 2:1.
+  388 A3 2:1 to A2 5:1; on dw-examples, vslot-2020x50 A4 1:1 to A3 2:1.
 - **nema17-mount-bracket** goes from A3 1:1 to A4 1:2, its `40` crossing two ⌀4 holes.
 - **Not yet fixed:** LM10UU's end recess still prints `SF` (quiddity-rust#118), and 608ZZ is not
   recognised as turned, so it gets no half section (quiddity-rust#123). The quality-corpus copy
