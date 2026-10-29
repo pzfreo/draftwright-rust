@@ -6,6 +6,8 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+## 0.2.2 (2026-10-29)
+
 Now on quiddity-rust **v0.2.2**.
 
 ### Changed
