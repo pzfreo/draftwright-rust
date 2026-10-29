@@ -8,6 +8,14 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Changed
 
+- Feature control frames on shafts, bosses and other cylinders use the hole-frame attachment
+  order: their own size callout or diameter dimension where there is room, otherwise a radial
+  leader to their own end-on rim, visible before hidden. Leaders avoid centre-line travel and
+  off-axis cylinders; different cylinders cannot share an axis-point leader. CTC-05's circularity
+  and concentricity frames now identify their own surfaces. Explicit annotation placements
+  override this choice; hidden-rim fallbacks retain `leader_to_hidden_edge` warnings. An explicit
+  zero view gutter keeps the selected reservations for new rim repairs. Existing hole-rim
+  attachments may retain only their own short centre-mark overrun as a last resort.
 - Tables taller than the drawable sheet height split into side-by-side blocks with repeated
   headers, retaining row order and information. Sheet selection considers those forms;
   `sheet/table_columns` can fix a table's column count or forbid splitting. Tables that fit
