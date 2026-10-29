@@ -6,28 +6,12 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
-## 0.2.2 (2026-10-29)
-
-Now on quiddity-rust **v0.2.2**.
-
 ### Changed
 
-- A near-side hole step deeper than 1 mm is now a counterbore, not a spotface. For
-  quiddity-rust#118. lm10uu reads `⌀10 THRU ⌴ ⌀16.4 ↧ 1.4 BOTH SIDES`, and the CTC-02 bores read
-  `⌀40 THRU ⌴ ⌀120 ↧ 8`. A hole's further counterbore steps (`outer_steps`) are no longer lost.
-  Each is called out once, as another `⌴ ⌀d ↧ depth` after the counterbore, reading from the
-  bore outward: `⌀6 THRU ⌴ ⌀12 ↧ 3 ⌴ ⌀20 ↧ 2 ⌴SF ⌀30 ↧ 0.5`. Each depth is that step's own,
-  as quiddity measures it. Lint requires and checks each step's diameter and depth.
 - A hole callout with more than one counterbore or spotface step reads one step per line: the bore
   on the first line, then each `⌴` or `⌴SF` step on its own, innermost first (`⌀6 THRU` /
   `⌴ ⌀12 ↧ 3` / `⌴ ⌀20 ↧ 2` / `⌴SF ⌀30 ↧ 0.5`). A hole with one recess keeps its callout, and
   hole-table rows still read on one line. No dw-examples or quality-set drawing has such a hole.
-- Straight convex rounds between tangent walls are fillets at any wall angle (quiddity-rust#120).
-  Many former blends are now called out as `n× R` fillets, and some `ALL UNSPECIFIED RADII`
-  notes change radius or give way to callouts. No radius goes unstated. An oblique fillet is
-  counted on the callout of equal principal fillets, or called out where its edge is seen most
-  nearly end-on, so it no longer withdraws the radius note. CTC-05's four R203.2 faces are no
-  longer fillets in quiddity, so their callout goes.
 - A frame or datum symbol no longer keeps a PMI hole callout beside its hole table row
   (maintainer decision). Where a frame on holes has no clear place on their size callout or
   tag, it takes a leader to one of the holes in the view that sees them end-on: the arrowhead on
@@ -48,9 +32,6 @@ Now on quiddity-rust **v0.2.2**.
   AP242 fixture's leader-crossing record is re-recorded (leader to leader 42 to 46, to
   extension line 46 to 50, to arrowhead 26 to 29). Lint reads a frame's count past, as it does
   its symbol, when checking the frame states its source.
-- A capped drawing that has left its established paper now takes an uncapped drawing at a larger
-  scale on paper no larger, unless that drawing has more hard findings, drops more or fits worse.
-  STC-08 stays on A1 1:1.
 - When moving the isometric to a second sheet clears sheet 1, the isometric now comes back to
   sheet 1 if the finished sheet has room for it. It is centred in the largest clear area and may
   shrink to 0.6× (drawn NTS), as on a single sheet. A sheet with nothing but the isometric is now
@@ -72,6 +53,28 @@ Now on quiddity-rust **v0.2.2**.
   ⌀13.4 groove a section edge. No other dw-examples drawing or quality part changes;
   in the wider corpus, cadgenbench/threaded_connector_109 now draws its front view half cut too.
   `views/<name>/half_section` still forces (`true`) or forbids (`false`) it.
+
+## 0.2.2 (2026-10-29)
+
+Now on quiddity-rust **v0.2.2**.
+
+### Changed
+
+- A near-side hole step deeper than 1 mm is now a counterbore, not a spotface. For
+  quiddity-rust#118. lm10uu reads `⌀10 THRU ⌴ ⌀16.4 ↧ 1.4 BOTH SIDES`, and the CTC-02 bores read
+  `⌀40 THRU ⌴ ⌀120 ↧ 8`. A hole's further counterbore steps (`outer_steps`) are no longer lost.
+  Each is called out once, as another `⌴ ⌀d ↧ depth` after the counterbore, reading from the
+  bore outward: `⌀6 THRU ⌴ ⌀12 ↧ 3 ⌴ ⌀20 ↧ 2 ⌴SF ⌀30 ↧ 0.5`. Each depth is that step's own,
+  as quiddity measures it. Lint requires and checks each step's diameter and depth.
+- Straight convex rounds between tangent walls are fillets at any wall angle (quiddity-rust#120).
+  Many former blends are now called out as `n× R` fillets, and some `ALL UNSPECIFIED RADII`
+  notes change radius or give way to callouts. No radius goes unstated. An oblique fillet is
+  counted on the callout of equal principal fillets, or called out where its edge is seen most
+  nearly end-on, so it no longer withdraws the radius note. CTC-05's four R203.2 faces are no
+  longer fillets in quiddity, so their callout goes.
+- A capped drawing that has left its established paper now takes an uncapped drawing at a larger
+  scale on paper no larger, unless that drawing has more hard findings, drops more or fits worse.
+  STC-08 stays on A1 1:1.
 
 ### WASM API
 
