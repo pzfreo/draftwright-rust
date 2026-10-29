@@ -225,6 +225,8 @@ fn a_recess_at_both_mouths_says_both_sides() {
         .join(" ");
     // quiddity-rust v0.2.2 (#118): a 1.4 mm deep step is a counterbore, not a spotface.
     assert_eq!(text, "⌀10 THRU ⌴ ⌀16.4 ↧ 1.4 BOTH SIDES", "{}", d.label);
+    // A single recess stays on the bore's line.
+    assert_eq!(d.label, "⌀10 THRU ⌴ ⌀16.4 ↧ 1.4 BOTH SIDES");
     assert!(d.basis.contains("both mouths"), "{}", d.basis);
     let drawing = model::render(&part, &a, &plan, &Font::new(mono()).unwrap()).unwrap();
     let found: Vec<_> = draftwright::lint::lint(&a, &drawing)
@@ -238,7 +240,7 @@ fn a_recess_at_both_mouths_says_both_sides() {
 /// `spotface_outer_steps.step` (quiddity-rust's #118 fixture): a ⌀6 through bore under a ⌀12 × 3
 /// counterbore, a ⌀20 × 2 outer counterbore step and a ⌀30 × 0.5 spotface. quiddity records the
 /// ⌀20 step in `outer_steps`; the callout states every step once, from the bore outward, each
-/// with its own depth, claims each size, and lint finds every requirement stated.
+/// with its own depth on its own line, claims each size, and lint finds every requirement stated.
 #[test]
 fn outer_counterbore_steps_are_each_stated_once() {
     let file = root().join("tests/fixtures/parts/spotface_outer_steps.step");
@@ -260,6 +262,14 @@ fn outer_counterbore_steps_are_each_stated_once() {
         text, "⌀6 THRU ⌴ ⌀12 ↧ 3 ⌴ ⌀20 ↧ 2 ⌴SF ⌀30 ↧ 0.5",
         "{}",
         d.label
+    );
+    // More than one step: the bore on the first line, each step on its own, innermost first
+    // (maintainer decision, 2026-10-29).
+    assert_eq!(
+        d.label.lines().collect::<Vec<_>>(),
+        ["⌀6 THRU", "⌴ ⌀12 ↧ 3", "⌴ ⌀20 ↧ 2", "⌴SF ⌀30 ↧ 0.5"],
+        "{:?}",
+        d.terms
     );
     assert!(d.placed.is_some(), "{} is drawn", d.id);
     for (parameter, value) in [

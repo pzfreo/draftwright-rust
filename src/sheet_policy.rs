@@ -480,7 +480,8 @@ const UNREADABLE: &[&str] = &[
 /// floor; otherwise disqualified only by unreadable, error or loss findings (code + subjects,
 /// printed-step breaches, drops) that the automatic baseline does not have. Warnings the
 /// baseline shares never make a crowded-but-readable drawing lose to an enlargement.
-fn usable(analysis: &Analysis, plan: &Plan, reference: &Plan, floor: f64) -> bool {
+/// `Err` names the check that refused the candidate, for the sheet-choice basis.
+fn usable(analysis: &Analysis, plan: &Plan, reference: &Plan, floor: f64) -> Result<(), String> {
     let drops = |p: &Plan| {
         p.problems
             .iter()
@@ -488,21 +489,34 @@ fn usable(analysis: &Analysis, plan: &Plan, reference: &Plan, floor: f64) -> boo
             .map(problem_key)
             .collect::<BTreeSet<_>>()
     };
-    if !sheet_fit::inside_frames(analysis, plan)
-        || plan.sheet.scale_factor + 1e-9 < floor
+    let refusal = if !sheet_fit::inside_frames(analysis, plan) {
+        Some("ink leaves the drawable frame")
+    } else if plan.sheet.scale_factor + 1e-9 < floor
         || plan
             .views
             .iter()
             .any(|v| v.id != "v:iso" && v.scale + 1e-9 < floor)
-        || sheet_fit::illegible_steps(analysis, plan)
-            > sheet_fit::illegible_steps(analysis, reference)
-        || !model::carries_required(reference, plan)
-        || !drops(plan).is_subset(&drops(reference))
-        || model::undrawn_gdt(plan) > model::undrawn_gdt(reference)
-        || !unreported_losses(plan).is_subset(&unreported_losses(reference))
-        || pictorial_only_sheet(plan)
     {
-        return false;
+        Some("below the readable scale")
+    } else if sheet_fit::illegible_steps(analysis, plan)
+        > sheet_fit::illegible_steps(analysis, reference)
+    {
+        Some("more illegible steps")
+    } else if !model::carries_required(reference, plan) {
+        Some("required items not carried")
+    } else if !drops(plan).is_subset(&drops(reference)) {
+        Some("new dropped items")
+    } else if model::undrawn_gdt(plan) > model::undrawn_gdt(reference) {
+        Some("more undrawn GD&T")
+    } else if !unreported_losses(plan).is_subset(&unreported_losses(reference)) {
+        Some("unreported lost dimensions")
+    } else if pictorial_only_sheet(&plan.spec, plan) {
+        Some("a sheet carries only the pictorial view")
+    } else {
+        None
+    };
+    if let Some(reason) = refusal {
+        return Err(reason.into());
     }
     let mut inherited = failures(analysis, reference, floor);
     inherited.extend(reference.problems.iter().map(problem_key));
@@ -531,7 +545,19 @@ fn usable(analysis: &Analysis, plan: &Plan, reference: &Plan, floor: f64) -> boo
         .collect();
     measured.extend(frame_conflicts(plan));
     inherited.extend(frame_conflicts(reference));
-    reported.chain(measured).all(|key| inherited.contains(&key))
+    let new: BTreeSet<_> = reported
+        .chain(measured)
+        .filter(|key| !inherited.contains(key))
+        .map(|(code, _)| code)
+        .collect();
+    if new.is_empty() {
+        Ok(())
+    } else {
+        Err(format!(
+            "unreadable ink, required losses or unreadable scale: new {}",
+            new.into_iter().collect::<Vec<_>>().join(", ")
+        ))
+    }
 }
 
 /// View frames (with their annotation bands) on the title block or on each other, page by
@@ -561,14 +587,11 @@ fn frame_conflicts(plan: &Plan) -> Vec<(String, Vec<String>)> {
 }
 
 // A sheet that carries only the freely fitted isometric is not a meaningful split: the
-// orientation view belongs beside the views it explains, shrunk if need be. An author's
-// own sheet assignment for the isometric is kept.
-fn pictorial_only_sheet(plan: &Plan) -> bool {
-    let authored = plan
-        .spec
-        .views
-        .get("iso")
-        .is_some_and(|v| v.sheet.is_some());
+// orientation view belongs beside the views it explains, shrunk if need be, or beside a
+// table that went to another sheet. An author's own sheet assignment for the isometric
+// (in `spec`) is kept.
+pub(crate) fn pictorial_only_sheet(spec: &Spec, plan: &Plan) -> bool {
+    let authored = spec.views.get("iso").is_some_and(|v| v.sheet.is_some());
     !authored
         && plan.sheets.iter().any(|sheet| {
             let mut on = plan
@@ -576,7 +599,13 @@ fn pictorial_only_sheet(plan: &Plan) -> bool {
                 .iter()
                 .filter(|v| v.sheet == sheet.number)
                 .peekable();
-            on.peek().is_some() && on.all(|v| v.id == "v:iso")
+            let tabled = plan
+                .hole_table
+                .iter()
+                .chain(&plan.hole_tables)
+                .any(|t| t.sheet == sheet.number)
+                || plan.tables.iter().any(|t| t.sheet == sheet.number);
+            on.peek().is_some() && !tabled && on.all(|v| v.id == "v:iso")
         })
 }
 
@@ -771,11 +800,12 @@ fn select_once(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
                 );
                 return None;
             }
-            if usable(fit, &plan, &baseline, floor) {
-                return Some(plan);
-            }
+            let reason = match usable(fit, &plan, &baseline, floor) {
+                Ok(()) => return Some(plan),
+                Err(reason) => reason,
+            };
             *outcome = format!(
-                "refused at {}: unreadable ink, required losses or unreadable scale ({} hard, {} drops; {})",
+                "refused at {}: {reason} ({} hard, {} drops; {})",
                 plan.sheet.scale,
                 model::findings(&plan).hard,
                 model::findings(&plan).dropped,
@@ -2404,7 +2434,7 @@ mod tests {
         clipped.problems.clear();
         clipped.views[0].at[0] += clipped.sheet.page[0];
         assert!(!sheet_fit::inside_frames(&a, &clipped));
-        assert!(!usable(&a, &clipped, &p, 0.));
+        assert!(usable(&a, &clipped, &p, 0.).is_err());
         let mut clipped = p.clone();
         clipped.problems.clear();
         let dimension = clipped
@@ -2414,7 +2444,7 @@ mod tests {
             .unwrap();
         dimension.label_box[2] += clipped.sheet.page[0];
         assert!(!sheet_fit::inside_frames(&a, &clipped));
-        assert!(!usable(&a, &clipped, &p, 0.));
+        assert!(usable(&a, &clipped, &p, 0.).is_err());
     }
 
     #[test]

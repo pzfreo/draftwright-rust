@@ -13,6 +13,7 @@ fn nist(name: &str) -> Analysis {
 
 const FTC10: &str = "nist_ftc_10_asme1_ap242-e2.stp.gz";
 const CYLINDRICITY: &str = "pmi:geometric_tolerance.cylindricity:f101,102,104,105,107,108,110,111";
+const POSITION_7: &str = "pmi:geometric_tolerance.position:f101,102,104,105,107,108,110,111:ref=A,B,C:mod=diameter_zone,maximum_material_requirement";
 const DATUM_F: &str = "pmi:datum.datum:f244,245:t=F";
 
 /// The size callout or tag box a moved glyph sits against, within *gap* paper mm across and
@@ -31,19 +32,61 @@ fn mark_box(plan: &Plan, b: [f64; 4], gap: f64) -> Option<[f64; 4]> {
         .find(|m| beside(*m))
 }
 
+/// FTC-10's frames on its four ⌀7 holes say which holes they control: with the hole table's rows
+/// in place of the front holes' PMI callouts the plan view has no clear paper beneath the `4× ⌀7`
+/// callout, so each takes a leader to one of those holes, the one the callout points at, and
+/// carries their count (2026-10-29: a frame no longer holds the callouts back).
 #[test]
 fn ftc10_hole_frames_and_datums_attach_to_their_marks() {
     let a = nist(FTC10);
     let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
-    let frame = plan.gdt.iter().find(|g| g.id == CYLINDRICITY).unwrap();
-    let p = frame.placed.as_ref().unwrap();
-    // Seen end-on (the plan looks down z), with no leader to blank material, beneath its callout
-    // and left-aligned with it.
-    assert_eq!(frame.view, "v:plan");
-    assert!(p.lines.is_empty() && p.arrows.is_empty(), "{p:?}");
-    let callout = mark_box(&plan, p.label_box, 1.0).expect("a callout above the frame");
-    assert!((callout[0] - p.label_box[0]).abs() < 1e-6);
-    assert!(frame.basis.contains("size callout"), "{}", frame.basis);
+    let callout = plan
+        .dimensions
+        .iter()
+        .find(|d| d.kind == "callout" && d.view == "v:plan" && d.label.starts_with("4× ⌀7"))
+        .and_then(|d| d.placed.as_ref())
+        .expect("the ⌀7 holes' callout");
+    let view = plan.views.iter().find(|v| v.id == "v:plan").unwrap();
+    for id in [CYLINDRICITY, POSITION_7] {
+        let frame = plan.gdt.iter().find(|g| g.id == id).unwrap();
+        let p = frame.placed.as_ref().unwrap();
+        // Seen end-on (the plan looks down z), not with a leader to blank material.
+        assert_eq!(frame.view, "v:plan");
+        assert!(
+            frame.basis.contains("sees the holes end-on"),
+            "{}",
+            frame.basis
+        );
+        if p.lines.is_empty() {
+            let m = mark_box(&plan, p.label_box, 1.0).expect("a callout beside the frame");
+            assert!((m[0] - p.label_box[0]).abs() < 1e-6);
+            continue;
+        }
+        assert_eq!(frame.side, "leader", "{}", frame.basis);
+        assert_eq!(p.arrows.len(), 1);
+        assert_eq!(
+            p.runs[0].text, "4×",
+            "the frame states how many holes it controls"
+        );
+        // Its arrowhead on the rim of one of the ⌀7 holes, 22 apart along x from the one the
+        // callout's leader starts on (that leader starts on its rim, so within a diameter).
+        let from = callout.lines[0][0];
+        let on_a_hole = (-3..=3).any(|k| {
+            let c = [from[0] + f64::from(k) * 22.0 * view.scale, from[1]];
+            (p.tip[0] - c[0]).hypot(p.tip[1] - c[1]) <= 7.0 * view.scale + 1e-6
+        });
+        assert!(on_a_hole, "{:?} vs {from:?}", p.tip);
+    }
+    // No front hole's PMI callout is drawn beside its hole table row.
+    assert!(
+        !plan.dimensions.iter().any(|d| d.kind == "callout"
+            && d.view == "v:front"
+            && d.placed.is_some()
+            && ["8× ⌀2.5", "3× ⌀3.5", "4× ⌀6"]
+                .iter()
+                .any(|l| d.label.starts_with(l))),
+        "a duplicate callout"
+    );
 
     // The datum's triangle stands on its tag in the view that sees its hole end-on.
     let datum = plan.gdt.iter().find(|g| g.id == DATUM_F).unwrap();
@@ -70,7 +113,63 @@ fn ftc10_hole_frames_and_datums_attach_to_their_marks() {
         "the triangle's base stands on its mark: {triangle:?}"
     );
     // Nothing moved has a finding of its own.
-    for id in [CYLINDRICITY, DATUM_F] {
+    for id in [CYLINDRICITY, POSITION_7, DATUM_F] {
+        let own: Vec<_> = plan
+            .problems
+            .iter()
+            .filter(|p| p.code.starts_with("annotation_") && p.subjects.iter().any(|s| s == id))
+            .collect();
+        assert!(own.is_empty(), "{id}: {own:#?}");
+    }
+}
+
+/// CTC-05's ⌀254 bore: its hole table row replaces its PMI callout, and its total runout frame,
+/// which stood beneath that callout, takes a leader to the bore instead, datum B standing on the
+/// frame (a datum feature symbol attached to its feature's control frame).
+#[test]
+fn ctc05_bore_frame_leads_to_the_bore_and_carries_its_datum() {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/fixtures/rule_pins/nist_ctc_05_asme1_ap242.stp.gz");
+    let a = model::analyse_native(&path).unwrap().1;
+    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    assert!(
+        !plan
+            .dimensions
+            .iter()
+            .any(|d| d.kind == "callout" && d.placed.is_some() && d.label.starts_with("⌀254")),
+        "the ⌀254 callout beside its table row"
+    );
+    let frame = plan
+        .gdt
+        .iter()
+        .find(|g| g.id == "pmi:geometric_tolerance.total_runout:f37:ref=A")
+        .unwrap();
+    let f = frame.placed.as_ref().unwrap();
+    assert_eq!(frame.side, "leader", "{}", frame.basis);
+    assert_eq!(f.arrows.len(), 1);
+    let datum = plan
+        .gdt
+        .iter()
+        .find(|g| g.id == "pmi:datum.datum:f37:t=B")
+        .unwrap();
+    assert!(
+        datum.basis.contains("control frame of its hole"),
+        "{}",
+        datum.basis
+    );
+    assert_eq!(datum.view, frame.view);
+    // The triangle's base stands on the frame's top or bottom edge.
+    let base: Vec<f64> = datum.placed.as_ref().unwrap().fills[0]
+        .iter()
+        .map(|q| q[1])
+        .collect();
+    let b = f.label_box;
+    assert!(
+        base.iter()
+            .any(|y| (y - (b[3] + 0.5)).abs() < 1e-6 || (y - (b[1] - 0.5)).abs() < 1e-6),
+        "{base:?} vs {b:?}"
+    );
+    for id in [frame.id.as_str(), datum.id.as_str()] {
         let own: Vec<_> = plan
             .problems
             .iter()

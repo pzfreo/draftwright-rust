@@ -6,6 +6,54 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### Changed
+
+- A hole callout with more than one counterbore or spotface step reads one step per line: the bore
+  on the first line, then each `⌴` or `⌴SF` step on its own, innermost first (`⌀6 THRU` /
+  `⌴ ⌀12 ↧ 3` / `⌴ ⌀20 ↧ 2` / `⌴SF ⌀30 ↧ 0.5`). A hole with one recess keeps its callout, and
+  hole-table rows still read on one line. No dw-examples or quality-set drawing has such a hole.
+- A frame or datum symbol no longer keeps a PMI hole callout beside its hole table row
+  (maintainer decision). Where a frame on holes has no clear place on their size callout or
+  tag, it takes a leader to one of the holes in the view that sees them end-on: the arrowhead on
+  the bore's circle, the leader radial to it and clear of every other hole. A frame on several
+  holes leads to the hole their callout points at and carries their count over it (`4×`, as
+  ISO 1101 states it). A datum symbol with no clear place on its mark stands on such a frame of
+  its hole. The rows then replace the PMI callouts as they do elsewhere. The callouts stay only
+  where a frame or symbol on a replaced callout can attach in no other way. A leader to a hole
+  may pass through material no more often than the leader it replaces. On dw-examples, FTC-10
+  loses `3× ⌀3.5 ±0.2 THRU`, `4× ⌀6 ±0.15 THRU ⌴ ⌀10 ↧ 2` and `8× ⌀2.5 ±0.15 THRU`. Its
+  cylindricity and `⌀0.0Ⓜ` position frames lead to the ⌀7 holes, and datum C stands on its
+  hole's position frame. CTC-05 loses `⌀254 ±0.0254 ↧ 92.08` beside row B1, and its total runout
+  frame leads to the bore with datum B on it. STC-10's cylindricity and the position frames on
+  its ⌀7 holes, ⌀2.5 holes (`8×`) and datum C's hole lead to their holes. So do FTC-07's `2×`
+  ⌀1.143 position frame, which was led to a different hole, and CTC-04's ⌀0.35 frame on B5.
+  Leader crossings: FTC-10 111 to 118 (its freed layout), STC-10 97 to 92, FTC-07 31 to 26.
+  Leaders through features: STC-10 53 to 38, FTC-10 34 to 33, CTC-04 24 to 22. The FTC-10
+  AP242 fixture's leader-crossing record is re-recorded (leader to leader 42 to 46, to
+  extension line 46 to 50, to arrowhead 26 to 29). Lint reads a frame's count past, as it does
+  its symbol, when checking the frame states its source.
+- When moving the isometric to a second sheet clears sheet 1, the isometric now comes back to
+  sheet 1 if the finished sheet has room for it. It is centred in the largest clear area and may
+  shrink to 0.6× (drawn NTS), as on a single sheet. A sheet with nothing but the isometric is now
+  a last resort. FTC-08 (rc) moves from A1 to A2 at 1:2 and its `detail_unplaceable` warning
+  goes. The dw-examples CTC-04 moves from A0 to A1 at 1:5. Both are still one sheet. A sheet holding
+  the isometric and a table is no longer refused as pictorial-only.
+- Each refused paper request in the sheet-choice basis now names the check that refused it,
+  such as `a sheet carries only the pictorial view`, `required items not carried`, or the new
+  unreadable finding codes. Before, these refusals all gave the same generic text.
+- The final gutter pass now keeps the isometric 6 mm from a table, not 2 mm. Its bounds are drawn
+  ink rather than a padded band, so 2 mm left it almost touching the table (FTC-08). Seven drawings
+  move their isometric 3 to 4 mm; nothing else changes.
+- The automatic half section covers more turned parts. Besides a coaxial counterbore, spotface or
+  countersink, it now fires when the bore changes diameter along the axis, when a groove is turned
+  inside the material, or when a through bore runs under an outer groove, as on a bush or linear
+  bearing. The rule is whether the section shows something hidden lines cannot show cleanly: a
+  plain bore under a plain or merely stepped outline stays a plain view (gt2-pulley's ⌀5 bore,
+  t8-flange-nut). dw-examples' lm8uu now draws its side view half cut, the thin wall under each
+  ⌀13.4 groove a section edge. No other dw-examples drawing or quality part changes;
+  in the wider corpus, cadgenbench/threaded_connector_109 now draws its front view half cut too.
+  `views/<name>/half_section` still forces (`true`) or forbids (`false`) it.
+
 ## 0.2.2 (2026-10-29)
 
 Now on quiddity-rust **v0.2.2**.

@@ -92,13 +92,23 @@ impl Hole<'_> {
     }
 
     /// The terms after the count: `⌀d`, `THRU` or `↧ depth`, the recesses, the countersink.
+    ///
+    /// A hole with more than one counterbore or spotface step reads one step per line: the bore
+    /// on the first, each `⌴`/[`SPOTFACE`] step opening a line of its own, innermost first
+    /// (maintainer decision, 2026-10-29). A single recess stays on the bore's line, wrapped only
+    /// at the 48 mm width.
     fn terms(&self) -> Vec<String> {
         let mut t = vec![format!("⌀{}", fmt(self.diameter))];
         match self.depth {
             Some(depth) if !self.through => t.extend(["↧".into(), fmt(depth)]),
             _ => t.push("THRU".into()),
         }
-        for (_, symbol, r) in self.recesses() {
+        let recesses = self.recesses();
+        let stacked = recesses.len() > 1;
+        for (_, symbol, r) in recesses {
+            if stacked {
+                t.push(crate::callouts::BREAK.into());
+            }
             t.extend([symbol.into(), format!("⌀{}", fmt(r.diameter))]);
             if let Some(depth) = r.depth {
                 t.extend(["↧".into(), fmt(depth)]);

@@ -480,9 +480,14 @@ message names it (`…; A4 at 1:1 fits.`).
 
 #### Half sections
 
-A part turned whole about one axis whose bore steps inside (a coaxial hole with a counterbore,
-spotface or countersink) has its profile view drawn as an ISO 128-50 half section when the plan
-has no full section: half as seen, half cut on the turning axis and hatched, with no hidden
+A part turned whole about one axis whose inside a section shows more cleanly than hidden lines
+has its profile view drawn as an ISO 128-50 half section when the plan has no full section. That
+is when a coaxial hole has a counterbore, spotface or countersink, the coaxial bore changes
+diameter along the axis, a groove is turned inside the material, or a through bore runs under an
+outer groove (a bush or linear bearing, whose thin wall at the groove only a section shows). A
+plain bore under a plain or merely stepped outline stays a plain view, its hidden lines already
+clean; a part recognition does not give as turned whole gets no automatic half section. The view
+is drawn half as seen, half cut on the turning axis and hatched, with no hidden
 edges in either half and no caption or cutting-plane line. The cut half is the side the view's
 lengths are dimensioned on. Witnesses on internal edges of the half drawn as seen move to their
 mirror in the cut half, and an internal diameter becomes a half dimension: one arrow on the
@@ -2574,8 +2579,10 @@ and section furniture; their resolved `label_box` is also judged by structural
 lint and the SVG quality instrument. Pins keep their callout or location ink. A row replaces a
 semantic PMI size callout too: it prints the callout's text (band, fit or thread) verbatim, and
 the callout's PMI claim moves to the first row of its holes, so every PMI size is stated once.
-Where replacing those callouts would add an error the drawing without schedules lacks, or would
-detach a frame or datum symbol that attaches to a hole's mark with them kept, the schedules are
+A frame or datum symbol that stood on a replaced callout attaches to the hole itself instead (a
+frame by a leader to the hole, with the count of several holes over it; a datum symbol on its
+tag or on such a frame). Where replacing those callouts would add an error the drawing without
+schedules lacks, or would leave such a glyph with no attachment at all, the schedules are
 installed again with them kept beside their rows. Auto retains authored size
 fits/tolerances. Coordinate tolerances keep their original span.
 
