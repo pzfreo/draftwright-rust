@@ -75,6 +75,26 @@ pub(crate) fn report(analysis: &Analysis, plan: &mut Plan) {
     plan.problems.retain(|p| !CODES.contains(&p.code.as_str()));
     let mut found = contacts(plan);
     found.extend(leader_ends(analysis, plan));
+    // A frame on holes no view shows visible, with no place on their mark, leads to a dashed
+    // circle as a last resort ([`super::hole_marks`]).
+    for g in plan
+        .gdt
+        .iter()
+        .filter(|g| super::hole_marks::led_to_hidden(g))
+        // A frame stacked on the shelf of another shares its leader, reported once.
+        .filter(|g| g.placed.as_ref().is_some_and(|p| !p.lines.is_empty()))
+    {
+        found.push(problem(
+            "leader_to_hidden_edge",
+            &g.id,
+            vec![g.id.clone(), g.view.clone()],
+            format!(
+                "The leader of {} ends on a hole {} shows hidden, so it points at dashed line-work: no view shows its holes visible and their mark has no place for it.",
+                crate::wording::item(&g.id, &g.kind, &g.cells.join(" ")),
+                crate::wording::view(&g.view)
+            ),
+        ));
+    }
     plan.problems.extend(found);
     plan.status = crate::completeness::status(&plan.problems);
 }
