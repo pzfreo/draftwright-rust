@@ -16,7 +16,11 @@ All notable changes to draftwright-rust are recorded here, in the style of
   override this choice; hidden-rim fallbacks retain `leader_to_hidden_edge` warnings. An explicit
   zero view gutter keeps the selected reservations for new rim repairs. Existing hole-rim
   attachments may retain only their own short centre-mark overrun as a last resort.
-
+- Tables taller than the drawable sheet height split into side-by-side blocks with repeated
+  headers, retaining row order and information. Sheet selection considers those forms;
+  `sheet/table_columns` can fix a table's column count or forbid splitting. Tables that fit
+  keep their existing layout. Tall-table repacks retain the same sheet and source datum
+  findings. NIST CTC-02 can use one A2 sheet at 1:5, retaining every row, note and datum symbol.
 - A hole callout with more than one counterbore or spotface step reads one step per line: the bore
   on the first line, then each `⌴` or `⌴SF` step on its own, innermost first (`⌀6 THRU` /
   `⌴ ⌀12 ↧ 3` / `⌴ ⌀20 ↧ 2` / `⌴SF ⌀30 ↧ 0.5`). A hole with one recess keeps its callout, and

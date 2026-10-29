@@ -107,6 +107,14 @@
                   "object",
                   "null"
                 ]
+              },
+              "table_columns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 4
+                }
               }
             },
             "additionalProperties": false,
@@ -376,6 +384,14 @@
                   "object",
                   "null"
                 ]
+              },
+              "table_columns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 4
+                }
               }
             },
             "additionalProperties": false,
@@ -727,6 +743,14 @@
                   "object",
                   "null"
                 ]
+              },
+              "table_columns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 4
+                }
               }
             },
             "additionalProperties": false,
@@ -982,6 +1006,14 @@
                   "object",
                   "null"
                 ]
+              },
+              "table_columns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 4
+                }
               }
             },
             "additionalProperties": false,
@@ -1255,6 +1287,14 @@
                   "object",
                   "null"
                 ]
+              },
+              "table_columns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 4
+                }
               }
             },
             "additionalProperties": false,
@@ -1506,6 +1546,14 @@
                   "object",
                   "null"
                 ]
+              },
+              "table_columns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 4
+                }
               }
             },
             "additionalProperties": false,
@@ -1804,6 +1852,14 @@
                   "object",
                   "null"
                 ]
+              },
+              "table_columns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 4
+                }
               }
             },
             "additionalProperties": false,
@@ -2106,6 +2162,14 @@
                   "object",
                   "null"
                 ]
+              },
+              "table_columns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 4
+                }
               }
             },
             "additionalProperties": false,
@@ -2389,6 +2453,14 @@
                   "object",
                   "null"
                 ]
+              },
+              "table_columns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 4
+                }
               }
             },
             "additionalProperties": false,
@@ -2644,6 +2716,14 @@
                   "object",
                   "null"
                 ]
+              },
+              "table_columns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 4
+                }
               }
             },
             "additionalProperties": false,
@@ -2890,6 +2970,14 @@
                   "object",
                   "null"
                 ]
+              },
+              "table_columns": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "integer",
+                  "minimum": 1,
+                  "maximum": 4
+                }
               }
             },
             "additionalProperties": false,

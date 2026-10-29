@@ -603,6 +603,11 @@ pub struct SheetSpec {
     /// both, unless a section cross-reference cites a zone ([`crate::sheets::furnish`]).
     #[serde(skip_serializing_if = "Option::is_none")]
     pub zones: Option<bool>,
+    /// Side-by-side blocks for a table, by its ID (including declared, radius and hole tables),
+    /// from 1 to 4: 1 never splits it; unset splits a table taller than the drawable height
+    /// into the fewest blocks that fit it ([`crate::hole_table::split`]).
+    #[serde(skip_serializing_if = "BTreeMap::is_empty")]
+    pub table_columns: BTreeMap<String, u32>,
     /// Draw automatically determined dimensions in parentheses; omitted by default.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub references: Option<bool>,
@@ -4031,6 +4036,7 @@ pub(crate) fn pin_base(spec: &Spec) -> Spec {
     base.sheet.references = spec.sheet.references;
     base.sheet.view_gutter = spec.sheet.view_gutter;
     base.sheet.fit_limits = spec.sheet.fit_limits;
+    base.sheet.table_columns = spec.sheet.table_columns.clone();
     base.pmi = spec.pmi;
     base.origin = spec.origin.clone();
     base.hole_table = spec.hole_table;
@@ -5911,18 +5917,25 @@ fn plan_with_presentation(
             .collect::<Vec<_>>(),
     );
     request.iso_scale_factor = spec.iso_scale_factor;
-    request.required_tables = crate::tables::sizes(&spec.tables);
-    request
-        .required_tables
-        .extend(crate::tables::sizes(&crate::gears::tables(analysis)));
+    request.required_tables =
+        crate::tables::sizes_on(&spec.tables, spec, page.unwrap_or([1189.0, 841.0]));
+    request.required_tables.extend(crate::tables::sizes_on(
+        &crate::gears::tables(analysis),
+        spec,
+        page.unwrap_or([1189.0, 841.0]),
+    ));
     if let Some(p) = presentation {
-        request.required_tables.extend(p.sizes());
+        request
+            .required_tables
+            .extend(p.sizes(spec, page.unwrap_or(p.page)));
     }
     // The part's manufacturing requirements table, when its threads and knurls are referred to
     // one (crate::pmi_lowering::manufacturing), before the notes, as draftwright reserves it.
     request.required_tables.extend(
-        crate::tables::manufacturing_size(
+        crate::tables::manufacturing_size_on(
             &crate::pmi_lowering::manufacturing_for(analysis, spec).rows(),
+            spec,
+            page.unwrap_or([1189.0, 841.0]),
         )
         .map(|s| (s, Corner::TopRight)),
     );
@@ -5958,7 +5971,11 @@ fn plan_with_presentation(
     // An automatic radius schedule is a presentation choice. Reserve it around
     // the existing sheet/scale pair only when it fits; it cannot spend more paper
     // or shrink a user-requested scale while its ordinary callout remains valid.
-    let radius_sizes = crate::tables::sizes(&crate::dims::blends::reservations(analysis, spec));
+    let radius_sizes = crate::tables::sizes_on(
+        &crate::dims::blends::reservations(analysis, spec),
+        spec,
+        pick.page,
+    );
     if !radius_sizes.is_empty() {
         let mut with_radii = request.clone();
         with_radii.required_tables.extend(radius_sizes);
@@ -7192,6 +7209,7 @@ fn plan_with_presentation(
         &views,
         &ink,
         notes_block.as_ref().map(|b| b.cells),
+        spec,
     );
     problems.extend(more);
     tables.extend(schedule);
@@ -7203,6 +7221,7 @@ fn plan_with_presentation(
         &views,
         &ink,
         notes_block.as_ref().map(|b| b.cells),
+        spec,
     );
     problems.extend(more);
     for (i, table) in gear_tables.iter_mut().enumerate() {
@@ -10145,14 +10164,16 @@ fn render_annotations_with_cuts(
     for table in &plan.tables {
         let Some(p) = &table.placed else { continue };
         let table_from = dims.len();
-        for [a, b] in crate::tables::ruling(p.cells, &p.columns) {
+        for [a, b] in crate::tables::rules(p) {
             dims.push(Item::Edge(Curve::Line(a, b)));
         }
         let mut manufacturing_runs: BTreeMap<String, Vec<usize>> = BTreeMap::new();
         let mut manufacturing_header = Vec::new();
         let mut gear_runs = Vec::new();
         let mut tag = None;
-        for (r, (row, positions)) in table.rows.iter().zip(&p.cells_at).enumerate() {
+        for (draw_row, (r, row, positions)) in
+            crate::tables::cell_rows(table).into_iter().enumerate()
+        {
             if table.id == crate::pmi_lowering::SCHEDULE_ID && r > 0 && !row[0].is_empty() {
                 tag = Some(row[0].clone());
             }
@@ -10168,10 +10189,14 @@ fn render_annotations_with_cuts(
                 if table.id.starts_with("gear_data_") {
                     gear_runs.extend(index);
                 }
-                if table.id == crate::pmi_lowering::SCHEDULE_ID && r == 0 {
+                // One canonical header certifies the whole table. Continuation headers
+                // repeat the same visible cells without duplicating its provenance.
+                if table.id == crate::pmi_lowering::SCHEDULE_ID && draw_row == 0 {
                     manufacturing_header.extend(index);
                 }
-                if let Some(tag) = &tag {
+                if let Some(tag) = &tag
+                    && r > 0
+                {
                     manufacturing_runs
                         .entry(tag.clone())
                         .or_default()
@@ -10232,10 +10257,10 @@ fn render_annotations_with_cuts(
         && let Some(p) = &t.table.placed
     {
         let start = dims.len();
-        for [a, b] in crate::tables::ruling(p.cells, &p.columns) {
+        for [a, b] in crate::tables::rules(p) {
             dims.push(Item::Edge(Curve::Line(a, b)));
         }
-        for (i, (row, at)) in t.table.rows.iter().zip(&p.cells_at).enumerate() {
+        for (i, row, at) in crate::tables::cell_rows(&t.table) {
             let mut runs = Vec::new();
             for (cell, at) in row.iter().zip(at) {
                 let Some(at) = at else { continue };
@@ -10306,7 +10331,7 @@ fn render_annotations_with_cuts(
             .map_or(0, |b| b.rows.len().saturating_sub(headers));
         for (k, block) in t.blocks.iter().enumerate() {
             let Some(p) = &block.placed else { continue };
-            for [a, b] in crate::tables::ruling(p.cells, &p.columns) {
+            for [a, b] in crate::tables::rules(p) {
                 dims.push(Item::Edge(Curve::Line(a, b)));
             }
             for (r, (row, at)) in block.rows.iter().zip(&p.cells_at).enumerate() {

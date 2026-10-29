@@ -683,7 +683,7 @@ pub(crate) fn tabulate_obstructed(
         .map(|(_, d)| d.clone())
         .collect();
     remaining.extend(gdt.iter().filter_map(crate::dims::gdt::proxy));
-    let (mut tables, _) = crate::tables::plan(&specs, a, sheet, views, &remaining, None);
+    let (mut tables, _) = crate::tables::plan(&specs, a, sheet, views, &remaining, None, spec);
     let mut table = tables.pop()?;
     table.placed.as_ref()?;
     table.default = true;

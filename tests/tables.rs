@@ -645,3 +645,68 @@ fn a_numeric_descriptive_table_cannot_replace_physical_measurements() {
     };
     assert_eq!(physical(before), physical(after));
 }
+
+#[test]
+fn a_tall_declared_table_repeats_its_header_and_keeps_every_row_searchable() {
+    let (part, a) = plate();
+    let rows: Vec<_> = std::iter::once(json!(["LONG SCHEDULE"]))
+        .chain((1..=61).map(|i| json!([format!("ITEM {i}")])))
+        .collect();
+    let given = spec(json!({"sheet":{"size":"A2","scale":"1:1"},
+        "tables":[{"id":"t:1","rows":rows}]}));
+    let plan = model::plan(a, &given).unwrap();
+    let table = plan.tables.iter().find(|t| t.id == "t:1").unwrap();
+    assert_eq!(table.rows.len(), 62);
+    let placed = table.placed.as_ref().unwrap();
+    assert_eq!(placed.blocks.len(), 2);
+    let drawing = model::render(part, a, &plan, &font()).unwrap();
+    assert_eq!(
+        drawing
+            .text
+            .iter()
+            .filter(|t| t.text == "LONG SCHEDULE")
+            .count(),
+        2
+    );
+    for i in 1..=61 {
+        assert_eq!(
+            drawing
+                .text
+                .iter()
+                .filter(|t| t.text == format!("ITEM {i}"))
+                .count(),
+            1
+        );
+    }
+    let fixed = model::edit(
+        &given,
+        &json!([{"op":"set","path":"sheet/table_columns", "value":{"t:1":1}}]),
+    )
+    .unwrap();
+    let forbidden = model::plan(a, &fixed).unwrap();
+    assert!(
+        forbidden
+            .problems
+            .iter()
+            .any(|p| p.code == "table_not_placed")
+    );
+    let fixed = model::edit(
+        &given,
+        &json!([{"op":"set","path":"sheet/table_columns", "value":{"t:1":3}}]),
+    )
+    .unwrap();
+    let three = model::plan(a, &fixed).unwrap();
+    assert_eq!(
+        three
+            .tables
+            .iter()
+            .find(|t| t.id == "t:1")
+            .unwrap()
+            .placed
+            .as_ref()
+            .unwrap()
+            .blocks
+            .len(),
+        3
+    );
+}
