@@ -382,8 +382,14 @@ fn translations(
         // Table placement reserves PAD around its cells. Preserve that corridor
         // when spending spare paper: canonical pin replays rebuild the tables in
         // these frames, and must be able to install the same presentation again.
+        // The iso's bounds are its measured ink, not a padded band: keep a view gutter
+        // between that ink and a table, as the planner placed it.
         let table_clearance = |b: Rect| {
-            let p = crate::tables::PAD;
+            let p = if v.id == "v:iso" {
+                crate::layout::VIEW_GUTTER
+            } else {
+                crate::tables::PAD
+            };
             [b[0] - p, b[1] - p, b[2] + p, b[3] + p]
         };
         obstacles.extend(
@@ -803,5 +809,36 @@ mod tests {
         .unwrap();
         let pinned = translations(&analysis, &plan, &bounds, PREFERRED, false).unwrap();
         assert_eq!(pinned[2], [0.0; 2]);
+    }
+
+    #[test]
+    fn spare_paper_keeps_the_isometric_ink_a_view_gutter_from_a_table() {
+        let (_, analysis) = crate::model::analyse_native(
+            &std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/samples/editor-plate.step"),
+        )
+        .unwrap();
+        let mut plan = crate::model::plan_recovered(&analysis, &Default::default()).unwrap();
+        plan.views.retain(|v| v.id == "v:iso");
+        plan.notes_block = None;
+        plan.requirements.clear();
+        let bounds = vec![[20.0, 80.0, 40.0, 100.0]];
+        plan.views[0].at = [30.0, 90.0];
+        // A table 7 mm right of the iso's ink; spare paper would move the iso up to 4 mm right.
+        let rows = vec![vec!["A".to_string()]];
+        plan.tables = vec![crate::tables::PlannedTable {
+            sheet: 1,
+            id: "t".into(),
+            rows: rows.clone(),
+            row_claims: Vec::new(),
+            default: true,
+            basis: String::new(),
+            state: crate::items::State::Shown,
+            placed: Some(crate::tables::lay(&rows, &[20.0], [47.0, 80.0])),
+        }];
+        let d = translations(&analysis, &plan, &bounds, PREFERRED, false).unwrap();
+        assert!(d[0][0] > 0.5, "spare paper still moves the iso: {d:?}");
+        let cells = plan.tables[0].placed.as_ref().unwrap().cells;
+        assert!(cells[0] - (bounds[0][2] + d[0][0]) >= crate::layout::VIEW_GUTTER - 1e-3);
     }
 }

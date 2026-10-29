@@ -34,6 +34,9 @@ Now on quiddity-rust **v0.2.2**.
 - Each refused paper request in the sheet-choice basis now names the check that refused it,
   such as `a sheet carries only the pictorial view`, `required items not carried`, or the new
   unreadable finding codes. Before, these refusals all gave the same generic text.
+- The final gutter pass now keeps the isometric 6 mm from a table, not 2 mm. Its bounds are drawn
+  ink rather than a padded band, so 2 mm left it almost touching the table (FTC-08). Seven drawings
+  move their isometric 3 to 4 mm; nothing else changes.
 
 ### WASM API
 
