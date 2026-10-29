@@ -8,6 +8,15 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Changed
 
+- Feature control frames on shafts, bosses and other cylinders use the hole-frame attachment
+  order: their own size callout or diameter dimension where there is room, otherwise a radial
+  leader to their own end-on rim, visible before hidden. Leaders avoid centre-line travel and
+  off-axis cylinders; different cylinders cannot share an axis-point leader. CTC-05's circularity
+  and concentricity frames now identify their own surfaces. Explicit annotation placements
+  override this choice; hidden-rim fallbacks retain `leader_to_hidden_edge` warnings. An explicit
+  zero view gutter keeps the selected reservations for new rim repairs. Existing hole-rim
+  attachments may retain only their own short centre-mark overrun as a last resort.
+
 - A hole callout with more than one counterbore or spotface step reads one step per line: the bore
   on the first line, then each `⌴` or `⌴SF` step on its own, innermost first (`⌀6 THRU` /
   `⌴ ⌀12 ↧ 3` / `⌴ ⌀20 ↧ 2` / `⌴SF ⌀30 ↧ 0.5`). A hole with one recess keeps its callout, and

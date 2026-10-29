@@ -5018,12 +5018,12 @@
      "kind": "datum_ref",
      "rides_on": null,
      "text": "G",
-     "view": "side"
+     "view": "front"
     }
    ]
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright's drawing: not drawn, dropped (plan_incomplete, pmi_dropped); the port's: 'G' (datum ref, side view). As known_pmi_lowering.json (drawn, rust-correct): draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+  "evidence": "Python drops datum G for lack of legible room (plan_incomplete, pmi_dropped). Rust retains the datum and reports its layout findings (Policy B). Since 2026-10-29 the cylinder-rim attachment pass reserves size marks first and re-aims ambiguous frame leaders at their own rims. Datum G now stands on its own hole's frame in the front view, which sees the bore end-on, rather than on a hidden edge-on silhouette in the side view (ASME Y14.5, ISO 5459). An explicit annotation view or side overrides this attachment."
  },
  {
   "file": "nist_ftc_10_asme1_ap242-e2.stp",
@@ -8201,12 +8201,12 @@
      "kind": "datum_ref",
      "rides_on": null,
      "text": "G",
-     "view": "side"
+     "view": "front"
     }
    ]
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright's drawing: not drawn, refused (pmi_not_extracted, pmi_not_lowered); the port's: 'G' (datum ref, side view). As known_pmi_lowering.json (lowered, rust-correct): draftwright leaves it raw because it cannot find the datum's faces (\"datum feature #120 has no representation items; referenced geometry is unavailable; datum reference surface is unavailable\"; known_pmi.json lists the faces draftwright cannot find as rust-correct); the port resolves the faces, proves the attachment and draws the symbol."
+  "evidence": "Python refuses datum G because it cannot resolve the datum's faces (pmi_not_extracted, pmi_not_lowered; known_pmi.json documents the resolved faces as rust-correct). Rust resolves those faces and retains the symbol. Since 2026-10-29 the cylinder-rim attachment pass reserves size marks first and re-aims ambiguous frame leaders at their own rims. G now stands on its own hole's frame in the front view, which sees the bore end-on, instead of the hidden edge-on silhouette in the side view (ASME Y14.5, ISO 5459). An explicit annotation view or side overrides this attachment."
  },
  {
   "file": "nist_stc_10_asme1_ap242-e2.stp",
@@ -9968,5 +9968,35 @@
   },
   "verdict": "equivalent",
   "evidence": "draftwright's drawing: '3× ⌀3.5 ±0.2 THRU' (dimension, front view, on bore.diameter); the port's: '⌀3.5 ±0.2 THRU' (the size cell of each of its holes' hole table rows). The same band on the same holes: Since 2026-10-28 (maintainer decision) the hole table row replaces this PMI size callout where a schedule exists: each of its holes' rows prints the callout's text (without the count, one row per hole) in its size cell, and the first row carries the claim, so the requirement is stated once, in the schedule. Since 2026-10-29 the callout is no longer kept beside the rows because a frame elsewhere on the part lost its place on a callout (the ⌀7 holes' cylindricity frame now takes a leader to one of those holes). A frame on these holes that finds no clear leader route in the dense front view keeps its leader to its faces, as before."
+ },
+ {
+  "field": "drawing",
+  "file": "bolt_thread_knurl.step",
+  "port": "geometric_tolerance:#429",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "control_frame",
+     "rides_on": null,
+     "text": "↗ 0.05 A B",
+     "view": "plan"
+    }
+   ]
+  },
+  "record": "geometric_tolerance:0:1:4:2",
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "control_frame",
+     "rides_on": null,
+     "text": "↗ 0.05 A B",
+     "view": "front"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "The same circular-runout tolerance and datum references remain drawn. Python leads from the shaft's axis point in the end-on plan view. Rust places the frame beneath that shaft's own diameter annotation in the front view (maintainer decision, 2026-10-29; ASME Y14.5 and ISO 1101 permit attachment to the controlled feature's size dimension). Its size carrier identifies the cylindrical surface without an ambiguous axis-point leader. An explicit annotation view or side retains the lowered leader."
  }
 ]

@@ -1,4 +1,5 @@
-//! Datum feature symbols and feature control frames on holes, attached to the hole's mark where
+//! Datum feature symbols and feature control frames on cylinders, attached to a size mark or
+//! their own rim. For holes, attached to the hole's mark where
 //! the hole is seen end-on (#224). Lowering draws a cylinder's datum symbol on its silhouette in
 //! the view that sees the cylinder edge-on, and hangs a frame's leader from the centre of its
 //! faces ([`crate::pmi_lowering`]); for a hole that silhouette is hidden and that centre is often
@@ -30,6 +31,14 @@
 //!   at the rim of one of its holes, or takes a new one, either crossing other leaders no more
 //!   often than the old one. A second frame on the same holes may stack on the first's leader.
 //!
+//! The same attachment order applies to a frame on any one principal cylinder (a shaft,
+//! boss, turned step or unrecognised bore), including a cylinder split across faces. Its own
+//! diameter dimension or callout in any view comes first; otherwise the end-on view takes a
+//! radial leader to that cylinder's rim. Visible rim sites precede hidden ones. A leader never
+//! runs beside a centre line or through another off-axis cylinder. Frames on different
+//! cylinders cannot borrow each other's attachment, even when they share an axis. Datums on
+//! these exterior cylinders already stand on their edge-on surface, rather than its axis.
+//!
 //! Each takes a place only when it is clear of every other item, other views and sheet
 //! furniture, on blank paper of its own view, with no finding of its own (a leader to the hole
 //! may pass through material no more often than the leader it replaces); otherwise it stays
@@ -55,6 +64,8 @@ const GAP: f64 = 0.5;
 /// item ID and what the basis calls it.
 struct Mark {
     id: String,
+    /// The view it stands in.
+    view: String,
     label_box: [f64; 4],
     from: P2,
     tag: bool,
@@ -83,11 +94,33 @@ pub(crate) fn attach(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
     let mut stacks: BTreeMap<String, Vec<String>> = BTreeMap::new();
     // The frames attached to each set of holes, which a datum symbol on one of them may take.
     let mut framed: BTreeMap<BTreeSet<&str>, Vec<String>> = BTreeMap::new();
-    // Frames first: a datum symbol on the same callout then keeps clear of them.
-    for kind in ["control_frame", "datum_feature"] {
+    // Reserve clear size marks before placing any rim leaders: a newly repaired axis-point
+    // leader must not occupy the paper a later frame needs beneath its own size callout.
+    // Hole marks precede other cylinders' marks; datums then keep clear of every frame.
+    #[derive(Clone, Copy)]
+    enum Pass {
+        Marks,
+        Foreign,
+        Groups,
+        Any,
+    }
+    for (kind, cylinders, pass) in [
+        ("control_frame", false, Pass::Marks),
+        ("control_frame", true, Pass::Marks),
+        // Never let an axis-point repair take the place a leader pointing at another
+        // feature needs. Groups then precede single-cylinder repairs: they have fewer
+        // usable circles and their count needs additional paper.
+        ("control_frame", false, Pass::Foreign),
+        ("control_frame", false, Pass::Groups),
+        ("control_frame", false, Pass::Any),
+        ("control_frame", true, Pass::Any),
+        ("datum_feature", false, Pass::Any),
+    ] {
+        let marks_only = matches!(pass, Pass::Marks);
         for gi in 0..plan.gdt.len() {
             let g = &plan.gdt[gi];
             if g.kind != kind
+                || changed.contains(&g.id)
                 || g.placed.is_none()
                 || g.state != crate::items::State::Shown
                 || !g.modifiers.is_empty()
@@ -95,11 +128,31 @@ pub(crate) fn attach(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
                 continue;
             }
             let frame = kind == "control_frame";
-            let Some((vi, named)) = target(analysis, spec, plan, &holes, g) else {
-                continue;
+            // Its holes, else (a frame only) the one cylinder of a shaft, boss or bore it is on.
+            let (vi, named, rims, cylinder) = match target(analysis, spec, plan, &holes, g) {
+                Some((vi, named)) if !cylinders => {
+                    let rims = hole_rims(analysis, &plan.views[vi], &holes, &named);
+                    (vi, named, rims, false)
+                }
+                None if cylinders => match cylinder(analysis, spec, plan, g) {
+                    Some((vi, named, rim)) => (vi, named, vec![rim], true),
+                    None => continue,
+                },
+                _ => continue,
             };
+            let foreign = points_elsewhere(analysis, plan, &holes, &named, g);
+            if (matches!(pass, Pass::Foreign) && !foreign)
+                || (matches!(pass, Pass::Groups) && named.len() < 2)
+            {
+                continue;
+            }
             let view = &plan.views[vi];
-            let own = mark(plan, &named, &view.id);
+            let others = others(analysis, view, &holes);
+            let own = if cylinder {
+                cylinder_mark(plan, &named, rims[0].r / view.scale)
+            } else {
+                mark(plan, &named, &view.id)
+            };
             // A datum symbol stands on its hole's mark or on a frame of its hole; a frame may
             // also take a leader to the hole itself.
             if own.is_none() && !frame && !framed.contains_key(&named) {
@@ -118,16 +171,26 @@ pub(crate) fn attach(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
                 let Some(p) = q.placed.as_ref() else {
                     continue;
                 };
-                if frame && q.side != LEADER {
+                if frame && (q.side != LEADER || (cylinder && q.faces != g.faces)) {
                     continue;
                 }
                 on_frames.push(Mark {
                     id: id.clone(),
+                    view: q.view.clone(),
                     label_box: p.label_box,
                     from: p.lines.last().map_or(p.tip, |l| l[1]),
                     tag: false,
                     // On a frame that leads to a hidden hole, it is as far from its mark.
-                    name: if q.basis.contains(HIDDEN) {
+                    name: if cylinder {
+                        format!(
+                            "{CYLINDER_FRAME}{}",
+                            if led_to_hidden(q) {
+                                CYLINDER_HIDDEN
+                            } else {
+                                ""
+                            }
+                        )
+                    } else if q.basis.contains(HIDDEN) {
                         format!("{ON_FRAME}{HIDDEN}")
                     } else {
                         ON_FRAME.into()
@@ -138,55 +201,75 @@ pub(crate) fn attach(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
                 marks.append(&mut on_frames);
             }
             let mut settled = None;
-            // A frame without a place on its mark leads to one of its holes the view draws
-            // visible, else (rather than keep a leader to faces that may read as another
-            // feature's) to one it draws hidden.
+            // Where its leader to its faces ends on another hole's centre, so that it reads as
+            // that hole's frame, or on its own cylinder's axis, which says nothing of which of
+            // the circles there it controls, a leader to its own rim may cross as many leaders
+            // as that one does.
+            let misleading = frame && (foreign || on_axis(view, &rims, g) || rims.len() > 1);
+            // A frame without a place on its mark leads to one of its rims the view draws
+            // visible (crossing as many leaders as its old one, where that one misleads), else
+            // stacks on another frame's leader to them, else (rather than keep a leader to faces
+            // that may read as another feature's) leads to one it draws hidden. Every leader
+            // stays clear of centre lines and other holes.
+            let leaders = |hidden: bool| {
+                [false, true]
+                    .into_iter()
+                    .filter(move |&relaxed| frame && (!relaxed || misleading))
+                    .flat_map(move |relaxed| {
+                        [false, true].map(move |fine| (None, hidden, relaxed, fine, false))
+                    })
+            };
+            // Keep #251's rim attachments when strict routes cannot fit: the radial shaft
+            // may share only its own centre mark's short overrun, as the finished-drawing
+            // contact rule permits. It never shares another feature's axis or mark.
+            let arm = |hidden| {
+                [false, true]
+                    .into_iter()
+                    .filter(move |_| frame && !cylinder)
+                    .map(move |fine| (None, hidden, true, fine, true))
+            };
             let steps = marks
                 .iter()
-                .map(|m| (Some(m), false))
-                .chain(frame.then_some((None, false)))
-                .chain(frame.then_some((None, true)))
-                .chain(on_frames.iter().map(|m| (Some(m), false)))
-                .map(|(m, hidden)| (m, hidden, false));
-            // Where its leader to its faces ends on another hole's centre, so that it reads as
-            // that hole's frame, a leader to its own hole may cross as many leaders as that one
-            // does.
-            let misleading = frame && points_elsewhere(analysis, plan, &holes, &named, g);
-            let steps = steps.chain(
-                [(None, false, true), (None, true, true)]
-                    .into_iter()
-                    .filter(|_| misleading),
-            );
-            let taken = tips(plan, &view.id, &g.id);
-            for (mark, hidden, relaxed) in steps {
+                .map(|m| (Some(m), false, false, false, false))
+                .chain(leaders(false))
+                .chain(arm(false))
+                .chain(
+                    on_frames
+                        .iter()
+                        .map(|m| (Some(m), false, false, false, false)),
+                )
+                .chain(leaders(true))
+                .chain(arm(true))
+                .filter(|(mark, _, _, _, _)| !marks_only || mark.is_some());
+            // A mark in the end-on view orders the holes a leader tries.
+            let near = marks.first().filter(|m| m.view == view.id);
+            let count = named.len();
+            let leader = Leader {
+                view,
+                rims: &rims,
+                others: &others,
+                count,
+                own: &named,
+                own_arm: false,
+            };
+            for (mark, hidden, relaxed, fine, own_arm) in steps {
+                let leader = Leader { own_arm, ..leader };
+                // A mark stands in its own view (a cylinder's size callout, in the view that
+                // sees it edge-on); a leader to the rim, in the view that sees it end-on.
+                let view = mark
+                    .and_then(|m| plan.views.iter().find(|v| v.id == m.view))
+                    .unwrap_or(view);
+                let taken = tips(plan, &view.id, &g.id);
                 let candidates = match (frame, mark) {
                     (true, Some(mark)) => frame_candidates(plan, &stacks, g, mark),
-                    // Its own leader first, ending on one of its holes instead.
-                    (true, None) if relaxed => {
-                        retargeted(analysis, view, &holes, &named, g, hidden, &taken)
-                            .into_iter()
-                            .chain(leader_candidates(
-                                analysis,
-                                view,
-                                &holes,
-                                &named,
-                                g,
-                                marks.first(),
-                                hidden,
-                                &taken,
-                            ))
-                            .collect()
-                    }
-                    (true, None) => leader_candidates(
-                        analysis,
-                        view,
-                        &holes,
-                        &named,
-                        g,
-                        marks.first(),
-                        hidden,
-                        &taken,
-                    ),
+                    // Its own leader first, ending on one of its rims instead.
+                    (true, None) => retargeted(analysis, &leader, g, hidden, &taken)
+                        .into_iter()
+                        .filter(|_| misleading && !fine)
+                        .chain(leader_candidates(
+                            analysis, &leader, g, near, hidden, fine, &taken,
+                        ))
+                        .collect(),
                     (false, Some(mark)) => datum_candidates(g, mark),
                     (false, None) => Vec::new(),
                 };
@@ -221,53 +304,82 @@ pub(crate) fn attach(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
                     (&exterior, &interior),
                     &cache,
                     relaxed,
-                ) {
-                    settled = Some((mark, hidden, found));
+                )
+                // An explicit zero-gutter request retains its selected reservations for
+                // new rim repairs. Automatic layouts keep #251's vacant-paper allowance;
+                // size carriers and foreign-feature repairs retain their existing policy.
+                .filter(|(_, _, area, _)| {
+                    spec.sheet.view_gutter != Some(0.0)
+                        || mark.is_some()
+                        || foreign
+                        || area.is_none()
+                }) {
+                    settled = Some((mark, hidden, own_arm, view, found));
                     break;
                 }
             }
-            let Some((mark, hidden, (side, next, area, before))) = settled else {
+            let Some((mark, hidden, own_arm, view, (side, next, area, before))) = settled else {
                 continue;
             };
+            let view = view.id.clone();
             let id = g.id.clone();
             rechecked_codes.extend(before.into_iter().map(|p| p.code));
             let g = &mut plan.gdt[gi];
-            g.view.clone_from(&view.id);
+            g.view.clone_from(&view);
             g.side = side.into();
             g.placed = Some(next);
+            let at = view.trim_start_matches("v:");
             g.basis += &match (frame, mark) {
+                (true, Some(mark)) if cylinder => {
+                    stacks
+                        .entry(mark.id.clone())
+                        .or_default()
+                        .push(g.id.clone());
+                    format!(
+                        "; {} {} in the {at} view, in place of a leader to the centre of its faces (a view or side in annotations/{}/place keeps the leader)",
+                        if side == "below" { "beneath" } else { "over" },
+                        mark.name,
+                        g.id
+                    )
+                }
+                (true, None) if cylinder => format!(
+                    "; on a leader to {CYLINDER_RIM}{} in the {at} view, which sees it end-on, in place of a leader to the centre of its faces (a view or side in annotations/{}/place keeps that leader)",
+                    if hidden { CYLINDER_HIDDEN } else { "" },
+                    g.id
+                ),
                 (true, Some(mark)) => {
                     stacks
                         .entry(mark.id.clone())
                         .or_default()
                         .push(g.id.clone());
                     format!(
-                        "; {} {} in the {} view{ATTACHED}s end-on, in place of a leader to its faces (a view or side in annotations/{}/place keeps the leader)",
+                        "; {} {} in the {at} view{ATTACHED}s end-on, in place of a leader to its faces (a view or side in annotations/{}/place keeps the leader)",
                         if side == "below" { "beneath" } else { "over" },
                         mark.name,
-                        view.id.trim_start_matches("v:"),
                         g.id
                     )
                 }
                 (true, None) => format!(
-                    "; on a leader to {}{} in the {} view{ATTACHED}s end-on, in place of a leader to its faces (a view or side in annotations/{}/place keeps that leader)",
+                    "; on a leader to {}{} in the {at} view{ATTACHED}s end-on, in place of a leader to its faces (a view or side in annotations/{}/place keeps that leader)",
                     if named.len() > 1 {
                         "one of its holes"
                     } else {
                         "its hole"
                     },
                     if hidden { HIDDEN } else { "" },
-                    view.id.trim_start_matches("v:"),
                     g.id
                 ),
                 (false, mark) => format!(
-                    "; attached to {} in the {} view{ATTACHED} end-on where its surface is hidden (a view or side in annotations/{}/place keeps it on its surface)",
+                    "; attached to {} in the {at} view{ATTACHED} end-on where its surface is hidden (a view or side in annotations/{}/place keeps it on its surface)",
                     mark.map_or("its mark", |m| m.name.as_str()),
-                    view.id.trim_start_matches("v:"),
                     g.id
                 ),
             };
-            if frame {
+            if own_arm {
+                g.basis += "; only its own centre mark's short rim overrun is shared, rather than retaining an ambiguous leader to its faces";
+            }
+            // A cylinder of no feature has no name a second glyph could share.
+            if frame && !named.is_empty() {
                 framed.entry(named.clone()).or_default().push(g.id.clone());
             }
             changed.insert(id);
@@ -289,6 +401,15 @@ const ON_FRAME: &str = "the control frame of its hole";
 /// What the basis of a frame on a leader to a hole its view draws hidden says: the last resort,
 /// after its holes' mark ([`attachments`] counts it as not attached).
 const HIDDEN: &str = " (drawn hidden: no view shows its holes visible)";
+/// What the basis of a frame beneath its cylinder's size callout says.
+const CYLINDER_CALLOUT: &str = "its cylinder's size callout";
+/// What a frame stacked on the leader of another frame on the same cylinder calls it.
+const CYLINDER_FRAME: &str = "the control frame of its cylinder";
+/// What the basis of a frame on a leader to its cylinder's rim says.
+const CYLINDER_RIM: &str = "its cylinder's rim";
+/// What the basis of a frame on a leader to its cylinder's rim drawn hidden says: the last
+/// resort, as [`HIDDEN`] for holes.
+pub(super) const CYLINDER_HIDDEN: &str = " (drawn hidden: no view shows its rim visible)";
 /// The `side` a frame on a leader to its hole settles with.
 const LEADER: &str = "leader";
 /// How far beyond the hole's rim a leader's bend may stand, paper mm, nearest first.
@@ -296,8 +417,9 @@ const REACH: [f64; 11] = [
     4.0, 6.0, 8.0, 11.0, 15.0, 20.0, 27.0, 36.0, 48.0, 64.0, 85.0,
 ];
 
-/// Where frame *g* may sit on *mark*: beneath its text, or over it when beneath has no room; a
-/// second frame continues the first's stack (*stacks*).
+/// Where frame *g* may sit on *mark*: beneath its text, or over it when beneath has no room,
+/// left-aligned with it, else shifted left no further than right-aligned with it; a second
+/// frame continues the first's stack (*stacks*).
 fn frame_candidates(
     plan: &Plan,
     stacks: &BTreeMap<String, Vec<String>>,
@@ -318,10 +440,25 @@ fn frame_candidates(
     // Invariant: only placed glyphs attach.
     let old = g.placed.as_ref().expect("placed");
     let h = old.label_box[3] - old.label_box[1];
-    let under = ("below", beneath(old, [b[0], below]));
-    let atop = ("above", beneath(old, [b[0], above + h]));
+    let w = old.label_box[2] - old.label_box[0];
+    // A stack keeps its first frame's left edge.
+    let x0 = stacked.first().map_or(b[0], |q| q[0]);
+    let under = ("below", beneath(old, [x0, below]));
+    let atop = ("above", beneath(old, [x0, above + h]));
     match (stacked.is_empty(), over) {
-        (true, _) => vec![under, atop],
+        (true, _) => {
+            // Then shifted left a millimetre at a time, until right-aligned with the text.
+            let shifts: Vec<f64> = (1..)
+                .map(|k| b[0] - f64::from(k))
+                .take_while(|&x| x > b[2] - w)
+                .chain((w > b[2] - b[0]).then_some(b[2] - w))
+                .collect();
+            let mut out = vec![under, atop];
+            for (side, y) in [("below", below), ("above", above + h)] {
+                out.extend(shifts.iter().map(|&x| (side, beneath(old, [x, y]))));
+            }
+            out
+        }
         (false, false) => vec![under],
         (false, true) => vec![atop],
     }
@@ -349,44 +486,74 @@ fn datum_candidates(g: &gdt::PlannedGdt, mark: &Mark) -> Vec<(&'static str, gdt:
     out
 }
 
-/// Where frame *g* may sit on a leader to one of its holes *named* in *view*, which sees them
-/// end-on (ASME Y14.5: a frame attached to its feature by a leader): the arrowhead on the bore's
-/// circle, the leader radial to it out to its bend, then a shelf and the frame. The hole *mark*
-/// points at first (so a callout and its frame name the same hole), then the others by distance
-/// from it; the nearest bend first, pointing away from the view's middle first. Only the holes
-/// the view draws visible ([`seen`]) take the leader (ASME Y14.2, ISO 128-22: a leader ends on
-/// a visible outline, not on dashed line-work), or with *hidden* only those it draws hidden.
-#[allow(clippy::too_many_arguments)]
-fn leader_candidates(
+/// One of a glyph's own circles where its view sees it end-on: centre and radius on the page,
+/// and which of its rim the view draws visible.
+struct Rim {
+    c: P2,
+    r: f64,
+    seen: Seen,
+    /// Proven circular edge spans for a cylinder trimmed by flats or other surfaces; a
+    /// recognised bore is already proved circular. Chord tolerance is in page millimetres.
+    trace: Option<(Vec<[P2; 2]>, f64)>,
+}
+
+/// Which of a [`Rim`] its view draws visible.
+enum Seen {
+    /// A hole's bore, seen or not as a whole ([`seen`]).
+    Whole(bool),
+    /// Another cylinder (a shaft, boss or turned step): seen wherever no planar face lies nearer
+    /// the viewer over its rim at *end*, its axis point at the end facing the viewer, radius *r*
+    /// (model mm).
+    Rim { end: [f64; 3], r: f64 },
+}
+
+/// What a frame's leader to its rims in *view*, which sees them end-on, works from: its own
+/// circles (*rims*), every hole the view sees end-on at its outermost step (*others*, which a
+/// leader through would seem to point at), and how many features it controls (*count*).
+#[derive(Clone, Copy)]
+struct Leader<'a> {
+    view: &'a crate::model::PlannedView,
+    rims: &'a [Rim],
+    others: &'a [Other],
+    count: usize,
+    own: &'a BTreeSet<&'a str>,
+    /// Last resort for a hole frame: only the controlled circle's own short arm.
+    own_arm: bool,
+}
+
+/// The rims of holes *named* in *view*, which sees them end-on: each bore's circle.
+fn hole_rims(
     analysis: &Analysis,
     view: &crate::model::PlannedView,
     holes: &[&Hole],
     named: &BTreeSet<&str>,
-    g: &gdt::PlannedGdt,
-    mark: Option<&Mark>,
-    hidden: bool,
-    taken: &[P2],
-) -> Vec<(&'static str, gdt::GdtPlaced)> {
-    let Some(old) = g.placed.as_ref() else {
-        return Vec::new();
-    };
+) -> Vec<Rim> {
     let frame = placement::Frame::new(analysis, view);
-    let o = frame.outline();
-    let middle = [0.5 * (o[0] + o[2]), 0.5 * (o[1] + o[3])];
-    let mut circles: Vec<(P2, f64)> = holes
+    holes
         .iter()
-        .filter(|h| named.contains(h.feature.id.as_str()) && seen(analysis, view, h) != hidden)
-        .map(|h| (frame.page(h.at), 0.5 * h.diameter * frame.scale()))
-        .collect();
-    if let Some(m) = mark {
-        let d = |c: P2| (c[0] - m.from[0]).hypot(c[1] - m.from[1]);
-        circles.sort_by(|a, b| d(a.0).total_cmp(&d(b.0)));
-    }
-    circles.truncate(3);
-    // Every other hole seen end-on here, at its outermost step: a leader through one would seem
-    // to point at it.
+        .filter(|h| named.contains(h.feature.id.as_str()))
+        .map(|h| Rim {
+            c: frame.page(h.at),
+            r: 0.5 * h.diameter * frame.scale(),
+            seen: Seen::Whole(seen(analysis, view, h)),
+            trace: None,
+        })
+        .collect()
+}
+
+/// A competing circular feature. An enclosing exterior outline is the target's supporting
+/// stock or boss, rather than another hole its leader could appear to name.
+struct Other {
+    c: P2,
+    r: f64,
+    enclosing: bool,
+}
+
+/// Every cylinder *view* sees end-on, including each hole's outermost step.
+fn others(analysis: &Analysis, view: &crate::model::PlannedView, holes: &[&Hole]) -> Vec<Other> {
+    let frame = placement::Frame::new(analysis, view);
     let axis = (0..3).max_by(|&i, &j| view.direction[i].abs().total_cmp(&view.direction[j].abs()));
-    let others: Vec<(P2, f64)> = holes
+    let mut circles: Vec<_> = holes
         .iter()
         .filter(|h| h.principal.map(|(k, _)| k) == axis)
         .map(|h| {
@@ -398,19 +565,163 @@ fn leader_candidates(
                 .map(|r| r.diameter)
                 .chain(h.countersink.map(|c| c.diameter))
                 .fold(h.diameter, f64::max);
-            (frame.page(h.at), 0.5 * outer * frame.scale())
+            Other {
+                c: frame.page(h.at),
+                r: 0.5 * outer * frame.scale(),
+                enclosing: false,
+            }
         })
         .collect();
+    // Other complete cylindrical outlines are competing targets too. A cylindrical patch
+    // (a groove or fillet) does not own the imaginary full disc of its supporting cylinder.
+    for (fi, a) in analysis.face_attachments.iter().enumerate() {
+        let (Some("cylinder"), Some(k), Some(b), Some(p), &[u, v]) = (
+            a.surface.as_deref(),
+            a.axis,
+            a.bounds,
+            a.sites.first(),
+            a.support.as_slice(),
+        ) else {
+            continue;
+        };
+        if Some(k) != axis {
+            continue;
+        }
+        let across: Vec<_> = (0..3).filter(|&j| j != k).collect();
+        let r = (p[across[0]] - u).hypot(p[across[1]] - v);
+        if across
+            .iter()
+            .zip([u, v])
+            .all(|(&j, c)| b[j] <= c - r + 1e-3 && b[j + 3] >= c + r - 1e-3)
+        {
+            let mut c = *p;
+            c[across[0]] = u;
+            c[across[1]] = v;
+            circles.push(Other {
+                c: frame.page(c),
+                r: r * frame.scale(),
+                enclosing: analysis.stock_faces.contains(&fi)
+                    || analysis.features.iter().any(|f| {
+                        matches!(f.kind.as_str(), "boss" | "turned_step")
+                            && f.faces.binary_search(&fi).is_ok()
+                    }),
+            });
+        }
+    }
+    circles
+}
+
+/// Whether *tip* lies on a proved span of its cylinder's circle. A clipped cylinder does
+/// not own the missing part of that circle (STC-09's open grooves, for example).
+fn on_rim(rim: &Rim, tip: P2) -> bool {
+    rim.trace
+        .as_ref()
+        .is_none_or(|(spans, tolerance)| spans.iter().any(|&s| near(s, tip, tolerance - 0.5)))
+}
+
+/// Whether *view* draws *rim* visible where a leader leaving its centre along page direction
+/// *u* meets it.
+fn rim_seen(analysis: &Analysis, view: &crate::model::PlannedView, rim: &Rim, u: P2) -> bool {
+    let (end, r) = match rim.seen {
+        Seen::Whole(seen) => return seen,
+        Seen::Rim { end, r } => (end, r),
+    };
+    let (Some(ink), Some(camera)) = (
+        analysis.edge_ink.as_ref(),
+        haecceity::hlr::View::new(view.direction, view.up),
+    ) else {
+        return true;
+    };
+    let d = [0, 1, 2].map(|k| u[0] * camera.x[k] + u[1] * camera.y[k]);
+    // Just inside and just outside the rim: the edge is hidden only where both are covered.
+    [0.98, 1.02].into_iter().any(|f| {
+        let p = [0, 1, 2].map(|k| end[k] + f * r * d[k]);
+        !covered(ink, &camera, p)
+    })
+}
+
+/// Whether *s* runs beside one of *view*'s centre lines, even only along its overrun past a
+/// rim, so that the two read as one line ([`crate::centrelines::runs_beside`], as the leader
+/// router avoids).
+fn along_centre(leader: &Leader, centre: P2, radius: f64, s: [P2; 2]) -> bool {
+    leader.view.line_work.iter().any(|w| {
+        crate::centrelines::segments(w).into_iter().any(|c| {
+            let own_arm = leader.own_arm
+                && w.kind == "cross"
+                && w.id
+                    .strip_prefix(&format!("ink:{}:", leader.view.id))
+                    .is_some_and(|id| leader.own.contains(id))
+                && (0..2).all(|k| (0.5 * (c[0][k] + c[1][k]) - centre[k]).abs() < 1e-6)
+                && c.iter().all(|p| {
+                    (p[0] - centre[0]).hypot(p[1] - centre[1])
+                        <= radius + crate::centrelines::overrun(radius) + 1e-6
+                });
+            (!own_arm && crate::centrelines::runs_beside(s, c))
+                || super::contacts::along_centreline(s, c)
+        })
+    })
+}
+
+/// Whether segment *s* from a rim at *c* passes through one of *others* (a hole other than one
+/// centred at *c*), so that it seems to point at it.
+fn through_others(others: &[Other], c: P2, r: f64, s: [P2; 2]) -> bool {
+    others.iter().any(|o| {
+        let d = (o.c[0] - c[0]).hypot(o.c[1] - c[1]);
+        d > 1e-6 && !(o.enclosing && d + r < o.r) && near(s, o.c, o.r)
+    })
+}
+
+/// Where frame *g* may sit on a leader to one of its rims (ASME Y14.5: a frame attached to its
+/// feature by a leader): the arrowhead on the circle, the leader radial to it out to its bend,
+/// then a shelf and the frame. The hole *mark* points at first (so a callout and its frame name
+/// the same hole), then the others by distance from it; the nearest bend first, pointing away
+/// from the view's middle first. Only rims the view draws visible ([`rim_seen`]) take the
+/// leader (ASME Y14.2, ISO 128-22: a leader ends on a visible outline, not on dashed
+/// line-work), or with *hidden* only those it draws hidden. No leader runs along a centre line
+/// or through another hole.
+fn leader_candidates(
+    analysis: &Analysis,
+    leader: &Leader,
+    g: &gdt::PlannedGdt,
+    mark: Option<&Mark>,
+    hidden: bool,
+    fine: bool,
+    taken: &[P2],
+) -> Vec<(&'static str, gdt::GdtPlaced)> {
+    let Some(old) = g.placed.as_ref() else {
+        return Vec::new();
+    };
+    let view = leader.view;
+    let frame = placement::Frame::new(analysis, view);
+    let o = frame.outline();
+    let middle = [0.5 * (o[0] + o[2]), 0.5 * (o[1] + o[3])];
+    let mut circles: Vec<&Rim> = leader
+        .rims
+        .iter()
+        .filter(|r| !matches!(r.seen, Seen::Whole(seen) if seen == hidden))
+        .collect();
+    if let Some(m) = mark {
+        let d = |c: P2| (c[0] - m.from[0]).hypot(c[1] - m.from[1]);
+        circles.sort_by(|a, b| d(a.c).total_cmp(&d(b.c)));
+    }
+    circles.truncate(3);
     let size = [
         old.label_box[2] - old.label_box[0],
         old.label_box[3] - old.label_box[1],
     ];
     let mut out = Vec::new();
     for reach in REACH {
-        for &(c, r) in &circles {
-            let mut directions: Vec<P2> = (0..8)
+        for rim in &circles {
+            let (c, r) = (rim.c, rim.r);
+            // Only after the ordinary eight directions fail, try the intermediate rays.
+            // A shallow diagonal can clear a centre mark while keeping a frame beside its
+            // view; 45 degrees may put it over the part or into the neighbouring view.
+            let divisions = if fine { 32 } else { 8 };
+            let step = std::f64::consts::FRAC_PI_4 / if fine { 4.0 } else { 1.0 };
+            let mut directions: Vec<P2> = (0..divisions)
+                .filter(|i| !fine || i % 4 != 0)
                 .map(|i| {
-                    let a = f64::from(i) * std::f64::consts::FRAC_PI_4;
+                    let a = f64::from(i) * step;
                     [a.cos(), a.sin()]
                 })
                 .collect();
@@ -420,13 +731,17 @@ fn leader_candidates(
             });
             for u in directions {
                 let tip = [c[0] + r * u[0], c[1] + r * u[1]];
-                if crowded(tip, taken) {
+                if !on_rim(rim, tip)
+                    || crowded(tip, taken)
+                    || rim_seen(analysis, view, rim, u) == hidden
+                {
                     continue;
                 }
                 let elbow = [c[0] + (r + reach) * u[0], c[1] + (r + reach) * u[1]];
-                if others.iter().any(|&(o, q)| {
-                    (o[0] - c[0]).hypot(o[1] - c[1]) > 1e-6 && near([tip, elbow], o, q)
-                }) {
+                if through_others(leader.others, c, r, [tip, elbow]) {
+                    continue;
+                }
+                if along_centre(leader, c, r, [tip, elbow]) {
                     continue;
                 }
                 // The shelf runs on away from the hole; a vertical leader's to either side.
@@ -445,15 +760,57 @@ fn leader_candidates(
                     next.lines = vec![[tip, elbow], [elbow, end]];
                     next.arrows = vec![placement::arrow(tip, elbow)];
                     // On one hole of several, the frame says how many it controls.
-                    if named.len() > 1 {
-                        gdt::with_count(&mut next, named.len());
+                    if leader.count > 1 {
+                        gdt::with_count(&mut next, leader.count);
                     }
-                    out.push((LEADER, next));
+                    if !through_others(leader.others, c, r, [elbow, end])
+                        && !along_centre(leader, c, r, [elbow, end])
+                    {
+                        out.push((LEADER, next));
+                    }
                 }
             }
         }
     }
     out
+}
+
+/// Whether some planar face of the part lies nearer the viewer of *camera* than point *end*,
+/// over it.
+fn covered(
+    ink: &crate::model::projected_ink::EdgeInk,
+    camera: &haecceity::hlr::View,
+    end: [f64; 3],
+) -> bool {
+    let t = camera.toward;
+    let dot = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+    let q = camera.map(end);
+    ink.planes.iter().any(|f| {
+        let along = dot(f.normal, t);
+        let Some(v0) = f.edges.first().and_then(|&e| ink.edges.get(e)?.first()) else {
+            return false;
+        };
+        if along.abs() < 1e-6 {
+            return false;
+        }
+        // How far toward the viewer the face's plane lies over the end.
+        if (dot(f.normal, *v0) - dot(f.normal, end)) / along <= 0.01 {
+            return false;
+        }
+        // Over the end, by the even-odd rule across all its loops' edges.
+        let mut inside = false;
+        for e in f.edges.iter().filter_map(|&e| ink.edges.get(e)) {
+            for w in e.windows(2) {
+                let (a, b) = (camera.map(w[0]), camera.map(w[1]));
+                if (a[1] > q[1]) != (b[1] > q[1])
+                    && q[0] < a[0] + (q[1] - a[1]) * (b[0] - a[0]) / (b[1] - a[1])
+                {
+                    inside = !inside;
+                }
+            }
+        }
+        inside
+    })
 }
 
 /// Whether *view* sees hole *h* end-on through an open end: no planar face of the part lies
@@ -467,110 +824,111 @@ fn seen(analysis: &Analysis, view: &crate::model::PlannedView, h: &Hole) -> bool
     let Some(camera) = haecceity::hlr::View::new(view.direction, view.up) else {
         return true;
     };
-    let t = camera.toward;
-    let dot = |a: [f64; 3], b: [f64; 3]| a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
     let mut ends = vec![h.at];
     if let (true, Some(depth)) = (h.through, h.depth) {
         ends.push([0, 1, 2].map(|k| h.at[k] + depth * h.direction[k]));
     }
-    let covered = |end: [f64; 3]| {
-        let q = camera.map(end);
-        ink.planes.iter().any(|f| {
-            let along = dot(f.normal, t);
-            let Some(v0) = f.edges.first().and_then(|&e| ink.edges.get(e)?.first()) else {
-                return false;
-            };
-            if along.abs() < 1e-6 {
-                return false;
-            }
-            // How far toward the viewer the face's plane lies over the end.
-            if (dot(f.normal, *v0) - dot(f.normal, end)) / along <= 0.01 {
-                return false;
-            }
-            // Over the end, by the even-odd rule across all its loops' edges.
-            let mut inside = false;
-            for e in f.edges.iter().filter_map(|&e| ink.edges.get(e)) {
-                for w in e.windows(2) {
-                    let (a, b) = (camera.map(w[0]), camera.map(w[1]));
-                    if (a[1] > q[1]) != (b[1] > q[1])
-                        && q[0] < a[0] + (q[1] - a[1]) * (b[0] - a[0]) / (b[1] - a[1])
-                    {
-                        inside = !inside;
-                    }
-                }
-            }
-            inside
-        })
-    };
-    ends.into_iter().any(|end| !covered(end))
+    ends.into_iter().any(|end| !covered(ink, &camera, end))
 }
 
-/// Frame *g* where it stands in *view*, its leader's first leg ending on the rim of one of its
-/// holes *named* instead (those the view draws visible, or with *hidden* those it draws hidden),
-/// nearest its old end first; none when *g* stands in another view.
+/// Frame *g* where it stands in its leader's view, its leader's first leg ending on one of its
+/// rims instead (those the view draws visible there, or with *hidden* those it draws hidden),
+/// nearest its old end first, where that leg neither runs along a centre line nor passes
+/// through another hole; none when *g* stands in another view.
 fn retargeted(
     analysis: &Analysis,
-    view: &crate::model::PlannedView,
-    holes: &[&Hole],
-    named: &BTreeSet<&str>,
+    leader: &Leader,
     g: &gdt::PlannedGdt,
     hidden: bool,
     taken: &[P2],
 ) -> Vec<(&'static str, gdt::GdtPlaced)> {
+    let view = leader.view;
     let Some(old) = g.placed.as_ref().filter(|_| g.view == view.id) else {
         return Vec::new();
     };
     let Some(&[_, next]) = old.lines.first().map(|l| l.as_slice()) else {
         return Vec::new();
     };
-    let frame = placement::Frame::new(analysis, view);
-    let mut circles: Vec<(P2, f64)> = holes
-        .iter()
-        .filter(|h| named.contains(h.feature.id.as_str()) && seen(analysis, view, h) != hidden)
-        .map(|h| (frame.page(h.at), 0.5 * h.diameter * frame.scale()))
-        .collect();
+    let mut circles: Vec<&Rim> = leader.rims.iter().collect();
     let d = |c: P2| (c[0] - old.tip[0]).hypot(c[1] - old.tip[1]);
-    circles.sort_by(|a, b| d(a.0).total_cmp(&d(b.0)));
-    circles
-        .into_iter()
-        .filter_map(|(c, r)| {
+    circles.sort_by(|a, b| d(a.c).total_cmp(&d(b.c)));
+    // Preserve the frame's existing paper first. Besides shortening its old shaft, try
+    // either side of that same frame with a longer horizontal shelf. This gives a radial
+    // shaft room to leave a centre line without stealing another size mark's paper.
+    let mut routes = vec![(next, old.lines.clone())];
+    if old.lines.len() == 2 {
+        for reach in REACH {
+            for (x, dir) in [(old.label_box[0], -1.0), (old.label_box[2], 1.0)] {
+                let end = [x, old.lines[1][1][1]];
+                let elbow = [x + dir * reach, end[1]];
+                routes.push((elbow, vec![[old.tip, elbow], [elbow, end]]));
+            }
+        }
+    }
+    let mut out = Vec::new();
+    for rim in circles {
+        let (c, r) = (rim.c, rim.r);
+        for (next, lines) in &routes {
             let (dx, dy) = (next[0] - c[0], next[1] - c[1]);
             let n = dx.hypot(dy);
             if n <= r {
-                return None;
+                continue;
             }
-            let tip = [c[0] + r * dx / n, c[1] + r * dy / n];
-            if crowded(tip, taken) {
-                return None;
+            let u = [dx / n, dy / n];
+            let tip = [c[0] + r * u[0], c[1] + r * u[1]];
+            if !on_rim(rim, tip)
+                || crowded(tip, taken)
+                || rim_seen(analysis, view, rim, u) == hidden
+            {
+                continue;
+            }
+            if std::iter::once([tip, *next])
+                .chain(lines.iter().skip(1).copied())
+                .any(|s| through_others(leader.others, c, r, s) || along_centre(leader, c, r, s))
+            {
+                continue;
             }
             let mut p = old.clone();
             p.tip = tip;
+            p.lines.clone_from(lines);
             p.lines[0][0] = tip;
-            p.arrows = vec![placement::arrow(tip, next)];
-            if named.len() > 1 {
-                gdt::with_count(&mut p, named.len());
+            p.arrows = vec![placement::arrow(tip, *next)];
+            if leader.count > 1 {
+                gdt::with_count(&mut p, leader.count);
             }
-            Some((LEADER, p))
-        })
-        .collect()
+            out.push((LEADER, p));
+        }
+    }
+    out
 }
 
 /// Where the leaders of *view*'s items other than *id* end: a second leader ending at one of
-/// them would read as the same leader.
+/// them would read as the same leader. A frame on the same faces as *id* may share it.
 fn tips(plan: &Plan, view: &str, id: &str) -> Vec<P2> {
     let dims = plan
         .dimensions
         .iter()
         .filter(|d| d.view == view && d.id != id)
         .filter_map(|d| Some(d.placed.as_ref()?.lines.first()?[0]));
+    let faces = plan.gdt.iter().find(|q| q.id == id).map(|q| &q.faces);
     let frames = plan
         .gdt
         .iter()
-        .filter(|q| q.view == view && q.id != id)
+        .filter(|q| q.view == view && q.id != id && Some(&q.faces) != faces)
         .filter_map(|q| q.placed.as_ref())
         .filter(|p| !p.lines.is_empty())
         .map(|p| p.tip);
     dims.chain(frames).collect()
+}
+
+/// Whether only the leader changed: the frame and its text keep exactly their existing ink.
+fn same_glyph(old: &gdt::GdtPlaced, next: &gdt::GdtPlaced) -> bool {
+    old.label_box == next.label_box
+        && old.strokes == next.strokes
+        && old.arcs == next.arcs
+        && old.fills == next.fills
+        && old.letters == next.letters
+        && old.runs == next.runs
 }
 
 /// Whether *tip* lies within a millimetre of one of *taken*, the ends of other leaders.
@@ -608,6 +966,18 @@ fn points_elsewhere(
         .any(|h| {
             let c = frame.page(h.at);
             (c[0] - p.tip[0]).hypot(c[1] - p.tip[1]) < 0.3
+        })
+}
+
+/// Whether frame *g*'s leader in *view* ends within a millimetre of the centre of one of its
+/// own *rims*: on the axis, which among concentric circles says none of them.
+fn on_axis(view: &crate::model::PlannedView, rims: &[Rim], g: &gdt::PlannedGdt) -> bool {
+    g.view == view.id
+        && g.placed.as_ref().is_some_and(|p| {
+            !p.lines.is_empty()
+                && rims
+                    .iter()
+                    .any(|r| (r.c[0] - p.tip[0]).hypot(r.c[1] - p.tip[1]) < 1.0)
         })
 }
 
@@ -704,9 +1074,16 @@ pub(super) fn settle(
         )
         .collect();
     let before = placement::collisions_for(analysis, &all, sheet, &plan.views, cache, id);
+    let old = plan.gdt[gi]
+        .placed
+        .as_ref()
+        .filter(|_| plan.gdt[gi].view == view.id);
     let mut chosen = None;
     for (side, next) in candidates {
-        if !clear(&next, attached, &peers, &outlines, &paper) {
+        // An unchanged frame retains its old paper; only its new leader is checked against
+        // the existing findings below. A repair must not increase any of their counts.
+        let held = side == LEADER && old.is_some_and(|o| same_glyph(o, &next));
+        if !held && !clear(&next, attached, &peers, &outlines, &paper) {
             continue;
         }
         let mut trial = plan.gdt[gi].clone();
@@ -724,6 +1101,9 @@ pub(super) fn settle(
             let mut codes = vec!["leader_through_feature"];
             if relaxed {
                 codes.push("annotation_leader_crossing");
+            }
+            if held {
+                codes.extend(ps.iter().map(|p| p.code.as_str()));
             }
             codes.retain(|c| side == LEADER && count(ps, c) <= count(&before, c));
             ps.iter()
@@ -861,9 +1241,11 @@ pub(crate) fn attachments(analysis: &Analysis, plan: &Plan) -> BTreeMap<String, 
     finished
         .gdt
         .iter()
-        .filter(|g| attached(g) && !g.basis.contains(HIDDEN))
+        .filter(|g| attached(g) && !led_to_hidden(g))
         .map(|g| {
-            let on_callout = g.side != LEADER && !g.basis.contains(ON_FRAME);
+            let on_callout = g.side != LEADER
+                && !g.basis.contains(ON_FRAME)
+                && !g.basis.contains(CYLINDER_FRAME);
             let callout = target(analysis, &plan.spec, &finished, &holes, g)
                 .filter(|_| on_callout)
                 .and_then(|(vi, named)| mark(&finished, &named, &finished.views[vi].id))
@@ -878,17 +1260,148 @@ pub(crate) fn attachments(analysis: &Analysis, plan: &Plan) -> BTreeMap<String, 
 /// than naming the view it was lowered into.
 pub(crate) fn attached(g: &gdt::PlannedGdt) -> bool {
     g.basis.contains(ATTACHED)
+        || g.basis.contains(CYLINDER_CALLOUT)
+        || g.basis.contains(CYLINDER_RIM)
+        || g.basis.contains(CYLINDER_FRAME)
 }
 
 /// Whether frame *g* leads to one of its holes where its view draws it hidden, as no view
 /// shows its holes visible and it has no place on their mark (a frame stacked on such a frame's
 /// shelf shares that leader).
 pub(crate) fn led_to_hidden(g: &gdt::PlannedGdt) -> bool {
-    attached(g) && g.basis.contains(HIDDEN)
+    attached(g) && (g.basis.contains(HIDDEN) || g.basis.contains(CYLINDER_HIDDEN))
 }
 
 /// What the basis of an attached glyph says.
 const ATTACHED: &str = ", which sees the hole";
+
+/// Where frame *g* would attach when its faces are one cylinder that is no hole's bore (a shaft,
+/// boss or turned step): the index of the principal view down its axis, the feature whose faces
+/// they are (none when no one feature claims them all), and its rim there; none when the Spec
+/// places it in that view or side.
+fn cylinder<'a>(
+    analysis: &'a Analysis,
+    spec: &Spec,
+    plan: &Plan,
+    g: &gdt::PlannedGdt,
+) -> Option<(usize, BTreeSet<&'a str>, Rim)> {
+    let first = analysis.face_attachments.get(*g.faces.first()?)?;
+    let k = first.axis?;
+    let &[u, v] = first.support.as_slice() else {
+        return None;
+    };
+    let across: Vec<usize> = (0..3).filter(|&j| j != k).collect();
+    let mut radius = None;
+    let (mut lo, mut hi) = (f64::INFINITY, f64::NEG_INFINITY);
+    for &face in &g.faces {
+        let a = analysis.face_attachments.get(face)?;
+        let (Some("cylinder"), Some(axis), Some(b), Some(p)) =
+            (a.surface.as_deref(), a.axis, a.bounds, a.sites.first())
+        else {
+            return None;
+        };
+        // One cylinder: the same axis and radius across every face (a cylinder split in halves).
+        let r = (p[across[0]] - u).hypot(p[across[1]] - v);
+        if axis != k
+            || a.support.len() != 2
+            || (a.support[0] - u).abs() > 1e-6
+            || (a.support[1] - v).abs() > 1e-6
+            || radius.is_some_and(|q: f64| (q - r).abs() > 1e-3 * r.max(1.0))
+        {
+            return None;
+        }
+        radius = Some(r);
+        lo = lo.min(b[k]);
+        hi = hi.max(b[k + 3]);
+    }
+    let r = radius?;
+    let vi = plan.views.iter().position(|w| {
+        super::NAMES.contains(&w.id.trim_start_matches("v:")) && w.direction[k].abs() > 0.999
+    })?;
+    let view = &plan.views[vi];
+    if spec
+        .annotations
+        .get(&g.id)
+        .and_then(|a| a.place.as_ref())
+        .is_some_and(|p| lowered(p, view.id.trim_start_matches("v:")))
+    {
+        return None;
+    }
+    // Its end facing the viewer, on its axis.
+    let mut end = [0.0; 3];
+    end[k] = if view.direction[k] > 0.0 { hi } else { lo };
+    end[across[0]] = u;
+    end[across[1]] = v;
+    let frame = placement::Frame::new(analysis, view);
+    // Only actual circular boundary spans belong to this cylinder. In particular, neither
+    // the untrimmed half of an open groove nor the gap cut by flats may receive an arrow.
+    let tolerance = crate::model::projected_ink::TOLERANCE + crate::model::projected_ink::GRID;
+    let trace = analysis.edge_ink.as_ref().map(|ink| {
+        let radial = |p: [f64; 3]| (p[across[0]] - u).hypot(p[across[1]] - v);
+        let spans = ink
+            .edges
+            .iter()
+            .flat_map(|e| e.windows(2))
+            .filter(|s| {
+                (s[0][k] - s[1][k]).abs() <= tolerance
+                    && s.iter().all(|p| {
+                        p[k] >= lo - tolerance
+                            && p[k] <= hi + tolerance
+                            && (radial(*p) - r).abs() <= tolerance
+                    })
+            })
+            .map(|s| [frame.page(s[0]), frame.page(s[1])])
+            .collect();
+        (spans, tolerance * frame.scale())
+    });
+    let rim = Rim {
+        c: frame.page(end),
+        r: r * frame.scale(),
+        seen: Seen::Rim { end, r },
+        trace,
+    };
+    let mut owners = analysis
+        .features
+        .iter()
+        .filter(|f| g.faces.iter().all(|x| f.faces.binary_search(x).is_ok()));
+    let named = match (owners.next(), owners.next()) {
+        (Some(f), None) => BTreeSet::from([f.id.as_str()]),
+        _ => BTreeSet::new(),
+    };
+    Some((vi, named, rim))
+}
+
+/// The size annotation of the cylinder of feature *named* in any view: a shown dimension stating its
+/// diameter, and nothing of another feature's but the PMI dimensions that tolerance it and the
+/// part's envelope it may also be.
+fn cylinder_mark(plan: &Plan, named: &BTreeSet<&str>, radius: f64) -> Option<Mark> {
+    let &[id] = named.iter().copied().collect::<Vec<_>>().as_slice() else {
+        return None;
+    };
+    let d = plan.dimensions.iter().find(|d| {
+        matches!(d.kind.as_str(), "callout" | "linear")
+            && d.state == crate::items::State::Shown
+            && d.placed.is_some()
+            && d.measurements.iter().any(|m| {
+                m.feature == id
+                    && m.parameter.ends_with("diameter")
+                    && (m.value - 2.0 * radius).abs() < 1e-3
+            })
+            && d.measurements.iter().all(|m| {
+                m.feature == id || m.feature.starts_with("pmi:") || m.feature == "envelope"
+            })
+            && !counted(&d.label)
+    })?;
+    let p = d.placed.as_ref()?;
+    Some(Mark {
+        id: d.id.clone(),
+        view: d.view.clone(),
+        label_box: p.label_box,
+        from: p.lines.first().map_or(p.label_at, |l| l[0]),
+        tag: false,
+        name: CYLINDER_CALLOUT.into(),
+    })
+}
 
 /// The holes whose bores *faces* are, each face a cylinder of one hole at its bore's diameter
 /// (not a counterbore, spotface or countersink), or none.
@@ -957,6 +1470,7 @@ fn mark(plan: &Plan, named: &BTreeSet<&str>, view: &str) -> Option<Mark> {
         let p = d.placed.as_ref()?;
         return Some(Mark {
             id: d.id.clone(),
+            view: d.view.clone(),
             label_box: p.label_box,
             from: p.lines.first().map_or(p.label_at, |l| l[0]),
             tag: false,
@@ -976,6 +1490,7 @@ fn mark(plan: &Plan, named: &BTreeSet<&str>, view: &str) -> Option<Mark> {
     })?;
     Some(Mark {
         id: b.id.clone(),
+        view: b.view.clone(),
         label_box: b.label_box?,
         from: b.leader.map_or(b.at, |l| l[0]),
         tag: true,
