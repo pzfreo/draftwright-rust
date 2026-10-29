@@ -1051,9 +1051,31 @@ fn a_turned_part_with_a_stepped_bore_draws_its_profile_as_a_half_section() {
     );
 }
 
-/// `views/<name>/half_section` steers the choice: false keeps lm10uu's side view whole, true
-/// cuts lm8uu's plain bore, and a view with no turned profile seen side on stays whole with a
-/// warning.
+/// lm8uu (dw-examples): a bearing sleeve whose ⌀12.4 through bore runs under two ⌀13.4 outer
+/// grooves draws its profile as a half section, so the thin wall left at each groove reads as a
+/// section edge; its end view stays whole.
+#[test]
+fn a_bore_under_outer_grooves_draws_its_profile_as_a_half_section() {
+    let (_, p, d) =
+        drawing(&Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts/lm8uu.step.gz"));
+    let side = p.views.iter().find(|v| v.id == "v:side").unwrap();
+    assert!(side.half_section.is_some(), "{}", side.basis);
+    assert!(side.basis.contains("runs under a groove"), "{}", side.basis);
+    assert_eq!(
+        p.views.iter().filter(|v| v.half_section.is_some()).count(),
+        1
+    );
+    assert!(
+        d.sheet
+            .items
+            .iter()
+            .any(|i| i.name == "v:side/half_section_hatch")
+    );
+}
+
+/// `views/<name>/half_section` steers the choice: false keeps lm10uu's and lm8uu's side views
+/// whole, true cuts t8-flange-nut's front view (a turned part the automatic rule leaves whole),
+/// and a view with no turned profile seen side on stays whole with a warning.
 #[test]
 fn the_spec_forces_or_forbids_a_half_section() {
     let parts = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts");
@@ -1069,7 +1091,10 @@ fn the_spec_forces_or_forbids_a_half_section() {
         .find(|q| q.id == "d:f:boss:1/boss.diameter")
         .unwrap();
     assert_eq!(ring.placed.as_ref().unwrap().lines.len(), 3);
-    let (_, p, d) = drawing(&parts.join("lm8uu.step.gz"));
+    let (_, p, d) = drawing_with(
+        &parts.join("lm8uu.step.gz"),
+        &spec(serde_json::json!({"views": {"side": {"half_section": false}}})),
+    );
     assert!(p.views.iter().all(|v| v.half_section.is_none()));
     assert!(
         d.sheet
@@ -1077,27 +1102,29 @@ fn the_spec_forces_or_forbids_a_half_section() {
             .iter()
             .all(|i| i.kind != draftwright::output::Kind::Hatch)
     );
+    let (_, p, _) = drawing(&parts.join("t8-flange-nut.step.gz"));
+    assert!(p.views.iter().all(|v| v.half_section.is_none()));
     let (_, p, d) = drawing_with(
-        &parts.join("lm8uu.step.gz"),
+        &parts.join("t8-flange-nut.step.gz"),
         &spec(
-            serde_json::json!({"views": {"side": {"half_section": true}, "front": {"half_section": true}}}),
+            serde_json::json!({"views": {"front": {"half_section": true}, "plan": {"half_section": true}}}),
         ),
     );
-    let side = p.views.iter().find(|v| v.id == "v:side").unwrap();
-    assert!(side.half_section.is_some());
-    assert!(side.basis.contains("as the spec asks"));
+    let front = p.views.iter().find(|v| v.id == "v:front").unwrap();
+    assert!(front.half_section.is_some());
+    assert!(front.basis.contains("as the spec asks"));
     assert!(
         d.sheet
             .items
             .iter()
-            .any(|i| i.name == "v:side/half_section_hatch")
+            .any(|i| i.name == "v:front/half_section_hatch")
     );
-    let front = p.views.iter().find(|v| v.id == "v:front").unwrap();
-    assert!(front.half_section.is_none());
+    let plan = p.views.iter().find(|v| v.id == "v:plan").unwrap();
+    assert!(plan.half_section.is_none());
     assert!(
         p.problems
             .iter()
-            .any(|q| q.id == "p:section_not_shown:v:front" && q.severity == "warning")
+            .any(|q| q.id == "p:section_not_shown:v:plan" && q.severity == "warning")
     );
 }
 

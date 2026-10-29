@@ -61,6 +61,15 @@ Now on quiddity-rust **v0.2.2**.
 - The final gutter pass now keeps the isometric 6 mm from a table, not 2 mm. Its bounds are drawn
   ink rather than a padded band, so 2 mm left it almost touching the table (FTC-08). Seven drawings
   move their isometric 3 to 4 mm; nothing else changes.
+- The automatic half section covers more turned parts. Besides a coaxial counterbore, spotface or
+  countersink, it now fires when the bore changes diameter along the axis, when a groove is turned
+  inside the material, or when a through bore runs under an outer groove, as on a bush or linear
+  bearing. The rule is whether the section shows something hidden lines cannot show cleanly: a
+  plain bore under a plain or merely stepped outline stays a plain view (gt2-pulley's ⌀5 bore,
+  t8-flange-nut). dw-examples' lm8uu now draws its side view half cut, the thin wall under each
+  ⌀13.4 groove a section edge. No other dw-examples drawing or quality part changes;
+  in the wider corpus, cadgenbench/threaded_connector_109 now draws its front view half cut too.
+  `views/<name>/half_section` still forces (`true`) or forbids (`false`) it.
 
 ### WASM API
 
