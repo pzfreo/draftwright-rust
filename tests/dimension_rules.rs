@@ -685,7 +685,8 @@ fn a_hole_with_a_counterbore_and_a_spotface_states_both() {
     let (part, analysis) = analysed_with("plate", &json);
     let plan = model::plan(&analysis, &Spec::default()).unwrap();
     let c = find(&plan, "d:f:hole_pattern:1/bore.diameter");
-    assert_eq!(c.label, "4× ⌀6 THRU ⌴ ⌀11 ↧ 6.4\n⌴SF ⌀20 ↧ 1");
+    // Two steps: the bore, then each step on its own line (maintainer decision, 2026-10-29).
+    assert_eq!(c.label, "4× ⌀6 THRU\n⌴ ⌀11 ↧ 6.4\n⌴SF ⌀20 ↧ 1");
     for (parameter, value) in [
         ("counterbore.diameter", 11.0),
         ("counterbore.depth", 6.4),
@@ -708,6 +709,22 @@ fn a_hole_with_a_counterbore_and_a_spotface_states_both() {
         .map(|i| format!("{} {:?}", i.code, i.requirements))
         .collect();
     assert!(found.is_empty(), "{found:#?}");
+    // A hole-table row states the stacked steps on one line, in callout order.
+    let spec: Spec = serde_json::from_value(json!({"hole_table": "always"})).unwrap();
+    let tabled = serde_json::to_value(model::plan_escalated(&analysis, &spec).unwrap()).unwrap();
+    let cells: Vec<&str> = tabled["hole_tables"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .flat_map(|t| t["rows"].as_array().unwrap())
+        .flat_map(|r| r["cells"].as_array().unwrap())
+        .filter_map(Value::as_str)
+        .filter(|c| c.contains('⌴'))
+        .collect();
+    assert!(!cells.is_empty(), "{tabled}");
+    for cell in cells {
+        assert_eq!(cell, "⌀6 THRU ⌴ ⌀11 ↧ 6.4 ⌴SF ⌀20 ↧ 1");
+    }
 }
 
 /// ADR4-7: a through hole's depth is not part of its callout, so a through hole whose record
