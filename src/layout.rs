@@ -68,11 +68,11 @@ pub fn dim_pad() -> f64 {
 /// The isometric's estimated width as a fraction of the part's largest extent, and the fraction
 /// of that its rectangle must hold for a candidate to fit.
 const ISO_WIDTH_BUDGET: f64 = 0.7;
-const ISO_MIN_FIT_FRAC: f64 = 0.6;
+pub(crate) const ISO_MIN_FIT_FRAC: f64 = 0.6;
 /// The isometric grows at most this much to fill its rectangle.
 const ISO_MAX_GROW: f64 = 1.3;
 /// Blank paper between neighbouring views' reserved bands: the floor, and what spare room buys.
-const VIEW_GUTTER: f64 = 6.0;
+pub(crate) const VIEW_GUTTER: f64 = 6.0;
 const VIEW_GUTTER_PREFERRED: f64 = 12.0;
 /// Breathing room a table is first offered beyond its hard clearance.
 pub(crate) const PREFERRED_BLOCK_GUTTER: f64 = 6.0;

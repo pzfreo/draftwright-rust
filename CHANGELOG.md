@@ -25,6 +25,15 @@ Now on quiddity-rust **v0.2.2**.
 - A capped drawing that has left its established paper now takes an uncapped drawing at a larger
   scale on paper no larger, unless that drawing has more hard findings, drops more or fits worse.
   STC-08 stays on A1 1:1.
+- When moving the isometric to a second sheet clears sheet 1, the isometric now comes back to
+  sheet 1 if the finished sheet has room for it. It is centred in the largest clear area and may
+  shrink to 0.6× (drawn NTS), as on a single sheet. A sheet with nothing but the isometric is now
+  a last resort. FTC-08 (rc) moves from A1 to A2 at 1:2 and its `detail_unplaceable` warning
+  goes. The dw-examples CTC-04 moves from A0 to A1 at 1:5. Both are still one sheet. A sheet holding
+  the isometric and a table is no longer refused as pictorial-only.
+- Each refused paper request in the sheet-choice basis now names the check that refused it,
+  such as `a sheet carries only the pictorial view`, `required items not carried`, or the new
+  unreadable finding codes. Before, these refusals all gave the same generic text.
 
 ### WASM API
 

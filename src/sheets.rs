@@ -538,6 +538,10 @@ fn allocate_inner(
             continue;
         }
         previous = p.clone();
+        // A sheet of nothing but the isometric is a last resort: the isometric goes back
+        // beside the views it explains when the finished sheet 1 has room for it, and
+        // otherwise a later prefix may give it a table to share its sheet with.
+        let rehomed = rehome_isometric(analysis, spec, &mut p);
         let (mut f, dropped) = score(analysis, spec, &p);
         // A practical-paper rescue must pass the whole-document gate before an early
         // clean prefix can stop the search. Later prefixes may restore a seed measurement
@@ -546,17 +550,32 @@ fn allocate_inner(
             f.hard += 1;
         }
         let hard = f.hard;
+        let pictorial = crate::sheet_policy::pictorial_only_sheet(spec, &p);
         tried.push(format!(
-            "step {step}: {} hard findings, {dropped} required drops, scale {}, moved {}",
+            "step {step}: {} hard findings, {dropped} required drops, scale {}, moved {}{}",
             hard,
             p.sheet.scale,
-            moved.keys().cloned().collect::<Vec<_>>().join(", ")
+            moved.keys().cloned().collect::<Vec<_>>().join(", "),
+            if pictorial {
+                ", a sheet with only the isometric"
+            } else if rehomed {
+                ", then the isometric returned to sheet 1"
+            } else {
+                ""
+            }
         ));
-        let rank = (hard, dropped, -p.sheet.scale_factor, p.sheets.len(), step);
+        let rank = (
+            hard,
+            dropped,
+            pictorial,
+            -p.sheet.scale_factor,
+            p.sheets.len(),
+            step,
+        );
         if best.as_ref().is_none_or(|(r, _)| rank < *r) {
             best = Some((rank, p));
         }
-        if hard == 0 && dropped == 0 {
+        if hard == 0 && dropped == 0 && !pictorial {
             break;
         }
     }
@@ -892,6 +911,92 @@ fn extra_sheet(first: &PlannedSheet, number: u32) -> PlannedSheet {
     sheet.basis = "same paper as sheet 1; assigned tables then auxiliary view blocks".into();
     sheet.projection_symbol = None;
     sheet
+}
+
+/// A freely fitted isometric alone on the last sheet goes back to sheet 1 when that sheet's
+/// finished ink leaves room for it: at its parent scale, shrunk no further than the
+/// single-sheet layout allows ([`layout::ISO_MIN_FIT_FRAC`]), centred in the largest clear
+/// rectangle as the single-sheet layout centres it. The emptied sheet is removed.
+fn rehome_isometric(analysis: &Analysis, spec: &Spec, plan: &mut Plan) -> bool {
+    let Some(last) = plan.sheets.last().map(|s| s.number) else {
+        return false;
+    };
+    let on_last: Vec<_> = plan.views.iter().filter(|v| v.sheet == last).collect();
+    if !crate::sheet_policy::pictorial_only_sheet(spec, plan)
+        || on_last.len() != 1
+        || on_last[0].id != "v:iso"
+        || plan
+            .hole_table
+            .iter()
+            .chain(&plan.hole_tables)
+            .any(|t| t.sheet == last)
+        || plan.tables.iter().any(|t| t.sheet == last)
+    {
+        return false;
+    }
+    let mut first = plan.clone();
+    first.sheets.clear();
+    first.views.retain(|v| v.sheet == 1);
+    let carried: BTreeSet<_> = first.views.iter().map(|v| v.id.clone()).collect();
+    first.dimensions.retain(|d| carried.contains(&d.view));
+    first.gdt.retain(|g| carried.contains(&g.view));
+    first.balloons.retain(|b| carried.contains(&b.view));
+    first.captions.retain(|c| carried.contains(&c.view));
+    first.tables.retain(|t| t.sheet == 1);
+    first.hole_table = first.hole_table.filter(|t| t.sheet == 1);
+    first.hole_tables.retain(|t| t.sheet == 1);
+    let mut obstacles = crate::sheet_fit::footprints(analysis, &first);
+    obstacles.extend(crate::sheet_fit::view_ink(analysis, &first));
+    obstacles.extend(crate::sheet_fit::framed_footprints(analysis, &first));
+    obstacles.extend(first.views.iter().map(|v| v.area));
+    obstacles.push(first.sheet.title_block);
+    let gutter = layout::VIEW_GUTTER;
+    for b in &mut obstacles {
+        *b = [b[0] - gutter, b[1] - gutter, b[2] + gutter, b[3] + gutter];
+    }
+    let page = first.sheet.page;
+    let region = [
+        layout::margin() + 2.,
+        layout::margin() + 2.,
+        page[0] - layout::margin() - 2.,
+        page[1] - layout::margin() - 2.,
+    ];
+    let room = layout::largest_empty_rect(region, &obstacles, [1., 1.]);
+    if obstacles.iter().any(|o| overlap(room, *o)) {
+        return false;
+    }
+    let parent = plan.sheet.scale_factor;
+    let fractions: Vec<f64> = if let Some(f) = spec.iso_scale_factor {
+        vec![f]
+    } else {
+        (0..)
+            .map(|k| 1. - 0.1 * f64::from(k))
+            .take_while(|f| *f + 1e-9 >= layout::ISO_MIN_FIT_FRAC)
+            .collect()
+    };
+    for fraction in fractions {
+        let Some(mut iso) = auxiliary(analysis, "iso", fraction * parent, 1, parent) else {
+            return false;
+        };
+        let size = [iso.area[2] - iso.area[0], iso.area[3] - iso.area[1]];
+        if size[0] > room[2] - room[0] || size[1] > room[3] - room[1] {
+            continue;
+        }
+        let delta = [
+            (room[0] + room[2] - size[0]) / 2. - iso.area[0],
+            (room[1] + room[3] - size[1]) / 2. - iso.area[1],
+        ];
+        shift(&mut iso, delta);
+        iso.basis = "isometric returned beside the views it explains, centred in the largest clear rectangle of sheet 1".into();
+        iso.default = !spec.views.contains_key("iso");
+        for v in plan.views.iter_mut().filter(|v| v.id == "v:iso") {
+            *v = iso.clone();
+        }
+        plan.captions.retain(|c| c.view != "v:iso");
+        plan.sheets.pop();
+        return true;
+    }
+    false
 }
 
 /// Pack assigned groups first, then fill the remaining sheets from 2 upwards. A group is atomic.
@@ -2320,5 +2425,36 @@ mod tests {
         assert_eq!(p.balloons.len(), 18);
         assert_eq!(p.views.iter().find(|v| v.id == "v:iso").unwrap().sheet, 2);
         assert!(!check(&p).iter().any(|p| p.code == "views_overlap"));
+    }
+
+    #[test]
+    fn a_lone_isometric_returns_to_sheet_one_when_it_has_room() {
+        let path = std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/parts/prismatic.step");
+        let (_, analysis) = model::analyse_native(&path).unwrap();
+        let spec: Spec = serde_json::from_value(json!({"sheets": {"max": 2}})).unwrap();
+        let mut p = model::plan(&analysis, &spec).unwrap();
+        let moved = BTreeMap::from([("iso".into(), 0)]);
+        assert!(pack(&analysis, &spec, &moved, &mut p));
+        assert_eq!(p.sheets.len(), 1);
+        assert!(crate::sheet_policy::pictorial_only_sheet(&spec, &p));
+        // The author's own assignment keeps the isometric on its sheet.
+        let authored: Spec =
+            serde_json::from_value(json!({"sheets": {"max": 2}, "views": {"iso": {"sheet": 2}}}))
+                .unwrap();
+        assert!(!rehome_isometric(&analysis, &authored, &mut p.clone()));
+        assert!(rehome_isometric(&analysis, &spec, &mut p));
+        assert!(p.sheets.is_empty());
+        let iso = p.views.iter().find(|v| v.id == "v:iso").unwrap();
+        assert_eq!(iso.sheet, 1);
+        assert!(iso.scale + 1e-9 >= layout::ISO_MIN_FIT_FRAC * p.sheet.scale_factor);
+        assert!(!overlap(iso.area, p.sheet.title_block));
+        assert!(
+            p.views
+                .iter()
+                .filter(|v| v.id != "v:iso")
+                .all(|v| !overlap(iso.area, v.area))
+        );
+        assert!(!crate::sheet_policy::pictorial_only_sheet(&spec, &p));
     }
 }
