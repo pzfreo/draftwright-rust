@@ -2939,3 +2939,157 @@ PMI source IDs such as `dimension:#640`; original plan-item IDs are also accepte
 key wins when both exist. Positions are checked for clearance; unsafe pins remain undrawn
 and reported. With inspection enabled, `characteristic_not_drawn` and
 `characteristic_balloon_missing` have `incomplete` impact, including explicit suppression.
+
+
+## Drawing packs (#41)
+
+`draftwright pack assembly.step -o directory [--spec pack.json]
+[--formats pdf,csv,json]` builds one drawing set per distinct made part, one
+multi-page `pack.pdf`, RFC 4180 `pack.csv`, and `pack.json`. The library entry
+points are `pack::build` (report and drawings in memory) and `pack::render`
+(report and encoded files). The default formats are PDF, CSV and JSON. Failures
+of individual parts retain their rows and error details, with no sheet reference;
+other made parts still draw. Zero made sheets produces a zero-page PDF. The CLI
+returns success for a completed report even when it contains failed parts; check
+`rows[].error` and `rows[].problems` before sending a pack to manufacture.
+
+The independent, strict pack Spec (`schemas/pack-spec.json`) contains intent:
+
+```json
+{
+  "schema": "draftwright.pack-spec/1",
+  "parts": {
+    "GRM-01 shank": {
+      "supply": "make",
+      "item": 12,
+      "quantity": 4,
+      "separate": false,
+      "drawing": {
+        "schema": "draftwright.spec/2",
+        "sheet": { "size": "A3" }
+      }
+    }
+  }
+}
+```
+
+All entries are optional; absent drawing intent uses the ordinary drawing Spec.
+Unknown document fields and unknown part keys are refused. Item and quantity
+must be positive. Quantity replaces the total for the group (for a shop order,
+for example), rather than multiplying each instance. `supply` overrides the guess.
+`separate: true` keeps a product out of automatic geometry merges. A nested
+`drawing` is the existing Spec, including its binding and normal validation;
+a bad drawing Spec is reported on that part and does not stop other drawings.
+An override on any member applies to the merged group; conflicting overrides
+are refused with instructions to separate the products.
+
+Product definitions already aggregate their placements in haecceity. Leaf keys,
+also shown as `key` by `draftwright parts`, never contain STEP entity numbers:
+
+1. Use the trimmed product **name** when nonempty and unique in the file.
+2. Otherwise use a unique, meaningful product ID (not empty or a generic
+   `SOLID`, `COMPOUND`, `ASSEMBLY`, `PART`, `PRODUCT` or `UNNAMED`, ignoring case).
+3. Otherwise use the name plus its one-based occurrence in assembly order,
+   such as `ASSEMBLY#2`. Blank names use `unnamed#1`, `unnamed#2`, etc.
+
+Literal unique names reserve their keys before generated occurrence keys; append
+`#` to a generated key until it is unused if a literal name already occupies it.
+A name/ID collision keeps the unique name and gives the ID-addressed product an
+occurrence key. These keys
+survive entity renumbering on re-export. Renaming products, inserting/reordering
+ambiguous names, or changing grouping can change keys; a Spec key matching no
+leaf or group is refused with the complete valid-key list, never silently ignored.
+The library's `pack::part_keys` provides the same leaf keys without drawing.
+
+When **all** geometry-merged names differ only by a trailing numeric index after
+`_`, `-` or a space, use the common stem for the group's key **and display name**:
+`wheel_1` … `wheel_5` become `wheel`. Otherwise keep the first member's key/name.
+A stem colliding with an unrelated leaf key falls back to the first member's key.
+`products` lists all leaf keys; `part_indices` preserves the original indices.
+A Spec may address the group stem or any member; their overrides must agree.
+`separate` addresses individual leaf keys, not a merged-only stem (the error
+names this requirement). No geometry hash is a user-facing identity.
+
+Geometry equality first compares the exact resolved B-rep definition in the
+products’ own frames: surfaces (including NURBS poles, weights and knots),
+edge curves and endpoints, face orientation, loops, pcurves and solid topology.
+This path needs no sampled inversion, fingerprint or face-area integration.
+Fingerprints are computed lazily only for compatible nonidentical B-reps. Otherwise it
+tries the products’ own frames with fingerprints, then quiddity’s
+fingerprint alignment using **proper rigid motions only**. It requires equal
+face, edge and solid counts; face surface kinds, intrinsic parameters, areas,
+adjacency, centroids and outward normals; and bidirectional sampled points
+against exact trimmed face surfaces. Intrinsic scalars allow 1e-7 relative
+error with a 1e-7 absolute floor; positions and surface distances allow 1e-5 mm,
+and normal vectors 1e-6. Haecceity's face clouds use 0.1 mm sampling deflection;
+this is sampling density, **not** the equality tolerance. Outside the exact B-rep path, missing face areas or
+an unproven alignment conservatively keep separate groups. Reflection is never
+an alignment candidate: handed parts remain separate. These are conservative
+engineering identity checks, not a proof of equality of arbitrary freeform B-reps.
+Each geometry merge is an info finding naming every merged product.
+
+Automatic buy candidates use whole name tokens (screw, washer, nut, bearing,
+dowel, bolt and their plurals, plus setscrew). A leading custom drawing identifier
+(letters-number, excluding ISO/DIN/BS/ANSI) keeps authored screw/bolt descriptions
+made. Otherwise quiddity's recognised features support these bounded shape rules:
+
+- **Plain thin-annulus washer:** one complete turned body, exactly two planar
+  shoulders and one internal/external cylinder, one full-length bore, OD 0.5–100 mm,
+  thickness 0.05 mm to OD/4, bore 0.2–0.9 OD. No additional profile features.
+- **Plain dowel:** one complete solid turned profile, OD 0.5–50 mm, length 1–10 OD,
+  one constant-diameter barrel, two solid end planes, and a small conical chamfer
+  or toroidal round at **both** ends (each axial/radial extent at most 0.2 OD).
+  Zero-sweep torus seam segments are ignored; steps, bores and untreated ends fail.
+- **Headed externally threaded fastener with hex drive:** one recognised external,
+  single-start modelled thread (major diameter 1–30 mm, length 0.5–12 diameters,
+  pitch 0.05–0.4 diameters), a coaxial recognised turned-step head 1.3–2.5 diameters
+  wide and 0.2–1.5 diameters high near a thread end, and a recognised six-sided
+  prismatic socket in that head. This bounded rule accepts axis-aligned evidence;
+  unsupported/oblique evidence conservatively stays make.
+
+Each guess is an info finding naming its name/shape rule, even after an override.
+CSV/JSON buy reasons contain each distinct text once. GRM-03 has no recognised
+external thread and has a blind bore and several shaft diameters; GRM-05 also has
+no recognised external thread and has a stepped shaft. Both stay made even when
+renamed. A plain cylinder or long push rod without two treated ends stays made.
+Single-product files default to make. Nothing is silently excluded. A product
+containing multiple solids is reported; this slice does not split unlabelled
+compounds (an upstream reader change).
+
+Unnumbered made groups precede bought groups; each category retains the first
+occurrence order from haecceity's leaf traversal (`parts`, depth first from roots).
+Explicit item numbers reserve their positive numbers first and must be unique;
+remaining rows take the smallest unused numbers in category order. Row order
+stays in category/assembly order even with item overrides. Item identity is
+independent of inspection characteristic balloons and hole-table tags.
+
+Each distinct group is recognised at most once; unknown-shape supply detection
+reuses that recognition for any drawing. Each made group’s ordinary analysis,
+recovered planning and rendering pipeline runs once. The assembly geometry and definitions are parsed once through
+`haecceity::step::StepFile`; PMI attachment still reads each drawn part's PMI
+from the shared bytes. A single-product single-placement file follows the
+existing single-part read path exactly. No alternate feature recognition or
+fallback drawing is used after a failure.
+
+Pack furniture uses the existing ISO 7200 title-block reservation: the owner
+cell shares its top-row space with ITEM and QTY, retaining document type and
+all other fields. Only pack drawings receive these two cells. The default
+assembly pack title is the product name; single-product files keep the ordinary
+render title (including its file-stem fallback). An explicit nested drawing title wins. Page
+size, scale, views, annotations and sheet count remain those of the nested
+ordinary drawing Spec. CSV and JSON sheet references are one-based pages in
+the combined PDF. The title block’s SHEET field is the global pack page/total
+(e.g. `3/8`), excluding failed parts. Local view and annotation cross-references
+retain the ordinary drawing numbering. Ordinary `render` is unchanged. A rare
+rendering failure renumbers surviving sheets using their existing projection
+caches, without reanalysing or reprojecting geometry.
+The CSV has item, name, product keys, quantity, supply, buy reasons and sheets;
+the JSON adds per-part problems, errors and the automatic-decision findings.
+
+`pack::build` also returns `timings`; `pack::render_profiled` returns the report,
+files and timings. CLI stdout includes these timings separately from `pack.json`
+so the manufacturing report remains deterministic. Seconds cover shared file
+read/parse, grouping (own-frame part reads and geometry comparison), and each
+group’s analysis/recognition and drawing (planning plus rendering). Encoding and
+file writes are outside those stages. Known bought names skip analysis unless
+overridden to make.

@@ -110,7 +110,7 @@ fn read_json(path: &str) -> Result<Value, Error> {
 
 /// Runs the command, its arguments put as [`api::call`] takes them.
 fn run(args: &[String]) -> Result<Value, Error> {
-    let usage = "usage: draftwright (analyse|plan|render|review|diff|edit|spec|parts|serve) …";
+    let usage = "usage: draftwright (analyse|plan|render|review|pack|diff|edit|spec|parts|serve) …";
     let command = args.first().ok_or_else(|| Error::invalid(usage))?;
     let arg = |i: usize| {
         args.get(i)
@@ -156,6 +156,46 @@ fn run(args: &[String]) -> Result<Value, Error> {
             })
             .transpose()
     };
+    if command == "parts" {
+        return guarded(command, || {
+            let parts = api::parts(std::path::Path::new(arg(1)?))?;
+            let keys = draftwright::pack::part_keys(&parts);
+            let parts: Vec<_> = parts
+                .iter()
+                .zip(keys)
+                .map(|(part, key)| {
+                    let mut value = serde_json::to_value(part).expect("part serialises");
+                    value["key"] = json!(key);
+                    value
+                })
+                .collect();
+            Ok(json!({"parts": parts}))
+        });
+    }
+    if command == "pack" {
+        let step = std::path::Path::new(arg(1)?);
+        let dir = std::path::Path::new(
+            flag(args, "-o").ok_or_else(|| Error::invalid("pack needs -o <directory>"))?,
+        );
+        let spec = if spec.is_null() {
+            draftwright::pack::PackSpec::default()
+        } else {
+            serde_json::from_value(spec)
+                .map_err(|e| Error::invalid(format!("invalid pack Spec: {e}")))?
+        };
+        let formats: Vec<_> = flag(args, "--formats")
+            .unwrap_or("pdf,csv,json")
+            .split(',')
+            .collect();
+        return guarded(command, || {
+            let (report, files, timings) =
+                draftwright::pack::render_profiled(step, &spec, &formats)?;
+            std::fs::create_dir_all(dir)
+                .map_err(|e| Error::failed(format!("cannot create {}: {e}", dir.display())))?;
+            let written = api::write(&dir.join("pack"), &files)?;
+            Ok(json!({ "written": written, "report": report, "timings": timings }))
+        });
+    }
     if command == "diff" {
         let (old, new) = (std::path::Path::new(arg(1)?), std::path::Path::new(arg(2)?));
         let dir = std::path::PathBuf::from(

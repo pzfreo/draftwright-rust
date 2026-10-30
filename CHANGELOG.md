@@ -6,6 +6,10 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### Added
+
+- For #41: assembly drawing packs through the library and `draftwright pack`, with conservative geometry grouping, re-export-stable name keys, quantities, name/feature-based make/buy guesses and strict intent overrides, item/QTY and global SHEET title cells, a multi-page PDF, CSV parts list and per-part JSON findings and failures.
+
 ### Changed
 
 - For #256: dimension gusset groups with counted thickness and legs, pitch or spacing, and box location in true views; allow a per-group transverse view override. MCP Spec discovery includes `features/<id>/gusset_view`; tools/list and WASM signatures are unchanged.

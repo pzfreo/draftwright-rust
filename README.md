@@ -333,6 +333,15 @@ on that branch:
    4462375 was recorded: "4462375: haecceity and quiddity pinned to quiddity-rust 7f4b1a9. No
    API change." CI needs nothing: the dependency is public.
 
+## Assembly drawing packs
+
+Assembly drawing packs: `draftwright pack assembly.step -o pack` writes
+`pack/pack.pdf`, `pack/pack.csv` and `pack/pack.json`. Made parts are drawn once
+with item and quantity; bought candidates remain in the parts list with reasons.
+Use `--spec pack.json` for make/buy, item, quantity, grouping and per-part drawing
+intent, or `--formats pdf,csv,json` to select outputs. See
+[Drawing packs](docs/model.md#drawing-packs-41) and [pack Spec schema](schemas/pack-spec.json).
+
 Licensed AGPL-3.0. haecceity and quiddity-rust are Apache-2.0 since quiddity-rust 0.1.0 (#55),
 which AGPL-3.0 code may use. The fonts in `fonts/` are IBM Plex, vendored from draftwright under the
 SIL Open Font License 1.1 (the `LICENSE-*-OFL.txt` files beside them).

@@ -1627,6 +1627,50 @@ fn analyse_step_input(
             }
         }
     };
+    analyse_read_part(
+        name, stem, part_name, bytes, part, defs, chosen, coincident, principal,
+    )
+}
+
+/// Analyse a part already read from a pack's shared StepFile, using the single-part pipeline.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn analyse_pack_part(
+    name: &str,
+    bytes: &[u8],
+    part: Part,
+    defs: &[haecceity::step::PartDefinition],
+    index: usize,
+) -> Result<(Part, Analysis), Unanalysed> {
+    let stem = Path::new(name)
+        .file_stem()
+        .unwrap_or_default()
+        .to_string_lossy()
+        .into_owned();
+    analyse_read_part(
+        name,
+        stem,
+        defs[index].name.clone(),
+        bytes,
+        part,
+        Ok(defs.to_vec()),
+        Some(index),
+        Vec::new(),
+        false,
+    )
+}
+
+#[allow(clippy::too_many_arguments)]
+fn analyse_read_part(
+    name: &str,
+    stem: String,
+    part_name: String,
+    bytes: &[u8],
+    part: Part,
+    defs: Result<Vec<haecceity::step::PartDefinition>, String>,
+    chosen: Option<usize>,
+    coincident: Vec<CoincidentBody>,
+    principal: bool,
+) -> Result<(Part, Analysis), Unanalysed> {
     // A part a fraction of a degree off the file's axes is read in its own frame (#216), unless
     // the file carries PMI: that is placed, and its frames and sites measured, in the file's
     // axes, so a part with PMI is drawn in them. A motion the kernel refuses leaves the part
@@ -9242,8 +9286,18 @@ pub fn render_sheets(
     plan: &Plan,
     font: &Font,
 ) -> Result<Vec<Drawing>, Unresolved> {
-    let mut projections = Projections::default();
-    let mut drawings = vec![render_with(part, analysis, plan, font, &mut projections)?];
+    render_sheets_with(part, analysis, plan, font, &mut Projections::default())
+}
+
+/// Pack rendering keeps projections when a failed part changes the final page total.
+pub(crate) fn render_sheets_with(
+    part: &Part,
+    analysis: &Analysis,
+    plan: &Plan,
+    font: &Font,
+    projections: &mut Projections,
+) -> Result<Vec<Drawing>, Unresolved> {
+    let mut drawings = vec![render_with(part, analysis, plan, font, projections)?];
     for sheet in &plan.sheets {
         drawings.push(render_sheet_with(
             part,
@@ -9251,7 +9305,7 @@ pub fn render_sheets(
             plan,
             sheet,
             font,
-            &mut projections,
+            projections,
         )?);
     }
     Ok(drawings)
@@ -10030,7 +10084,14 @@ fn render_annotations_with_cuts(
             x0 + title_block::LABEL_PAD - laid.min[0],
             y0 + title_block::LABEL_PAD - laid.min[1],
         ];
-        label(laid, at, dims, None);
+        // Pack identifiers are also searchable in exported sheets. Existing title labels
+        // retain their ordinary outline-only representation.
+        let run = matches!(c.field.as_str(), "pack_item" | "pack_qty").then_some((
+            c.label.as_str(),
+            title_block::FONT,
+            title_block::LABEL_TEXT,
+        ));
+        label(laid, at, dims, run);
         if let Some(v) = &c.value {
             let centre = [0.5 * (x0 + x1), 0.5 * (y0 + y1)];
             let size = title_block::value_size(v, c.cell);
