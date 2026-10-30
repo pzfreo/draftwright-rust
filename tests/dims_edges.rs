@@ -394,3 +394,160 @@ fn turned_callouts_in_the_fallback_profile_end_on_the_profile() {
         );
     }
 }
+
+/// For quiddity-rust#134: the record includes the end treatment. State the complete
+/// height once, retaining the chamfer/round's own size and the supporting plate.
+#[test]
+fn treated_boss_heights_reach_the_free_end_once_and_keep_the_edge_callout() {
+    for (file, height, parameter, label) in [
+        ("grm02.step", 37.6, "chamfer.length", "C1.5"),
+        ("boss-end-round.step.gz", 20., "fillet.radius", "R1.5"),
+    ] {
+        let (part, a) = model::analyse_native(&fixture(&format!("parts/{file}"))).unwrap();
+        let boss = a.features.iter().find(|f| f.kind == "boss").unwrap();
+        assert_eq!(boss.parameters["height"], height);
+        let plan = model::plan(&a, &Spec::default()).unwrap();
+        let omitted = plan
+            .omitted
+            .iter()
+            .find(|d| d.id.ends_with("/boss_height.length"))
+            .unwrap();
+        assert_eq!(omitted.label, height.to_string());
+        let draftwright::items::State::Covered { by } = &omitted.state else {
+            panic!("{file}: {omitted:#?}");
+        };
+        let owner = plan.dimensions.iter().find(|d| &d.id == by).unwrap();
+        assert!(owner.placed.is_some());
+        if file == "grm02.step" {
+            assert_eq!(owner.id, "d:envelope/width.length");
+            assert_eq!(owner.value, height);
+        } else {
+            // The default states the height by 24 overall minus the 4 mm plate.
+            assert_eq!(owner.value, 4.);
+            assert!(omitted.basis.contains("d:envelope/height.length"));
+            assert!(
+                plan.dimensions
+                    .iter()
+                    .any(|d| d.id == "d:envelope/height.length"
+                        && d.value == 24.
+                        && d.placed.is_some())
+            );
+        }
+        assert!(!plan.dimensions.iter().any(|d| d.id == omitted.id));
+        // An explicit tolerance keeps the boss's own full-height dimension.
+        let spec: Spec = serde_json::from_value(json!({
+            "dimensions": {&omitted.id: {"tolerance": "±0.1"}}
+        }))
+        .unwrap();
+        let explicit = model::plan(&a, &spec).unwrap();
+        let heights: Vec<_> = explicit
+            .dimensions
+            .iter()
+            .filter(|d| {
+                d.measurements
+                    .iter()
+                    .any(|m| m.feature == boss.id && m.parameter == "boss_height.length")
+            })
+            .collect();
+        assert_eq!(heights.len(), 1);
+        assert_eq!(heights[0].value, height);
+        assert_eq!(heights[0].label, format!("{height} ±0.1"));
+        assert!(heights[0].placed.is_some());
+        let edge = plan.dimensions.iter().find(|d| d.label == label).unwrap();
+        assert!(edge.placed.is_some());
+        assert!(edge.measurements.iter().any(|m| m.parameter == parameter));
+        let plate = a.features.iter().find(|f| f.kind == "plate").unwrap();
+        let plate_id = format!("d:{}/thickness.length", plate.id);
+        if file == "grm02.step" {
+            assert!(
+                plan.dimensions
+                    .iter()
+                    .any(|d| d.id == plate_id && d.value == 4. && d.placed.is_some())
+            );
+        } else {
+            let thickness = plan.omitted.iter().find(|d| d.id == plate_id).unwrap();
+            assert_eq!(thickness.label, "4");
+            assert_eq!(thickness.state, omitted.state);
+        }
+        let font = draftwright::text::Font::new(
+            include_bytes!("../fonts/IBMPlexMono-Regular.ttf").to_vec(),
+        )
+        .unwrap();
+        let drawing = model::render(&part, &a, &plan, &font).unwrap();
+        assert!(lint::lint(&a, &drawing).iter().all(|i| !matches!(
+            i.code.as_str(),
+            "boss_height_missing" | "chamfer_requirement_missing" | "fillet_requirement_missing"
+        )));
+    }
+}
+
+/// For quiddity-rust#134: a turned inside corner is concave, and remains counted
+/// with the three equal convex end rounds in the searchable radius callout.
+#[test]
+fn concave_turned_fillets_keep_their_count_and_measurement() {
+    let (part, a) = model::analyse_native(&fixture("parts/turned.step")).unwrap();
+    let concave = a
+        .features
+        .iter()
+        .find(|f| f.kind == "fillet" && f.parameters["side"] == "concave")
+        .unwrap();
+    assert_eq!(concave.parameters["turned"], true);
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let owners: Vec<_> = plan
+        .dimensions
+        .iter()
+        .filter(|d| d.measurements.iter().any(|m| m.feature == concave.id))
+        .collect();
+    assert_eq!(owners.len(), 1);
+    assert_eq!(owners[0].label, "4× R0.8");
+    assert_eq!(owners[0].measurements.len(), 4);
+    assert!(owners[0].placed.is_some());
+    let font =
+        draftwright::text::Font::new(include_bytes!("../fonts/IBMPlexMono-Regular.ttf").to_vec())
+            .unwrap();
+    let drawing = model::render(&part, &a, &plan, &font).unwrap();
+    assert!(
+        lint::lint(&a, &drawing)
+            .iter()
+            .all(|i| !i.code.starts_with("fillet_requirement_"))
+    );
+}
+
+/// For quiddity-rust#134: changing a turned fillet's side preserves the physical
+/// presenter, count and route. A valid inside-round leader must not force larger paper.
+#[test]
+fn turning_side_correction_keeps_existing_radius_presenters() {
+    let Some(dir) = corpus::dir() else { return };
+    let (_, a) = model::analyse_native(&dir.join("cadgenbench_inputs/cgb207.step")).unwrap();
+    let mut old = a.clone();
+    let mut corrected = 0;
+    for f in &mut old.features {
+        if f.kind == "fillet" && f.parameters["turned"] == true && f.parameters["side"] == "concave"
+        {
+            f.parameters.insert("side".into(), json!("convex"));
+            corrected += 1;
+        }
+    }
+    assert!(corrected > 0);
+    let before = model::plan(&old, &Spec::default()).unwrap();
+    let after = model::plan(&a, &Spec::default()).unwrap();
+    let presenters = |p: &Plan| {
+        p.dimensions
+            .iter()
+            .filter(|d| {
+                d.measurements
+                    .iter()
+                    .any(|m| m.parameter == "fillet.radius")
+            })
+            .map(|d| {
+                (
+                    d.id.clone(),
+                    d.view.clone(),
+                    d.label.clone(),
+                    serde_json::to_value(&d.placed).unwrap(),
+                )
+            })
+            .collect::<Vec<_>>()
+    };
+    assert_eq!(presenters(&before), presenters(&after));
+}

@@ -2882,7 +2882,7 @@ tolerance frames and datum features; `"off"` and an absent setting keep them off
 come from the exact PMI entity's `characteristic number` UDA ([storage convention](pmi-bookkeeping.md#characteristic-numbers-producer-convention-254)).
 Draftwright does not allocate or change a number. Unnumbered derived items and general CSV
 rows get no ring. Surface textures and semantic notes have no supported number owner in
-haecceity 0.2.3 and draw unchanged: this is a known limit.
+haecceity 0.2.5 and draw unchanged: this is a known limit.
 
 `Plan.characteristics` lists the file's numbers, original `item`, final `drawn_item` and
 `sheet`, including requirements that cannot be drawn. `items::items` exposes

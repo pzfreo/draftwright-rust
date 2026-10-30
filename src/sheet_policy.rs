@@ -2178,7 +2178,9 @@ mod tests {
         // pass, with no hard findings or drops: a smaller scale would repeat the same routing,
         // so it is not tried. (LM10UU was this case until the #219-#226 stack left its A4
         // trial usable at 2:1, and the gear blank until #163 judged its A4 trial by its ink
-        // rather than an empty band past the border.)
+        // rather than an empty band past the border.) For quiddity-rust#134 the full
+        // boss height is conveyed by the overall; the refused trial also has an ink
+        // run. Its rejection and single-scale budget remain unchanged.
         let a = model::analyse_native(
             &Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts/grm02.step"),
         )
@@ -2190,7 +2192,7 @@ mod tests {
         assert!(
             a4.outcome.ends_with(
                 "(0 hard, 0 drops; annotation_outside_area, extension_through_feature, \
-                 leader_on_extension)"
+                 leader_ink_run, leader_on_extension)"
             ),
             "{}",
             a4.outcome

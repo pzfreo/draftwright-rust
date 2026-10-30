@@ -253,4 +253,4 @@ retains the exact automatic ink.
 number, its PMI source, original plan item, drawn carrier, sheet and expected ring IDs.
 The values are file-owned; undrawn requirements remain listed. Dimensions, tolerance
 frames and datum features support numbers. Surface textures and semantic notes have no
-number owner in haecceity 0.2.3 and retain their existing drawing behavior.
+number owner in haecceity 0.2.5 and retain their existing drawing behavior.

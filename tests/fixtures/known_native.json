@@ -32,6 +32,16 @@
   {
     "set": "parts",
     "part": "turned",
+    "subject": "f:fillet:3",
+    "field": "parameters.side",
+    "python": "\"convex\"",
+    "rust": "\"concave\"",
+    "verdict": "rust-correct",
+    "evidence": "For quiddity-rust#134 (v0.2.5): this toroidal inside corner is a concave turned fillet. The stored Python record says convex; native surface orientation now reports its actual side. Its radius and occurrence remain in the counted fillet callout."
+  },
+  {
+    "set": "parts",
+    "part": "turned",
     "subject": "f:turned_step:1",
     "field": "parameters.named_dimensions",
     "python": "{\"axial_length\":40.0}",
@@ -3243,11 +3253,31 @@
     "set": "corpus",
     "part": "connector109",
     "subject": "f:boss:4",
-    "field": "free_end",
-    "python": "[0.0,0.0,139.42] along [0.0,0.0,1.0]",
-    "rust": "[0.0,0.0,119.42] along [0.0,0.0,-1.0]",
+    "field": "parameters.axis",
+    "python": "[0.0,0.0,1.0]",
+    "rust": "[0.0,0.0,-1.0]",
     "verdict": "equivalent",
-    "evidence": "quiddity-rust 0.1.1 (draftwright alpha.13): the same boss: its free end is read from the other end because its axis sense follows the inferred frame (frame-dependent senses and entry ends from 0.1.0, accepted for alpha.13)."
+    "evidence": "For quiddity-rust#134 (v0.2.5): opposite-end conventions on the same diameter 130.94 cylinder faces. Python names z139.42 along +z; Rust names z119.42 along -z. The full-height change to 24.04 is listed separately; the unchanged cylinder faces prevent pairing this boss with the adjacent diameter 122 boss on face 217."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:boss:4",
+    "field": "parameters.height",
+    "python": "20.0",
+    "rust": "24.04",
+    "verdict": "rust-correct",
+    "evidence": "For quiddity-rust#134 (v0.2.5): the same diameter 130.94 cylinder faces span z119.42..139.42; their own convex end cone extends the support to z143.46, so the complete boss height is 24.04 rather than the trimmed wall length 20. The unrelated diameter 122 boss on face 217 remains 6 long. The comparison pairs these bosses by their physical faces before comparing every parameter."
+  },
+  {
+    "set": "corpus",
+    "part": "connector109",
+    "subject": "f:boss:4",
+    "field": "parameters.location",
+    "python": "[0.0,0.0,139.42]",
+    "rust": "[0.0,0.0,119.42]",
+    "verdict": "rust-correct",
+    "evidence": "For quiddity-rust#134 (v0.2.5): the complete diameter 130.94 boss spans z119.42..143.46, including its own end cone beyond the cylinder wall at z139.42. Rust names the actual z119.42 end along -z; Python names the opposite trimmed-wall endpoint z139.42, at the start of that cone. With Python's +z convention the complete opposite end would be z143.46. The independent axis-sense convention and corrected 24.04 height are listed separately."
   },
   {
     "set": "corpus",
@@ -4812,6 +4842,36 @@
   {
     "set": "corpus",
     "part": "ftc06",
+    "subject": "f:fillet:1",
+    "field": "parameters.side",
+    "python": "\"convex\"",
+    "rust": "\"concave\"",
+    "verdict": "rust-correct",
+    "evidence": "For quiddity-rust#134 (v0.2.5): this toroidal inside corner is a concave turned fillet. The stored Python record says convex; native surface orientation now reports its actual side. Its radius and occurrence remain in the counted fillet callout."
+  },
+  {
+    "set": "corpus",
+    "part": "ftc06",
+    "subject": "f:fillet:2",
+    "field": "parameters.side",
+    "python": "\"convex\"",
+    "rust": "\"concave\"",
+    "verdict": "rust-correct",
+    "evidence": "For quiddity-rust#134 (v0.2.5): this toroidal inside corner is a concave turned fillet. The stored Python record says convex; native surface orientation now reports its actual side. Its radius and occurrence remain in the counted fillet callout."
+  },
+  {
+    "set": "corpus",
+    "part": "ftc06",
+    "subject": "f:fillet:3",
+    "field": "parameters.side",
+    "python": "\"convex\"",
+    "rust": "\"concave\"",
+    "verdict": "rust-correct",
+    "evidence": "For quiddity-rust#134 (v0.2.5): this toroidal inside corner is a concave turned fillet. The stored Python record says convex; native surface orientation now reports its actual side. Its radius and occurrence remain in the counted fillet callout."
+  },
+  {
+    "set": "corpus",
+    "part": "ftc06",
     "subject": "f:fillet:4",
     "field": "id",
     "python": "f:fillet:4",
@@ -4842,6 +4902,16 @@
   {
     "set": "corpus",
     "part": "ftc06",
+    "subject": "f:fillet:6",
+    "field": "parameters.side",
+    "python": "\"convex\"",
+    "rust": "\"concave\"",
+    "verdict": "rust-correct",
+    "evidence": "For quiddity-rust#134 (v0.2.5): this toroidal inside corner is a concave turned fillet. The stored Python record says convex; native surface orientation now reports its actual side. Its radius and occurrence remain in the counted fillet callout."
+  },
+  {
+    "set": "corpus",
+    "part": "ftc06",
     "subject": "f:fillet:7",
     "field": "id",
     "python": "f:fillet:7",
@@ -4852,12 +4922,32 @@
   {
     "set": "corpus",
     "part": "ftc06",
+    "subject": "f:fillet:7",
+    "field": "parameters.side",
+    "python": "\"convex\"",
+    "rust": "\"concave\"",
+    "verdict": "rust-correct",
+    "evidence": "For quiddity-rust#134 (v0.2.5): this toroidal inside corner is a concave turned fillet. The stored Python record says convex; native surface orientation now reports its actual side. Its radius and occurrence remain in the counted fillet callout."
+  },
+  {
+    "set": "corpus",
+    "part": "ftc06",
     "subject": "f:fillet:8",
     "field": "id",
     "python": "f:fillet:8",
     "rust": "f:fillet:24",
     "verdict": "equivalent",
     "evidence": "quiddity-rust v0.2.3 (#127) inserts newly proved concave fillets in face order. IDs are ordinals within a family; the comparison pairs this feature by its physical location and checks its faces, parameters and fingerprint independently."
+  },
+  {
+    "set": "corpus",
+    "part": "ftc06",
+    "subject": "f:fillet:8",
+    "field": "parameters.side",
+    "python": "\"convex\"",
+    "rust": "\"concave\"",
+    "verdict": "rust-correct",
+    "evidence": "For quiddity-rust#134 (v0.2.5): this toroidal inside corner is a concave turned fillet. The stored Python record says convex; native surface orientation now reports its actual side. Its radius and occurrence remain in the counted fillet callout."
   },
   {
     "set": "corpus",
@@ -5158,6 +5248,16 @@
     "rust": "-",
     "verdict": "equivalent",
     "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "corpus",
+    "part": "grm05",
+    "subject": "rust f:plate:1",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:plate:1 [2, 3] {\"axis\":\"z\",\"body_key\":[-5.0,-5.0,0.0,5.0,5.0,32.0,1580.335642,897.246058],\"hi\":14.0,\"lo\":0.0,\"u\":0.0,\"v\":0.0}",
+    "verdict": "rust-correct",
+    "evidence": "For quiddity-rust#134 (v0.2.5): projecting the convex end chamfer restores the supporting plate made by faces 2/3 at z0..14. The diameter 10 bolt head remains a 14 mm thick plate despite its trimmed end. Its existing turned-step length already states 14; the plate adds evidence without another printed size."
   },
   {
     "set": "corpus",
@@ -5892,12 +5992,32 @@
   {
     "set": "corpus",
     "part": "spool132",
+    "subject": "f:fillet:1",
+    "field": "parameters.side",
+    "python": "\"convex\"",
+    "rust": "\"concave\"",
+    "verdict": "rust-correct",
+    "evidence": "For quiddity-rust#134 (v0.2.5): this toroidal inside corner is a concave turned fillet. The stored Python record says convex; native surface orientation now reports its actual side. Its radius and occurrence remain in the counted fillet callout."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
     "subject": "f:fillet:2",
     "field": "id",
     "python": "f:fillet:2",
     "rust": "f:fillet:8",
     "verdict": "equivalent",
     "evidence": "quiddity-rust v0.2.3 (#127) inserts newly proved concave fillets in face order. IDs are ordinals within a family; the comparison pairs this feature by its physical location and checks its faces, parameters and fingerprint independently."
+  },
+  {
+    "set": "corpus",
+    "part": "spool132",
+    "subject": "f:fillet:2",
+    "field": "parameters.side",
+    "python": "\"convex\"",
+    "rust": "\"concave\"",
+    "verdict": "rust-correct",
+    "evidence": "For quiddity-rust#134 (v0.2.5): this toroidal inside corner is a concave turned fillet. The stored Python record says convex; native surface orientation now reports its actual side. Its radius and occurrence remain in the counted fillet callout."
   },
   {
     "set": "corpus",
@@ -8513,11 +8633,31 @@
     "set": "sheets",
     "part": "connector109",
     "subject": "f:boss:4",
-    "field": "free_end",
-    "python": "[0.0,0.0,139.42] along [0.0,0.0,1.0]",
-    "rust": "[0.0,0.0,119.42] along [0.0,0.0,-1.0]",
+    "field": "parameters.axis",
+    "python": "[0.0,0.0,1.0]",
+    "rust": "[0.0,0.0,-1.0]",
     "verdict": "equivalent",
-    "evidence": "quiddity-rust 0.1.1 (draftwright alpha.13): the same boss: its free end is read from the other end because its axis sense follows the inferred frame (frame-dependent senses and entry ends from 0.1.0, accepted for alpha.13)."
+    "evidence": "For quiddity-rust#134 (v0.2.5): opposite-end conventions on the same diameter 130.94 cylinder faces. Python names z139.42 along +z; Rust names z119.42 along -z. The full-height change to 24.04 is listed separately; the unchanged cylinder faces prevent pairing this boss with the adjacent diameter 122 boss on face 217."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:boss:4",
+    "field": "parameters.height",
+    "python": "20.0",
+    "rust": "24.04",
+    "verdict": "rust-correct",
+    "evidence": "For quiddity-rust#134 (v0.2.5): the same diameter 130.94 cylinder faces span z119.42..139.42; their own convex end cone extends the support to z143.46, so the complete boss height is 24.04 rather than the trimmed wall length 20. The unrelated diameter 122 boss on face 217 remains 6 long. The comparison pairs these bosses by their physical faces before comparing every parameter."
+  },
+  {
+    "set": "sheets",
+    "part": "connector109",
+    "subject": "f:boss:4",
+    "field": "parameters.location",
+    "python": "[0.0,0.0,139.42]",
+    "rust": "[0.0,0.0,119.42]",
+    "verdict": "rust-correct",
+    "evidence": "For quiddity-rust#134 (v0.2.5): the complete diameter 130.94 boss spans z119.42..143.46, including its own end cone beyond the cylinder wall at z139.42. Rust names the actual z119.42 end along -z; Python names the opposite trimmed-wall endpoint z139.42, at the start of that cone. With Python's +z convention the complete opposite end would be z143.46. The independent axis-sense convention and corrected 24.04 height are listed separately."
   },
   {
     "set": "sheets",
@@ -10082,6 +10222,36 @@
   {
     "set": "sheets",
     "part": "ftc06",
+    "subject": "f:fillet:1",
+    "field": "parameters.side",
+    "python": "\"convex\"",
+    "rust": "\"concave\"",
+    "verdict": "rust-correct",
+    "evidence": "For quiddity-rust#134 (v0.2.5): this toroidal inside corner is a concave turned fillet. The stored Python record says convex; native surface orientation now reports its actual side. Its radius and occurrence remain in the counted fillet callout."
+  },
+  {
+    "set": "sheets",
+    "part": "ftc06",
+    "subject": "f:fillet:2",
+    "field": "parameters.side",
+    "python": "\"convex\"",
+    "rust": "\"concave\"",
+    "verdict": "rust-correct",
+    "evidence": "For quiddity-rust#134 (v0.2.5): this toroidal inside corner is a concave turned fillet. The stored Python record says convex; native surface orientation now reports its actual side. Its radius and occurrence remain in the counted fillet callout."
+  },
+  {
+    "set": "sheets",
+    "part": "ftc06",
+    "subject": "f:fillet:3",
+    "field": "parameters.side",
+    "python": "\"convex\"",
+    "rust": "\"concave\"",
+    "verdict": "rust-correct",
+    "evidence": "For quiddity-rust#134 (v0.2.5): this toroidal inside corner is a concave turned fillet. The stored Python record says convex; native surface orientation now reports its actual side. Its radius and occurrence remain in the counted fillet callout."
+  },
+  {
+    "set": "sheets",
+    "part": "ftc06",
     "subject": "f:fillet:4",
     "field": "id",
     "python": "f:fillet:4",
@@ -10112,6 +10282,16 @@
   {
     "set": "sheets",
     "part": "ftc06",
+    "subject": "f:fillet:6",
+    "field": "parameters.side",
+    "python": "\"convex\"",
+    "rust": "\"concave\"",
+    "verdict": "rust-correct",
+    "evidence": "For quiddity-rust#134 (v0.2.5): this toroidal inside corner is a concave turned fillet. The stored Python record says convex; native surface orientation now reports its actual side. Its radius and occurrence remain in the counted fillet callout."
+  },
+  {
+    "set": "sheets",
+    "part": "ftc06",
     "subject": "f:fillet:7",
     "field": "id",
     "python": "f:fillet:7",
@@ -10122,12 +10302,32 @@
   {
     "set": "sheets",
     "part": "ftc06",
+    "subject": "f:fillet:7",
+    "field": "parameters.side",
+    "python": "\"convex\"",
+    "rust": "\"concave\"",
+    "verdict": "rust-correct",
+    "evidence": "For quiddity-rust#134 (v0.2.5): this toroidal inside corner is a concave turned fillet. The stored Python record says convex; native surface orientation now reports its actual side. Its radius and occurrence remain in the counted fillet callout."
+  },
+  {
+    "set": "sheets",
+    "part": "ftc06",
     "subject": "f:fillet:8",
     "field": "id",
     "python": "f:fillet:8",
     "rust": "f:fillet:24",
     "verdict": "equivalent",
     "evidence": "quiddity-rust v0.2.3 (#127) inserts newly proved concave fillets in face order. IDs are ordinals within a family; the comparison pairs this feature by its physical location and checks its faces, parameters and fingerprint independently."
+  },
+  {
+    "set": "sheets",
+    "part": "ftc06",
+    "subject": "f:fillet:8",
+    "field": "parameters.side",
+    "python": "\"convex\"",
+    "rust": "\"concave\"",
+    "verdict": "rust-correct",
+    "evidence": "For quiddity-rust#134 (v0.2.5): this toroidal inside corner is a concave turned fillet. The stored Python record says convex; native surface orientation now reports its actual side. Its radius and occurrence remain in the counted fillet callout."
   },
   {
     "set": "sheets",
@@ -10428,6 +10628,16 @@
     "rust": "-",
     "verdict": "equivalent",
     "evidence": "Python's document enrichment (_edit_document.py) restates the step's length: axial_length is hi - lo (to 0.01) and disc_thickness, where given, is the same value with basis heuristic (checked for every turned step record in the fixtures). The native document never carries named_dimensions (quiddity-rust src/recognition.rs). draftwright reads them only into the fingerprint's sizes (axial_length), which therefore differ; neither draftwright nor the port reads disc_thickness."
+  },
+  {
+    "set": "sheets",
+    "part": "grm05",
+    "subject": "rust f:plate:1",
+    "field": "presence",
+    "python": "-",
+    "rust": "f:plate:1 [2, 3] {\"axis\":\"z\",\"body_key\":[-5.0,-5.0,0.0,5.0,5.0,32.0,1580.335642,897.246058],\"hi\":14.0,\"lo\":0.0,\"u\":0.0,\"v\":0.0}",
+    "verdict": "rust-correct",
+    "evidence": "For quiddity-rust#134 (v0.2.5): projecting the convex end chamfer restores the supporting plate made by faces 2/3 at z0..14. The diameter 10 bolt head remains a 14 mm thick plate despite its trimmed end. Its existing turned-step length already states 14; the plate adds evidence without another printed size."
   },
   {
     "set": "sheets",
@@ -11162,12 +11372,32 @@
   {
     "set": "sheets",
     "part": "spool132",
+    "subject": "f:fillet:1",
+    "field": "parameters.side",
+    "python": "\"convex\"",
+    "rust": "\"concave\"",
+    "verdict": "rust-correct",
+    "evidence": "For quiddity-rust#134 (v0.2.5): this toroidal inside corner is a concave turned fillet. The stored Python record says convex; native surface orientation now reports its actual side. Its radius and occurrence remain in the counted fillet callout."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
     "subject": "f:fillet:2",
     "field": "id",
     "python": "f:fillet:2",
     "rust": "f:fillet:8",
     "verdict": "equivalent",
     "evidence": "quiddity-rust v0.2.3 (#127) inserts newly proved concave fillets in face order. IDs are ordinals within a family; the comparison pairs this feature by its physical location and checks its faces, parameters and fingerprint independently."
+  },
+  {
+    "set": "sheets",
+    "part": "spool132",
+    "subject": "f:fillet:2",
+    "field": "parameters.side",
+    "python": "\"convex\"",
+    "rust": "\"concave\"",
+    "verdict": "rust-correct",
+    "evidence": "For quiddity-rust#134 (v0.2.5): this toroidal inside corner is a concave turned fillet. The stored Python record says convex; native surface orientation now reports its actual side. Its radius and occurrence remain in the counted fillet callout."
   },
   {
     "set": "sheets",
@@ -11802,6 +12032,16 @@
   {
     "set": "dims",
     "part": "ftc07",
+    "subject": "f:plate:1",
+    "field": "parameters.u",
+    "python": "-53.993914",
+    "rust": "-55.064374",
+    "verdict": "rust-correct",
+    "evidence": "For quiddity-rust#134 (v0.2.5): the plate centre includes orthogonal projections of adjacent convex edge treatments as well as the surviving planar skins. The stored Python centre excludes those strips. The supporting planes and thickness are unchanged; this is corrected centroid metadata, not a displaced plate or a new locating size."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
     "subject": "f:plate:2",
     "field": "parameters.named_dimensions",
     "python": "{\"thickness\":9.297}",
@@ -11812,12 +12052,42 @@
   {
     "set": "dims",
     "part": "ftc07",
+    "subject": "f:plate:2",
+    "field": "parameters.u",
+    "python": "-0.281663",
+    "rust": "-0.274639",
+    "verdict": "rust-correct",
+    "evidence": "For quiddity-rust#134 (v0.2.5): the plate centre includes orthogonal projections of adjacent convex edge treatments as well as the surviving planar skins. The stored Python centre excludes those strips. The supporting planes and thickness are unchanged; this is corrected centroid metadata, not a displaced plate or a new locating size."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "subject": "f:plate:2",
+    "field": "parameters.v",
+    "python": "-54.438308",
+    "rust": "-55.389547",
+    "verdict": "rust-correct",
+    "evidence": "For quiddity-rust#134 (v0.2.5): the plate centre includes orthogonal projections of adjacent convex edge treatments as well as the surviving planar skins. The stored Python centre excludes those strips. The supporting planes and thickness are unchanged; this is corrected centroid metadata, not a displaced plate or a new locating size."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
     "subject": "f:plate:3",
     "field": "parameters.named_dimensions",
     "python": "{\"thickness\":9.297}",
     "rust": "-",
     "verdict": "equivalent",
     "evidence": "Python's document enrichment restates the plate's thickness, 9.297: hi - lo of its own record, within its 1e-3 rounding (checked for every plate of every compared recognition). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). lint/channels.rs reads the plate's lo and hi, not the named size."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "subject": "f:plate:3",
+    "field": "parameters.u",
+    "python": "-55.179922",
+    "rust": "-56.15746",
+    "verdict": "rust-correct",
+    "evidence": "For quiddity-rust#134 (v0.2.5): the plate centre includes orthogonal projections of adjacent convex edge treatments as well as the surviving planar skins. The stored Python centre excludes those strips. The supporting planes and thickness are unchanged; this is corrected centroid metadata, not a displaced plate or a new locating size."
   },
   {
     "set": "dims",
@@ -11838,6 +12108,26 @@
     "rust": "-",
     "verdict": "equivalent",
     "evidence": "Python's document enrichment restates the plate's thickness, 9.297: hi - lo of its own record, within its 1e-3 rounding (checked for every plate of every compared recognition). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). lint/channels.rs reads the plate's lo and hi, not the named size."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "subject": "f:plate:5",
+    "field": "parameters.u",
+    "python": "-0.697321",
+    "rust": "-0.679964",
+    "verdict": "rust-correct",
+    "evidence": "For quiddity-rust#134 (v0.2.5): the plate centre includes orthogonal projections of adjacent convex edge treatments as well as the surviving planar skins. The stored Python centre excludes those strips. The supporting planes and thickness are unchanged; this is corrected centroid metadata, not a displaced plate or a new locating size."
+  },
+  {
+    "set": "dims",
+    "part": "ftc07",
+    "subject": "f:plate:5",
+    "field": "parameters.v",
+    "python": "-54.384745",
+    "rust": "-55.335534",
+    "verdict": "rust-correct",
+    "evidence": "For quiddity-rust#134 (v0.2.5): the plate centre includes orthogonal projections of adjacent convex edge treatments as well as the surviving planar skins. The stored Python centre excludes those strips. The supporting planes and thickness are unchanged; this is corrected centroid metadata, not a displaced plate or a new locating size."
   },
   {
     "set": "dims",
@@ -12498,6 +12788,26 @@
     "rust": "-",
     "verdict": "equivalent",
     "evidence": "Python's document enrichment restates the plate's thickness, 7.154: hi - lo of its own record, within its 1e-3 rounding (checked for every plate of every compared recognition). The native document never carries named_dimensions (quiddity-rust src/recognition.rs); draftwright reads them only into the fingerprint's sizes, which therefore differ (fingerprints are counted, not listed: who owns them is open). lint/channels.rs reads the plate's lo and hi, not the named size."
+  },
+  {
+    "set": "dims",
+    "part": "m11512",
+    "subject": "f:plate:1",
+    "field": "parameters.u",
+    "python": "10.712336",
+    "rust": "10.660464",
+    "verdict": "rust-correct",
+    "evidence": "For quiddity-rust#134 (v0.2.5): the plate centre includes orthogonal projections of adjacent convex edge treatments as well as the surviving planar skins. The stored Python centre excludes those strips. The supporting planes and thickness are unchanged; this is corrected centroid metadata, not a displaced plate or a new locating size."
+  },
+  {
+    "set": "dims",
+    "part": "m11512",
+    "subject": "f:plate:1",
+    "field": "parameters.v",
+    "python": "7.657107",
+    "rust": "7.69059",
+    "verdict": "rust-correct",
+    "evidence": "For quiddity-rust#134 (v0.2.5): the plate centre includes orthogonal projections of adjacent convex edge treatments as well as the surviving planar skins. The stored Python centre excludes those strips. The supporting planes and thickness are unchanged; this is corrected centroid metadata, not a displaced plate or a new locating size."
   },
   {
     "set": "steps",

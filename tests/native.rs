@@ -1021,14 +1021,31 @@ fn differences(
         let within = |path: &str| rounding(kind, path);
         let mut taken = vec![false; ours.len()];
         for (f, p) in &py {
-            let found = ours.iter().enumerate().position(|(i, h)| {
-                !taken[i]
-                    && anchor(kind).iter().all(|k| {
-                        let mut d = Vec::new();
-                        compare_within(k, field(p, k), field(&h.parameters, k), &within, &mut d);
-                        d.is_empty()
-                    })
-                    || (kind == "boss" && other_end(p, &h.parameters))
+            // For quiddity-rust#134 a boss's free end can move across its chamfer.
+            // Pair its physical cylinder faces first, so the new end cannot accidentally
+            // pair with the next coaxial boss. All parameters are still compared below.
+            let same_faces = (kind == "boss" && !f.faces.is_empty())
+                .then(|| {
+                    ours.iter()
+                        .enumerate()
+                        .position(|(i, h)| !taken[i] && h.faces == f.faces)
+                })
+                .flatten();
+            let found = same_faces.or_else(|| {
+                ours.iter().enumerate().position(|(i, h)| {
+                    !taken[i]
+                        && (anchor(kind).iter().all(|k| {
+                            let mut d = Vec::new();
+                            compare_within(
+                                k,
+                                field(p, k),
+                                field(&h.parameters, k),
+                                &within,
+                                &mut d,
+                            );
+                            d.is_empty()
+                        }) || (kind == "boss" && other_end(p, &h.parameters)))
+                })
             });
             let Some(i) = found else {
                 put(
