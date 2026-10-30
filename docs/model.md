@@ -2852,6 +2852,17 @@ pitches yield to individual basic locations, and PMI pitches plus a member locat
 convey the other member locations. Covered engine IDs remain in the omitted ledger
 with the IDs of their PMI owners.
 
+Specify's general-tolerance dimensions (specify-core 0.1.4: a Specify-written dimension with
+its nominal alone, which Specify itself reads back as settling no question) are the exception
+until one dimension planner serves both (#264): they are drawn as the generated drawing
+dimensions that geometry, never as PMI dimensions on top of it (#265). The generated item of
+the same span, or the one dimensioning the feature their faces belong to, names them in its
+basis. One no generated item states is planned as draftwright's own dimension
+(`d:specify_general:<identity>/general_size.length`): it takes the ordinary candidate, lane,
+redundancy and drop path, with no PMI precedence, and its basis names its source (carrying
+its characteristic number). The PMI coverage check does not report them as undrawn.
+`pmi: "strict"` still draws them as the file's dimensions.
+
 `pmi: "strict"` draws the part's semantic dimensions, callouts, GD&T and cited datum
 symbols, without generated dimensions or callouts. With `dimension_source: "authored"`,
 listed engine IDs can be added. Missing locations and sizes are reported as Problems.
@@ -2888,7 +2899,7 @@ origins are named in the basis and are labelled as origins rather than box minim
 Specify's [PMI provenance contract](https://github.com/pzfreo/specify-core-rust/blob/main/docs/pmi-provenance.md)
 uses the exact token `specify-core:written:v1`: `THREAD` description (slot 1),
 `TURNED_KNURL` name (slot 0), or an inverse `DESCRIPTION_ATTRIBUTE` on a requirement's
-own `PROPERTY_DEFINITION_REPRESENTATION`. Draftwright reads these from the raw STEP
+own `PROPERTY_DEFINITION_REPRESENTATION` (a dimension's own `SHAPE_DIMENSION_REPRESENTATION`). Draftwright reads these from the raw STEP
 Document and preserves the token in the existing `pmi.sources[].reason` diagnostic as
 `Specify-written PMI (specify-core:written:v1).`, followed by any blockers. This survives
 Analysis serialization without adding schema fields. Authorship is never inherited from a

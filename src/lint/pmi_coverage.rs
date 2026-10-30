@@ -280,6 +280,9 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
             && lowered.contains(id)
             && !on_sheet.contains(id)
             && !(r.category == Category::Datum && omitted.contains(id))
+            // Specify's general-tolerance dimensions are drawn as the plan dimensions that
+            // geometry, not on top of it (#265).
+            && !crate::pmi::specify_general(report, r)
         {
             out.push(sourced(
                 "pmi_not_rendered",

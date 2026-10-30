@@ -1086,6 +1086,7 @@ fn bookkeeping_attributes_are_not_unsupported_pmi() {
         "draftwright editor project",
         "foreign attributes",
         "semantic text",
+        "specify characteristic numbers",
     ];
     let mut attributes: Vec<AttributeSet> = names
         .iter()
@@ -1095,10 +1096,10 @@ fn bookkeeping_attributes_are_not_unsupported_pmi() {
             description: None,
             general_property: None,
             items: vec![(
-                if *name == "semantic text" {
-                    "edge condition"
-                } else {
-                    name
+                match *name {
+                    "semantic text" => "edge condition",
+                    "specify characteristic numbers" => "history",
+                    _ => name,
                 }
                 .to_string(),
                 AttributeValue::Text("eyJ4IjoxfQ==".into()),
@@ -1113,6 +1114,10 @@ fn bookkeeping_attributes_are_not_unsupported_pmi() {
         .items
         .push(("requirement".into(), AttributeValue::Text("inspect".into())));
     attributes.push(extra_item);
+    // Specify's history set is bookkeeping only with its own item name (#265).
+    let mut wrong_history = attributes[4].clone();
+    wrong_history.items[0].0 = "specify characteristic numbers".into();
+    attributes.push(wrong_history);
     let edit = (
         PartId(0),
         PartPmi {
@@ -1130,15 +1135,16 @@ fn bookkeeping_attributes_are_not_unsupported_pmi() {
         .iter()
         .enumerate()
         .filter(|(_, a)| {
-            matches!(
-                a.name.as_str(),
-                "pmi-assist answers" | "draftwright editor project"
-            ) && a.items.len() == 1
-                && a.items[0].0 == a.name
+            a.items.len() == 1
+                && match a.name.as_str() {
+                    "pmi-assist answers" | "draftwright editor project" => a.items[0].0 == a.name,
+                    "specify characteristic numbers" => a.items[0].0 == "history",
+                    _ => false,
+                }
         })
         .map(|(index, _)| index)
         .collect();
-    assert_eq!(bookkeeping.len(), 2);
+    assert_eq!(bookkeeping.len(), 3);
     // A part `semantic text` set is a part note (#123), read and drawn, not bookkeeping.
     let note = reread.parts[0]
         .attributes
@@ -1166,8 +1172,8 @@ fn bookkeeping_attributes_are_not_unsupported_pmi() {
         .iter()
         .filter(|p| p.code == "pmi_not_extracted")
         .collect();
-    assert_eq!(unsupported.len(), 3, "{unsupported:#?}");
-    for index in (0..6).filter(|index| !bookkeeping.contains(index) && *index != note) {
+    assert_eq!(unsupported.len(), 4, "{unsupported:#?}");
+    for index in (0..8).filter(|index| !bookkeeping.contains(index) && *index != note) {
         assert_eq!(
             unsupported
                 .iter()

@@ -491,6 +491,116 @@ enum Outcome {
     Stated(usize, &'static str),
     /// Stated by a turned step's or boss's diameter, which takes its band.
     Band(usize, Req),
+    /// A Specify general-tolerance dimension the planners' own item conveys (#265): that
+    /// item's basis says so.
+    Conveyed(usize, String),
+    /// A Specify general-tolerance dimension no planners' item conveys: one more size the
+    /// drawing states, planned as the planners' own ([`general`], #265).
+    General(Want),
+}
+
+/// The parameter of a Specify general-tolerance dimension planned as draftwright's own.
+pub(crate) const GENERAL_SIZE: &str = "general_size.length";
+
+/// A Specify general-tolerance dimension no planners' item conveys, as an ordinary planned
+/// dimension (#265): the same span and views as *own* would have, but its feature is
+/// `specify_general:<identity>`, never `pmi:`, so it takes no PMI precedence or placement
+/// priority and is not the file's requirement downstream. Candidates, lanes, redundancy and
+/// drop findings treat it as any planned dimension. Its basis names the record's source, which
+/// carries its characteristic number and Specify's authorship ([`crate::characteristics`]).
+fn general(report: &crate::pmi::Report, r: &Record, own: Want) -> Want {
+    let feature = format!(
+        "specify_general:{}",
+        own.measurements[0]
+            .feature
+            .strip_prefix("pmi:")
+            .unwrap_or(&own.measurements[0].feature)
+    );
+    let reason = report
+        .sources
+        .iter()
+        .find(|s| s.id == r.source_id)
+        .map_or("", |s| s.reason.trim());
+    Want {
+        id: want_id(&feature, GENERAL_SIZE),
+        measurements: vec![super::Measurement {
+            feature,
+            parameter: GENERAL_SIZE.into(),
+            value: own.value,
+        }],
+        basis: format!(
+            "Specify's general-tolerance dimension {} ({}): no planned item states this size, so it is planned as draftwright's own dimension, under the general tolerance (#265); {reason}",
+            r.source_id,
+            fmt(own.value)
+        ),
+        ..own
+    }
+}
+
+/// The planners' item that conveys a Specify general-tolerance dimension (#265), which would
+/// otherwise stand as *own*: an engine item of the same span, else the engine item that
+/// dimensions the recognised feature its faces belong to, when every face is either such a
+/// feature's or the part's stock (an overall size between stock faces goes to the envelope
+/// item along its axis). The stop-gap until one dimension planner serves Specify and
+/// Draftwright (#264).
+fn conveyed(
+    a: &crate::model::Analysis,
+    wants: &[Want],
+    r: &Record,
+    own: &Want,
+) -> Option<(usize, String)> {
+    let Shape::Linear {
+        a: p,
+        b: q,
+        axis: k,
+        ..
+    } = own.shape
+    else {
+        return None;
+    };
+    let span = |a: &P3, b: &P3, k: usize| (a[k].min(b[k]), a[k].max(b[k]));
+    let (lo, hi) = span(&p, &q, k);
+    let engine = |w: &Want| !super::pmi_policy::authored(w);
+    if let Some(i) = wants.iter().position(|w| {
+        engine(w)
+            && matches!(&w.shape, Shape::Linear { a, b, axis, .. } if *axis == k && {
+                let (l, h) = span(a, b, k);
+                (l - lo).abs() < 1e-6 && (h - hi).abs() < 1e-6
+            })
+    }) {
+        return Some((i, format!("dimension {} of the same span", r.source_id)));
+    }
+    let stock = |f: &usize| a.stock_faces.contains(f);
+    let owns = |w: &Want, f: usize| {
+        w.measurements.iter().any(|m| {
+            a.features
+                .iter()
+                .any(|feature| feature.id == m.feature && feature.faces.contains(&f))
+        })
+    };
+    let rest: Vec<usize> = r.faces.iter().copied().filter(|f| !stock(f)).collect();
+    if !rest
+        .iter()
+        .all(|&f| wants.iter().any(|w| engine(w) && owns(w, f)))
+    {
+        return None;
+    }
+    let i = match rest.first() {
+        Some(&f) => wants.iter().position(|w| engine(w) && owns(w, f))?,
+        None => wants.iter().position(|w| {
+            engine(w)
+                && w.measurements.iter().any(|m| m.feature == "envelope")
+                && matches!(&w.shape, Shape::Linear { axis, .. } if *axis == k)
+        })?,
+    };
+    Some((
+        i,
+        format!(
+            "dimension {} ({}), which this item's feature conveys",
+            r.source_id,
+            fmt(own.value)
+        ),
+    ))
 }
 
 /// The Analysis's PMI dimensions: their standalone items, the problems, and the notes for the
@@ -525,6 +635,20 @@ pub(super) fn lower(cx: &Context, wants: &mut [Want]) -> Lowered {
             }
         })
         .collect();
+    // Specify's nominal-only general dimensions are drawn as the planners draw that geometry,
+    // taking only the file's values (#265); in strict mode they stand as the file's PMI.
+    if !super::pmi_policy::strict(cx.analysis, cx.spec) {
+        for (j, r) in records.iter().enumerate() {
+            if let Outcome::Standalone(own) = &outcomes[j]
+                && crate::pmi::specify_general(report, r)
+            {
+                outcomes[j] = match conveyed(cx.analysis, wants, r, own) {
+                    Some((i, how)) => Outcome::Conveyed(i, how),
+                    None => Outcome::General(general(report, r, own.clone())),
+                };
+            }
+        }
+    }
 
     // A callout states a band only when every hole it calls out has the same one: one with
     // holes of different requirements is split by requirement when it is a plain count group,
@@ -750,12 +874,19 @@ pub(super) fn lower(cx: &Context, wants: &mut [Want]) -> Lowered {
     for (r, o) in records.iter().zip(outcomes) {
         match o {
             Outcome::Refused(Refusal(code, why)) => problems.push(refusal(r, code, &why)),
-            Outcome::Standalone(w) => standalone.push(w),
+            Outcome::Standalone(w) | Outcome::General(w) => standalone.push(w),
             Outcome::Hole(..) | Outcome::Band(..) => {}
             Outcome::Stated(i, how) => {
                 let w = &mut wants[i];
                 w.basis += &format!("; it states the part's AP242 {how} ({})", r.source_id);
                 w.measurements.push(claim(&ids, r, w.value));
+            }
+            // Not claimed: a claim makes the planners' item authored PMI, which every later
+            // stage reads as the file's own statement and location evidence.
+            Outcome::Conveyed(i, how) => {
+                wants[i].basis += &format!(
+                    "; it conveys Specify's general-tolerance {how}, drawn as draftwright plans it (#265)"
+                );
             }
         }
     }

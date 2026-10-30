@@ -3,6 +3,7 @@
 Draftwright recognises these part-owned bookkeeping records by their exact names and forms:
 
 - Specify's `resume::attribute_set`: `pmi-assist answers`, with one text item of the same name.
+- Specify 0.1.4's characteristic-number history (#265): `specify characteristic numbers`, with one text item `history` (the numbering's high-water mark; Draftwright does not read it).
 - The editor and MCP project exporter: `draftwright editor project`, with one text item of the same name.
 - Python Specify's earlier form: a `pmi-assist answers` property described `schema 1` on a product definition, with one representation holding one descriptive item of the same name.
 
