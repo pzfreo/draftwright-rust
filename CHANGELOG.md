@@ -6,6 +6,10 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+## 0.2.4 (2026-10-30)
+
+Now on quiddity-rust **v0.2.5**. Adds optional inspection balloons for numbered AP242 characteristics (#254).
+
 ### Changed
 
 - Pin quiddity-rust v0.2.5. For quiddity-rust#134, boss heights reach the free end through convex chamfers and rounds, edge-treated plates retain their thickness dimensions, and concave turned fillets remain in counted radius callouts.
