@@ -24,7 +24,12 @@ fn missing(a: &model::Analysis, p: &model::Plan, part: &draftwright::haecceity::
     .unwrap();
     draftwright::lint::lint(a, &drawing)
         .iter()
-        .filter(|i| i.code == "blend_requirement_missing")
+        .filter(|i| {
+            matches!(
+                i.code.as_str(),
+                "blend_requirement_missing" | "fillet_requirement_missing"
+            )
+        })
         .count()
 }
 
@@ -38,11 +43,22 @@ fn many_blends_are_stated_without_counted_radius_clutter(file: &str) {
 
     let (part, a) = model::analyse_native(&dir.join(file)).unwrap();
     let p = model::plan(&a, &Spec::default()).unwrap();
-    let n = a.features.iter().filter(|f| f.kind == "blend").count();
+    // v0.2.3 (#127) proves these inside rounds as fillets. They now use
+    // counted radius callouts; retain exact occurrence credit and independent lint.
+    let n = a
+        .features
+        .iter()
+        .filter(|f| matches!(f.kind.as_str(), "blend" | "fillet"))
+        .count();
     assert!(n > 20);
     if file.contains("cgb245") {
         assert_eq!(missing(&a, &p, &part), 0, "{file}");
-        assert!(p.notes.iter().any(|n| n.placed.is_some()));
+        assert!(p.dimensions.iter().any(|d| {
+            d.placed.is_some()
+                && d.measurements
+                    .iter()
+                    .any(|m| m.parameter == "fillet.radius")
+        }));
     } else {
         assert_eq!(
             missing(&a, &p, &part),
@@ -69,7 +85,15 @@ fn many_blends_are_stated_without_counted_radius_clutter(file: &str) {
                 < 0.05));
         }
     }
-    assert!(p.notes.iter().any(|n| n.text.contains("RADII R")), "{file}");
+    assert!(
+        p.notes.iter().any(|n| n.text.contains("RADII R"))
+            || p.dimensions.iter().any(|d| d.placed.is_some()
+                && d.label.contains('R')
+                && d.measurements
+                    .iter()
+                    .any(|m| m.parameter == "fillet.radius")),
+        "{file}"
+    );
     assert!(
         p.dimensions
             .iter()
@@ -143,7 +167,7 @@ fn few_blends_share_a_radius_callout_and_lose_credit_when_hidden() {
 #[test]
 fn a_general_radius_note_can_be_hidden_and_moved_without_borrowing_prose_credit() {
     let Some(dir) = corpus::dir() else { return };
-    let (part, a) = cache::native(&dir.join("cadgenbench_inputs/cgb245.step"));
+    let (part, a) = cache::native(&dir.join("nist/nist_ctc_03_asme1_rc.stp"));
     let p = cache::default_plan(&a, false);
     let note = p
         .notes
@@ -168,7 +192,12 @@ fn a_general_radius_note_can_be_hidden_and_moved_without_borrowing_prose_credit(
     let blends = |d: &draftwright::dims::PlannedDimension| {
         d.measurements
             .iter()
-            .filter(|m| m.parameter == "blend.radius")
+            .filter(|m| {
+                matches!(
+                    m.parameter.as_str(),
+                    "blend.radius" | "fillet.radius" | "cylindrical_profile.radius"
+                )
+            })
             .count()
     };
     let exception = p
@@ -193,7 +222,10 @@ fn a_general_radius_note_can_be_hidden_and_moved_without_borrowing_prose_credit(
         exception
             .measurements
             .iter()
-            .filter(|m| m.parameter == "blend.radius")
+            .filter(|m| matches!(
+                m.parameter.as_str(),
+                "blend.radius" | "fillet.radius" | "cylindrical_profile.radius"
+            ))
             .filter(|m| !less.dimensions.iter().any(|d| {
                 d.placed.is_some() && d.measurements.iter().any(|n| n.feature == m.feature)
             }))
@@ -201,7 +233,15 @@ fn a_general_radius_note_can_be_hidden_and_moved_without_borrowing_prose_credit(
             + note
                 .measurements
                 .iter()
-                .filter(|m| m.parameter == "blend.radius")
+                .filter(|m| matches!(
+                    m.parameter.as_str(),
+                    "blend.radius" | "fillet.radius" | "cylindrical_profile.radius"
+                ))
+                .filter(|m| !less
+                    .dimensions
+                    .iter()
+                    .any(|d| d.placed.is_some()
+                        && d.measurements.iter().any(|n| n.feature == m.feature)))
                 .count()
     );
     assert!(
@@ -264,20 +304,35 @@ fn a_general_radius_note_can_be_hidden_and_moved_without_borrowing_prose_credit(
     let noted = note
         .measurements
         .iter()
-        .filter(|m| m.parameter == "blend.radius")
+        .filter(|m| {
+            matches!(
+                m.parameter.as_str(),
+                "blend.radius" | "fillet.radius" | "cylindrical_profile.radius"
+            )
+        })
         .count();
+    // A prose-only radius/count still cannot borrow the structured note's claims.
     for text in [
-        "R2, 32 BLENDS; OTHER BLEND RADII UNSTATED",
-        "R2, 32 BLENDS; REF SITE XYZ (1, 2, 3)",
+        format!(
+            "R{}, {noted} BLENDS; OTHER BLEND RADII UNSTATED",
+            note.measurements[0].value
+        ),
+        format!(
+            "R{}, {noted} BLENDS; REF SITE XYZ (1, 2, 3)",
+            note.measurements[0].value
+        ),
     ] {
         let mut unlocated = drawing.clone();
         for &run in &unlocated.annotations[index].runs {
-            unlocated.text[run].text = text.into();
+            unlocated.text[run].text = text.clone();
         }
         assert_eq!(
             draftwright::lint::lint(&a, &unlocated)
                 .iter()
-                .filter(|i| i.code == "blend_requirement_missing")
+                .filter(|i| matches!(
+                    i.code.as_str(),
+                    "blend_requirement_missing" | "fillet_requirement_missing"
+                ))
                 .count(),
             noted
         );
@@ -292,7 +347,12 @@ fn a_general_radius_note_can_be_hidden_and_moved_without_borrowing_prose_credit(
     drawing.annotations.push(drawing.annotations[index].clone());
     let missing: Vec<_> = draftwright::lint::lint(&a, &drawing)
         .into_iter()
-        .filter(|i| i.code == "blend_requirement_missing")
+        .filter(|i| {
+            matches!(
+                i.code.as_str(),
+                "blend_requirement_missing" | "fillet_requirement_missing"
+            )
+        })
         .collect();
     assert_eq!(
         missing.len(),
@@ -396,10 +456,18 @@ fn a_bare_pin_keeps_a_shared_radius_leader_and_its_default() {
         .dimensions
         .iter()
         .find(|d| {
-            d.measurements.iter().any(|m| m.parameter == "blend.radius")
-                && d.measurements
-                    .iter()
-                    .any(|m| m.parameter == "fillet.radius")
+            let side = |concave| {
+                d.measurements.iter().any(|m| {
+                    m.parameter == "fillet.radius"
+                        && a.features.iter().any(|f| {
+                            f.id == m.feature
+                                && (f.parameters.get("side").and_then(serde_json::Value::as_str)
+                                    == Some("concave"))
+                                    == concave
+                        })
+                })
+            };
+            side(true) && side(false)
         })
         .unwrap();
     let spec = model::edit(
@@ -456,13 +524,24 @@ fn ctc01_states_real_corners_and_the_radius_default_without_logo_callouts() {
             .any(|d| d.label == "4× R25" && d.view == "v:plan" && d.placed.is_some())
     );
     assert!(p.radius_table.is_none());
+    // v0.2.3 (#127): the former default's real inside rounds are now 18× R10.
     assert!(
-        p.notes
+        p.dimensions
             .iter()
-            .any(|n| n.text == "ALL UNSPECIFIED RADII R10" && n.placed.is_some())
+            .any(|d| d.label == "18× R10" && d.placed.is_some())
     );
     assert_eq!(missing(&a, &p, &part), 0);
-    let excluded = ["f:blend:29", "f:blend:30", "f:blend:31", "f:fillet:8"];
+    let excluded: Vec<_> = a
+        .features
+        .iter()
+        .filter(|f| {
+            a.radius_reliefs
+                .iter()
+                .any(|r| !f.faces.is_empty() && f.faces.iter().all(|face| r.faces.contains(face)))
+        })
+        .map(|f| f.id.as_str())
+        .collect();
+    assert!(excluded.len() >= 4);
     assert!(
         !p.dimensions
             .iter()
@@ -622,7 +701,15 @@ fn relief_profile_note_is_required_for_the_default_and_independent_lint() {
             .filter(|n| n.text.starts_with("ALL UNSPECIFIED RADII"))
             .all(|n| n.placed.is_none())
     );
-    assert_eq!(missing(&a, &hidden, &part), 18);
+    // The explicit 18× R10 callout survives; only the model-governed relief note
+    // is missing now that #127 makes the real corners fillets.
+    assert_eq!(missing(&a, &hidden, &part), 0);
+    assert!(
+        hidden
+            .dimensions
+            .iter()
+            .any(|d| d.placed.is_some() && d.label == "18× R10")
+    );
     let font =
         draftwright::text::Font::new(include_bytes!("../fonts/IBMPlexMono-Regular.ttf").to_vec())
             .unwrap();
@@ -631,9 +718,12 @@ fn relief_profile_note_is_required_for_the_default_and_independent_lint() {
     let lint = draftwright::lint::lint(&a, &drawing);
     assert_eq!(
         lint.iter()
-            .filter(|i| i.code == "blend_requirement_missing")
+            .filter(|i| matches!(
+                i.code.as_str(),
+                "blend_requirement_missing" | "fillet_requirement_missing"
+            ))
             .count(),
-        18
+        0
     );
     assert!(
         lint.iter()
@@ -656,6 +746,11 @@ fn deep_profiles_are_not_exempted_as_shallow_relief() {
             .expect("shallow profile evidence")
             .is_empty()
     );
+    let shallow_faces: Vec<_> = a
+        .radius_reliefs
+        .iter()
+        .flat_map(|r| r.faces.iter().copied())
+        .collect();
     // Move the whole pocket floor from 398 to 388 mm; only model-space Cartesian points
     // change. Analytic cylinder axes remain valid along x, and all trim curves move with it.
     let deep = bytes.replace("CARTESIAN_POINT('',(398.,", "CARTESIAN_POINT('',(388.,");
@@ -669,15 +764,27 @@ fn deep_profiles_are_not_exempted_as_shallow_relief() {
     );
     let p = cache::default_plan(&a, false);
     let doc = serde_json::to_value(&p).unwrap();
-    assert!(
-        p.dimensions
-            .iter()
-            .flat_map(|d| &d.measurements)
-            .any(|m| m.feature == "f:blend:29")
-            || doc["radius_table"]["rows"]
-                .as_array()
-                .is_some_and(|rs| rs.iter().any(|r| r["feature"] == "f:blend:29"))
-    );
+    // #127 changes their family to concave fillets; every physical round still
+    // needs an actual radius statement once its depth defeats relief exclusion.
+    let rounds: Vec<_> = a
+        .features
+        .iter()
+        .filter(|f| {
+            matches!(f.kind.as_str(), "blend" | "fillet")
+                && f.faces.iter().any(|face| shallow_faces.contains(face))
+        })
+        .collect();
+    assert!(!rounds.is_empty());
+    for f in rounds {
+        assert!(
+            p.dimensions
+                .iter()
+                .any(|d| d.placed.is_some() && d.measurements.iter().any(|m| m.feature == f.id))
+                || doc["radius_table"]["rows"]
+                    .as_array()
+                    .is_some_and(|rs| rs.iter().any(|r| r["feature"] == f.id))
+        );
+    }
 }
 
 // Every row locates one occurrence; changing or deleting its locator loses that occurrence
@@ -687,18 +794,93 @@ fn deep_profiles_are_not_exempted_as_shallow_relief() {
 part_cases!(radius_centre_table_credits_every_occurrence_and_rejects_wrong_locators;
     nist_ctc_02_asme1_rc => "nist/nist_ctc_02_asme1_rc.stp",
     nist_ftc_08_asme1_rc => "nist/nist_ftc_08_asme1_rc.stp",
+    nist_stc_10_asme1_ap242_e2 => "pmi/step/nist_stc_10_asme1_ap242-e2.stp.gz",
 );
 fn radius_centre_table_credits_every_occurrence_and_rejects_wrong_locators(file: &str) {
     let Some(dir) = corpus::dir() else { return };
 
-    let (part, a) = model::analyse_native(&dir.join(file)).unwrap();
+    let path = if file.starts_with("pmi/") {
+        std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures")
+            .join(file)
+    } else {
+        dir.join(file)
+    };
+    let (part, a) = model::analyse_native(&path).unwrap();
     let spec =
         serde_json::from_value(serde_json::json!({"sheet":{"preferred_max_size":"A0"}})).unwrap();
     let p = model::plan(&a, &spec).unwrap();
     let doc = serde_json::to_value(&p).unwrap();
-    let table = doc["radius_table"]
-        .as_object()
-        .expect("located radius table");
+    if p.radius_table.is_none() {
+        // v0.2.3 (#127) makes these former table-owned inside rounds fillets,
+        // now stated directly by counted callouts. Exercise exact occurrence
+        // credit on their actual carrier; the table path remains tested below.
+        assert_eq!(missing(&a, &p, &part), 0, "{file}");
+        let d = p
+            .dimensions
+            .iter()
+            .find(|d| {
+                d.placed.is_some()
+                    && d.measurements
+                        .iter()
+                        .filter(|m| m.parameter == "fillet.radius")
+                        .count()
+                        >= 4
+            })
+            .unwrap();
+        let ids: std::collections::BTreeSet<_> = d
+            .measurements
+            .iter()
+            .filter(|m| m.parameter == "fillet.radius")
+            .map(|m| m.feature.as_str())
+            .collect();
+        let font = draftwright::text::Font::new(
+            include_bytes!("../fonts/IBMPlexMono-Regular.ttf").to_vec(),
+        )
+        .unwrap();
+        let drawing = model::render(&part, &a, &p, &font).unwrap();
+        let index = drawing
+            .annotations
+            .iter()
+            .position(|a| a.name == d.id)
+            .unwrap();
+        let mut wrong = drawing.clone();
+        for run in wrong.annotations[index].runs.clone() {
+            wrong.text[run].text = "R99999".into();
+        }
+        let lost: std::collections::BTreeSet<_> = draftwright::lint::lint(&a, &wrong)
+            .into_iter()
+            .filter(|i| {
+                matches!(
+                    i.code.as_str(),
+                    "fillet_requirement_missing" | "fillet_requirement_unverifiable"
+                )
+            })
+            .flat_map(|i| i.subjects)
+            .collect();
+        assert!(
+            ids.iter().all(|id| lost.contains(*id)),
+            "{file}: misprinted radius lost exact occurrence credit"
+        );
+        let mut absent = drawing;
+        absent.annotations.remove(index);
+        let lost: std::collections::BTreeSet<_> = draftwright::lint::lint(&a, &absent)
+            .into_iter()
+            .filter(|i| {
+                matches!(
+                    i.code.as_str(),
+                    "fillet_requirement_missing" | "fillet_requirement_unverifiable"
+                )
+            })
+            .flat_map(|i| i.subjects)
+            .collect();
+        assert!(
+            ids.iter().all(|id| lost.contains(*id)),
+            "{file}: absent carrier cannot borrow credit"
+        );
+        return;
+    }
+    let table = doc["radius_table"].as_object().unwrap();
     let rows = table["rows"].as_array().unwrap();
     assert!(rows.len() >= 4);
     assert!(table["table"].get("placed").is_some());
@@ -745,7 +927,10 @@ fn radius_centre_table_credits_every_occurrence_and_rejects_wrong_locators(file:
     assert_eq!(
         draftwright::lint::lint(&a, &wrong)
             .iter()
-            .filter(|i| i.code == "blend_requirement_missing")
+            .filter(|i| matches!(
+                i.code.as_str(),
+                "blend_requirement_missing" | "fillet_requirement_missing"
+            ))
             .count(),
         1 + default_count,
         "{file}: wrong centre cannot state the radius"
@@ -762,7 +947,10 @@ fn radius_centre_table_credits_every_occurrence_and_rejects_wrong_locators(file:
     assert_eq!(
         draftwright::lint::lint(&a, &lost)
             .iter()
-            .filter(|i| i.code == "blend_requirement_missing")
+            .filter(|i| matches!(
+                i.code.as_str(),
+                "blend_requirement_missing" | "fillet_requirement_missing"
+            ))
             .count(),
         1 + default_count,
         "{file}: duplicate row cannot borrow occurrence credit"
@@ -796,9 +984,8 @@ fn oblique_radius_exceptions_join_an_equal_fillet_leader(file: &str) {
     let note = p
         .notes
         .iter()
-        .find(|n| n.text.starts_with("ALL UNSPECIFIED RADII") && n.placed.is_some())
-        .expect("the general radius note, placed");
-    let general = note.measurements[0].value;
+        .find(|n| n.text.starts_with("ALL UNSPECIFIED RADII") && n.placed.is_some());
+    let general = note.map(|n| n.measurements[0].value);
     // The exceptions: blends or fillets of another radius whose axis is along no principal
     // direction.
     let oblique: Vec<&draftwright::bridge::Feature> = a
@@ -819,7 +1006,7 @@ fn oblique_radius_exceptions_join_an_equal_fillet_leader(file: &str) {
             f.parameters
                 .get("radius")
                 .and_then(serde_json::Value::as_f64)
-                != Some(general)
+                != general
                 && axis.is_some_and(|d| {
                     d.iter()
                         .filter(|c| c.as_f64().unwrap().abs() > 1e-6)
@@ -867,6 +1054,15 @@ fn oblique_radius_exceptions_join_an_equal_fillet_leader(file: &str) {
         .unwrap();
     let spec = model::edit(&Spec::default(), &json!([{"op":"set", "path":format!("dimensions/{}/omit", draftwright::items::key(&leader.id)), "value":true}])).unwrap();
     let hidden = model::plan(&a, &spec).unwrap();
-    assert!(withdrawn(&hidden), "{file}");
+    if note.is_some() {
+        assert!(withdrawn(&hidden), "{file}");
+    } else {
+        assert!(
+            hidden
+                .notes
+                .iter()
+                .all(|n| !n.text.starts_with("ALL UNSPECIFIED RADII"))
+        );
+    }
     assert!(missing(&a, &hidden, &part) > 0, "{file}");
 }

@@ -944,10 +944,13 @@ pub(super) fn check(analysis: &Analysis, drawing: &Drawing) -> (Vec<LintIssue>, 
         // A consolidated fillet names its own faces, rather than borrowing a blend target.
         let fillets = claimed("fillet.radius");
         let is_fillet = !fillets.is_empty();
-        let (radii, parameter) = if fillets.is_empty() {
-            (claimed("blend.radius"), "blend.radius")
-        } else {
+        let profiles = claimed("cylindrical_profile.radius");
+        let (radii, parameter) = if !fillets.is_empty() {
             (fillets, "fillet.radius")
+        } else if !profiles.is_empty() {
+            (profiles, "cylindrical_profile.radius")
+        } else {
+            (claimed("blend.radius"), "blend.radius")
         };
         if !radii.is_empty() {
             let mut shown = Vec::new();

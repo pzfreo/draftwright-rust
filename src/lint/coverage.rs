@@ -240,6 +240,19 @@ pub fn inventory(analysis: &Analysis) -> Vec<(f64, Vec<Requirement>)> {
             ));
         }
     }
+    // quiddity-rust#123 suppresses a complete body's full-length OD boss. Its
+    // diameter remains an independent coverage requirement, carried by the OD dimension.
+    for f in analysis.features.iter().filter(|f| f.kind == "turned_body") {
+        if let Some(d) = f.parameters.get("od").and_then(|v| v.as_f64()) {
+            found.push((
+                d,
+                Requirement {
+                    feature: f.id.clone(),
+                    parameter: "turned_body.diameter".into(),
+                },
+            ));
+        }
+    }
     found.sort_by(|a, b| a.0.total_cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
     let mut out: Vec<(f64, Vec<Requirement>)> = Vec::new();
     for (d, r) in found {

@@ -66,7 +66,7 @@ use crate::model::Analysis;
 use crate::pmi_lowering::Manufacturing;
 
 pub(super) const PLANNER: Planner = Planner {
-    kinds: &["turned_step"],
+    kinds: &["turned_step", "turned_body"],
     wants,
 };
 
@@ -83,6 +83,9 @@ pub(super) struct Turned {
 }
 
 pub(super) fn turned(analysis: &Analysis, frame: &super::QFrame) -> Option<Turned> {
+    if let Some((axis, on, diameter)) = crate::bridge::turned_body(analysis) {
+        return Some(Turned { axis, on, diameter });
+    }
     let steps: Vec<&Feature> = analysis
         .features
         .iter()
@@ -1095,6 +1098,17 @@ fn overall(
         parameter: "od.diameter".into(),
         value: t.diameter,
     }];
+    measurements.extend(
+        cx.analysis
+            .features
+            .iter()
+            .filter(|f| f.kind == "turned_body")
+            .map(|f| Measurement {
+                feature: f.id.clone(),
+                parameter: "turned_body.diameter".into(),
+                value: t.diameter,
+            }),
+    );
     measurements.extend(share.iter().map(|(f, b)| Measurement {
         feature: f.id.clone(),
         parameter: "step.diameter".into(),

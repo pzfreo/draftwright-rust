@@ -79,6 +79,7 @@ pub const IDENTITY: [[f64; 3]; 4] = [[0.0; 3], [1.0, 0.0, 0.0], [0.0, 1.0, 0.0],
 /// the rest are known and left to the bridge.
 pub const FAMILIES: &[(&str, &[&str])] = &[
     ("fillets", &["Fillet"]),
+    ("cylindrical_profiles", &["CylindricalProfile"]),
     ("chamfers", &["Chamfer"]),
     ("bosses", &["BossRecord"]),
     ("angled_steps", &["AngledStep"]),
@@ -110,7 +111,9 @@ pub const FAMILIES: &[(&str, &[&str])] = &[
     ("turned_steps", &["TurnedStep"]),
     ("grooves", &["Groove"]),
     ("annular_grooves", &["AnnularGroove"]),
+    ("face_grooves", &["FaceGroove"]),
     ("plates", &["Plate"]),
+    ("turned_bodies", &["TurnedBody"]),
     ("round_bottom_blind_slots", &["RoundBottomBlindSlot"]),
     ("semicircular_blind_slots", &["SemicircularBlindSlot"]),
     ("rectangular_blind_slots", &["RectangularBlindSlot"]),
@@ -154,10 +157,13 @@ pub const FAMILIES: &[(&str, &[&str])] = &[
 
 /// The families consumed here, including evidence and refusals. Oriented slot patterns are
 /// checked and not kept (see the module docs). Threads are retained pending depiction.
-pub const READ: [&str; 36] = [
+pub const READ: [&str; 39] = [
     "holes",
     "hole_patterns",
     "fillets",
+    "cylindrical_profiles",
+    "face_grooves",
+    "turned_bodies",
     "chamfers",
     "oriented_chamfers",
     "countersinks",
@@ -323,6 +329,40 @@ pub const FIELDS: &[(&str, &[(&str, Field)])] = &[
             ("centre", Field::Point),
             ("span", Field::Pair),
             ("repeat_count", Field::Count),
+        ],
+    ),
+    (
+        "CylindricalProfile",
+        &[
+            ("axis", Field::Axis),
+            ("axis_point", Field::Point),
+            ("radius", Field::Number),
+            ("side", Field::Text),
+            ("sweep", Field::Number),
+            ("faces", Field::Faces),
+        ],
+    ),
+    (
+        "FaceGroove",
+        &[
+            ("axis", Field::Point),
+            ("axis_point", Field::Point),
+            ("outer_diameter", Field::Number),
+            ("inner_diameter", Field::Number),
+            ("depth", Field::Number),
+            ("outer_wall_angle", Field::Number),
+            ("inner_wall_angle", Field::Number),
+            ("floor", Field::Faces),
+            ("faces", Field::Faces),
+        ],
+    ),
+    (
+        "TurnedBody",
+        &[
+            ("axis", Field::Axis),
+            ("axis_point", Field::Point),
+            ("od", Field::Number),
+            ("length", Field::Number),
         ],
     ),
     (

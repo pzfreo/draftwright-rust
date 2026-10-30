@@ -24,6 +24,7 @@ thread_local! {
     static ACTIVE: RefCell<Option<Active>> = const { RefCell::new(None) };
     static FIXED_PAIR: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
     static TRIAL_RADIUS_REFERENCE: RefCell<Option<(crate::model::Plan, [u8; 32])>> = const { RefCell::new(None) };
+    static PIN_REFERENCE: RefCell<Option<(crate::model::Plan, [u8; 32])>> = const { RefCell::new(None) };
     static DEFER_NOMINALS: std::cell::Cell<bool> = const { std::cell::Cell::new(false) };
 }
 
@@ -81,6 +82,25 @@ pub(crate) fn fixed_pair_with_radius_reference<T>(
 
 pub(crate) fn trial_radius_reference() -> Option<crate::model::Plan> {
     TRIAL_RADIUS_REFERENCE.with(|r| r.borrow().as_ref().map(|r| r.0.clone()))
+}
+
+/// A pin replay keeps the published schedule while its forced paper trials
+/// replan the remaining annotations. Restore the reference on every exit.
+pub(crate) fn with_pin_reference<T>(reference: crate::model::Plan, run: impl FnOnce() -> T) -> T {
+    struct Restore(Option<(crate::model::Plan, [u8; 32])>);
+    impl Drop for Restore {
+        fn drop(&mut self) {
+            PIN_REFERENCE.with(|r| *r.borrow_mut() = self.0.take());
+        }
+    }
+    let key =
+        Sha256::digest(serde_json::to_vec(&reference).expect("pin reference serializes")).into();
+    let _restore = Restore(PIN_REFERENCE.with(|r| r.replace(Some((reference, key)))));
+    run()
+}
+
+pub(crate) fn pin_reference() -> Option<crate::model::Plan> {
+    PIN_REFERENCE.with(|r| r.borrow().as_ref().map(|r| r.0.clone()))
 }
 
 pub(crate) fn is_fixed_pair() -> bool {
@@ -291,6 +311,7 @@ pub(crate) fn policy_key(
     bool,
     bool,
     Option<[u8; 32]>,
+    Option<[u8; 32]>,
     bool,
     Option<Option<&'static str>>,
 ) {
@@ -299,6 +320,7 @@ pub(crate) fn policy_key(
         lookup::<bool>(analysis, "established-route-policy", &[]).unwrap_or(false),
         crate::nominal::comparison(),
         TRIAL_RADIUS_REFERENCE.with(|r| r.borrow().as_ref().map(|r| r.1)),
+        PIN_REFERENCE.with(|r| r.borrow().as_ref().map(|r| r.1)),
         crate::dims::compact(),
         crate::dims::idle_given(),
     )

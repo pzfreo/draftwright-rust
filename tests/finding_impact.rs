@@ -424,7 +424,9 @@ fn ctc01_counts_gaps_and_repeated_causes_without_hiding_findings() {
         // 0.2.1 recognises the two V-slot notches and their rounded channels, which draftwright
         // does not draw yet, so they are reported as features_not_recognised: incomplete
         // (6, 2) -> (7, 3); their faces are no longer unclaimed_geometry: advisory -> (14, 3).
-        [(7, 3), (1, 1), (1, 1), (14, 3)],
+        // v0.2.3 (#127) states the inside rounds explicitly as 18× R10; the
+        // 350 pitch passes within 0.5 mm of that new callout (one advisory).
+        [(7, 3), (1, 1), (1, 1), (15, 3)],
     );
 }
 #[test]
@@ -440,7 +442,15 @@ fn unsupported_recesses_and_rounding_have_separate_impacts() {
     // incomplete (11, 4) -> (12, 5). #226: the 2 × 2.81 pocket and HEX 1.935 A/F leaders end on
     // the dashed outlines of recesses their views see only hidden, two leader_to_hidden_edge
     // warnings: readability (0, 0) -> (2, 1).
-    assert_review_summary("mfcadpp/1000.step", [(12, 5), (1, 1), (2, 1), (12, 3)]);
+    // v0.2.3 (#127) now dimensions the former unexplained cylindrical cut: one
+    // fewer incomplete finding and group. The size is now stated, while its
+    // bounded automatic leader retains the existing radius_leader_not_radial
+    // fallback: one readability finding in its own group, alongside the two
+    // unchanged hidden-edge count. Its interior label also makes structural
+    // review report the legitimate blank-face placement and existing 0.0005 mm
+    // nominal rounding: advisory (12, 3) -> (14, 4). Neither notice is suppressed.
+    // A dimension place override can steer the radius leader.
+    assert_review_summary("mfcadpp/1000.step", [(11, 4), (1, 1), (3, 2), (14, 4)]);
 }
 #[test]
 fn informational_hole_bottom_and_recovery_remain_advisory() {

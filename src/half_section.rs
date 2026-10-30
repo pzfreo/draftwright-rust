@@ -173,6 +173,9 @@ fn turned(analysis: &Analysis) -> Option<Turned> {
         }
         bands.push(b);
     }
+    if let Some((axis, on, _)) = crate::bridge::turned_body(analysis) {
+        return Some(Turned { axis, on, bands });
+    }
     let first = bands.first()?;
     let (axis, on) = (first.axis, first.on);
     let diameter = bands.iter().map(|b| b.diameter).fold(0.0, f64::max);
@@ -598,6 +601,30 @@ mod tests {
 
     fn why(a: &Analysis) -> Option<&'static str> {
         turned(a).unwrap().inside(a)
+    }
+
+    /// quiddity-rust#123: a body without a boss or bands still qualifies for an
+    /// authored half section. Visible shallow face recesses alone do not trigger one:
+    /// the end view and rim/depth/angle callout describe them cleanly.
+    #[test]
+    fn a_single_diameter_body_is_eligible_without_forcing_a_section() {
+        let a = part(
+            &[],
+            &[
+                (
+                    "turned_body",
+                    json!({"axis":"z", "axis_point":[0.0,0.0,12.0], "od":15.0, "length":24.0}),
+                ),
+                (
+                    "face_groove",
+                    json!({"axis":[0.0,0.0,1.0], "axis_point":[0.0,0.0,24.0], "outer_diameter":13.0, "inner_diameter":10.0, "depth":0.25, "outer_wall_angle":45.0, "inner_wall_angle":45.0}),
+                ),
+                bore(6.0, 24.0, 24.0, "through"),
+            ],
+        );
+        let t = turned(&a).expect("a complete turned-body record, with no steps or boss");
+        assert_eq!(t.axis, 2);
+        assert_eq!(t.inside(&a), None);
     }
 
     /// The automatic half section's trigger: a section must show what hidden lines cannot show

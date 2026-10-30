@@ -890,7 +890,7 @@ fn recovered_ctc02_keeps_counted_radius_leaders_on_trimmed_arcs() {
     assert!(plan.radius_table.is_none());
     assert_eq!(
         (plan.sheet.size.as_str(), plan.sheet.scale.as_str()),
-        ("A1", "1:5")
+        ("A2", "1:5")
     );
     for (label, count) in [("4× R15", 4), ("6× R18", 6)] {
         let d = plan
@@ -906,11 +906,32 @@ fn recovered_ctc02_keeps_counted_radius_leaders_on_trimmed_arcs() {
         let centre = view.map([0, 1, 2].map(|k| (a.envelope[0][k] + a.envelope[1][k]) / 2.0));
         assert!(
             d.measurements.iter().any(|m| {
-                a.blend_sites.get(&m.feature).is_some_and(|sites| {
-                    sites.iter().any(|site| {
-                        let q = view.map(*site);
-                        let page = [0, 1].map(|k| frame.at[k] + frame.scale * (q[k] - centre[k]));
-                        (page[0] - tip[0]).hypot(page[1] - tip[1]) < 0.002
+                a.radius_arcs.get(&m.feature).is_some_and(|arcs| {
+                    arcs.iter().any(|arc| {
+                        let aligned: f64 = arc
+                            .axis
+                            .iter()
+                            .zip(frame.direction)
+                            .map(|(x, y)| x * y)
+                            .sum();
+                        if aligned.abs() < 1.0 - 1e-9 {
+                            return false;
+                        }
+                        let page = |q| {
+                            let q = view.map(q);
+                            [0, 1].map(|k| frame.at[k] + frame.scale * (q[k] - centre[k]))
+                        };
+                        let c = page(arc.arc.centre);
+                        let u = page([0, 1, 2].map(|k| arc.arc.centre[k] + arc.arc.u[k]));
+                        let v = page([0, 1, 2].map(|k| arc.arc.centre[k] + arc.arc.v[k]));
+                        let delta = [tip[0] - c[0], tip[1] - c[1]];
+                        let angle = (delta[0] * (v[0] - c[0]) + delta[1] * (v[1] - c[1]))
+                            .atan2(delta[0] * (u[0] - c[0]) + delta[1] * (u[1] - c[1]));
+                        let along = (angle - arc.arc.start).rem_euclid(std::f64::consts::TAU);
+                        let r = frame.scale * arc.arc.radius;
+                        ((tip[0] - c[0]).hypot(tip[1] - c[1]) - r).abs() < 0.002
+                            && (along <= arc.arc.sweep + 0.002 / r
+                                || along >= std::f64::consts::TAU - 0.002 / r)
                     })
                 })
             }),
@@ -936,7 +957,8 @@ fn recovered_ctc02_keeps_counted_radius_leaders_on_trimmed_arcs() {
     assert!(
         unverifiable
             .iter()
-            .all(|n| *n == "d:f:fillet:30/fillet.radius"),
+            // #127 inserts concave rounds before the same drafted R25 group.
+            .all(|n| *n == "d:f:fillet:51/fillet.radius"),
         "{unverifiable:?}"
     );
 }
@@ -1021,11 +1043,7 @@ fn ctc01_r5_meets_the_fillet_from_the_open_centre_side() {
     }
     let (part, a) = model::analyse_native(&path).unwrap();
     let p = model::plan(&a, &Spec::default()).unwrap();
-    let d = p
-        .dimensions
-        .iter()
-        .find(|d| d.id == "d:f:blend:23/blend.radius")
-        .unwrap();
+    let d = p.dimensions.iter().find(|d| d.label == "6× R5").unwrap();
     assert_eq!(d.view, "v:front");
     assert_eq!(d.measurements.len(), 6);
     let placed = d.placed.as_ref().expect("never drop the callout");
@@ -1067,11 +1085,7 @@ fn ctc01_r5_meets_the_fillet_from_the_open_centre_side() {
             .any(|i| i.annotation.as_deref() == Some(d.id.as_str())
                 && i.code.starts_with("radius_leader_"))
     );
-    let convex = p
-        .dimensions
-        .iter()
-        .find(|d| d.id == "d:f:fillet:6/fillet.radius")
-        .unwrap();
+    let convex = p.dimensions.iter().find(|d| d.label == "7× R50").unwrap();
     assert_eq!(
         convex
             .measurements
@@ -1187,11 +1201,7 @@ fn ctc04_radius_labels_keep_the_schedule_origin_leader_clear() {
         .expect("retain the schedule origin")
         .leader
         .unwrap();
-    let d = p
-        .dimensions
-        .iter()
-        .find(|d| d.id == "d:f:fillet:4/fillet.radius")
-        .unwrap();
+    let d = p.dimensions.iter().find(|d| d.label == "8× R25").unwrap();
     let b = d.placed.as_ref().expect("retain the radius").label_box;
     let inside = |q: P| q[0] > b[0] && q[0] < b[2] && q[1] > b[1] && q[1] < b[3];
     let side = |a: P, b: P, c: P| (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
@@ -1478,7 +1488,7 @@ fn flat_cut_bands_chamfers_and_fillets_lead_to_their_own_faces() {
         ),
         (
             "nist/nist_ftc_10_asme1_rb.stp",
-            &["d:f:fillet:15/fillet.radius"][..],
+            &["d:f:fillet:21/fillet.radius"][..],
         ),
         (
             "cadgenbench_inputs/cgb202.step.gz",
@@ -1487,8 +1497,9 @@ fn flat_cut_bands_chamfers_and_fillets_lead_to_their_own_faces() {
                 // 203 and 270 on quiddity-rust 0.1.1). quiddity-rust 0.2.0's fillet/blend
                 // reading numbered them 200 and 277; quiddity-rust 0.2.2's #120 fillets 201 and
                 // 305, each its group's representative (14× R1, 67× R2).
-                "d:f:fillet:201/fillet.radius",
-                "d:f:fillet:305/fillet.radius",
+                // v0.2.3 (#127) inserts concave fillets: the same faces are now 513 and 706.
+                "d:f:fillet:513/fillet.radius",
+                "d:f:fillet:706/fillet.radius",
             ][..],
         ),
     ] {

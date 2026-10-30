@@ -245,7 +245,15 @@ fn ftc07_frames_lead_to_their_own_holes() {
 #[test]
 fn a_frame_on_split_bores_attaches_to_their_callout() {
     let a = nist("nist_stc_09_asme1_ap242-e4.stp.gz");
-    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    // #127 adds real radius callouts to the dense front strip. Give this
+    // topology/attachment scenario a free size-label row; the default may
+    // legitimately use its own rim when a frame cannot fit beneath its mark.
+    let spec: Spec = serde_json::from_value(serde_json::json!({
+        "sheet":{"size":"A0"},
+        "dimensions":{"d:f:hole:14/bore.diameter":{"place":{"side":"above","lane":4}}}
+    }))
+    .unwrap();
+    let plan = model::plan_recovered(&a, &spec).unwrap();
     let frame = plan
         .gdt
         .iter()

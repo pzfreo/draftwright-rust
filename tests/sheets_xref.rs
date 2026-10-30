@@ -485,14 +485,14 @@ fn cited_zones_stay_when_switched_off_and_are_reported_once() {
 fn a_section_address_keeps_a_words_gap_from_a_label_on_its_line() {
     let path = PathBuf::from(std::env::var("DRAFTWRIGHT_CORPUS").unwrap())
         .join("nist/nist_ftc_10_asme1_rb.stp");
-    let (p, _) = api::render_from(
-        &path,
-        api::Features::Native,
-        &Default::default(),
-        &["svg"],
-        24.,
-    )
+    // #127's extra radii make the default one A1 sheet. Keep the two-sheet
+    // address regression explicit, at its original A2 paper and 1:1 scale.
+    let spec = serde_json::from_value(json!({
+        "sheet":{"size":"A2","scale":"1:1"},"sheets":{"max":2},
+        "views":{"section_aa":{"sheet":2}}
+    }))
     .unwrap();
+    let (p, _) = api::render_from(&path, api::Features::Native, &spec, &["svg"], 24.).unwrap();
     let v = p.views.iter().find(|v| v.id == "v:section_aa").unwrap();
     let to = v.cut.as_ref().unwrap().xref.as_ref().unwrap();
     let font = draftwright::text::Font::new(api::MONO.to_vec()).unwrap();

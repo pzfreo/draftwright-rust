@@ -2263,7 +2263,11 @@ fn select_with(analysis: &Analysis, plan: &Plan, replace_pmi: bool) -> Selection
     // placement add or remove a whole table. A bare pin on a scalar already covered by the
     // default table does not resurrect its ladder. Callout pins remain additive, so a visible
     // authored callout is never replaced.
-    let canonical = if crate::placement_intent::has_pins(&plan.spec) {
+    let canonical = if crate::placement_intent::has_pins(&plan.spec)
+        && let Some(published) = crate::planning::pin_reference()
+    {
+        Some(published)
+    } else if crate::placement_intent::has_pins(&plan.spec) {
         let mut base = crate::model::Spec::default();
         base.sheet.size = plan.spec.sheet.size.clone();
         base.sheet.scale = plan.spec.sheet.scale.clone();

@@ -688,9 +688,19 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
             let (u, v) = in_view(h.axis);
             for k in [u, v] {
                 if let Some(t) = &turned
+                    && !cx.spec.origin.contains_key(AXES[k])
                     && k != t.axis
                     && (h.at[k] - t.on[k]).abs() < 1e-3
                 {
+                    // A complete body now establishes this even without an OD boss.
+                    // Keep the reason on the surviving size callout, and let an explicit
+                    // Spec origin retain the tangent-based location as before (#104).
+                    if crate::bridge::turned_body(analysis).is_some() {
+                        callouts.last_mut().unwrap().basis += &format!(
+                            "; it is on the axis of the part's round outline, which the centre lines locate, so it is not located in {} from that outline's tangent",
+                            AXES[k]
+                        );
+                    }
                     continue; // on the turning axis: the centre line locates it
                 }
                 located.push((h.feature.id.clone(), h.at, k, view.into()));
@@ -829,6 +839,21 @@ fn round_origin(analysis: &Analysis, view: usize, k: usize) -> Option<(String, P
                             holes::dir_to_part(&frame, d)[view].abs() > 1.0 - 1e-6
                                 && on(holes::to_part(&frame, at))
                         })
+                    })
+                    .map(|f| f.id.clone())
+            })
+            .or_else(|| {
+                analysis
+                    .features
+                    .iter()
+                    .filter(|f| f.kind == "turned_body")
+                    .find(|f| {
+                        crate::lint::parameters::place(&frame, f.parameters.get("axis_point"))
+                            .zip(crate::lint::parameters::direction(
+                                &frame,
+                                f.parameters.get("axis"),
+                            ))
+                            .is_some_and(|(at, d)| d[view].abs() > 1.0 - 1e-6 && on(at))
                     })
                     .map(|f| f.id.clone())
             });

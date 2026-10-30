@@ -273,7 +273,9 @@ pub(crate) fn effective<'a>(
                 .iter()
                 .find(|f| f.id == g.on)
                 .ok_or_else(|| invalid(format!("gears/{i}/on: unknown feature {:?}", g.on)))?;
-            if !["turned_step", "cylindrical_boss", "boss"].contains(&feature.kind.as_str()) {
+            if !["turned_step", "turned_body", "cylindrical_boss", "boss"]
+                .contains(&feature.kind.as_str())
+            {
                 return Err(invalid(format!(
                     "gears/{i}/on: use a turned/cylindrical feature or face:<n>"
                 )));

@@ -1690,23 +1690,24 @@ pub(crate) fn reserve_linear_corridors(
             crate::placement_intent::held_dimensions(radius_reference, &plan.views)
                 .into_iter()
                 .filter(|d| {
-                    d.measurements
-                        .iter()
-                        .any(|m| matches!(m.parameter.as_str(), "fillet.radius" | "blend.radius"))
-                        && plan.dimensions.iter().any(|p| {
-                            p.id == d.id && p.terms == d.terms && p.measurements == d.measurements
+                    d.measurements.iter().any(|m| {
+                        matches!(
+                            m.parameter.as_str(),
+                            "fillet.radius" | "blend.radius" | "cylindrical_profile.radius"
+                        )
+                    }) && plan.dimensions.iter().any(|p| {
+                        p.id == d.id && p.terms == d.terms && p.measurements == d.measurements
+                    }) && radius_reference.is_some_and(|r| {
+                        r.views.iter().any(|old| {
+                            old.id == d.view
+                                && plan.views.iter().any(|now| {
+                                    now.id == old.id
+                                        && now.scale == old.scale
+                                        && now.direction == old.direction
+                                        && now.up == old.up
+                                })
                         })
-                        && radius_reference.is_some_and(|r| {
-                            r.views.iter().any(|old| {
-                                old.id == d.view
-                                    && plan.views.iter().any(|now| {
-                                        now.id == old.id
-                                            && now.scale == old.scale
-                                            && now.direction == old.direction
-                                            && now.up == old.up
-                                    })
-                            })
-                        })
+                    })
                 }),
         );
         owned.extend(plan.gdt.iter().filter_map(crate::dims::gdt::proxy));

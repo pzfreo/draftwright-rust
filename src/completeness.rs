@@ -56,6 +56,7 @@ pub fn report(analysis: &Analysis, plan: &mut Plan) {
     let mut claimed: BTreeSet<usize> = analysis
         .features
         .iter()
+        .filter(|f| f.kind != "turned_body")
         .flat_map(|f| f.faces.iter().copied())
         .filter(|&i| i < analysis.binding.face_count)
         .chain(accounted(crate::model::FaceGroup::Feature))
@@ -160,7 +161,12 @@ pub fn report(analysis: &Analysis, plan: &mut Plan) {
             .iter()
             .filter(|n| n.placed.is_some())
             .flat_map(|n| &n.measurements)
-            .filter(|m| matches!(m.parameter.as_str(), "blend.radius" | "fillet.radius"))
+            .filter(|m| {
+                matches!(
+                    m.parameter.as_str(),
+                    "blend.radius" | "fillet.radius" | "cylindrical_profile.radius"
+                )
+            })
             .map(|m| m.feature.as_str()),
     );
     stated.extend(

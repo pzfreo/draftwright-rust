@@ -37,7 +37,7 @@ use crate::bridge::Feature;
 use crate::bridge::holes::{dir_to_part, principal};
 
 pub(super) const PLANNER: Planner = Planner {
-    kinds: &["groove", "annular_groove"],
+    kinds: &["groove", "annular_groove", "face_groove"],
     wants,
 };
 
@@ -165,8 +165,17 @@ fn line<'a>(cx: &Context, f: &'a Feature) -> Option<Line<'a>> {
 /// An annular groove's callout and centre locations, or why they cannot be stated.
 pub(super) fn annular(cx: &Context, f: &Feature) -> Result<Vec<Want>, String> {
     let p = &f.parameters;
-    let outer = 2.0 * size(f, "outer_radius")?;
-    let inner = 2.0 * size(f, "inner_radius")?;
+    let face = f.kind == "face_groove";
+    let outer = if face {
+        size(f, "outer_diameter")?
+    } else {
+        2.0 * size(f, "outer_radius")?
+    };
+    let inner = if face {
+        size(f, "inner_diameter")?
+    } else {
+        2.0 * size(f, "inner_radius")?
+    };
     let depth = size(f, "depth")?;
     let axis = dir_to_part(
         &cx.frame.0,
@@ -174,11 +183,14 @@ pub(super) fn annular(cx: &Context, f: &Feature) -> Result<Vec<Want>, String> {
     );
     let k = principal(axis)
         .ok_or("its axis is not along x, y or z, so no standard view shows it end-on")?;
-    let floor = cx
-        .frame
-        .point(point(p.get("floor_center")).ok_or("its record gives no floor centre")?);
+    let floor = cx.frame.point(
+        point(p.get(if face { "axis_point" } else { "floor_center" }))
+            .ok_or("its record gives no floor centre")?,
+    );
     let mut mouth = floor;
-    mouth[k] += axis[k].signum() * depth;
+    if !face {
+        mouth[k] += axis[k].signum() * depth;
+    }
     let view = end_on(k);
     let m = |parameter: &str, value: f64| Measurement {
         feature: f.id.clone(),
@@ -208,8 +220,31 @@ pub(super) fn annular(cx: &Context, f: &Feature) -> Result<Vec<Want>, String> {
             arcs: Vec::new(),
         },
     }];
+    if face {
+        for (name, word) in [("outer_wall_angle", "OUTER"), ("inner_wall_angle", "INNER")] {
+            let angle = size(f, name)?;
+            // quiddity uses 90° for a cylindrical wall; only sloping walls need angles.
+            if (angle - 90.0).abs() > 1e-3 {
+                out[0]
+                    .terms
+                    .extend([word.into(), format!("{}°", fmt(angle))]);
+                out[0]
+                    .measurements
+                    .push(m(&format!("face_groove_{name}.angle"), angle));
+            }
+        }
+    }
+    // A concentric face recess shares the turned body's established axis; locating it
+    // from the box would repeat the radius as two spurious centre locations.
+    let concentric = face
+        && crate::bridge::turned_body(cx.analysis).is_some_and(|(a, on, _)| {
+            a == k && (0..3).all(|j| j == k || (mouth[j] - on[j]).abs() <= 1e-3)
+        });
     let lo = cx.analysis.envelope[0];
     for j in (0..3).filter(|&j| j != k) {
+        if concentric && !cx.spec.origin.contains_key(AXES[j]) {
+            continue;
+        }
         let value = mouth[j] - lo[j];
         if value.abs() < 1e-6 {
             continue;
@@ -246,10 +281,60 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     let mut out: Vec<(Want, Option<Line>)> = Vec::new();
     let mut problems = Vec::new();
     for f in cx.analysis.features.iter().filter(|f| {
-        f.kind == "annular_groove" && crate::lint::grooves::annular_owners(cx.analysis, f).is_none()
+        (f.kind == "annular_groove"
+            && crate::lint::grooves::annular_owners(cx.analysis, f).is_none())
+            || f.kind == "face_groove"
     }) {
         match annular(cx, f) {
-            Ok(ws) => out.extend(ws.into_iter().map(|w| (w, None))),
+            Ok(ws) => {
+                let on = if f.kind == "face_groove" {
+                    point(f.parameters.get("axis"))
+                        .and_then(|d| principal(dir_to_part(&cx.frame.0, d)))
+                        .zip(point(f.parameters.get("axis_point")).map(|p| cx.frame.point(p)))
+                        .map(|(k, p)| (k, p, None))
+                } else {
+                    None
+                };
+                for w in ws {
+                    // Opposed face recesses are separate occurrences, but equal coaxial
+                    // recesses share one counted size statement, just like turned grooves.
+                    let same =
+                        if f.kind == "face_groove" && matches!(w.shape, Shape::Callout { .. }) {
+                            out.iter().position(|(o, l)| {
+                                on.zip(*l).is_some_and(|((k, p, _), (j, q, _))| {
+                                    k == j && (0..3).all(|a| a == k || (p[a] - q[a]).abs() <= 1e-3)
+                                }) && o.terms.ends_with(&w.terms)
+                                    && o.measurements
+                                        .iter()
+                                        .any(|m| m.feature.starts_with("f:face_groove:"))
+                            })
+                        } else {
+                            None
+                        };
+                    if let Some(i) = same {
+                        let o = &mut out[i].0;
+                        o.measurements.extend(w.measurements);
+                        if let (Shape::Callout { sites, .. }, Shape::Callout { sites: more, .. }) =
+                            (&mut o.shape, w.shape)
+                        {
+                            sites.extend(more);
+                        }
+                        let n = o
+                            .measurements
+                            .iter()
+                            .map(|m| &m.feature)
+                            .collect::<std::collections::BTreeSet<_>>()
+                            .len();
+                        if n == 2 {
+                            o.terms.insert(0, String::new());
+                        }
+                        o.terms[0] = format!("{n}×");
+                        o.basis = "equal annular face recesses share one counted callout, retaining each rim diameter, depth and sloping wall angle".into();
+                    } else {
+                        out.push((w, on));
+                    }
+                }
+            }
             Err(why) => problems.push(not_dimensioned(f, &why)),
         }
     }

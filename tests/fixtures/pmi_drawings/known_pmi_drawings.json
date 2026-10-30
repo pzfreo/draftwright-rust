@@ -4966,12 +4966,12 @@
      "kind": "datum_ref",
      "rides_on": null,
      "text": "E",
-     "view": "side"
+     "view": "front"
     }
    ]
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright's drawing: not drawn, dropped (plan_incomplete, pmi_dropped); the port's: 'E' (datum ref, side view). As known_pmi_lowering.json (drawn, rust-correct): draftwright drops it (pmi_dropped: no legible room in its strips on its sheet), so the requirement is not on its drawing; the port keeps every lowered item on the sheet and reports what it collides with (ADR2-D6, Policy B; the test plans the part without recognised features, so fewer dimensions compete for the strips than on draftwright's sheet)."
+  "evidence": "Python drops datum E for lack of legible room (plan_incomplete, pmi_dropped). Rust retains E on the front view after quiddity-rust#127 adds radius callouts and changes the available strips; the datum remains attached to its cylindrical feature, with all source faces and the datum letter preserved. This is an information gain, not parity: the Python drawing has no E. An explicit annotation view/side can retain the original lowered surface attachment."
  },
  {
   "file": "nist_ftc_10_asme1_ap242-e2.stp",
@@ -9971,32 +9971,32 @@
  },
  {
   "field": "drawing",
-  "file": "bolt_thread_knurl.step",
-  "port": "geometric_tolerance:#429",
+  "file": "nist_stc_09_asme1_ap242-e4.stp",
+  "port": "datum:#8442",
   "python": {
    "drawn": [
     {
      "boxed": false,
-     "kind": "control_frame",
+     "kind": "datum_ref",
      "rides_on": null,
-     "text": "↗ 0.05 A B",
-     "view": "plan"
+     "text": "C",
+     "view": "side"
     }
    ]
   },
-  "record": "geometric_tolerance:0:1:4:2",
+  "record": "datum:0:1:4:10",
   "rust": {
    "drawn": [
     {
      "boxed": false,
-     "kind": "control_frame",
+     "kind": "datum_ref",
      "rides_on": null,
-     "text": "↗ 0.05 A B",
+     "text": "C",
      "view": "front"
     }
    ]
   },
   "verdict": "rust-correct",
-  "evidence": "The same circular-runout tolerance and datum references remain drawn. Python leads from the shaft's axis point in the end-on plan view. Rust places the frame beneath that shaft's own diameter annotation in the front view (maintainer decision, 2026-10-29; ASME Y14.5 and ISO 1101 permit attachment to the controlled feature's size dimension). Its size carrier identifies the cylindrical surface without an ambiguous axis-point leader. An explicit annotation view or side retains the lowered leader."
+  "evidence": "The native drawing attaches datum C (datum:#8442, faces 24/25) to its hole control frame in the front view, which sees the y-axis bore end-on. Its basis names that attachment and the same two source faces. Python places C edge-on in the side view. Both retain the datum letter; the native attachment identifies the controlled hole when its surface is hidden. quiddity-rust#127 changes the radius inventory and available strips. An explicit view or side at annotations/pmi:datum.datum:f24,25:t=C/place keeps the surface attachment."
  }
 ]

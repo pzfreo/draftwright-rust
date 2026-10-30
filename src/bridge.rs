@@ -134,6 +134,9 @@ const RECORDS: &[(&str, &str, Home)] = &[
     ("holes", "CounterSink", Home::Feature),
     ("double_d_bores", "DoubleDBore", Home::Feature),
     ("fillets", "Fillet", Home::Feature),
+    ("cylindrical_profiles", "CylindricalProfile", Home::Feature),
+    ("face_grooves", "FaceGroove", Home::Feature),
+    ("turned_bodies", "TurnedBody", Home::Feature),
     ("flats", "Flat", Home::Feature),
     ("freeform_surfaces", "FreeformSurface", Home::Feature),
     ("grooves", "Groove", Home::Feature),
@@ -1074,6 +1077,31 @@ fn hole_pattern(
         })
         .collect::<Result<Vec<_>, _>>()?;
     Ok(Some(pattern(&members)))
+}
+
+/// A recognised complete solid of revolution spanning the part's box, in its principal frame.
+/// Multiple bodies and oblique axes retain their records but cannot own principal extents.
+pub(crate) fn turned_body(analysis: &crate::model::Analysis) -> Option<(usize, [f64; 3], f64)> {
+    let mut bodies = analysis.features.iter().filter(|f| f.kind == "turned_body");
+    let f = bodies.next()?;
+    if bodies.next().is_some() {
+        return None;
+    }
+    let frame = holes::frame(analysis);
+    let axis = crate::lint::parameters::direction(&frame, f.parameters.get("axis"))?;
+    let k = holes::principal(axis)?;
+    let on = crate::lint::parameters::place(&frame, f.parameters.get("axis_point"))?;
+    let od = f.parameters.get("od")?.as_f64()?;
+    let length = f.parameters.get("length")?.as_f64()?;
+    let [lo, hi] = analysis.envelope;
+    ((0..3).all(|j| {
+        if j == k {
+            ((hi[j] - lo[j]) - length).abs() <= 1e-3
+        } else {
+            (lo[j] - (on[j] - od / 2.0)).abs() <= 1e-3 && (hi[j] - (on[j] + od / 2.0)).abs() <= 1e-3
+        }
+    }))
+    .then_some((k, on, od))
 }
 
 #[cfg(test)]

@@ -17,12 +17,20 @@ pub fn wanted(analysis: &Analysis) -> Vec<Wanted<'_>> {
     analysis
         .features
         .iter()
-        .filter(|f| f.kind == "fillet" && !super::blends::is_relief(analysis, f))
+        .filter(|f| {
+            matches!(f.kind.as_str(), "fillet" | "cylindrical_profile")
+                && !super::blends::is_relief(analysis, f)
+        })
         .map(|f| {
             let radius = parameters::size(f, "radius");
             Wanted {
                 feature: f,
-                parameter: "fillet.radius".into(),
+                parameter: if f.kind == "fillet" {
+                    "fillet.radius"
+                } else {
+                    "cylindrical_profile.radius"
+                }
+                .into(),
                 callout: radius
                     .as_ref()
                     .map_or("R?".into(), |r| format!("R{}", fmt(*r))),

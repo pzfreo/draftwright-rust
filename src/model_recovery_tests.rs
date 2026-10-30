@@ -266,10 +266,12 @@ fn clear_fixed_sheet_finish_preserves_inventory_and_passes_fresh_audit() {
         assert!(std::env::var_os("DRAFTWRIGHT_CORPUS_REQUIRED").is_none_or(|v| v != "1"));
         return;
     };
-    // cgb241 on A3: its A4 1:10 fixed-pair trial no longer settles clear inside the 3 mm frame
-    // gutter (2026-10-25).
+    // cgb241 on A3: v0.2.3 (#127) states the four formerly unclaimed cylindrical
+    // profiles. At 1:5 (the new complete automatic choice), their counted radii
+    // settle clear; the old 1:10 seed crosses two leaders. Keep the same A3 sheet
+    // and strengthen legibility while testing the identical finishing invariant.
     for (file, size, scale) in [
-        ("cadgenbench_inputs/cgb241.step", "A3", "1:10"),
+        ("cadgenbench_inputs/cgb241.step", "A3", "1:5"),
         ("mfcadpp/10163.step", "A4", "1:2"),
     ] {
         let (_, a) = analyse_native(&dir.join(file)).unwrap();

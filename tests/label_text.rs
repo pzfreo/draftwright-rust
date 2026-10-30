@@ -496,7 +496,7 @@ fn automatic_radius_note_wording_keeps_coverage_and_live_value_checks() {
     let Some(dir) = corpus::dir() else {
         return;
     };
-    let (part, a) = cache::native(&dir.join("cadgenbench_inputs/cgb245.step"));
+    let (part, a) = cache::native(&dir.join("nist/nist_ctc_03_asme1_rc.stp"));
     let base = cache::default_plan(&a, false);
     let note = base
         .notes
@@ -528,10 +528,7 @@ fn automatic_radius_note_wording_keeps_coverage_and_live_value_checks() {
             .filter(|i| i.code == "blend_requirement_missing")
             .collect::<Vec<_>>()
     );
-    let radius = format!(
-        "R{}",
-        dims::precision::format(note.measurements[0].value, 1).trim_end_matches(".0")
-    );
+    let radius = format!("R{}", dims::fmt(note.measurements[0].value));
     let anno = drawing
         .annotations
         .iter()

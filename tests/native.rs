@@ -264,8 +264,11 @@ fn to_part(frame: &[[f64; 3]; 4], record: &Map<String, Value>) -> Map<String, Va
 }
 
 /// The kinds read natively besides holes, as `bridge::native::READ` names their families.
-const KINDS: [&str; 23] = [
+const KINDS: [&str; 26] = [
     "fillet",
+    "cylindrical_profile",
+    "face_groove",
+    "turned_body",
     "chamfer",
     "countersink",
     "boss",
@@ -297,6 +300,7 @@ fn anchor(kind: &str) -> &'static [&'static str] {
     match kind {
         "countersink" | "boss" => &["location"],
         "turned_step" => &["axis", "lo", "hi"],
+        "cylindrical_profile" | "face_groove" | "turned_body" => &["axis", "axis_point"],
         "circular_blind_step" => &["centreline"],
         // The rolling ball (its radius and side) and its path's place, not the path's
         // direction: a line's sense follows the frame. Coaxial blends share a path's place.
@@ -1513,6 +1517,12 @@ fn turned_part_families_are_read_with_draftwrights_ids() {
             ("f:fillet:2", "fillet", &[2]),
             ("f:fillet:3", "fillet", &[5]),
             ("f:fillet:4", "fillet", &[7]),
+            // v0.2.3: whole-body classification co-owns all faces; step records remain.
+            (
+                "f:turned_body:1",
+                "turned_body",
+                &[0, 1, 2, 3, 4, 5, 6, 7, 8]
+            ),
             ("f:turned_step:1", "turned_step", &[0]),
             ("f:turned_step:2", "turned_step", &[6]),
         ]
@@ -1523,7 +1533,11 @@ fn turned_part_families_are_read_with_draftwrights_ids() {
         assert_eq!(f.fingerprint.axis, Some([0.0, 0.0, 1.0]), "{}", f.id);
         assert_eq!(f.fingerprint.pattern, None);
     }
-    let step = &n.features[5];
+    let step = n
+        .features
+        .iter()
+        .find(|f| f.id == "f:turned_step:2")
+        .unwrap();
     assert_eq!(
         (
             step.parameters["lo"].as_f64(),

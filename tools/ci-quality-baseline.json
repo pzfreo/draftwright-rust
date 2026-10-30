@@ -502,8 +502,8 @@
       1
     ],
     "nist_ftc_08_asme1_rc": [
-      "A2",
-      "1:2",
+      "A3",
+      "1:5",
       1
     ],
     "nist_ftc_09_asme1_rd": [
@@ -512,9 +512,9 @@
       1
     ],
     "nist_ftc_10_asme1_rb": [
-      "A2",
+      "A1",
       "1:1",
-      2
+      1
     ],
     "sm-hanger": [
       "A4",
@@ -528,6 +528,6 @@
     ]
   },
   "source": "Recorded from the complete quality.py --record audit",
-  "source_commit": "822d05551bb2ca4d7d203bcb88b00f9a9a2bf86a",
-  "verified_binary_sha256": "550bb58e1a48caf6bbd8e4381fe72efcf5ea8a4b346a909e7d43a109bd174350"
+  "source_commit": "5599161c8ec8731cc08f7dd56dc0f48761daee0f",
+  "verified_binary_sha256": "70d8a8a22c8dd04d6ff6d66e679b15e85287d3dc0412704927e4dc632cc2b4c1"
 }

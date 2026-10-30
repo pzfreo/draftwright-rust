@@ -1116,7 +1116,31 @@ fn pinned(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     // machinery; there is no new search or placement repair for pins.
     let mut base = model::pin_base(spec);
     base.sheets = spec.sheets.clone();
-    let mut canonical = select(analysis, &base)?;
+    // An already published view is a no-op name in the pin reference. Keeping
+    // that name can select a different automatic composition and lose its
+    // schedule before the pinned trial even starts (#127's expanded radii).
+    let mut canonical = if !base.views.is_empty()
+        && spec
+            .views
+            .values()
+            .any(|v| v.place.as_ref().is_some_and(|p| p.pinned))
+    {
+        let mut unnamed = base.clone();
+        unnamed.views.clear();
+        let published = select(analysis, &unnamed)?;
+        if base
+            .views
+            .keys()
+            .all(|name| published.views.iter().any(|v| v.id == format!("v:{name}")))
+        {
+            base = unnamed;
+            published
+        } else {
+            select(analysis, &base)?
+        }
+    } else {
+        select(analysis, &base)?
+    };
     if spec.sheet.references != Some(true)
         && spec.dimensions.iter().any(|(id, d)| {
             d.place.as_ref().is_some_and(|p| p.pinned)
@@ -1155,150 +1179,160 @@ fn replay_pins(
     // route repair (plan_recovered's callout_routes::finish). Reported callout offsets
     // are measured on it, so an offset at its automatic bend is a bare pin.
     let mut held = canonical.clone();
+    model::finish_nominal_plan(analysis, base, &mut held);
     let effective = crate::spec_gdt::effective(analysis, &held.spec)?;
     crate::dims::callout_routes::prefer_interior(effective.as_ref(), base, &mut held, None);
     crate::dims::callout_routes::finish(effective.as_ref(), base, &mut held);
+    let areas: Vec<_> = held.views.iter().map(|v| v.area).collect();
     crate::dims::hole_marks::attach(effective.as_ref(), base, &mut held);
     crate::dims::size_datums::attach(effective.as_ref(), base, &mut held);
     crate::dims::gdt::cited_undrawn(&mut held);
-    let mut plan = if only_bare_pins(&intent, base, &held) {
-        // A bare pin holds the selected finished ink, including peers on every
-        // physical page. Re-solving sheet 1 would create a different pin origin.
-        held.spec = intent.clone();
-        for d in &mut held.dimensions {
-            if intent
-                .dimensions
-                .get(&d.id)
-                .is_some_and(|d| d.place.is_some())
-            {
-                d.default = false;
-                if !d.from_spec.iter().any(|s| s == "place") {
-                    d.from_spec.push("place".into());
+    // A replay lowers and attaches its glyphs again. Reserve their original
+    // areas, rather than feeding attachment-grown strips back into lowering.
+    let mut reference = held.clone();
+    for (view, area) in reference.views.iter_mut().zip(areas) {
+        view.area = area;
+    }
+    crate::planning::with_pin_reference(reference, || {
+        let mut plan = if only_bare_pins(&intent, base, &held) {
+            // A bare pin holds the selected finished ink, including peers on every
+            // physical page. Re-solving sheet 1 would create a different pin origin.
+            held.spec = intent.clone();
+            for d in &mut held.dimensions {
+                if intent
+                    .dimensions
+                    .get(&d.id)
+                    .is_some_and(|d| d.place.is_some())
+                {
+                    d.default = false;
+                    if !d.from_spec.iter().any(|s| s == "place") {
+                        d.from_spec.push("place".into());
+                    }
                 }
             }
-        }
-        crate::placement_intent::finish(&mut held, analysis);
-        held
-    } else if canonical
-        .views
-        .iter()
-        .any(|v| ["v:front", "v:plan", "v:side"].contains(&v.id.as_str()) && v.sheet > 1)
-        || canonical
-            .sheet
-            .basis
-            .contains(crate::sheets::WHOLE_VIEW_ALLOCATION)
-    {
-        // A whole-view allocation transported finished ink into its frames; pins
-        // replay into the same frames rather than re-solving a forced layout.
-        let source = if canonical.sheet.scale == raw.sheet.scale {
-            model::plan_automatic(analysis, spec)?
-        } else {
-            let mut wide = spec.clone();
-            wide.sheet.size = Some("A0".into());
-            wide.sheet.scale = Some(canonical.sheet.scale.clone());
-            wide.sheets.get_or_insert_with(Default::default).max =
-                Some(spec.sheets.as_ref().and_then(|s| s.max).unwrap_or(9));
-            crate::planning::fixed_pair(|| model::plan_automatic(analysis, &wide))?
-        };
-        let mut plan =
+            crate::placement_intent::finish(&mut held, analysis);
+            held
+        } else if canonical
+            .views
+            .iter()
+            .any(|v| ["v:front", "v:plan", "v:side"].contains(&v.id.as_str()) && v.sheet > 1)
+            || canonical
+                .sheet
+                .basis
+                .contains(crate::sheets::WHOLE_VIEW_ALLOCATION)
+        {
+            // A whole-view allocation transported finished ink into its frames; pins
+            // replay into the same frames rather than re-solving a forced layout.
+            let source = if canonical.sheet.scale == raw.sheet.scale {
+                model::plan_automatic(analysis, spec)?
+            } else {
+                let mut wide = spec.clone();
+                wide.sheet.size = Some("A0".into());
+                wide.sheet.scale = Some(canonical.sheet.scale.clone());
+                wide.sheets.get_or_insert_with(Default::default).max =
+                    Some(spec.sheets.as_ref().and_then(|s| s.max).unwrap_or(9));
+                crate::planning::fixed_pair(|| model::plan_automatic(analysis, &wide))?
+            };
+            let mut plan =
             crate::sheets::replay_views(analysis, &source, &canonical).ok_or_else(|| Invalid {
                 path: None,
                 also: Vec::new(),
                 message: "Pinned ink cannot fit in the retained annotated view frames; change its placement or remove the pin.".into(),
                 choices: vec!["dimensions/<id>/place".into()],
             })?;
-        reanchor_offsets(&mut plan, &canonical, &intent);
-        plan
-    } else if raw.sheet.size == canonical.sheet.size
-        && raw.sheet.scale == canonical.sheet.scale
-        && raw.sheets.len() == canonical.sheets.len()
-        && raw.views.len() == canonical.views.len()
-        && raw
-            .views
-            .iter()
-            .zip(&canonical.views)
-            .all(|(a, b)| a.id == b.id && (0..2).all(|k| (a.at[k] - b.at[k]).abs() < 1e-6))
-    {
-        model::plan_automatic(analysis, spec)?
-    } else {
-        let mut forced = intent.clone();
-        forced.binding = spec.binding.clone();
-        forced.sheet.size = Some(canonical.sheet.size.clone());
-        forced.sheet.scale = Some(canonical.sheet.scale.clone());
-        if count > 1 {
-            forced.sheets.get_or_insert_with(Default::default).max = Some(count as u32);
-        }
-        // The canonical trial's own request (paper, scale and count) usually
-        // reproduces its R5 allocation; keep it when every view keeps its page.
-        let mut same = forced.clone();
-        omit_absent_details(
-            analysis,
-            &mut same,
-            &canonical,
-            canonical.sheet.scale_factor,
-        );
-        let same = crate::planning::fixed_pair(|| model::plan_automatic(analysis, &same))?;
-        // The same views on the same pages: pins may move frames within a page.
-        let frames = |p: &Plan| {
-            p.views
+            reanchor_offsets(&mut plan, &canonical, &intent);
+            plan
+        } else if raw.sheet.size == canonical.sheet.size
+            && raw.sheet.scale == canonical.sheet.scale
+            && raw.sheets.len() == canonical.sheets.len()
+            && raw.views.len() == canonical.views.len()
+            && raw
+                .views
                 .iter()
-                .map(|v| (v.id.clone(), v.sheet))
-                .collect::<Vec<_>>()
-        };
-        if count > 1 && frames(&same) != frames(&canonical) {
-            for view in canonical.views.iter().filter(|v| v.sheet > 1) {
-                forced
-                    .views
-                    .entry(view.id.trim_start_matches("v:").into())
-                    .or_default()
-                    .sheet = Some(view.sheet);
+                .zip(&canonical.views)
+                .all(|(a, b)| a.id == b.id && (0..2).all(|k| (a.at[k] - b.at[k]).abs() < 1e-6))
+        {
+            model::plan_automatic(analysis, spec)?
+        } else {
+            let mut forced = intent.clone();
+            forced.binding = spec.binding.clone();
+            forced.sheet.size = Some(canonical.sheet.size.clone());
+            forced.sheet.scale = Some(canonical.sheet.scale.clone());
+            if count > 1 {
+                forced.sheets.get_or_insert_with(Default::default).max = Some(count as u32);
             }
-            if let Some(table) = canonical.hole_table.as_ref().filter(|t| t.sheet > 1) {
-                // Invariant: The forced multi-sheet Spec was initialized with Some sheets before this branch.
-                forced.sheets.as_mut().unwrap().hole_table = Some(table.sheet);
-            }
-            for table in &mut forced.tables {
-                if let Some(placed) = canonical
-                    .tables
-                    .iter()
-                    .find(|t| t.id == table.id && t.sheet > 1)
-                {
-                    table.sheet = Some(placed.sheet);
-                }
-            }
+            // The canonical trial's own request (paper, scale and count) usually
+            // reproduces its R5 allocation; keep it when every view keeps its page.
+            let mut same = forced.clone();
             omit_absent_details(
                 analysis,
-                &mut forced,
+                &mut same,
                 &canonical,
                 canonical.sheet.scale_factor,
             );
-            crate::planning::fixed_pair(|| model::plan_automatic(analysis, &forced))?
-        } else {
-            same
+            let same = crate::planning::fixed_pair(|| model::plan_automatic(analysis, &same))?;
+            // The same views on the same pages: pins may move frames within a page.
+            let frames = |p: &Plan| {
+                p.views
+                    .iter()
+                    .map(|v| (v.id.clone(), v.sheet))
+                    .collect::<Vec<_>>()
+            };
+            if count > 1 && frames(&same) != frames(&canonical) {
+                for view in canonical.views.iter().filter(|v| v.sheet > 1) {
+                    forced
+                        .views
+                        .entry(view.id.trim_start_matches("v:").into())
+                        .or_default()
+                        .sheet = Some(view.sheet);
+                }
+                if let Some(table) = canonical.hole_table.as_ref().filter(|t| t.sheet > 1) {
+                    // Invariant: The forced multi-sheet Spec was initialized with Some sheets before this branch.
+                    forced.sheets.as_mut().unwrap().hole_table = Some(table.sheet);
+                }
+                for table in &mut forced.tables {
+                    if let Some(placed) = canonical
+                        .tables
+                        .iter()
+                        .find(|t| t.id == table.id && t.sheet > 1)
+                    {
+                        table.sheet = Some(placed.sheet);
+                    }
+                }
+                omit_absent_details(
+                    analysis,
+                    &mut forced,
+                    &canonical,
+                    canonical.sheet.scale_factor,
+                );
+                crate::planning::fixed_pair(|| model::plan_automatic(analysis, &forced))?
+            } else {
+                same
+            }
+        };
+        plan.spec = intent;
+        drop_internal_replan(&mut plan);
+        for problem in canonical
+            .problems
+            .iter()
+            .filter(|p| p.code == "sheet_preference_exceeded")
+        {
+            if !plan.problems.iter().any(|p| p.code == problem.code) {
+                plan.problems.push(problem.clone());
+            }
         }
-    };
-    plan.spec = intent;
-    drop_internal_replan(&mut plan);
-    for problem in canonical
-        .problems
-        .iter()
-        .filter(|p| p.code == "sheet_preference_exceeded")
-    {
-        if !plan.problems.iter().any(|p| p.code == problem.code) {
-            plan.problems.push(problem.clone());
+        plan.status = crate::completeness::status(&plan.problems);
+        plan.sheet.default = canonical.sheet.default;
+        for sheet in &mut plan.sheets {
+            sheet.default = canonical.sheet.default;
         }
-    }
-    plan.status = crate::completeness::status(&plan.problems);
-    plan.sheet.default = canonical.sheet.default;
-    for sheet in &mut plan.sheets {
-        sheet.default = canonical.sheet.default;
-    }
-    let reason = format!(
-        "{}: canonical {count} sheet(s) at {} retained for placement pins",
-        canonical.sheet.size, canonical.sheet.scale
-    );
-    explain(&mut plan, canonical.sheet_candidates, &reason);
-    Ok(plan)
+        let reason = format!(
+            "{}: canonical {count} sheet(s) at {} retained for placement pins",
+            canonical.sheet.size, canonical.sheet.scale
+        );
+        explain(&mut plan, canonical.sheet_candidates, &reason);
+        Ok(plan)
+    })
 }
 
 /// A callout offset is measured from the automatic leader tip of the drawing the author

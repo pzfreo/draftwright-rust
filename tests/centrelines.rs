@@ -893,10 +893,113 @@ fn a_bore_concentric_with_a_round_outline_is_not_located_from_its_tangent() {
         serde_json::from_value(serde_json::json!({"origin": {"x": "min", "y": "min", "z": "min"}}))
             .unwrap();
     let p = model::plan_recovered(&a, &spec).unwrap();
-    assert!(
+    // v0.2.3 (#123) adds two coaxial recesses: their coincident locations share
+    // one dimension per axis (ARCH0009-6), whose first ID is now a face groove.
+    // The explicit origin must still put every bore/recess coordinate on paper.
+    for feature in ["f:hole:1", "f:face_groove:1", "f:face_groove:2"] {
+        for axis in ["x", "y"] {
+            let id = format!("d:{feature}/location.length.{axis}");
+            let owner = p.dimensions.iter().find(|d| d.id == id).or_else(|| {
+                let alias = p.omitted.iter().find(|d| d.id == id)?;
+                assert_eq!(alias.label.parse::<f64>().unwrap(), 11.0);
+                let draftwright::items::State::Covered { by } = &alias.state else {
+                    panic!("{id}: the explicit location must be shown or conveyed");
+                };
+                p.dimensions.iter().find(|d| &d.id == by)
+            });
+            let owner = owner.expect("the coordinate resolves to a live dimension");
+            assert!(
+                owner.placed.is_some()
+                    && owner
+                        .measurements
+                        .iter()
+                        .any(|m| m.parameter == format!("location.length.{axis}")
+                            && (m.value - 11.0).abs() < 1e-6),
+                "{feature}: its {axis} coordinate from the explicit box origin must be drawn"
+            );
+        }
+    }
+}
+
+/// quiddity-rust#123: the full OD boss is now a body. Shield recesses are visible
+/// end-on, so they alone need no automatic cut, but the author can cut the profile.
+#[test]
+fn the_608zz_states_both_shield_recesses_and_accepts_a_forced_half_section() {
+    let file =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts/bearing-608zz.step.gz");
+    let (a, p, _) = drawing(&file);
+    assert_eq!(
+        a.features
+            .iter()
+            .filter(|f| f.kind == "turned_body")
+            .count(),
+        1
+    );
+    assert_eq!(
+        a.features
+            .iter()
+            .filter(|f| f.kind == "face_groove")
+            .count(),
+        2
+    );
+    assert!(p.views.iter().all(|v| v.half_section.is_none()));
+    assert_eq!(
         p.dimensions
             .iter()
-            .any(|d| d.id.starts_with("d:f:hole:1/location.length."))
+            .filter(|d| d.placed.is_some()
+                && d.measurements.iter().any(|m| m.parameter == "od.diameter"))
+            .count(),
+        1
+    );
+    for f in a.features.iter().filter(|f| f.kind == "face_groove") {
+        for parameter in [
+            "annular_groove_outer.diameter",
+            "annular_groove_inner.diameter",
+            "annular_groove_depth.length",
+            "face_groove_outer_wall_angle.angle",
+            "face_groove_inner_wall_angle.angle",
+        ] {
+            assert_eq!(
+                p.dimensions
+                    .iter()
+                    .filter(|d| d.placed.is_some()
+                        && d.measurements
+                            .iter()
+                            .any(|m| m.feature == f.id && m.parameter == parameter))
+                    .count(),
+                1,
+                "{}: {parameter}",
+                f.id
+            );
+        }
+    }
+    assert!(!p.problems.iter().any(|p| matches!(
+        p.code.as_str(),
+        "shape_not_recognised" | "feature_not_dimensioned"
+    )));
+    let spec = serde_json::from_value(serde_json::json!({"views":{"front":{"half_section":true}}}))
+        .unwrap();
+    let (_, forced, d) = drawing_with(&file, &spec);
+    assert!(
+        forced
+            .views
+            .iter()
+            .find(|v| v.id == "v:front")
+            .unwrap()
+            .half_section
+            .is_some()
+    );
+    assert!(
+        d.sheet
+            .items
+            .iter()
+            .any(|i| i.name == "v:front/half_section_hatch")
+    );
+    assert!(
+        !forced
+            .problems
+            .iter()
+            .any(|p| p.code == "section_not_shown")
     );
 }
 

@@ -108,9 +108,8 @@ fn strs(items: &[(&str, &str)]) -> Vec<(String, String)> {
 
 /// Lint's turned-step ledger of *a* against the plan's items as marks (their labels and claims),
 /// as `feature parameter state`.
-fn ledger(a: &Analysis, plan: &Plan) -> Vec<String> {
-    let marks: Vec<Mark> = plan
-        .dimensions
+fn marks(plan: &Plan) -> Vec<Mark> {
+    plan.dimensions
         .iter()
         .map(|d| Mark {
             name: d.id.clone(),
@@ -125,8 +124,11 @@ fn ledger(a: &Analysis, plan: &Plan) -> Vec<String> {
                 })
                 .collect(),
         })
-        .collect();
-    lint::turned::outcomes(a, &marks)
+        .collect()
+}
+
+fn ledger(a: &Analysis, plan: &Plan) -> Vec<String> {
+    lint::turned::outcomes(a, &marks(plan))
         .into_iter()
         .map(|o| format!("{} {} {:?}", o.feature, o.parameter, o.state))
         .collect()
@@ -950,27 +952,30 @@ fn a_short_disc_on_z_reads_as_turned() {
     assert!(views.contains(&"v:front") && views.contains(&"v:plan"));
     for id in ["d:envelope/width.length", "d:envelope/depth.length"] {
         assert!(plan.dimensions.iter().all(|d| d.id != id), "{id}");
-        let o = plan.omitted.iter().find(|o| o.id == id).unwrap();
-        assert!(
-            matches!(&o.state, draftwright::items::State::Covered { by } if by == "d:f:boss:1/boss.diameter"),
-            "{o:?}"
-        );
     }
+    // v0.2.3 (#123): a whole-body OD replaces the suppressed full-length boss.
     let diameter = plan
         .dimensions
         .iter()
-        .find(|d| d.id == "d:f:boss:1/boss.diameter")
+        .find(|d| d.id == "d:envelope/od.diameter")
         .unwrap();
     assert_eq!(diameter.label, "ø16");
-    for p in ["width.length", "depth.length"] {
-        assert!(
-            diameter
-                .measurements
-                .iter()
-                .any(|m| m.feature == "envelope" && m.parameter == p),
-            "{p}"
-        );
-    }
+    assert!(
+        diameter
+            .measurements
+            .iter()
+            .any(|m| m.feature == "f:turned_body:1"
+                && m.parameter == "turned_body.diameter"
+                && m.value == 16.0)
+    );
+    // Independent geometry-based coverage still proves all three physical extents,
+    // without inventing box-width/depth requirements on the turned body.
+    let found = lint::envelope::outcomes(&a, &marks(&plan));
+    assert_eq!(found.len(), 3);
+    assert!(
+        found.iter().all(|o| o.state == lint::turned::State::Placed),
+        "{found:?}"
+    );
     assert!(
         plan.dimensions
             .iter()

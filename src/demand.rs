@@ -200,6 +200,11 @@ fn read_uncached(analysis: &Analysis) -> Demand {
             None => profiles.push((key, axis, zs.to_vec())),
         }
     }
+    if let Some((axis, _, _)) = crate::bridge::turned_body(analysis)
+        && profiles.is_empty()
+    {
+        profiles.push(("turned_body".into(), Some(axis), Vec::new()));
+    }
     d.inspection_baseline = crate::dims::inspection_datum(analysis).is_some();
     d.profiles = profiles.len();
     if profiles.len() == 1 {

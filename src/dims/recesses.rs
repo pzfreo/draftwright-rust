@@ -1045,6 +1045,7 @@ mod tests {
     fn planned(a: &crate::model::Analysis) -> (Vec<Want>, Vec<Problem>) {
         let frame = super::super::QFrame(a.recognition.as_ref().unwrap().frame);
         let cx = Context {
+            spec: &Default::default(),
             analysis: a,
             turned: None,
             frame,

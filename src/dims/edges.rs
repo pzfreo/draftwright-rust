@@ -35,7 +35,12 @@ use crate::bridge::holes::{self, point, principal};
 use crate::lint::turned::Band;
 
 pub(super) const PLANNER: Planner = Planner {
-    kinds: &["chamfer", "fillet", "oriented_chamfer"],
+    kinds: &[
+        "chamfer",
+        "fillet",
+        "oriented_chamfer",
+        "cylindrical_profile",
+    ],
     wants,
 };
 
@@ -92,9 +97,13 @@ fn size(f: &Feature, name: &str) -> Result<f64, String> {
 /// A recognised fillet or chamfer as the grammar reads it, or why it cannot be stated.
 fn edge<'a>(cx: &Context, f: &'a Feature) -> Result<Edge<'a>, String> {
     let frame = &cx.frame;
-    let at = point(f.parameters.get("at"))
-        .map(|l| frame.point(l))
-        .ok_or("its record gives no point on it (at)")?;
+    let mut at = point(f.parameters.get(if f.kind == "cylindrical_profile" {
+        "axis_point"
+    } else {
+        "at"
+    }))
+    .map(|l| frame.point(l))
+    .ok_or("its record gives no point on it (at)")?;
     let turned = f.parameters.get("turned").and_then(Value::as_bool) == Some(true);
     let mut oriented = f.kind == "oriented_chamfer";
     let axis = if oriented {
@@ -106,7 +115,7 @@ fn edge<'a>(cx: &Context, f: &'a Feature) -> Result<Edge<'a>, String> {
             // An oblique fillet (quiddity-rust#120: a unit-vector axis) is read like an oriented
             // chamfer: its radius, a true size, is called out where its edge is seen most nearly
             // end-on, and counted with equal principal fillets when there are any.
-            None if f.kind == "fillet" && !turned => {
+            None if matches!(f.kind.as_str(), "fillet" | "cylindrical_profile") && !turned => {
                 let d = crate::lint::parameters::direction(&holes::frame(cx.analysis), Some(given))
                     .filter(|d| d.iter().all(|c| c.is_finite()) && d.iter().any(|c| *c != 0.0))
                     .ok_or("its axis is neither x, y, z nor a direction")?;
@@ -119,17 +128,35 @@ fn edge<'a>(cx: &Context, f: &'a Feature) -> Result<Edge<'a>, String> {
             None => return Err("its axis is not x, y or z".into()),
         }
     };
+    if f.kind == "cylindrical_profile" && oriented {
+        // An oblique cylinder projects as an ellipse. Its axis point can be far
+        // outside the part (cgb243's shallow R1412.919 patch), so lead to a proven
+        // point on the trimmed surface rather than to that off-part centre.
+        at = cx
+            .analysis
+            .radius_arcs
+            .get(&f.id)
+            .into_iter()
+            .flatten()
+            .find_map(|arc| arc.tips.get(arc.tips.len() / 2).copied())
+            .ok_or("its oblique cylinder has no proven trimmed surface site")?;
+    }
     let m = |parameter: &str, value: f64| Measurement {
         feature: f.id.clone(),
         parameter: parameter.into(),
         value,
     };
-    if f.kind == "fillet" {
+    if matches!(f.kind.as_str(), "fillet" | "cylindrical_profile") {
+        let parameter = if f.kind == "fillet" {
+            "fillet.radius"
+        } else {
+            "cylindrical_profile.radius"
+        };
         let r = size(f, "radius")?;
         let label = format!("R{}", fmt(r));
         return Ok(Edge {
             feature: f,
-            parameter: "fillet.radius",
+            parameter,
             axis,
             turned,
             oriented,
@@ -137,7 +164,7 @@ fn edge<'a>(cx: &Context, f: &'a Feature) -> Result<Edge<'a>, String> {
             value: r,
             same: label.bytes().map(i64::from).collect(),
             terms: vec![label],
-            measurements: vec![m("fillet.radius", r)],
+            measurements: vec![m(parameter, r)],
         });
     }
     let (leg1, leg2, angle) = (size(f, "leg1")?, size(f, "leg2")?, size(f, "angle")?);
@@ -226,10 +253,12 @@ pub(super) fn route_profile(analysis: &crate::model::Analysis, w: &mut Want, vie
         return;
     };
     if !arcs.is_empty()
-        || !w
-            .measurements
-            .iter()
-            .any(|m| m.parameter == "fillet.radius" || m.parameter == "blend.radius")
+        || !w.measurements.iter().any(|m| {
+            matches!(
+                m.parameter.as_str(),
+                "fillet.radius" | "blend.radius" | "cylindrical_profile.radius"
+            )
+        })
     {
         return;
     }
@@ -238,11 +267,12 @@ pub(super) fn route_profile(analysis: &crate::model::Analysis, w: &mut Want, vie
     let (a, b) = ((k + 1) % 3, (k + 2) % 3);
     let page = |p: P3| [p[a], p[b]];
     let mut shown = Vec::new();
-    for m in w
-        .measurements
-        .iter()
-        .filter(|m| m.parameter == "fillet.radius" || m.parameter == "blend.radius")
-    {
+    for m in w.measurements.iter().filter(|m| {
+        matches!(
+            m.parameter.as_str(),
+            "fillet.radius" | "blend.radius" | "cylindrical_profile.radius"
+        )
+    }) {
         if let Ok(more) = crate::radius::projected(analysis, &m.feature, *toward, page) {
             shown.extend(more);
         }
@@ -261,11 +291,12 @@ pub(super) fn route_profile(analysis: &crate::model::Analysis, w: &mut Want, vie
     // The middle half of each arc the view sees end-on: the leader's tip is set on it towards its
     // elbow ([`super::leaders`]' rim tip), radially when the elbow lies within its sweep.
     let mut middles = Vec::new();
-    for m in w
-        .measurements
-        .iter()
-        .filter(|m| m.parameter == "fillet.radius" || m.parameter == "blend.radius")
-    {
+    for m in w.measurements.iter().filter(|m| {
+        matches!(
+            m.parameter.as_str(),
+            "fillet.radius" | "blend.radius" | "cylindrical_profile.radius"
+        )
+    }) {
         for arc in analysis.radius_arcs.get(&m.feature).into_iter().flatten() {
             if crate::radius::seen_end_on(arc.axis, *toward) {
                 let mut middle = arc.arc.clone();
@@ -298,6 +329,7 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         let family = match f.kind.as_str() {
             "chamfer" | "oriented_chamfer" => 0,
             "fillet" => 1,
+            "cylindrical_profile" => 1,
             _ => continue,
         };
         match edge(cx, f) {
@@ -329,8 +361,28 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     for ((family, _), members) in groups {
         // The presentation the leader points into: the most populous axis and view.
         let mut by: BTreeMap<(&str, &str), Vec<&Edge>> = BTreeMap::new();
+        // Keep the established principal fillet's presentation when a residual profile
+        // has the same radius. Every surface still carries its own measurement claim.
+        let has_convex = members.iter().any(|e| {
+            e.feature.kind == "fillet"
+                && !e.oriented
+                && e.feature.parameters.get("side").and_then(Value::as_str) != Some("concave")
+        });
+        let has_fillet = members
+            .iter()
+            .any(|e| e.feature.kind == "fillet" && !e.oriented);
         let has_principal = members.iter().any(|e| !e.oriented);
-        for e in members.iter().filter(|e| !has_principal || !e.oriented) {
+        for e in members.iter().filter(|e| {
+            if has_convex {
+                e.feature.kind == "fillet"
+                    && !e.oriented
+                    && e.feature.parameters.get("side").and_then(Value::as_str) != Some("concave")
+            } else if has_fillet {
+                e.feature.kind == "fillet" && !e.oriented
+            } else {
+                !has_principal || !e.oriented
+            }
+        }) {
             by.entry((AXES[e.axis], e.views()[0])).or_default().push(e);
         }
         let (_, visible) = by
@@ -359,6 +411,12 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         terms.extend(first.terms.iter().cloned());
         let (noun, size, seen) = if family == 0 {
             ("chamfer", "size", "its bevel is seen edge-on")
+        } else if first.feature.kind == "cylindrical_profile" {
+            (
+                "cylindrical profile",
+                "radius",
+                "its surface is seen as an arc",
+            )
         } else {
             ("fillet", "radius", "its rounded edge is seen as an arc")
         };
