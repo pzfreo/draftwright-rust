@@ -284,6 +284,9 @@ fn spec(cache: &Cache, args: &Value) -> Result<Spec, Error> {
 }
 fn compact(i: &ItemAnswer) -> Value {
     let mut row = json!({"id":i.item.id,"kind":i.item.kind,"label":i.item.label,"view":i.item.view,"state":i.item.state});
+    if !i.item.characteristic_numbers.is_empty() {
+        row["characteristic_numbers"] = json!(i.item.characteristic_numbers);
+    }
     if i.item.explicit_sheet || i.item.sheet != 1 {
         row["sheet"] = json!(i.item.sheet);
     }

@@ -1,0 +1,681 @@
+//! Inspection rings placed on settled label lanes, with the common leader predicates.
+use super::{
+    Placed,
+    leaders::lines_meet,
+    placement::{Frame, Page, boxes_overlap, crosses},
+};
+use crate::{
+    characteristics::{Balloon, Characteristic, finding},
+    model::{Analysis, Plan},
+    pmi::Record,
+};
+type Box2 = [f64; 4];
+type Line = [[f64; 2]; 2];
+#[derive(Clone)]
+struct Obstacle {
+    id: String,
+    bounds: Box2,
+    lines: Vec<Line>,
+}
+fn pad(b: Box2, p: f64) -> Box2 {
+    [b[0] - p, b[1] - p, b[2] + p, b[3] + p]
+}
+fn centre(b: Box2) -> [f64; 2] {
+    [(b[0] + b[2]) / 2., (b[1] + b[3]) / 2.]
+}
+fn frame(b: Box2) -> Vec<Line> {
+    let [a, b, c, d] = b;
+    vec![
+        [[a, b], [c, b]],
+        [[c, b], [c, d]],
+        [[c, d], [a, d]],
+        [[a, d], [a, b]],
+    ]
+}
+fn obstacles(plan: &Plan, sheet: u32) -> Vec<Obstacle> {
+    let mut out = Vec::new();
+    for d in &plan.dimensions {
+        if plan
+            .views
+            .iter()
+            .find(|v| v.id == d.view)
+            .is_none_or(|v| v.sheet != sheet)
+        {
+            continue;
+        }
+        if let Some(p) = &d.placed {
+            let mut lines = p.lines.clone();
+            lines.extend(p.arrows.iter().flat_map(|h| super::leaders::head(*h)));
+            out.push(Obstacle {
+                id: d.id.clone(),
+                bounds: p.label_box,
+                lines,
+            });
+        }
+    }
+    for g in &plan.gdt {
+        if plan
+            .views
+            .iter()
+            .find(|v| v.id == g.view)
+            .is_none_or(|v| v.sheet != sheet)
+        {
+            continue;
+        }
+        if let Some(p) = &g.placed {
+            let mut lines = p.lines.clone();
+            lines.extend(p.arrows.iter().flat_map(|h| super::leaders::head(*h)));
+            lines.extend(&p.strokes);
+            for fill in &p.fills {
+                for k in 0..fill.len() {
+                    lines.push([fill[k], fill[(k + 1) % fill.len()]]);
+                }
+            }
+            out.push(Obstacle {
+                id: g.id.clone(),
+                bounds: p.label_box,
+                lines,
+            });
+        }
+    }
+    for b in &plan.balloons {
+        if plan
+            .views
+            .iter()
+            .find(|v| v.id == b.view)
+            .is_some_and(|v| v.sheet == sheet)
+        {
+            let bounds = [
+                b.at[0] - b.radius,
+                b.at[1] - b.radius,
+                b.at[0] + b.radius,
+                b.at[1] + b.radius,
+            ];
+            out.push(Obstacle {
+                id: b.id.clone(),
+                bounds,
+                lines: b.leader.into_iter().collect(),
+            });
+        }
+    }
+    fn table(out: &mut Vec<Obstacle>, t: &crate::tables::PlannedTable) {
+        if let Some(p) = &t.placed {
+            for p in std::iter::once(p)
+                .filter(|p| p.blocks.is_empty())
+                .chain(&p.blocks)
+            {
+                let mut lines = frame(p.cells);
+                for &x in &p.columns {
+                    lines.push([[x, p.cells[1]], [x, p.cells[3]]]);
+                }
+                for i in 1..p.cells_at.len() {
+                    let y = p.cells[3] - i as f64 * crate::tables::ROW;
+                    lines.push([[p.cells[0], y], [p.cells[2], y]]);
+                }
+                out.push(Obstacle {
+                    id: t.id.clone(),
+                    bounds: p.cells,
+                    lines,
+                });
+            }
+        }
+    }
+    for t in plan.tables.iter().filter(|t| t.sheet == sheet) {
+        table(&mut out, t);
+    }
+    for t in plan
+        .hole_table
+        .iter()
+        .chain(&plan.hole_tables)
+        .filter(|t| t.sheet == sheet)
+    {
+        for b in &t.blocks {
+            table(&mut out, b);
+        }
+    }
+    if sheet == 1 {
+        for n in &plan.notes {
+            if let Some(p) = &n.placed {
+                out.push(Obstacle {
+                    id: n.id.clone(),
+                    bounds: p.cells,
+                    lines: frame(p.cells),
+                });
+            }
+        }
+        if let Some(b) = &plan.notes_block {
+            out.push(Obstacle {
+                id: "general_notes".into(),
+                bounds: [
+                    b.cells[0],
+                    b.cells[3] - crate::tables::ROW,
+                    b.cells[2],
+                    b.cells[3],
+                ],
+                lines: frame(b.cells),
+            });
+        }
+        for r in &plan.requirements {
+            if let Some(p) = &r.placed {
+                out.push(Obstacle {
+                    id: r.id.clone(),
+                    bounds: p.label_box,
+                    lines: p.strokes.clone(),
+                });
+            }
+        }
+        if let Some(t) = &plan.radius_table {
+            table(&mut out, &t.table);
+        }
+        if let Some(b) = &plan.radius_notes_block {
+            out.push(Obstacle {
+                id: "blend_radius_notes".into(),
+                bounds: b.cells,
+                lines: frame(b.cells),
+            });
+        }
+    }
+    for c in plan.captions.iter().filter(|c| c.sheet == sheet) {
+        // Caption reservations are included by their complete box below when available.
+        out.push(Obstacle {
+            id: c.id.clone(),
+            bounds: c.ink,
+            lines: Vec::new(),
+        });
+    }
+    for b in plan.inspection_balloons.iter().filter(|b| b.sheet == sheet) {
+        out.push(Obstacle {
+            id: b.id.clone(),
+            bounds: b.bounds(),
+            lines: b.lines.clone(),
+        });
+    }
+    out
+}
+fn carrier_box(plan: &Plan, id: &str, obs: &[Obstacle]) -> Option<Box2> {
+    if let Some(b) = obs.iter().find(|o| o.id == id) {
+        return Some(b.bounds);
+    }
+    for t in plan.hole_table.iter().chain(&plan.hole_tables) {
+        for (i, r) in t.rows.iter().enumerate() {
+            if id == format!("{}/{}", t.id, r.tag) {
+                let block = t.blocks.iter().find(|b| {
+                    b.rows
+                        .iter()
+                        .skip(1)
+                        .any(|r| r.first() == Some(&t.rows[i].tag))
+                })?;
+                let row = block
+                    .rows
+                    .iter()
+                    .position(|r| r.first() == Some(&t.rows[i].tag))?;
+                let p = block.placed.as_ref()?;
+                let y = p.cells[3] - row as f64 * crate::tables::ROW;
+                return Some([p.cells[0], y - crate::tables::ROW, p.cells[2], y]);
+            }
+        }
+    }
+    None
+}
+fn boundary(b: Box2, toward: [f64; 2]) -> [f64; 2] {
+    let c = centre(b);
+    let d = [toward[0] - c[0], toward[1] - c[1]];
+    let t = (0..2)
+        .filter(|&k| d[k].abs() > 1e-9)
+        .map(|k| ((b[k + 2] - b[k]) / 2.) / d[k].abs())
+        .fold(f64::INFINITY, f64::min);
+    if !t.is_finite() {
+        return c;
+    }
+    [c[0] + d[0] * t, c[1] + d[1] * t]
+}
+fn shortened([a, b]: Line) -> Line {
+    let l = (b[0] - a[0]).hypot(b[1] - a[1]).max(1e-9);
+    let f = (0.3 / l).min(0.49);
+    [[a[0] + (b[0] - a[0]) * f, a[1] + (b[1] - a[1]) * f], b]
+}
+fn candidate(
+    page: &Page<'_>,
+    obs: &[Obstacle],
+    target: Box2,
+    carrier: (&str, &str),
+    at: [f64; 2],
+    radius: f64,
+    footprints: Option<&super::footprints::Footprints>,
+) -> Option<Balloon> {
+    let (own, view) = carrier;
+    let bounds = [
+        at[0] - radius,
+        at[1] - radius,
+        at[0] + radius,
+        at[1] + radius,
+    ];
+    let mut p = Placed {
+        label_box: pad(bounds, 0.8),
+        label_at: at,
+        rotation: 0.,
+        lines: Vec::new(),
+        arrows: Vec::new(),
+    };
+    if !page.fits(&p, view.trim_start_matches("v:"))
+        || obs.iter().any(|o| {
+            boxes_overlap(p.label_box, o.bounds) || o.lines.iter().any(|l| crosses(*l, p.label_box))
+        })
+    {
+        return None;
+    }
+    let leaves = |b: Box2, a: [f64; 2], z: [f64; 2]| {
+        let d = [z[0] - a[0], z[1] - a[1]];
+        let len = d[0].hypot(d[1]);
+        ((a[0] - b[0]).abs() < 1e-6 && d[0] < -0.2 * len)
+            || ((a[0] - b[2]).abs() < 1e-6 && d[0] > 0.2 * len)
+            || ((a[1] - b[1]).abs() < 1e-6 && d[1] < -0.2 * len)
+            || ((a[1] - b[3]).abs() < 1e-6 && d[1] > 0.2 * len)
+    };
+    let circle_distance = |[a, z]: Line| {
+        let d = [z[0] - a[0], z[1] - a[1]];
+        let t = (((at[0] - a[0]) * d[0] + (at[1] - a[1]) * d[1])
+            / (d[0] * d[0] + d[1] * d[1]).max(1e-12))
+        .clamp(0., 1.);
+        (a[0] + t * d[0] - at[0]).hypot(a[1] + t * d[1] - at[1])
+    };
+    let clear = |route: &[Line]| {
+        if route.is_empty() {
+            return false;
+        }
+        if footprints.is_none() && !leaves(target, route[0][0], route[0][1]) {
+            return false;
+        }
+        for (i, line) in route.iter().copied().enumerate() {
+            let checked = if i == 0 { shortened(line) } else { line };
+            let ring_checked = if i + 1 == route.len() {
+                let [a, b] = shortened([line[1], line[0]]);
+                [b, a]
+            } else {
+                line
+            };
+            if circle_distance(ring_checked) < radius + 0.05 {
+                return false;
+            }
+            if obs.iter().any(|o| {
+                (if o.id == own {
+                    crosses(checked, pad(o.bounds, -0.05))
+                } else {
+                    crosses(line, pad(o.bounds, 0.5))
+                }) || o
+                    .lines
+                    .iter()
+                    .any(|l| lines_meet(if o.id == own { checked } else { line }, *l))
+            }) || footprints.is_some_and(|f| f.crosses_feature(checked))
+            {
+                return false;
+            }
+        }
+        let q = Placed {
+            lines: route.to_vec(),
+            ..p.clone()
+        };
+        page.fits(&q, view.trim_start_matches("v:"))
+    };
+    let segments = |points: Vec<[f64; 2]>| -> Vec<Line> {
+        points
+            .windows(2)
+            .filter(|w| (w[0][0] - w[1][0]).hypot(w[0][1] - w[1][1]) > 0.01)
+            .map(|w| [w[0], w[1]])
+            .collect()
+    };
+    let start = if footprints.is_some() {
+        let mid = centre(target);
+        let dx = at[0] - mid[0];
+        let dy = at[1] - mid[1];
+        let len = dx.hypot(dy).max(1e-12);
+        let rr = (target[2] - target[0]) / 2.;
+        [mid[0] + dx / len * rr, mid[1] + dy / len * rr]
+    } else {
+        boundary(target, at)
+    };
+    let dx = start[0] - at[0];
+    let dy = start[1] - at[1];
+    let length = dx.hypot(dy);
+    if length <= radius + 0.5 {
+        return None;
+    }
+    let end = [at[0] + dx / length * radius, at[1] + dy / length * radius];
+    let mut selected = clear(&[[start, end]]).then_some(vec![[start, end]]);
+    if selected.is_none() {
+        let ports = |b: Box2| {
+            let c = centre(b);
+            vec![[b[0], c[1]], [b[2], c[1]], [c[0], b[1]], [c[0], b[3]]]
+        };
+        let mut starts = ports(target);
+        starts.sort_by(|a, b| {
+            (a[0] - at[0])
+                .hypot(a[1] - at[1])
+                .total_cmp(&(b[0] - at[0]).hypot(b[1] - at[1]))
+        });
+        let ends = ports(bounds);
+        let mid = centre(target);
+        let lanes = |axis: usize| {
+            let mut values: Vec<_> = obs
+                .iter()
+                .flat_map(|o| {
+                    std::iter::once(o.bounds[axis])
+                        .chain(std::iter::once(o.bounds[axis + 2]))
+                        .chain(o.lines.iter().flatten().map(move |p| p[axis]))
+                })
+                .flat_map(|v| [v - 1.5, v + 1.5])
+                .filter(|v| (v - mid[axis]).abs() <= 70.)
+                .collect();
+            values.sort_by(f64::total_cmp);
+            values.dedup_by(|a, b| (*a - *b).abs() < 0.1);
+            values.sort_by(|a, b| (a - mid[axis]).abs().total_cmp(&(b - mid[axis]).abs()));
+            values.truncate(96);
+            values
+        };
+        let xs = lanes(0);
+        let ys = lanes(1);
+        'search: for a in starts {
+            for &z in &ends {
+                for bend in [[a[0], z[1]], [z[0], a[1]]] {
+                    let route = segments(vec![a, bend, z]);
+                    if clear(&route) {
+                        selected = Some(route);
+                        break 'search;
+                    }
+                }
+                for &x in &xs {
+                    let route = segments(vec![a, [x, a[1]], [x, z[1]], z]);
+                    if clear(&route) {
+                        selected = Some(route);
+                        break 'search;
+                    }
+                }
+                for &y in &ys {
+                    let route = segments(vec![a, [a[0], y], [z[0], y], z]);
+                    if clear(&route) {
+                        selected = Some(route);
+                        break 'search;
+                    }
+                }
+            }
+        }
+    }
+    p.lines = selected?;
+    Some(Balloon {
+        state: crate::items::State::Shown,
+        default: true,
+        basis: String::new(),
+        id: String::new(),
+        source: String::new(),
+        number: String::new(),
+        item: String::new(),
+        sheet: 0,
+        view: None,
+        at,
+        radius,
+        lines: p.lines,
+    })
+}
+/// Keep the complete glyph box inside the ring with 0.35 mm clear of its inner edge.
+/// A character-count estimate wastes the narrow lanes beside compact datum frames.
+fn number_radius(number: &str) -> f64 {
+    let ink = super::font().text(number, super::TEXT);
+    (ink.max[0].hypot(ink.max[1]) + 0.6).max(3.0)
+}
+pub(crate) fn place(analysis: &Analysis, plan: &mut Plan, r: &Record, c: &mut Characteristic) {
+    let Some(item) = c.drawn_item.clone() else {
+        return;
+    };
+    let sheet = c.sheet.unwrap_or(1);
+    let Some(paper) = std::iter::once(&plan.sheet)
+        .chain(&plan.sheets)
+        .find(|s| s.number == sheet)
+    else {
+        return;
+    };
+    let page = Page::new(analysis, paper, &plan.views);
+    let obs = obstacles(plan, sheet);
+    let Some(target) = carrier_box(plan, &item, &obs) else {
+        finding(
+            plan,
+            c,
+            "characteristic_balloon_missing",
+            "has no locatable drawn carrier for its balloon",
+        );
+        return;
+    };
+    let parent = item.rsplit_once('/').map_or(item.as_str(), |p| p.0);
+    let own = obs
+        .iter()
+        .find(|o| {
+            o.id == item
+                || ((o.id == parent || o.id.starts_with(&format!("{parent}/")))
+                    && o.bounds[0] <= target[0]
+                    && o.bounds[1] <= target[1]
+                    && o.bounds[2] >= target[2]
+                    && o.bounds[3] >= target[3])
+        })
+        .map_or(parent, |o| o.id.as_str());
+    let setting = plan
+        .spec
+        .balloons
+        .items
+        .get(&c.source)
+        .or_else(|| {
+            c.item
+                .as_ref()
+                .and_then(|i| plan.spec.balloons.items.get(i))
+        })
+        .cloned()
+        .unwrap_or_default();
+    let mut targets = vec![target];
+    let mut occurrence_view = None;
+    let mut occurrence_frame = None;
+    // Geometric cylinders or whole recognised holes prove physical repeated occurrences.
+    // Never count a location dimension's two witness stations as occurrences.
+    if plan.spec.balloons.occurrences {
+        let mut cylinders: Vec<([f64; 3], [f64; 3], f64)> = r
+            .geometry
+            .as_ref()
+            .into_iter()
+            .flat_map(|g| &g.cylinders)
+            .map(|cy| (cy.midpoint(), cy.direction, cy.radius))
+            .collect();
+        if cylinders.is_empty()
+            && matches!(
+                r.category,
+                crate::pmi::Category::Datum | crate::pmi::Category::GeometricTolerance
+            )
+        {
+            cylinders = crate::bridge::holes::read(analysis)
+                .into_iter()
+                .filter_map(|(_, h)| {
+                    let h = h.ok()?;
+                    (h.feature.faces.iter().all(|f| r.faces.contains(f))).then_some((
+                        h.at,
+                        h.direction,
+                        h.diameter / 2.,
+                    ))
+                })
+                .collect();
+        }
+        if cylinders.len() > 1 {
+            let mut cameras: Vec<_> = plan
+                .views
+                .iter()
+                .filter(|v| {
+                    v.sheet == sheet && v.cut.is_none() && v.detail.is_none() && v.id != "v:iso"
+                })
+                .collect();
+            cameras.sort_by_key(|v| c.view.as_ref() != Some(&v.id));
+            if let Some(view) = cameras.into_iter().find(|v| {
+                cylinders.iter().all(|(_, axis, _)| {
+                    (0..3).map(|k| axis[k] * v.direction[k]).sum::<f64>().abs() > 0.99
+                })
+            }) {
+                let f = Frame::new(analysis, view);
+                let mut sites: Vec<[f64; 2]> = Vec::new();
+                for (at, _, rad) in cylinders {
+                    let p = f.page(at);
+                    let rr = rad * view.scale;
+                    if !sites
+                        .iter()
+                        .any(|q| (q[0] - p[0]).hypot(q[1] - p[1]) < 0.01)
+                    {
+                        sites.push(p);
+                        targets.push([p[0] - rr, p[1] - rr, p[0] + rr, p[1] + rr]);
+                    }
+                }
+                occurrence_view = Some(view.id.clone());
+                occurrence_frame = Some(f);
+            }
+        }
+    }
+    let footprints = occurrence_frame.as_ref().map(|f| {
+        super::footprints::Footprints::new(
+            analysis,
+            f,
+            occurrence_view
+                .as_deref()
+                .unwrap_or("")
+                .trim_start_matches("v:"),
+        )
+    });
+    let radius = number_radius(&c.number);
+    let mut balloons = Vec::new();
+    for (i, t) in targets.into_iter().enumerate() {
+        let id = if i == 0 {
+            format!("inspection:{}", c.source)
+        } else {
+            format!("inspection:{}:occurrence:{i}", c.source)
+        };
+        c.balloon_ids.push(id.clone());
+        if setting.suppress {
+            continue;
+        }
+        let mid = centre(t);
+        let mut places = Vec::new();
+        if let Some(d) = setting.position {
+            places.push([mid[0] + d[0], mid[1] + d[1]]);
+        } else {
+            for reach in [1.5, 4.5, 8.0, 12.0, 18.0, 26.0, 38.0, 52.0] {
+                for f in [0.5, 0.25, 0.75, 0., 1.] {
+                    places.extend([
+                        [t[2] + radius + reach, t[1] + (t[3] - t[1]) * f],
+                        [t[0] - radius - reach, t[1] + (t[3] - t[1]) * f],
+                        [t[0] + (t[2] - t[0]) * f, t[3] + radius + reach],
+                        [t[0] + (t[2] - t[0]) * f, t[1] - radius - reach],
+                    ]);
+                }
+            }
+        }
+        let mut all = obs.clone();
+        all.extend(balloons.iter().map(|b: &Balloon| Obstacle {
+            id: b.id.clone(),
+            bounds: b.bounds(),
+            lines: b.lines.clone(),
+        }));
+        let placed = places.into_iter().find_map(|at| {
+            candidate(
+                &page,
+                &all,
+                t,
+                (
+                    if i == 0 { own } else { "" },
+                    if i == 0 {
+                        c.view.as_deref().unwrap_or("")
+                    } else {
+                        occurrence_view.as_deref().unwrap_or("")
+                    },
+                ),
+                at,
+                radius,
+                if i == 0 { None } else { footprints.as_ref() },
+            )
+        });
+        if let Some(mut b) = placed {
+            b.id = id;
+            b.source = c.source.clone();
+            b.number = c.number.clone();
+            b.item = item.clone();
+            b.sheet = sheet;
+            b.view = if i == 0 {
+                c.view.clone()
+            } else {
+                occurrence_view.clone()
+            };
+            b.default = setting.position.is_none();
+            b.basis = format!(
+                "File-owned characteristic {} from {}; connected to its drawn carrier",
+                c.number, c.source
+            );
+            balloons.push(b);
+        }
+    }
+    if balloons.len() != c.balloon_ids.len() {
+        finding(
+            plan,
+            c,
+            "characteristic_balloon_missing",
+            if setting.suppress {
+                "has a suppressed inspection balloon"
+            } else {
+                "has an inspection balloon with no clear placement"
+            },
+        );
+    }
+    plan.inspection_balloons.extend(balloons);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn a_number_ring_fits_the_enclosed_lane_beside_a_datum() {
+        let (_, a) = crate::model::analyse_native_bytes(
+            "datum.step",
+            include_bytes!("../../tests/fixtures/parts/editor_pmi.step"),
+        )
+        .unwrap();
+        let plan = crate::model::plan_recovered(&a, &crate::model::Spec::default()).unwrap();
+        let page = Page::new(&a, &plan.sheet, &[]);
+        let target = [64., 71.5, 70., 77.5];
+        let obs = vec![
+            Obstacle {
+                id: "datum".into(),
+                bounds: target,
+                lines: frame(target),
+            },
+            // The view below and the dimension's witness strokes enclose a 9 mm lane.
+            Obstacle {
+                id: "view".into(),
+                bounds: [32., 20., 100., 70.2],
+                lines: vec![],
+            },
+            Obstacle {
+                id: "dimension".into(),
+                bounds: [60., 80.2, 72., 82.4],
+                lines: vec![
+                    [[32., 70.2], [32., 81.2]],
+                    [[100., 20.], [100., 81.2]],
+                    [[32., 79.2], [100., 79.2]],
+                ],
+            },
+        ];
+        let b = candidate(
+            &page,
+            &obs,
+            target,
+            ("datum", ""),
+            [78., 74.5],
+            number_radius("122"),
+            None,
+        )
+        .unwrap();
+        assert_eq!(b.lines.len(), 1);
+        let ink = super::super::font().text("122", super::super::TEXT);
+        assert!(ink.max[0].hypot(ink.max[1]) < b.radius - 0.5);
+        // Departing tangentially along the datum's edge would cross its own text.
+        assert!(b.lines[0][1][0] > b.lines[0][0][0]);
+    }
+}

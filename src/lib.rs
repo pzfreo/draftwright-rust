@@ -11,6 +11,7 @@ pub mod blends;
 pub mod bridge;
 pub mod callouts;
 pub mod centrelines;
+pub mod characteristics;
 pub mod completeness;
 pub mod cosmetic;
 pub mod demand;

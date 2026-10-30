@@ -95,6 +95,9 @@
                                       }
                                     ],
                                     "type": "object"
+                                  },
+                                  "characteristic_numbers": {
+                                    "$ref": "#/B"
                                   }
                                 },
                                 "required": [

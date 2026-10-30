@@ -54,6 +54,7 @@ spec['properties']['sheet']['properties']['future_setting'] = {'type': 'string'}
             'spec_notes': {'FinishSpec': 'finish', 'ThreadSpec': 'thread', 'KnurlSpec': 'knurl'},
             'recognition_corrections': {'Anchor': 'anchor', 'Declaration': 'declaration', 'PatternSpec': 'pattern'},
             'dimension_scheme': {'Scheme': 'scheme'}, 'notes': {'NoteSpec': 'note'},
+            'characteristics': {'Settings': 'balloon_settings', 'Override': 'balloon_override'},
             'tables': {'TableSpec': 'table'}, 'gears': {'GearSpec': 'gear'},
         }
         for module, structs in types.items():

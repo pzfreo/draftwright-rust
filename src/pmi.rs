@@ -683,6 +683,7 @@ pub fn report_part(
             prov,
             def: &defs[p],
             drawing: &drawing,
+            numbers: characteristic_numbers(doc, pmi, prov),
         };
         r.read(&mut records, &mut sources);
     }
@@ -951,6 +952,71 @@ fn is_draftwright_record(a: &pmi::AttributeSet) -> bool {
         && matches!(a.items.as_slice(), [(name, AttributeValue::Text(_))] if name == &a.name)
 }
 
+/// The producer's exact UDA spelling. Text keeps its file spelling (including leading zeros).
+fn characteristic_value(a: &pmi::AttributeSet) -> Option<String> {
+    if a.name != "characteristic number" {
+        return None;
+    }
+    match a.items.as_slice() {
+        [(name, AttributeValue::Text(n))]
+            if name == "characteristic number"
+                && !n.is_empty()
+                && n.bytes().all(|b| b.is_ascii_digit())
+                && n.bytes().any(|b| b != b'0') =>
+        {
+            Some(n.clone())
+        }
+        [(name, AttributeValue::Integer(n))] if name == "characteristic number" && *n > 0 => {
+            Some(n.to_string())
+        }
+        _ => None,
+    }
+}
+
+fn characteristic_owner(doc: &Document, owner: u64) -> bool {
+    let supported = |name: &str| {
+        [
+            "dimensional_size",
+            "dimensional_location",
+            "geometric_tolerance",
+            "datum_feature",
+        ]
+        .iter()
+        .any(|root| haecceity::express::is_a(&name.to_ascii_lowercase(), root))
+    };
+    match doc.get(owner) {
+        Some(RawEntity::Simple { name, .. }) => supported(name),
+        Some(RawEntity::Complex { parts, .. }) => parts.iter().any(|p| supported(&p.name)),
+        None => false,
+    }
+}
+
+fn characteristic_numbers(
+    doc: &Document,
+    pmi: &PartPmi,
+    prov: &PartProvenance,
+) -> BTreeMap<(Category, u64), BTreeSet<String>> {
+    let mut numbers: BTreeMap<(Category, u64), BTreeSet<String>> = BTreeMap::new();
+    for (i, a) in pmi.attributes.iter().enumerate() {
+        let Some(number) = characteristic_value(a) else {
+            continue;
+        };
+        let category = match a.on {
+            Some(NoteOwner::Dimension(_)) => Category::Dimension,
+            Some(NoteOwner::Tolerance(_)) => Category::GeometricTolerance,
+            Some(NoteOwner::Feature(_)) => Category::Datum,
+            _ => continue,
+        };
+        if let Some(owner) = prov.attributes.get(i).and_then(|ids| {
+            ids.iter()
+                .find_map(|&id| ref_of(doc, id, "PROPERTY_DEFINITION", 2))
+        }) {
+            numbers.entry((category, owner)).or_default().insert(number);
+        }
+    }
+    numbers
+}
+
 /// Python Specify's earlier stored-answer form, documented by Specify's `resume` module:
 /// a property on the product definition, described 'schema 1', with one named text item.
 /// It has no UDA association, so haecceity reports it as an unmodelled property.
@@ -980,6 +1046,7 @@ struct PartReader<'a> {
     prov: &'a PartProvenance,
     def: &'a PartDefinition,
     drawing: &'a Drawing<'a>,
+    numbers: BTreeMap<(Category, u64), BTreeSet<String>>,
 }
 
 impl PartReader<'_> {
@@ -1307,8 +1374,24 @@ impl PartReader<'_> {
     }
 
     /// Keeps a read record, or reports the one whose support does not resolve.
-    fn keep(&self, record: Record, records: &mut Vec<Record>, sources: &mut Vec<Source>) {
-        if let Some(why) = record.blockers.iter().find(|b| b.starts_with(UNRESOLVED)) {
+    fn keep(&self, mut record: Record, records: &mut Vec<Record>, sources: &mut Vec<Source>) {
+        if matches!(
+            record.category,
+            Category::Dimension | Category::GeometricTolerance | Category::Datum
+        ) && let Some(values) = self.numbers.get(&(record.category, record.part21_id))
+            && values.len() == 1
+            && let Some(number) = values.first()
+        {
+            record
+                .fields
+                .push(("characteristic number".into(), Field::Text(number.clone())));
+        }
+        if let Some(why) = record.blockers.iter().find(|b| b.starts_with(UNRESOLVED))
+            && !record
+                .fields
+                .iter()
+                .any(|(k, _)| k == "characteristic number")
+        {
             sources.push(Source {
                 id: record.source_id.clone(),
                 category: record.category,
@@ -1398,8 +1481,27 @@ impl PartReader<'_> {
         for (item, category, n, ids, used) in groups {
             for i in (0..n).filter(|&i| !used.get(i).copied().unwrap_or(false)) {
                 let instances = ids.get(i).cloned().unwrap_or_default();
-                let bookkeeping =
-                    item == "attribute_set" && is_draftwright_record(&pmi.attributes[i]);
+                let bookkeeping = item == "attribute_set"
+                    && (is_draftwright_record(&pmi.attributes[i])
+                        || (characteristic_value(&pmi.attributes[i]).is_some()
+                            && ids.get(i).is_some_and(|instances| {
+                                instances.iter().any(|&id| {
+                                    let owner = ref_of(self.doc, id, "PROPERTY_DEFINITION", 2);
+                                    owner.is_some_and(|owner| {
+                                        [
+                                            Category::Dimension,
+                                            Category::GeometricTolerance,
+                                            Category::Datum,
+                                        ]
+                                        .into_iter()
+                                        .any(|category| {
+                                            self.numbers
+                                                .get(&(category, owner))
+                                                .is_some_and(|values| values.len() == 1)
+                                        }) && characteristic_owner(self.doc, owner)
+                                    })
+                                })
+                            })));
                 sources.push(Source {
                     id: format!("{item}:{}:{i}", self.p),
                     category,

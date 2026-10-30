@@ -19,6 +19,9 @@
         "sheet": {
           "$ref": "#/A"
         },
+        "balloons": {
+          "$ref": "#/A"
+        },
         "iso_scale_factor": {
           "type": [
             "number",

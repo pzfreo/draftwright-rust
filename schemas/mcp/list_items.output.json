@@ -29,10 +29,10 @@
                     "$ref": "#/C"
                   },
                   "label": {
-                    "$ref": "#/A"
+                    "$ref": "#/B"
                   },
                   "view": {
-                    "$ref": "#/A"
+                    "$ref": "#/B"
                   },
                   "state": {
                     "anyOf": [
@@ -75,6 +75,9 @@
                       }
                     ],
                     "type": "object"
+                  },
+                  "characteristic_numbers": {
+                    "$ref": "#/A"
                   }
                 },
                 "required": [
@@ -108,7 +111,7 @@
                     ]
                   },
                   "dimension_kind": {
-                    "$ref": "#/A"
+                    "$ref": "#/B"
                   },
                   "placement": {
                     "type": [
@@ -133,14 +136,14 @@
                 "additionalProperties": false,
                 "patternProperties": {
                   "^(anchors|features|operations)$(?!\n)": {
-                    "$ref": "#/B"
+                    "$ref": "#/A"
                   }
                 }
               },
               {
                 "properties": {
                   "id": {
-                    "$ref": "#/A"
+                    "$ref": "#/B"
                   },
                   "detail_ref": {
                     "$ref": "#/C"
@@ -173,7 +176,7 @@
         "additionalProperties": false,
         "properties": {
           "choices": {
-            "$ref": "#/B"
+            "$ref": "#/A"
           },
           "code": {
             "enum": [
@@ -198,16 +201,16 @@
     }
   ],
   "A": {
-    "type": [
-      "string",
-      "null"
-    ]
-  },
-  "B": {
     "items": {
       "$ref": "#/C"
     },
     "type": "array"
+  },
+  "B": {
+    "type": [
+      "string",
+      "null"
+    ]
   },
   "C": {
     "type": "string"

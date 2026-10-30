@@ -39,6 +39,8 @@
 //! completeness ([`envelope`], [`turned`]) also report uncovered ledger requirements. This is a
 //! deliberate difference from Python, recorded in the completeness findings verdicts.
 
+mod characteristics;
+
 use serde::Serialize;
 
 use crate::model::Analysis;
@@ -516,6 +518,7 @@ pub fn lint(analysis: &Analysis, drawing: &Drawing) -> Vec<LintIssue> {
     issues.extend(coverage::drawn_centre_marks(analysis, drawing));
     issues.extend(leader_issues);
     issues.extend(pmi_coverage::source_sites(analysis, drawing));
+    issues.extend(characteristics::check(drawing));
     issues
 }
 

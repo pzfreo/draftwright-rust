@@ -247,3 +247,10 @@ callout attaches radially to the member nearest its elbow, retaining the automat
 member on ties. The automatic `tip` remains the offset origin; changing members
 keeps the elbow, shoulder and label position. Reapplying the automatic offset
 retains the exact automatic ink.
+
+
+`Session.numberedCharacteristics()` returns JSON containing each extracted inspection
+number, its PMI source, original plan item, drawn carrier, sheet and expected ring IDs.
+The values are file-owned; undrawn requirements remain listed. Dimensions, tolerance
+frames and datum features support numbers. Surface textures and semantic notes have no
+number owner in haecceity 0.2.3 and retain their existing drawing behavior.
