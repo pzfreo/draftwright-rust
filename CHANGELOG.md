@@ -12,13 +12,17 @@ Now on quiddity-rust **v0.2.5**. Adds optional inspection balloons for numbered 
 
 ### Changed
 
-- Pin quiddity-rust v0.2.5. For quiddity-rust#134, boss heights reach the free end through convex chamfers and rounds, edge-treated plates retain their thickness dimensions, and concave turned fillets remain in counted radius callouts.
+- Pin quiddity-rust v0.2.5. For quiddity-rust#134, boss heights reach the free end through convex chamfers and rounds, edge-treated plates retain their thickness dimensions, and concave turned fillets remain in counted radius callouts. The recognition schema (`/6`) and fingerprint format (`/3`) are unchanged, but fingerprint values of bosses with end treatments and of edge-treated plates change.
 - Optional inspection balloons read file-owned characteristic numbers from AP242 UDAs on
-  dimensions, geometric tolerances and datum features. `sheet/balloons: all` enables them;
-  `balloons/occurrences` and per-source suppression/relative position override automatic
-  placement. Items expose their numbers and the plan lists their sheets and drawn carriers.
-  Missing carriers and rings are reported with incomplete impact. Known limit: surface
-  textures and semantic notes have no number owner in haecceity 0.2.5 and draw unchanged.
+  dimensions, geometric tolerances and datum features. They are off unless
+  `sheet/balloons: all` is set. `balloons/occurrences: true` repeats a number at each proven
+  occurrence; `balloons/items/<source>/suppress: true` removes a ring and
+  `balloons/items/<source>/position: [dx, dy]` pins it (paper mm, relative to its carrier),
+  where `<source>` is a PMI ID such as `dimension:#640` or a plan-item ID. Items (including
+  MCP items) carry `characteristic_numbers`, and the plan lists each number's sheet and drawn
+  carrier (`characteristics::list`, `Session::numbered_characteristics`). Missing carriers
+  and rings are reported with incomplete impact. Known limit: surface textures and semantic
+  notes have no number owner in the AP242 reader (haecceity 0.2.5) and draw unchanged.
 
 ### WASM API
 
