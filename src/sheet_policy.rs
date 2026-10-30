@@ -158,8 +158,9 @@ fn failures(analysis: &Analysis, plan: &Plan, floor: f64) -> BTreeSet<(String, V
 /// freely resized isometric are omitted, making the necessary fit test optimistic.
 struct Estimate {
     views: Vec<(String, [f64; 2], [f64; 2])>,
-    blocks: Vec<[f64; 2]>,
-    first_area: f64,
+    /// Each block's sizes, in preference order: one for fixed furniture, one per block count
+    /// for a hole table that may be split side by side ([`crate::hole_table::split_sizes`]).
+    blocks: Vec<Vec<[f64; 2]>>,
     first_blocks: usize,
     scale: f64,
     aligned: bool,
@@ -183,50 +184,48 @@ impl Estimate {
                 (v.id.clone(), size, fixed)
             })
             .collect();
-        let mut boxes: Vec<_> = baseline
+        let size = |b: layout::Rect| vec![[b[2] - b[0], b[3] - b[1]]];
+        let mut blocks: Vec<_> = baseline
             .notes_block
             .iter()
             .chain(&baseline.radius_notes_block)
-            .map(|n| n.cells)
+            .map(|n| size(n.cells))
             .collect();
-        boxes.extend(
+        blocks.extend(
             baseline
                 .radius_table
                 .iter()
-                .filter_map(|t| t.table.placed.as_ref().map(|p| p.cells)),
+                .filter(|t| t.table.placed.is_some())
+                .map(|t| {
+                    crate::tables::forms(
+                        &t.table.rows,
+                        crate::hole_table::columns(&baseline.spec, &t.table.id),
+                    )
+                }),
         );
         // R5 moves the rescue hole_table and declared tables, but general
         // notes, radius furniture and principal-view hole schedules stay on 1.
-        for t in &baseline.hole_tables {
-            boxes.extend(
-                t.blocks
-                    .iter()
-                    .filter_map(|b| b.placed.as_ref().map(|p| p.cells)),
-            );
-        }
-        let first_area = boxes.iter().map(|b| (b[2] - b[0]) * (b[3] - b[1])).sum();
-        let first_blocks = boxes.len();
-        boxes.extend(
+        // A hole table is judged in each form it may take, whole or split.
+        let split = |t: &crate::hole_table::HoleTable| {
+            (!t.blocks.is_empty() && t.blocks.iter().all(|b| b.placed.is_some()))
+                .then(|| crate::hole_table::split_sizes(t, &baseline.spec))
+        };
+        blocks.extend(baseline.hole_tables.iter().filter_map(split));
+        let first_blocks = blocks.len();
+        blocks.extend(
             baseline
                 .tables
                 .iter()
-                .filter_map(|t| t.placed.as_ref().map(|p| p.cells)),
+                .filter(|t| t.placed.is_some())
+                .map(|t| {
+                    crate::tables::forms(&t.rows, crate::hole_table::columns(&baseline.spec, &t.id))
+                }),
         );
-        for t in baseline.hole_table.iter() {
-            boxes.extend(
-                t.blocks
-                    .iter()
-                    .filter_map(|b| b.placed.as_ref().map(|p| p.cells)),
-            );
-        }
+        blocks.extend(baseline.hole_table.iter().filter_map(split));
         Self {
             views,
-            first_area,
             first_blocks,
-            blocks: boxes
-                .into_iter()
-                .map(|b| [b[2] - b[0], b[3] - b[1]])
-                .collect(),
+            blocks,
             scale: baseline.sheet.scale_factor,
             aligned: baseline.spec.views.values().all(|v| v.place.is_none()),
         }
@@ -292,7 +291,20 @@ impl Estimate {
                 }
             }
         }
-        for (i, block) in self.blocks.iter().enumerate() {
+        let mut first_area = 0.0;
+        for (i, forms) in self.blocks.iter().enumerate() {
+            // The fewest-block form that fits the drawable area, as the table is laid out;
+            // the most split form when none does.
+            let Some(&block) = forms
+                .iter()
+                .find(|b| (0..2).all(|k| b[k] <= available[k]))
+                .or(forms.last())
+            else {
+                continue;
+            };
+            if i < self.first_blocks {
+                first_area += block[0] * block[1];
+            }
             if (0..2).any(|k| block[k] > available[k]) {
                 return Some(format!(
                     "a table needs {:.0} × {:.0} mm; {frame}",
@@ -322,10 +334,10 @@ impl Estimate {
         }
         let drawing_area = available[0] * available[1]
             - layout::title_block_width(*w) * crate::title_block::top([0.0; 4]);
-        if principal_area + self.first_area > drawing_area {
+        if principal_area + first_area > drawing_area {
             return Some(format!(
                 "the principal views and sheet-1 tables need at least {:.0} mm² at {at}; one {size} sheet offers {drawing_area:.0} mm² beside the title block",
-                principal_area + self.first_area
+                principal_area + first_area
             ));
         }
         if area > drawing_area * max as f64 {
@@ -834,6 +846,7 @@ fn select_once(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
                 .entry((size.into(), baseline.sheet.scale_factor.to_bits()))
                 .or_insert_with(|| {
                     crate::sheets::separate_views(fit, &baseline, size, hard as usize)
+                        .or_else(|| crate::sheets::reflow_tall_tables(fit, &baseline, size))
                 });
             if let Some(plan) = split.as_ref().filter(|p| p.sheets.len() < max) {
                 chosen = judge(plan.clone(), &mut scales, &mut outcome);
@@ -943,12 +956,9 @@ fn select_once(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
                     let split = separated
                         .entry((size.into(), scale.to_bits()))
                         .or_insert_with(|| {
-                            crate::sheets::separate_views(
-                                fit,
-                                source.as_ref()?,
-                                size,
-                                hard as usize,
-                            )
+                            let source = source.as_ref()?;
+                            crate::sheets::separate_views(fit, source, size, hard as usize)
+                                .or_else(|| crate::sheets::reflow_tall_tables(fit, source, size))
                         });
                     if let Some(plan) = split.as_ref().filter(|p| p.sheets.len() < max) {
                         chosen = judge(plan.clone(), &mut scales, &mut outcome);
@@ -1934,7 +1944,6 @@ mod tests {
         let estimate = Estimate {
             views: vec![("v:front".into(), [100.0, 80.0], [280.0, 15.0])],
             blocks: Vec::new(),
-            first_area: 0.0,
             first_blocks: 0,
             scale: 1.0,
             aligned: true,
@@ -1945,10 +1954,34 @@ mod tests {
         assert_eq!(estimate.scale("A4", 2, 0.1), None);
         assert_eq!(estimate.scale("A3", 1, 0.1), Some(1.0));
         let with_table = Estimate {
-            blocks: vec![[401.0, 20.0]],
+            blocks: vec![vec![[401.0, 20.0]]],
             ..estimate
         };
         assert_eq!(with_table.scale("A3", 9, 0.1), None);
+    }
+
+    #[test]
+    fn a_tall_hole_table_is_judged_in_its_split_form() {
+        // CTC-02's plan schedule: 115 × 441 mm whole, too tall for A2's 394 mm; split into
+        // two blocks it is 236 × 231 mm and does not rule A2 out.
+        let whole = [115.0, 441.0];
+        let split = [236.0, 231.0];
+        let estimate = |blocks| Estimate {
+            views: vec![("v:front".into(), [200.0, 100.0], [0.0; 2])],
+            blocks,
+            first_blocks: 1,
+            scale: 1.0,
+            aligned: true,
+        };
+        assert!(!estimate(vec![vec![whole]]).fits("A2", 1, 1.0));
+        assert!(estimate(vec![vec![whole, split]]).fits("A2", 1, 1.0));
+        // A table that fits whole is judged whole, as it is laid out.
+        assert!(estimate(vec![vec![whole, split]]).fits("A1", 1, 1.0));
+        assert!(
+            estimate(vec![vec![whole]])
+                .shortfall("A2", 1, 1.0)
+                .is_some_and(|s| s.starts_with("a table needs 115 × 441 mm"))
+        );
     }
 
     #[test]
@@ -1958,8 +1991,7 @@ mod tests {
                 ("v:front".into(), [200.0, 100.0], [0.0; 2]),
                 ("v:side".into(), [70.0, 100.0], [0.0; 2]),
             ],
-            blocks: vec![[150.0, 238.0]],
-            first_area: 150.0 * 238.0,
+            blocks: vec![vec![[150.0, 238.0]]],
             first_blocks: 1,
             scale: 1.0,
             aligned: true,
@@ -1971,7 +2003,6 @@ mod tests {
         assert!(estimate.fits("A3", 1, 0.5));
         let movable = Estimate {
             first_blocks: 0,
-            first_area: 0.0,
             ..estimate
         };
         assert!(!movable.fits("A3", 1, 1.0));
@@ -1989,7 +2020,6 @@ mod tests {
                 ("v:plan".into(), [400.0, 320.0], [0.0; 2]),
             ],
             blocks: Vec::new(),
-            first_area: 0.0,
             first_blocks: 0,
             scale: 1.0,
             aligned: true,
@@ -2052,7 +2082,6 @@ mod tests {
         let estimate = Estimate {
             views: vec![("v:front".into(), [100.0, 80.0], [280.0, 15.0])],
             blocks: Vec::new(),
-            first_area: 0.0,
             first_blocks: 0,
             scale: 1.0,
             aligned: true,
@@ -2080,7 +2109,6 @@ mod tests {
         let at_limit = |width: f64| Estimate {
             views: vec![("v:front".into(), [width - 20.0, 100.0], [20.0, 10.0])],
             blocks: Vec::new(),
-            first_area: 0.0,
             first_blocks: 0,
             scale: 1.0,
             aligned: true,

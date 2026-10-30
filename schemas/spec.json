@@ -1228,6 +1228,15 @@
           "additionalProperties": {
             "type": "string"
           }
+        },
+        "table_columns": {
+          "type": "object",
+          "additionalProperties": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 4
+          },
+          "description": "Side-by-side blocks for any table by ID (t:<k>, t:radius-centres, manufacturing_requirements, gear_data_<owner>, hole_schedule_<view>, hole_table_plan): 1 never splits it. Unset splits a table taller than the sheet into the fewest blocks that fit, each repeating the header rows; rows read down then across."
         }
       },
       "additionalProperties": false

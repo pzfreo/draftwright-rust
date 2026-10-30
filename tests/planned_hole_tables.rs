@@ -1336,3 +1336,88 @@ fn a_profile_radius_and_view_pin_keep_the_recovered_hole_schedule() {
         "annotation_overlap" | "annotation_ink_overlap" | "annotation_leader_crossing"
     )));
 }
+
+fn columns(n: serde_json::Value) -> Result<Spec, draftwright::model::Invalid> {
+    model::edit(
+        &setting("always"),
+        &serde_json::json!([{"op":"set","path":"sheet/table_columns","value":{"hole_schedule_plan":n}}]),
+    )
+}
+
+#[test]
+fn a_schedule_that_fits_is_one_block_and_the_spec_can_split_it_in_order() {
+    let (part, analysis) = plate();
+    let whole = model::plan_escalated(analysis, &setting("always")).unwrap();
+    let schedule = |p: &Plan| {
+        p.hole_tables
+            .iter()
+            .find(|t| t.id == "hole_schedule_plan")
+            .cloned()
+            .unwrap()
+    };
+    // It fits the sheet whole: no split, the block is the table itself.
+    let one = schedule(&whole);
+    assert_eq!(one.blocks.len(), 1);
+    assert_eq!(one.blocks[0].id, "hole_schedule_plan");
+    assert_eq!(one.blocks[0].rows.len(), one.rows.len() + 2);
+    // `1` never splits: the same single block.
+    let fixed = model::plan_escalated(analysis, &columns(1.into()).unwrap()).unwrap();
+    assert_eq!(schedule(&fixed).blocks.len(), 1);
+
+    let p = model::plan_escalated(analysis, &columns(2.into()).unwrap()).unwrap();
+    let t = schedule(&p);
+    assert_eq!(t.blocks.len(), 2);
+    let headers = &one.blocks[0].rows[..2];
+    let per = t.rows.len().div_ceil(2);
+    let mut read = Vec::new();
+    for (k, block) in t.blocks.iter().enumerate() {
+        assert_eq!(block.id, format!("hole_schedule_plan/{}", k + 1));
+        // Each block repeats the title and header rows.
+        assert_eq!(&block.rows[..2], headers, "block {k}");
+        assert_eq!(block.rows.len(), per + 2);
+        read.extend(
+            block.rows[2..]
+                .iter()
+                .filter(|r| r.iter().any(|c| !c.is_empty()))
+                .cloned(),
+        );
+    }
+    // Rows keep their order, reading down the first block and then the second.
+    let rows: Vec<_> = t.rows.iter().map(|r| r.cells.clone()).collect();
+    assert_eq!(read, rows);
+    // Side by side, left to right, tops aligned, clear of each other.
+    let [a, b] = [0, 1].map(|k| t.blocks[k].placed.as_ref().unwrap().cells);
+    assert!(a[2] < b[0]);
+    assert!((a[3] - b[3]).abs() < 1e-9 && (a[1] - b[1]).abs() < 1e-9);
+    // Every row's hole is still credited from its own block's cells.
+    let font = Font::new(
+        std::fs::read(Path::new(env!("CARGO_MANIFEST_DIR")).join("fonts/IBMPlexMono-Regular.ttf"))
+            .unwrap(),
+    )
+    .unwrap();
+    let drawing = model::render(part, analysis, &p, &font).unwrap();
+    for finding in draftwright::lint::lint(analysis, &drawing) {
+        assert!(
+            !matches!(
+                finding.code.as_str(),
+                "hole_requirement_missing" | "feature_not_located" | "hole_table_entry_invalid"
+            ),
+            "{}",
+            finding.message
+        );
+    }
+}
+
+#[test]
+fn table_columns_names_a_hole_table_and_a_count_from_one_to_four() {
+    assert!(columns(0.into()).is_err());
+    assert!(columns(5.into()).is_err());
+    assert!(columns(4.into()).is_ok());
+    assert!(
+        model::edit(
+            &Spec::default(),
+            &serde_json::json!([{"op":"set","path":"sheet/table_columns","value":{"t:1":2}}]),
+        )
+        .is_err()
+    );
+}

@@ -290,7 +290,7 @@ mention takes its default.
 
 The design also includes `views/sections` (for example `"sections": [{"id": "A", "through": "f:hole:3"}]`). Feature `anchor` is read for recognition corrections, below; a feature's `note` is read since K1b (below).
 
-- **Fields read:** `sheet` (`size`, `scale`, `preferred_max_size`, `preferred_max_sheets`, `dimension_spacing`, `frame_gutter`, `title`, `references`, `fit_deviations`, `fit_limits`, `projection`, `default_finish`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`, `half_section`),
+- **Fields read:** `sheet` (`size`, `scale`, `preferred_max_size`, `preferred_max_sheets`, `dimension_spacing`, `frame_gutter`, `table_columns`, `title`, `references`, `fit_deviations`, `fit_limits`, `projection`, `default_finish`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`, `half_section`),
   `iso_scale_factor`, `dimension_source`, `dimension_schemes/<name>` (`scheme`, `axis`, `targets`, `view`, `from`), `hole_table` (`auto`, `always`, `never`), `dimensions/<id>` (`omit`, `tolerance`, `fit`, `text`, `style`, `place`, `kind`, `between`, `along`, and the earlier `view`
   spelling), `annotations/<id>` (`omit`, `place`, `text` for prose callouts and automatic notes), `features/<id>` (`fit`, `datum`, `controls`, `finish`, `thread`, `knurl`, `note`, `anchor`, `reclassify`, `suppress`, `split`, `pattern`), `feature_declarations`,
   `faces/<face>` (`datum`, `controls`, `finish`, `note`: "Datums and controls authored in the Spec" and "Finish, threads,
@@ -2599,6 +2599,33 @@ failed complete-table/tag transaction restores the original drawing. An
 unavailable explicitly requested table is a warning, with original dimensions
 kept. The old sixteen-hole rescue remains a separate backstop. The deliberate
 Python differences are recorded in `tests/fixtures/known_hole_tables.json`.
+
+**Long tables split side by side.** Any table (declared, radius, manufacturing, gear or
+hole schedule) taller than the sheet's drawable height uses side-by-side blocks, up to four.
+Every block repeats the header rows (including a schedule's title), and rows read down then
+across. The last block is padded to the common height. A table that fits whole stays unchanged;
+shorter forms are tried only after whole-table placement fails.
+
+Sheet choice considers these forms before ruling paper out for a table's width or height.
+When a tall schedule needs it, the settled drawing is repacked on one sheet around the tables:
+all dimensioned views keep their scales and projection alignment, every row, tag, datum symbol,
+measurement and note is retained, and the undimensioned isometric fits with its NTS caption.
+Counts are tried in order of total blocks; a companion schedule may wrap too. Existing source
+completeness findings stay with this same-sheet transport. It does not add sheet-assignment
+errors for datum symbols already unavailable in the source. This is no permission to split the
+principal views across more sheets. An unavailable schedule keeps the original dimensions.
+
+For shared tables, `placed.blocks` holds each ruled block; `rows` and `placed.cells_at` retain
+source order and claims. Hole-table blocks are `<id>/1`, `<id>/2`, … in
+`Plan.hole_tables[].blocks`; each row still certifies its hole from its own cells. The older
+sixteen-hole rescue (`hole_table_plan`) keeps its existing fewest-blocks wrapping.
+
+`sheet/table_columns` overrides the count by table ID: a declared `t:<k>`,
+`t:radius-centres`, `manufacturing_requirements`, `gear_data_<owner>`, `hole_schedule_front`,
+`hole_schedule_plan`, `hole_schedule_side` or `hole_table_plan`, each 1 to 4. `1` never splits
+the table; `2`–`4` always draw that many blocks (the sheet choice reserves that form). Any other
+ID or count is refused when the Spec is read, for example
+`{ "op": "set", "path": "sheet/table_columns", "value": { "hole_schedule_plan": 2 } }`.
 
 
 ### Interior placement (Stage H7)

@@ -86,7 +86,7 @@ pub const RING: f64 = 0.35;
 const STRIP_GAP: f64 = 10.0;
 const STRIP_SPACING: f64 = 2.5;
 /// The whitespace between side-by-side blocks of a wrapped table (`_table_metrics`' `3 * pad`).
-const BLOCK_GAP: f64 = 3.0 * tables::PAD;
+pub(crate) const BLOCK_GAP: f64 = 3.0 * tables::PAD;
 /// How many half strip steps a balloon is tried either way of its hole along a band.
 const STEPS: usize = 40;
 
@@ -891,40 +891,128 @@ fn place_table(
     rows: &[HoleRow],
 ) -> Option<Vec<PlannedTable>> {
     let obstacles = table_obstacles(analysis, plan, dims);
-    place_rows(rows, &plan.sheet, &obstacles)
+    place_rows(rows, &plan.sheet, &obstacles, columns(&plan.spec, ID))
 }
 
 /// The same four-block wrapping on a sheet without view/annotation obstacles.
 pub fn place_on_sheet(
     table: &HoleTable,
     sheet: &crate::model::PlannedSheet,
+    spec: &crate::model::Spec,
 ) -> Option<Vec<PlannedTable>> {
-    place_rows(&table.rows, sheet, &[sheet.title_block])
+    place_rows(&table.rows, sheet, &[sheet.title_block], columns(spec, ID))
+}
+
+/// The tables `sheet/table_columns` may split, by ID.
+pub const SPLIT_TABLES: [&str; 4] = [
+    ID,
+    "hole_schedule_front",
+    "hole_schedule_plan",
+    "hole_schedule_side",
+];
+/// The most side-by-side blocks a hole table is split into.
+pub const MAX_COLUMNS: usize = 4;
+
+/// The author's block count for table *id* (`sheet/table_columns`), if set.
+pub(crate) fn columns(spec: &crate::model::Spec, id: &str) -> Option<usize> {
+    spec.sheet.table_columns.get(id).map(|&n| n as usize)
+}
+
+/// A table of *headers* and *body* rows split into *n* blocks side by side, as common
+/// drawing practice splits a long table: each block repeats the header rows, and the body
+/// rows keep their order, reading down each block and then across; the last block is padded
+/// with blank rows so the blocks are one height.
+pub fn split(headers: &[Vec<String>], body: &[Vec<String>], n: usize) -> Vec<Vec<Vec<String>>> {
+    let width = headers.first().or(body.first()).map_or(0, Vec::len);
+    let per = body.len().div_ceil(n.max(1));
+    (0..n.max(1))
+        .map(|c| {
+            let mut block = headers.to_vec();
+            block.extend((0..per).map(|r| {
+                body.get(c * per + r)
+                    .cloned()
+                    .unwrap_or_else(|| vec![String::new(); width])
+            }));
+            block
+        })
+        .collect()
+}
+
+/// The block counts to try for a table of *headers* and *body* rows, in order: the author's
+/// count alone; otherwise from the fewest whose height fits *page*'s drawable height (one when
+/// none does) up to [`MAX_COLUMNS`], so a table that fits is never split for its height.
+fn counts(
+    fixed: Option<usize>,
+    headers: usize,
+    body: usize,
+    page: [f64; 2],
+) -> std::ops::RangeInclusive<usize> {
+    if let Some(n) = fixed {
+        return n..=n;
+    }
+    let height = page[1] - 2.0 * crate::layout::margin();
+    let fewest = (1..=MAX_COLUMNS)
+        .find(|&n| ROW * (headers + body.div_ceil(n)) as f64 <= height)
+        .unwrap_or(1);
+    fewest..=MAX_COLUMNS
+}
+
+/// Each block's column widths and the whole split's size: *n* blocks of *widths*-wide
+/// columns (one width set for every block), [`BLOCK_GAP`] apart.
+fn split_size(widths: &[f64], rows: usize, n: usize) -> [f64; 2] {
+    [
+        n as f64 * widths.iter().sum::<f64>() + BLOCK_GAP * (n - 1) as f64,
+        ROW * rows as f64,
+    ]
+}
+
+/// The sizes a hole table may take, one per block count it may be split into, fewest blocks
+/// first (only the author's count when `sheet/table_columns` sets one): what the sheet
+/// choice reserves for it ([`crate::sheet_policy`]).
+pub(crate) fn split_sizes(t: &HoleTable, spec: &crate::model::Spec) -> Vec<[f64; 2]> {
+    let counts = match columns(spec, &t.id) {
+        Some(n) => n..=n,
+        None => 1..=MAX_COLUMNS,
+    };
+    if t.view.is_some() {
+        let cells = schedule_cells(t);
+        let widths = schedule_widths(&cells);
+        counts
+            .map(|n| split_size(&widths, 2 + (cells.len() - 2).div_ceil(n), n))
+            .collect()
+    } else {
+        let (header, body) = rescue_cells(&t.rows);
+        counts
+            .map(|n| {
+                let blocks = split(&header, &body, n);
+                let w = blocks.iter().flat_map(|b| tables::widths(b)).sum::<f64>()
+                    + BLOCK_GAP * (n - 1) as f64;
+                [w, ROW * blocks[0].len() as f64]
+            })
+            .collect()
+    }
+}
+
+/// The rescue table's header row and body rows.
+fn rescue_cells(rows: &[HoleRow]) -> (Vec<Vec<String>>, Vec<Vec<String>>) {
+    (
+        vec![HEADER.iter().map(|s| s.to_string()).collect()],
+        rows.iter().map(|r| r.cells.clone()).collect(),
+    )
 }
 
 fn place_rows(
     rows: &[HoleRow],
     sheet: &crate::model::PlannedSheet,
     obstacles: &[Rect],
+    fixed: Option<usize>,
 ) -> Option<Vec<PlannedTable>> {
-    let header: Vec<String> = HEADER.iter().map(|s| s.to_string()).collect();
-    for ncols in 1..=4usize {
-        let per = rows.len().div_ceil(ncols);
-        let blocks: Vec<Vec<Vec<String>>> = (0..ncols)
-            .map(|c| {
-                let mut b = vec![header.clone()];
-                for r in 0..per {
-                    b.push(
-                        rows.get(c * per + r)
-                            .map_or_else(|| vec![String::new(); HEADER.len()], |r| r.cells.clone()),
-                    );
-                }
-                b
-            })
-            .collect();
+    let (header, body) = rescue_cells(rows);
+    for ncols in fixed.map_or(1..=MAX_COLUMNS, |n| n..=n) {
+        let blocks = split(&header, &body, ncols);
         let widths: Vec<Vec<f64>> = blocks.iter().map(|b| tables::widths(b)).collect();
         let w = widths.iter().flatten().sum::<f64>() + BLOCK_GAP * (ncols - 1) as f64;
-        let h = ROW * (per + 1) as f64;
+        let h = ROW * blocks[0].len() as f64;
         let Some([x0, y0]) = tables::place([w, h], sheet, obstacles, Corner::TopRight) else {
             continue;
         };
@@ -1696,6 +1784,100 @@ fn segments_cross(a: [[f64; 2]; 2], b: [[f64; 2]; 2]) -> bool {
 mod tests {
     use super::*;
 
+    fn row(cells: &[&str]) -> Vec<String> {
+        cells.iter().map(|c| c.to_string()).collect()
+    }
+
+    #[test]
+    fn a_split_repeats_its_headers_and_reads_down_then_across() {
+        let headers = vec![row(&["PLAN HOLES", ""]), row(&["TAG", "X"])];
+        let body: Vec<_> = (0..5).map(|k| row(&[&k.to_string(), "1"])).collect();
+        let blocks = split(&headers, &body, 2);
+        assert_eq!(blocks.len(), 2);
+        for block in &blocks {
+            assert_eq!(&block[..2], &headers[..]);
+            assert_eq!(block.len(), 2 + 3);
+        }
+        let read: Vec<_> = blocks.iter().flat_map(|b| b[2..].to_vec()).collect();
+        assert_eq!(&read[..5], &body[..]);
+        // The last block is padded with one blank row to the common height.
+        assert_eq!(read[5], row(&["", ""]));
+        assert_eq!(
+            split(&headers, &body, 1),
+            vec![[headers.clone(), body].concat()]
+        );
+    }
+
+    #[test]
+    fn only_a_table_taller_than_the_sheet_splits_for_its_height() {
+        let a2 = [594.0, 420.0];
+        // 2 + 30 rows (224 mm) fit A2's drawable height whole.
+        assert_eq!(counts(None, 2, 30, a2), 1..=MAX_COLUMNS);
+        // CTC-02's plan schedule: 2 + 61 rows are 441 mm; two blocks of 31 are 231 mm.
+        assert_eq!(counts(None, 2, 61, a2), 2..=MAX_COLUMNS);
+        // The author's count is the only one tried, even when it does not fit.
+        assert_eq!(counts(Some(1), 2, 61, a2), 1..=1);
+        assert_eq!(counts(Some(3), 2, 5, a2), 3..=3);
+    }
+
+    #[test]
+    fn a_schedule_tries_shorter_blocks_only_when_the_whole_table_has_no_clear_place() {
+        let sheet = serde_json::from_value(serde_json::json!({
+            "size":"A2", "page":[594.0,420.0], "scale":"1:1", "scale_factor":1.0,
+            "default":true, "basis":"test", "arrangement":"columns", "state":{"kind":"shown"},
+            "title":{}, "title_block":[400.0,13.0,581.0,50.0]
+        }))
+        .unwrap();
+        let table = HoleTable {
+            sheet: 1,
+            id: "hole_schedule_plan".into(),
+            view: Some("v:plan".into()),
+            origin: None,
+            pcd: None,
+            covered: Vec::new(),
+            default: true,
+            basis: "test".into(),
+            state: crate::items::State::Shown,
+            blocks: Vec::new(),
+            rows: (0..18)
+                .map(|i| HoleRow {
+                    tag: i.to_string(),
+                    feature: format!("f{i}"),
+                    measurements: Vec::new(),
+                    cells: vec![
+                        i.to_string(),
+                        "10 THRU".into(),
+                        "0".into(),
+                        "0".into(),
+                        "0 / +Z".into(),
+                    ],
+                })
+                .collect(),
+        };
+        assert_eq!(reflow_blocks(&table, &sheet, &[], None).unwrap().len(), 1);
+        let obstacle = [[0.0, 0.0, 594.0, 325.0]];
+        assert!(reflow_blocks(&table, &sheet, &obstacle, Some(1)).is_none());
+        let blocks = reflow_blocks(&table, &sheet, &obstacle, None).unwrap();
+        assert_eq!(blocks.len(), 2);
+        let cells = schedule_cells(&table);
+        for block in &blocks {
+            assert_eq!(block.rows[..2], cells[..2]);
+        }
+        assert_eq!(
+            blocks
+                .iter()
+                .flat_map(|b| b.rows[2..].iter().cloned())
+                .collect::<Vec<_>>(),
+            cells[2..]
+        );
+        assert_eq!(
+            reflow_blocks(&table, &sheet, &obstacle, Some(3))
+                .unwrap()
+                .len(),
+            3
+        );
+    }
+
     /// The fallback a schedule installs when replacing PMI callouts would add an error keeps
     /// every PMI size callout beside its row, as before the rows replaced them, and leaves the
     /// PMI claims with those callouts.
@@ -1858,16 +2040,18 @@ pub(crate) struct Selection {
     aliases: Vec<crate::dims::Omitted>,
 }
 impl Selection {
-    pub fn sizes(&self) -> Vec<([f64; 2], Corner)> {
+    /// Each schedule's reserved size on *page*: whole, or split into the fewest side-by-side
+    /// blocks whose height fits the page (the author's count when `sheet/table_columns` sets
+    /// one), as [`install`] first tries to place it.
+    pub fn sizes(&self, spec: &crate::model::Spec, page: [f64; 2]) -> Vec<([f64; 2], Corner)> {
         self.tables
             .iter()
             .map(|t| {
                 let cells = schedule_cells(t);
+                let body = cells.len() - 2;
+                let n = *counts(columns(spec, &t.id), 2, body, page).start();
                 (
-                    [
-                        schedule_widths(&cells).iter().sum(),
-                        ROW * cells.len() as f64,
-                    ],
+                    split_size(&schedule_widths(&cells), 2 + body.div_ceil(n), n),
                     Corner::TopRight,
                 )
             })
@@ -2594,6 +2778,7 @@ fn select_with(analysis: &Analysis, plan: &Plan, replace_pmi: bool) -> Selection
 
 /// Place the schedules transactionally. Every row has a nearby tag; none needs a long leader.
 /// On failure the caller keeps the original complete plan and the legacy rescue still runs.
+/// A schedule taller than the sheet is split into side-by-side blocks ([`counts`]).
 pub(crate) fn install(analysis: &Analysis, plan: &mut Plan, selection: &Selection) -> bool {
     if install_at(analysis, plan, selection) {
         return true;
@@ -2628,7 +2813,7 @@ pub(crate) fn install(analysis: &Analysis, plan: &mut Plan, selection: &Selectio
     let mut retry = plan.clone();
     retry.views.retain(|v| v.id != "v:iso");
     let mut obstacles = table_obstacles(analysis, &retry, &retry.dimensions);
-    for (size, corner) in selection.sizes() {
+    for (size, corner) in selection.sizes(&retry.spec, retry.sheet.page) {
         let Some([x, y]) = tables::place(size, &retry.sheet, &obstacles, corner) else {
             return false;
         };
@@ -2892,6 +3077,53 @@ pub(crate) fn origin_reservations(
         .collect()
 }
 
+/// Reflow settled rows without regenerating their tags, origins or provenance.
+pub(crate) fn reflow_blocks(
+    t: &HoleTable,
+    sheet: &crate::model::PlannedSheet,
+    obstacles: &[Rect],
+    fixed: Option<usize>,
+) -> Option<Vec<PlannedTable>> {
+    if t.view.is_none() {
+        return place_rows(&t.rows, sheet, obstacles, fixed);
+    }
+    let cells = schedule_cells(t);
+    let widths = schedule_widths(&cells);
+    let (headers, body) = cells.split_at(2);
+    let (n, rows, [x0, y0]) = counts(fixed, 2, body.len(), sheet.page).find_map(|n| {
+        let rows = split(headers, body, n);
+        let size = split_size(&widths, rows[0].len(), n);
+        tables::place(size, sheet, obstacles, Corner::TopRight).map(|at| (n, rows, at))
+    })?;
+    let blocks = rows
+        .into_iter()
+        .enumerate()
+        .map(|(k, rows)| {
+            let x = x0 + k as f64 * (widths.iter().sum::<f64>() + BLOCK_GAP);
+            let placed = tables::lay(&rows, &widths, [x, y0]);
+            PlannedTable {
+                sheet: 1,
+                id: if n == 1 {
+                    t.id.clone()
+                } else {
+                    format!("{}/{}", t.id, k + 1)
+                },
+                rows,
+                row_claims: Vec::new(),
+                default: t.default,
+                basis: if n == 1 {
+                    t.basis.clone()
+                } else {
+                    format!("{}; block {} of {n}", t.basis, k + 1)
+                },
+                state: crate::items::State::Shown,
+                placed: Some(placed),
+            }
+        })
+        .collect();
+    Some(blocks)
+}
+
 fn install_at(analysis: &Analysis, plan: &mut Plan, selection: &Selection) -> bool {
     // Removing ladders must not withdraw the room already needed by a semantic frame or datum.
     // If this presentation cannot keep them in their bands, retain the complete original plan.
@@ -2923,24 +3155,18 @@ fn install_at(analysis: &Analysis, plan: &mut Plan, selection: &Selection) -> bo
             .unwrap();
         let frame = Frame::new(analysis, view);
         let mut t = wanted.clone();
-        let cells = schedule_cells(&t);
-        let widths = schedule_widths(&cells);
-        let size = [widths.iter().sum(), ROW * cells.len() as f64];
-        let Some(at) = tables::place(size, &plan.sheet, &obstacles, Corner::TopRight) else {
+        // Install the form reserved before view layout. Alternate counts are chosen
+        // during table reflow, not after the annotation bands have been allocated.
+        let n = *counts(columns(&plan.spec, &t.id), 2, t.rows.len(), plan.sheet.page).start();
+        let Some(blocks) = reflow_blocks(&t, &plan.sheet, &obstacles, Some(n)) else {
             return false;
         };
-        let placed = tables::lay(&cells, &widths, at);
-        obstacles.push(placed.cells);
-        t.blocks.push(PlannedTable {
-            sheet: 1,
-            id: t.id.clone(),
-            rows: cells,
-            row_claims: Vec::new(),
-            default: t.default,
-            basis: t.basis.clone(),
-            state: crate::items::State::Shown,
-            placed: Some(placed),
-        });
+        obstacles.extend(
+            blocks
+                .iter()
+                .filter_map(|b| b.placed.as_ref().map(|p| p.cells)),
+        );
+        t.blocks.extend(blocks);
         let mut labels: Vec<Rect> = plan
             .dimensions
             .iter()

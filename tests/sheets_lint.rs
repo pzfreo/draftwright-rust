@@ -164,7 +164,8 @@ fn remote_hole_table_rows_cover_the_sheet_one_balloons() {
     second.number = 2;
     second.projection_symbol = None;
     let table = p.hole_table.as_mut().unwrap();
-    table.blocks = draftwright::hole_table::place_on_sheet(table, &second).unwrap();
+    table.blocks =
+        draftwright::hole_table::place_on_sheet(table, &second, &Default::default()).unwrap();
     p.sheets.push(second);
     let font = draftwright::text::Font::new(api::MONO.to_vec()).unwrap();
     let drawings = model::render_sheets(&part, &analysis, &p, &font).unwrap();
