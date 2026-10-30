@@ -19,7 +19,7 @@ use crate::output::Drawing;
 use crate::placement_intent::{Along, Place, Slot};
 use crate::text::Font;
 
-const COLLECTIONS: [&str; 12] = [
+const COLLECTIONS: [&str; 14] = [
     "sheets",
     "views",
     "captions",
@@ -31,6 +31,8 @@ const COLLECTIONS: [&str; 12] = [
     "tables",
     "hole_tables",
     "balloons",
+    "characteristics",
+    "inspection_balloons",
     "problems",
 ];
 
@@ -1362,6 +1364,10 @@ impl Session {
                 }
             })
     }
+    /// File-owned inspection numbers and their resolved sheet and item.
+    pub fn numbered_characteristics(&self) -> &[crate::characteristics::Characteristic] {
+        crate::characteristics::list(self.plan())
+    }
     pub fn items(&self, filter: &ItemFilter) -> Vec<ItemAnswer> {
         let near = filter
             .near
@@ -1600,6 +1606,18 @@ fn settable(
     let merged = crate::recognition_corrections::effective(session.analysis(), session.spec()).ok();
     let analysis = merged.as_deref().unwrap_or(session.analysis());
     let id = &item.item.id;
+    let choices = |values: Value| json!({"choices":values});
+    if let Some(b) = session
+        .plan()
+        .inspection_balloons
+        .iter()
+        .find(|b| &b.id == id)
+    {
+        let base = format!("balloons/items/{}", items::key(&b.source));
+        fields.insert(format!("{base}/suppress"), choices(json!([false, true])));
+        fields.insert(format!("{base}/position"),json!({"forms":["[dx,dy]"],"consequences":["Paper mm from the drawn carrier's ink centre; an obstructed pin is reported and left undrawn."]}));
+        return fields;
+    }
     let base = match item.item.kind.as_str() {
         "dimension" => format!("dimensions/{}", items::key(id)),
         "view" => format!("views/{}", items::key(id.trim_start_matches("v:"))),
@@ -1610,7 +1628,7 @@ fn settable(
         }
         _ => String::new(),
     };
-    let choices = |values: Value| json!({"choices":values});
+
     fields.insert(
         "hole_table".into(),
         choices(json!(["auto", "always", "never"])),
@@ -2211,19 +2229,31 @@ fn answers(plan: &Plan, analysis: &Analysis) -> Vec<ItemAnswer> {
                     b.at[1] + b.radius,
                 ]));
             }
+            if let Some(b) = plan.inspection_balloons.iter().find(|b| &b.id == id) {
+                a.anchors = vec![b.item.clone()];
+                a.placement = Some(Placement::Box(b.bounds()));
+                a.basis = format!(
+                    "File-owned inspection characteristic {} ({})",
+                    b.number, b.source
+                );
+                a.operations = vec!["suppress".into(), "position".into()];
+            }
             a.operation_scopes = a
                 .operations
                 .iter()
                 .map(|operation| {
-                    let base = if item.kind == "sheet" {
-                        "sheet".into()
-                    } else if item.kind == "view" {
-                        format!("views/{}", items::key(id.trim_start_matches("v:")))
-                    } else if item.kind == "dimension" {
-                        format!("dimensions/{}", items::key(id))
-                    } else {
-                        format!("annotations/{}", items::key(id))
-                    };
+                    let base =
+                        if let Some(b) = plan.inspection_balloons.iter().find(|b| &b.id == id) {
+                            format!("balloons/items/{}", items::key(&b.source))
+                        } else if item.kind == "sheet" {
+                            "sheet".into()
+                        } else if item.kind == "view" {
+                            format!("views/{}", items::key(id.trim_start_matches("v:")))
+                        } else if item.kind == "dimension" {
+                            format!("dimensions/{}", items::key(id))
+                        } else {
+                            format!("annotations/{}", items::key(id))
+                        };
                     let field = match operation.as_str() {
                         "pin" => "place/pinned",
                         "move_to_sheet" => "sheet",

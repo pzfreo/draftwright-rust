@@ -22,7 +22,7 @@ def nullable(s):
 state={'anyOf':[obj({'kind':{'enum':['shown','omitted_by_user','not_authored']}},['kind']), obj({'kind':{'const':'covered'},'by':S},['kind','by']),obj({'kind':{'const':'not_drawable'},'reason_code':S},['kind','reason_code'])]}
 op={'anyOf':[obj({'op':{'enum':['set','add']},'path':S,'value':{}},['op','path','value']),obj({'op':{'const':'remove'},'path':S},['op','path'])]}
 place=obj({'view':{'enum':['front','plan','side',*[f'detail_{c}' for c in 'abcdefgh']]},'side':{'enum':['above','below','left','right']},'lane':{'type':'integer','minimum':0,'maximum':1000},'along':{'anyOf':[{'enum':['start','middle','end','outside']},{'type':'number','minimum':0,'maximum':1}]},'offset':arr(N,minItems=2,maxItems=2),'pinned':B})
-compact=obj({'sheet':SHEET,'id':S,'kind':S,'label':nullable(S),'view':nullable(S),'state':ref('state')},['id','kind','label','view','state'])
+compact=obj({'sheet':SHEET,'id':S,'kind':S,'label':nullable(S),'view':nullable(S),'state':ref('state'),'characteristic_numbers':arr(S)},['id','kind','label','view','state'])
 scope={'enum':['local','view','sheet']}
 operation_scopes={'type':'object','additionalProperties':scope}
 fix=obj({'scope':scope,'description':S,'ops':arr(ref('op'))},['scope','description','ops'])
@@ -42,6 +42,8 @@ spec=obj({'schema':{'enum':['draftwright.spec/1','draftwright.spec/2']},'binding
 line_fields = {name: nullable(B) for name in
                ('hidden', 'centre_marks', 'centre_lines', 'thread_depiction', 'knurl_depiction')}
 spec['properties']['sheet']['properties'].update(line_fields)
+spec['properties']['balloons'] = obj({'occurrences': B, 'items': {'type':'object','additionalProperties':obj({'suppress':B,'position':nullable(arr(N,minItems=2,maxItems=2))})}})
+spec['properties']['sheet']['properties']['balloons'] = {'enum':['off','all']}
 spec['properties']['sheet']['properties']['keep_layout'] = nullable(B)
 spec['properties']['sheet']['properties']['zones'] = nullable(B)
 spec['properties']['sheet']['properties']['table_columns'] = {'type':'object','additionalProperties':{'type':'integer','minimum':1,'maximum':4}}

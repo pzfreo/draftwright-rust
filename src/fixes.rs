@@ -10,6 +10,9 @@ pub use crate::remedy_scope::Scope;
 pub fn path_scope(path: &str) -> Scope {
     use Scope::*;
     const PATTERNS: &[(&str, Scope)] = &[
+        ("balloons/items/**", Local),
+        ("balloons/occurrences", Local),
+        ("sheet/balloons", Local),
         ("views/*/sheet", Sheet),
         ("tables/*/sheet", Sheet),
         ("sheets/**", Sheet),

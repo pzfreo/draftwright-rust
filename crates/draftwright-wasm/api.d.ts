@@ -9,6 +9,7 @@ export class Engine {
   fragments(): string;
   free(): void;
   labelOffset(address: string): string;
+  numberedCharacteristics(): string;
   openSpec(json: string): string;
   placementOptions(): string;
   plan(): string;
@@ -71,6 +72,7 @@ export interface InitOutput {
   readonly engine_featureCount: (a: number) => number;
   readonly engine_fragments: (a: number) => [number, number];
   readonly engine_labelOffset: (a: number, b: number, c: number) => [number, number, number, number];
+  readonly engine_numberedCharacteristics: (a: number) => [number, number];
   readonly engine_open: (a: number, b: number, c: number, d: number) => [number, number, number];
   readonly engine_openPart: (a: number, b: number, c: number, d: number, e: number) => [number, number, number];
   readonly engine_openSpec: (a: number, b: number, c: number) => [number, number, number, number];

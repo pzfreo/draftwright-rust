@@ -104,7 +104,8 @@ pub struct Item {
     pub(crate) explicit_sheet: bool,
     pub id: String,
     /// `sheet`, `view`, `dimension`, `control_frame`, `datum_feature`, `label`, `requirement`,
-    /// `note`, `caption`, `table`, `hole_table` or `balloon`.
+    /// `note`, `caption`, `table`, `hole_table`, `hole_table_row`, `balloon` or
+    /// `characteristic_balloon`.
     pub kind: String,
     /// The view that carries it, where it has one.
     #[serde(skip_serializing_if = "Option::is_none")]
@@ -116,6 +117,8 @@ pub struct Item {
     /// a line break), a balloon's tag.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub label: Option<String>,
+    /// All file-owned characteristics stated by this item, in source order.
+    pub characteristic_numbers: Vec<String>,
 }
 
 // Ownership is explicit on every multi-sheet item, including sheet 1. The optional wire
@@ -135,6 +138,8 @@ struct ItemWire {
     state: State,
     #[serde(skip_serializing_if = "Option::is_none")]
     label: Option<String>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    characteristic_numbers: Vec<String>,
 }
 fn read_sheet<'de, D: serde::Deserializer<'de>>(d: D) -> Result<Option<u32>, D::Error> {
     u32::deserialize(d).map(Some)
@@ -148,6 +153,7 @@ impl From<Item> for ItemWire {
             view: i.view,
             state: i.state,
             label: i.label,
+            characteristic_numbers: i.characteristic_numbers,
         }
     }
 }
@@ -161,6 +167,7 @@ impl From<ItemWire> for Item {
             view: i.view,
             state: i.state,
             label: i.label,
+            characteristic_numbers: i.characteristic_numbers,
         }
     }
 }
@@ -186,6 +193,12 @@ pub fn items(plan: &Plan) -> Vec<Item> {
             view: view.map(String::from),
             state: state.clone(),
             label,
+            characteristic_numbers: plan
+                .characteristics
+                .iter()
+                .filter(|c| c.item.as_deref() == Some(id) || c.drawn_item.as_deref() == Some(id))
+                .map(|c| c.number.clone())
+                .collect(),
         };
     let mut out = vec![item("sheet", "sheet", None, &plan.sheet.state, None)];
     for sheet in &plan.sheets {
@@ -257,6 +270,74 @@ pub fn items(plan: &Plan) -> Vec<Item> {
     for b in &plan.balloons {
         let label = Some(b.tag.clone());
         out.push(item(&b.id, "balloon", Some(&b.view), &b.state, label));
+    }
+    for c in &plan.characteristics {
+        if let Some(id) = &c.drawn_item
+            && !out.iter().any(|i| &i.id == id)
+            && let Some((t, r)) = plan
+                .hole_table
+                .iter()
+                .chain(&plan.hole_tables)
+                .find_map(|t| {
+                    t.rows
+                        .iter()
+                        .find(|r| *id == format!("{}/{}", t.id, r.tag))
+                        .map(|r| (t, r))
+                })
+        {
+            let mut i = item(
+                id,
+                "hole_table_row",
+                t.view.as_deref(),
+                &State::Shown,
+                Some(r.cells.join(" | ")),
+            );
+            i.sheet = t.sheet;
+            out.push(i);
+        }
+    }
+    for b in &plan.inspection_balloons {
+        let mut i = item(
+            &b.id,
+            "characteristic_balloon",
+            b.view.as_deref(),
+            &State::Shown,
+            Some(b.number.clone()),
+        );
+        i.sheet = b.sheet;
+        out.push(i);
+    }
+    for c in &plan.characteristics {
+        for id in &c.balloon_ids {
+            if out.iter().any(|i| &i.id == id) {
+                continue;
+            }
+            let suppressed = plan
+                .spec
+                .balloons
+                .items
+                .get(&c.source)
+                .or_else(|| {
+                    c.item
+                        .as_ref()
+                        .and_then(|i| plan.spec.balloons.items.get(i))
+                })
+                .is_some_and(|s| s.suppress);
+            let state = if suppressed {
+                State::OmittedByUser
+            } else {
+                State::not_drawable("characteristic_balloon_missing")
+            };
+            let mut i = item(
+                id,
+                "characteristic_balloon",
+                c.view.as_deref(),
+                &state,
+                Some(c.number.clone()),
+            );
+            i.sheet = c.sheet.unwrap_or(1);
+            out.push(i);
+        }
     }
     out
 }

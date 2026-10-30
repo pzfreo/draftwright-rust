@@ -181,6 +181,9 @@ impl Session {
         }
         Ok(serde_json::Value::Object(out).to_string())
     }
+    pub fn numbered_characteristics_json(&self) -> String {
+        serde_json::to_string(self.0.numbered_characteristics()).expect("characteristics serialize")
+    }
     pub fn pmi_json(&self) -> String {
         self.0.pmi_report().to_string()
     }
@@ -299,6 +302,10 @@ export interface CalloutOffset {
                 // Invariant: Document fields and map keys have JSON representations; serialization performs no external I/O.
                 .map(|d| serde_json::to_string(&d).unwrap())
                 .map_err(js)
+        }
+        #[wasm_bindgen(js_name = numberedCharacteristics)]
+        pub fn numbered_characteristics(&self) -> String {
+            self.0.numbered_characteristics_json()
         }
         #[wasm_bindgen(js_name = setPmi)]
         pub fn set_pmi(&mut self, source: &str, bytes: &[u8]) -> Result<(), JsValue> {

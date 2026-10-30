@@ -440,7 +440,11 @@ fn run(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
 fn run_uncached(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     RUNS.with(|runs| runs.set(runs.get() + 1));
     crate::planning::with(analysis, || {
-        model::recover(analysis, spec, model::plan_escalated(analysis, spec)?)
+        model::recover(
+            analysis,
+            spec,
+            model::plan_escalated_layout(analysis, spec)?,
+        )
     })
 }
 
