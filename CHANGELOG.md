@@ -9,6 +9,17 @@ All notable changes to draftwright-rust are recorded here, in the style of
 ### Changed
 
 - Pin quiddity-rust v0.2.5. For quiddity-rust#134, boss heights reach the free end through convex chamfers and rounds, edge-treated plates retain their thickness dimensions, and concave turned fillets remain in counted radius callouts.
+- Optional inspection balloons read file-owned characteristic numbers from AP242 UDAs on
+  dimensions, geometric tolerances and datum features. `sheet/balloons: all` enables them;
+  `balloons/occurrences` and per-source suppression/relative position override automatic
+  placement. Items expose their numbers and the plan lists their sheets and drawn carriers.
+  Missing carriers and rings are reported with incomplete impact. Known limit: surface
+  textures and semantic notes have no number owner in haecceity 0.2.5 and draw unchanged.
+
+### WASM API
+
+- Add `Session.numberedCharacteristics()` returning file-owned characteristic numbers and
+  their original item, drawn item, sheet and expected inspection rings as JSON.
 
 ## 0.2.3 (2026-10-30)
 

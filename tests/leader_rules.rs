@@ -140,6 +140,8 @@ fn drawing(direction: [f64; 3], items: Vec<(Annotation, Drawn)>) -> Drawing {
         text: Vec::new(),
         annotations,
         sheet: Sheet {
+            characteristics: Vec::new(),
+            inspection_enabled: false,
             label_text: Default::default(),
             precision: Default::default(),
             references: Vec::new(),

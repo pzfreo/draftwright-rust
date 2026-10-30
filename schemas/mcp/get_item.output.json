@@ -54,6 +54,9 @@
           {
             "additionalProperties": false,
             "patternProperties": {
+              "^(characteristic_numbers|operations)$(?!\n)": {
+                "$ref": "#/B"
+              },
               "^(id|kind|basis)$(?!\n)": {
                 "type": "string"
               },
@@ -67,9 +70,6 @@
             "properties": {
               "operation_scopes": {
                 "$ref": "#/A"
-              },
-              "operations": {
-                "$ref": "#/B"
               },
               "sheet": {
                 "enum": [

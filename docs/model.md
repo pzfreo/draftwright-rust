@@ -2873,3 +2873,35 @@ shared face, feature, datum, file name or stored interview answers. Lint-only
 `pmi_not_lowered` messages describe the annotation and retain a refusal reason when it
 contains no internal IDs or authored paths. Full refusal diagnostics remain in `evidence`,
 and the entity identity remains in structured sources.
+
+
+### Inspection characteristic balloons (#254)
+
+`sheet/balloons: "all"` draws inspection rings for numbered AP242 dimensions, geometric
+tolerance frames and datum features; `"off"` and an absent setting keep them off. Numbers
+come from the exact PMI entity's `characteristic number` UDA ([storage convention](pmi-bookkeeping.md#characteristic-numbers-producer-convention-254)).
+Draftwright does not allocate or change a number. Unnumbered derived items and general CSV
+rows get no ring. Surface textures and semantic notes have no supported number owner in
+haecceity 0.2.5 and draw unchanged: this is a known limit.
+
+`Plan.characteristics` lists the file's numbers, original `item`, final `drawn_item` and
+`sheet`, including requirements that cannot be drawn. `items::items` exposes
+`characteristic_numbers` on the original item and its carrier (an array because one item
+can state several requirements). The library offers `characteristics::list(plan)` and
+`Session::numbered_characteristics`; WASM offers `numberedCharacteristics()` as JSON.
+
+A grouped `n×` characteristic gets one number-only circular ring on the callout. Hole-table
+characteristics get their rings beside their rows; the existing TAG rings retain their
+letters. Number rings enclose the measured glyph bounds with 0.35 mm inner clearance
+and have a minimum 3 mm outer radius. A covered dimension's ring attaches to the dimension, table row or general-note
+line that states it. Rings use settled label/leader clearance predicates and belong to the
+sheet carrying that item. A failed placement is reported, never drawn over information.
+
+`balloons/occurrences: true` additionally requests the same number at each proven repeated
+cylindrical occurrence in the carrier's end-on view. Unlocatable occurrences are not guessed.
+`balloons/items/<source>/suppress: true` suppresses a ring; `position: [dx, dy]` pins its
+centre relative to the carrier's ink centre, in paper mm (x right, y up). Source keys are
+PMI source IDs such as `dimension:#640`; original plan-item IDs are also accepted. A source
+key wins when both exist. Positions are checked for clearance; unsafe pins remain undrawn
+and reported. With inspection enabled, `characteristic_not_drawn` and
+`characteristic_balloon_missing` have `incomplete` impact, including explicit suppression.

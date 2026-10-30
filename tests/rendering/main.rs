@@ -105,3 +105,6 @@ mod view_gutters;
 mod views;
 #[path = "../views_layout_rules.rs"]
 mod views_layout_rules;
+
+#[path = "../characteristics.rs"]
+mod characteristics;

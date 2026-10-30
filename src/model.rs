@@ -372,6 +372,8 @@ pub struct Spec {
     pub binding: Option<Binding>,
     #[serde(deserialize_with = "sheet_document")]
     pub sheet: SheetSpec,
+    #[serde(skip_serializing_if = "crate::characteristics::Settings::is_default")]
+    pub balloons: crate::characteristics::Settings,
     /// Authored isometric scale relative to the sheet scale; never automatically refitted.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub iso_scale_factor: Option<f64>,
@@ -566,6 +568,7 @@ impl Default for Spec {
             schema: SPEC_SCHEMA.into(),
             binding: None,
             sheet: SheetSpec::default(),
+            balloons: Default::default(),
             iso_scale_factor: None,
             sheets: None,
             views: BTreeMap::new(),
@@ -591,6 +594,9 @@ impl Default for Spec {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct SheetSpec {
+    /// Inspection characteristic rings; off unless explicitly set to all.
+    #[serde(skip_serializing_if = "crate::characteristics::Mode::is_off")]
+    pub balloons: crate::characteristics::Mode,
     /// Keep explicit paper, scale and count without automatic selection or refitting.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub keep_layout: Option<bool>,
@@ -879,6 +885,11 @@ pub struct Plan {
     /// The balloons beside the plan view: the hole table's rows' and dropped patterns'.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub balloons: Vec<crate::hole_table::Balloon>,
+    /// File-owned characteristic numbers and their resolved drawing carriers.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub characteristics: Vec<crate::characteristics::Characteristic>,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub inspection_balloons: Vec<crate::characteristics::Balloon>,
     pub problems: Vec<Problem>,
     /// The spec the plan was made from, embedded in every output.
     pub spec: Spec,
@@ -2431,9 +2442,9 @@ fn fit_fix(analysis: &Analysis, spec: &Spec) -> Result<Option<FittingFix>, Inval
     for (open_size, open_scale) in [(false, true), (true, false), (true, true)] {
         let open = unpinned(open_size, open_scale);
         let found = if open_scale {
-            recover(analysis, &open, plan_escalated(analysis, &open)?)?
+            recover(analysis, &open, plan_escalated_layout(analysis, &open)?)?
         } else {
-            plan_escalated(analysis, &open)?
+            plan_escalated_layout(analysis, &open)?
         };
         let pair = (found.sheet.size.clone(), found.sheet.scale.clone());
         if (&pair.0, &pair.1) == (size, scale) || !tried.insert(pair.clone()) {
@@ -2442,7 +2453,7 @@ fn fit_fix(analysis: &Analysis, spec: &Spec) -> Result<Option<FittingFix>, Inval
         let mut pinned = spec.clone();
         pinned.sheet.size = Some(pair.0.clone());
         pinned.sheet.scale = Some(pair.1.clone());
-        let mut p = plan_escalated(analysis, &pinned)?;
+        let mut p = plan_escalated_layout(analysis, &pinned)?;
         let doubted = p
             .problems
             .iter()
@@ -3106,7 +3117,7 @@ fn recover_callouts(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Pla
         // larger paper merely to enlarge it. Keep a complete, legible A4 candidate.
         let mut small = spec.clone();
         small.sheet.size = Some("A4".into());
-        let seed = plan_escalated(analysis, &small)?;
+        let seed = plan_escalated_layout(analysis, &small)?;
         let mut candidate = recover_paper(analysis, &small, seed)?;
         if candidate.sheet.size == "A4"
             && clean(&candidate)
@@ -3143,7 +3154,7 @@ fn recover_callouts(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Pla
             });
         trial.sheet.size = Some(spec.sheet.size.clone().unwrap_or_else(|| "A4".into()));
         trial.sheet.scale = Some(best.sheet.scale.clone());
-        let seed = plan_escalated(analysis, &trial)?;
+        let seed = plan_escalated_layout(analysis, &trial)?;
         let mut candidate = recover_paper(analysis, &trial, seed)?;
         if clean(&candidate)
             && carried(&best).is_subset(&carried(&candidate))
@@ -4181,6 +4192,7 @@ fn plan_recovered_once(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid
     crate::fixes::retain_local_layout(&mut plan);
     crate::dims::contacts::report(&prepared, &mut plan);
     note_final_conflicts(&mut plan);
+    crate::characteristics::apply(analysis, &mut plan);
     Ok(plan)
 }
 
@@ -4558,7 +4570,7 @@ fn recover_tables(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Plan,
     baseline_spec.hole_table = crate::hole_table::Setting::Never;
     let mut seed = first.spec.clone();
     seed.hole_table = crate::hole_table::Setting::Never;
-    let unscheduled = plan_escalated(analysis, &seed)?;
+    let unscheduled = plan_escalated_layout(analysis, &seed)?;
     let baseline = recover(analysis, &baseline_spec, unscheduled.clone())?;
     let exhausted = recovery_exhausted;
     let unrecovered = exhausted(&baseline);
@@ -4660,6 +4672,12 @@ fn schedule_recovered(
 /// the dimensions, which on most parts keeps a larger scale, but where the dimensions run on
 /// past it an item can find no place (nist_stc_09 e4 at 1:1: 13 frames across the plan).
 pub fn plan_escalated(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
+    let mut plan = plan_escalated_layout(analysis, spec)?;
+    crate::characteristics::apply(analysis, &mut plan);
+    Ok(plan)
+}
+
+pub(crate) fn plan_escalated_layout(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     let bound = crate::recognition_corrections::canonical(analysis, spec)?;
     let spec = bound.as_ref();
     // The Spec's datums and controls merged into the PMI reading, once, so every later use of the
@@ -4953,6 +4971,7 @@ fn plan_once(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
     crate::fixes::retain_local_layout(&mut plan);
     crate::dims::contacts::report(&prepared, &mut plan);
     note_final_conflicts(&mut plan);
+    crate::characteristics::apply(analysis, &mut plan);
     Ok(plan)
 }
 
@@ -7456,6 +7475,8 @@ fn plan_with_presentation(
         }
     }
     let mut plan = Plan {
+        characteristics: Vec::new(),
+        inspection_balloons: Vec::new(),
         recognition_corrections: Vec::new(),
         schema: PLAN_SCHEMA.into(),
         binding: analysis.binding.clone(),
@@ -9243,6 +9264,9 @@ fn render_sheet_with(
 ) -> Result<Drawing, Unresolved> {
     let mut selected = plan.clone();
     selected.sheet = sheet.clone();
+    selected
+        .inspection_balloons
+        .retain(|b| b.sheet == sheet.number);
     selected.views.retain(|v| v.sheet == sheet.number);
     selected.tables.retain(|t| t.sheet == sheet.number);
     selected.hole_table = selected.hole_table.filter(|t| t.sheet == sheet.number);
@@ -9364,6 +9388,7 @@ pub(crate) fn render_annotations_on_sheet(
     selected.dimensions.retain(|d| local(&d.view));
     selected.gdt.retain(|g| local(&g.view));
     selected.balloons.retain(|b| local(&b.view));
+    selected.inspection_balloons.retain(|b| b.sheet == number);
     selected.tables.retain(|t| t.sheet == number);
     selected.hole_table = selected.hole_table.filter(|t| t.sheet == number);
     selected.hole_tables.retain(|t| t.sheet == number);
@@ -10502,6 +10527,44 @@ fn render_annotations_with_cuts(
         }
     }
 
+    for b in &plan.inspection_balloons {
+        let from = dims.len();
+        let circle = |r: f64, turn: f64| Curve::Conic {
+            centre: b.at,
+            radii: [r, r],
+            x_axis: [1.0, 0.0],
+            y_axis: [0.0, turn],
+            t0: 0.0,
+            t1: std::f64::consts::TAU,
+        };
+        dims.push(Item::Face(vec![
+            vec![circle(b.radius, 1.0)],
+            vec![circle(b.radius - 0.25, -1.0)],
+        ]));
+        let run = (b.number.as_str(), crate::dims::FONT, crate::dims::TEXT);
+        label(
+            font.text(&b.number, crate::dims::TEXT),
+            b.at,
+            dims,
+            Some(run),
+        );
+        for [a, z] in &b.lines {
+            dims.push(Item::Edge(Curve::Line(*a, *z)));
+        }
+        if let Some(ink) = items_bbox(&dims[from..]) {
+            sheet.items.push(Drawn {
+                datum_triangle: None,
+                heads: Vec::new(),
+                name: b.id.clone(),
+                kind: Kind::Dimension,
+                ink,
+                label: Some(b.bounds()),
+                lines: b.lines.clone(),
+                elbow: None,
+                interior: false,
+            });
+        }
+    }
     // The balloons: each a ring with its tag, and its leader with an arrowhead at the hole's
     // rim. Furniture to lint's sheet checks, as draftwright marks a balloon a centreline: judged
     // by its leader and its ring's box.
@@ -10724,6 +10787,13 @@ fn render_annotations_with_cuts(
             items,
         });
     }
+    sheet.inspection_enabled = crate::characteristics::enabled(plan);
+    sheet.characteristics = plan
+        .characteristics
+        .iter()
+        .filter(|c| c.sheet.unwrap_or(1) == plan.sheet.number)
+        .cloned()
+        .collect();
     crate::label_text::capture(plan, &mut sheet);
     if !plan.spec.precision.is_empty() {
         for d in &plan.dimensions {

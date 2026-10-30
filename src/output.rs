@@ -559,6 +559,9 @@ pub struct DrawnReference {
 /// format.
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Sheet {
+    /// Resolved source inventory for independent rendered-balloon verification.
+    pub characteristics: Vec<crate::characteristics::Characteristic>,
+    pub inspection_enabled: bool,
     /// Compiled wording wrappers; lint reads the live measured body, never authored numbers.
     pub label_text: BTreeMap<String, LabelWording>,
     /// Approved display precision of each dimension's leading value. Ink is still checked.

@@ -23,6 +23,9 @@
     "sheet": {
       "$ref": "#/$defs/sheet"
     },
+    "balloons": {
+      "$ref": "#/$defs/balloon_settings"
+    },
     "iso_scale_factor": {
       "anyOf": [
         {
@@ -987,6 +990,12 @@
     "sheet": {
       "type": "object",
       "properties": {
+        "balloons": {
+          "enum": [
+            "off",
+            "all"
+          ]
+        },
         "hidden": {
           "anyOf": [
             {
@@ -1575,6 +1584,45 @@
         "flank_tolerance_class"
       ]
     },
+    "balloon_override": {
+      "type": "object",
+      "properties": {
+        "suppress": {
+          "type": "boolean"
+        },
+        "position": {
+          "anyOf": [
+            {
+              "type": "array",
+              "items": {
+                "type": "number"
+              },
+              "minItems": 2,
+              "maxItems": 2
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "additionalProperties": false
+    },
+    "balloon_settings": {
+      "type": "object",
+      "properties": {
+        "occurrences": {
+          "type": "boolean"
+        },
+        "items": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/$defs/balloon_override"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
     "spec_read": {
       "type": "object",
       "properties": {
@@ -1596,6 +1644,9 @@
         },
         "sheet": {
           "$ref": "#/$defs/sheet"
+        },
+        "balloons": {
+          "$ref": "#/$defs/balloon_settings"
         },
         "iso_scale_factor": {
           "anyOf": [

@@ -153,3 +153,11 @@ explanation. Regeneration leaves all 28 advertised
 input/output schemas byte-identical: **34,477 compact bytes** before and after.
 `SCHEMA_BUDGET` and the exact Rust budget assertion remain 34,477; no allowance
 was added. The schema-discovery and item-options tests pin the description.
+
+
+## Inspection characteristic balloons (#254)
+
+The Spec outline adds the `balloons` object; nested controls remain in the on-demand
+schema. Compact items may include `characteristic_numbers`. Regenerated advertised
+schemas total **38,457 compact bytes**, within the unchanged **40,000-byte** ceiling.
+The full Spec describes `sheet/balloons`, occurrence rings and source/item overrides.

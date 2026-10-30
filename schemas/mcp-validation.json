@@ -108,6 +108,12 @@
                   "null"
                 ]
               },
+              "balloons": {
+                "enum": [
+                  "off",
+                  "all"
+                ]
+              },
               "table_columns": {
                 "type": "object",
                 "additionalProperties": {
@@ -207,6 +213,38 @@
               ],
               "maxProperties": 3
             }
+          },
+          "balloons": {
+            "type": "object",
+            "properties": {
+              "occurrences": {
+                "type": "boolean"
+              },
+              "items": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": {
+                    "suppress": {
+                      "type": "boolean"
+                    },
+                    "position": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "type": "number"
+                      },
+                      "minItems": 2,
+                      "maxItems": 2
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "additionalProperties": false
           }
         },
         "additionalProperties": false,
@@ -385,6 +423,12 @@
                   "null"
                 ]
               },
+              "balloons": {
+                "enum": [
+                  "off",
+                  "all"
+                ]
+              },
               "table_columns": {
                 "type": "object",
                 "additionalProperties": {
@@ -477,6 +521,38 @@
               "additionalProperties": false,
               "minProperties": 3
             }
+          },
+          "balloons": {
+            "type": "object",
+            "properties": {
+              "occurrences": {
+                "type": "boolean"
+              },
+              "items": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": {
+                    "suppress": {
+                      "type": "boolean"
+                    },
+                    "position": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "type": "number"
+                      },
+                      "minItems": 2,
+                      "maxItems": 2
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "additionalProperties": false
           }
         },
         "additionalProperties": false,
@@ -744,6 +820,12 @@
                   "null"
                 ]
               },
+              "balloons": {
+                "enum": [
+                  "off",
+                  "all"
+                ]
+              },
               "table_columns": {
                 "type": "object",
                 "additionalProperties": {
@@ -843,6 +925,38 @@
               ],
               "maxProperties": 3
             }
+          },
+          "balloons": {
+            "type": "object",
+            "properties": {
+              "occurrences": {
+                "type": "boolean"
+              },
+              "items": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": {
+                    "suppress": {
+                      "type": "boolean"
+                    },
+                    "position": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "type": "number"
+                      },
+                      "minItems": 2,
+                      "maxItems": 2
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "additionalProperties": false
           }
         },
         "additionalProperties": false,
@@ -1007,6 +1121,12 @@
                   "null"
                 ]
               },
+              "balloons": {
+                "enum": [
+                  "off",
+                  "all"
+                ]
+              },
               "table_columns": {
                 "type": "object",
                 "additionalProperties": {
@@ -1106,6 +1226,38 @@
               ],
               "maxProperties": 3
             }
+          },
+          "balloons": {
+            "type": "object",
+            "properties": {
+              "occurrences": {
+                "type": "boolean"
+              },
+              "items": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": {
+                    "suppress": {
+                      "type": "boolean"
+                    },
+                    "position": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "type": "number"
+                      },
+                      "minItems": 2,
+                      "maxItems": 2
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "additionalProperties": false
           }
         },
         "additionalProperties": false,
@@ -1288,6 +1440,12 @@
                   "null"
                 ]
               },
+              "balloons": {
+                "enum": [
+                  "off",
+                  "all"
+                ]
+              },
               "table_columns": {
                 "type": "object",
                 "additionalProperties": {
@@ -1387,6 +1545,38 @@
               ],
               "maxProperties": 3
             }
+          },
+          "balloons": {
+            "type": "object",
+            "properties": {
+              "occurrences": {
+                "type": "boolean"
+              },
+              "items": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": {
+                    "suppress": {
+                      "type": "boolean"
+                    },
+                    "position": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "type": "number"
+                      },
+                      "minItems": 2,
+                      "maxItems": 2
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "additionalProperties": false
           }
         },
         "additionalProperties": false,
@@ -1547,6 +1737,12 @@
                   "null"
                 ]
               },
+              "balloons": {
+                "enum": [
+                  "off",
+                  "all"
+                ]
+              },
               "table_columns": {
                 "type": "object",
                 "additionalProperties": {
@@ -1646,6 +1842,38 @@
               ],
               "maxProperties": 3
             }
+          },
+          "balloons": {
+            "type": "object",
+            "properties": {
+              "occurrences": {
+                "type": "boolean"
+              },
+              "items": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": {
+                    "suppress": {
+                      "type": "boolean"
+                    },
+                    "position": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "type": "number"
+                      },
+                      "minItems": 2,
+                      "maxItems": 2
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "additionalProperties": false
           }
         },
         "additionalProperties": false,
@@ -1853,6 +2081,12 @@
                   "null"
                 ]
               },
+              "balloons": {
+                "enum": [
+                  "off",
+                  "all"
+                ]
+              },
               "table_columns": {
                 "type": "object",
                 "additionalProperties": {
@@ -1952,6 +2186,38 @@
               ],
               "maxProperties": 3
             }
+          },
+          "balloons": {
+            "type": "object",
+            "properties": {
+              "occurrences": {
+                "type": "boolean"
+              },
+              "items": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": {
+                    "suppress": {
+                      "type": "boolean"
+                    },
+                    "position": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "type": "number"
+                      },
+                      "minItems": 2,
+                      "maxItems": 2
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "additionalProperties": false
           }
         },
         "additionalProperties": false,
@@ -2163,6 +2429,12 @@
                   "null"
                 ]
               },
+              "balloons": {
+                "enum": [
+                  "off",
+                  "all"
+                ]
+              },
               "table_columns": {
                 "type": "object",
                 "additionalProperties": {
@@ -2262,6 +2534,38 @@
               ],
               "maxProperties": 3
             }
+          },
+          "balloons": {
+            "type": "object",
+            "properties": {
+              "occurrences": {
+                "type": "boolean"
+              },
+              "items": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": {
+                    "suppress": {
+                      "type": "boolean"
+                    },
+                    "position": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "type": "number"
+                      },
+                      "minItems": 2,
+                      "maxItems": 2
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "additionalProperties": false
           }
         },
         "additionalProperties": false,
@@ -2454,6 +2758,12 @@
                   "null"
                 ]
               },
+              "balloons": {
+                "enum": [
+                  "off",
+                  "all"
+                ]
+              },
               "table_columns": {
                 "type": "object",
                 "additionalProperties": {
@@ -2553,6 +2863,38 @@
               ],
               "maxProperties": 3
             }
+          },
+          "balloons": {
+            "type": "object",
+            "properties": {
+              "occurrences": {
+                "type": "boolean"
+              },
+              "items": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": {
+                    "suppress": {
+                      "type": "boolean"
+                    },
+                    "position": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "type": "number"
+                      },
+                      "minItems": 2,
+                      "maxItems": 2
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "additionalProperties": false
           }
         },
         "additionalProperties": false,
@@ -2717,6 +3059,12 @@
                   "null"
                 ]
               },
+              "balloons": {
+                "enum": [
+                  "off",
+                  "all"
+                ]
+              },
               "table_columns": {
                 "type": "object",
                 "additionalProperties": {
@@ -2816,6 +3164,38 @@
               ],
               "maxProperties": 3
             }
+          },
+          "balloons": {
+            "type": "object",
+            "properties": {
+              "occurrences": {
+                "type": "boolean"
+              },
+              "items": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": {
+                    "suppress": {
+                      "type": "boolean"
+                    },
+                    "position": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "type": "number"
+                      },
+                      "minItems": 2,
+                      "maxItems": 2
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "additionalProperties": false
           }
         },
         "additionalProperties": false,
@@ -2971,6 +3351,12 @@
                   "null"
                 ]
               },
+              "balloons": {
+                "enum": [
+                  "off",
+                  "all"
+                ]
+              },
               "table_columns": {
                 "type": "object",
                 "additionalProperties": {
@@ -3070,6 +3456,38 @@
               ],
               "maxProperties": 3
             }
+          },
+          "balloons": {
+            "type": "object",
+            "properties": {
+              "occurrences": {
+                "type": "boolean"
+              },
+              "items": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "object",
+                  "properties": {
+                    "suppress": {
+                      "type": "boolean"
+                    },
+                    "position": {
+                      "type": [
+                        "array",
+                        "null"
+                      ],
+                      "items": {
+                        "type": "number"
+                      },
+                      "minItems": 2,
+                      "maxItems": 2
+                    }
+                  },
+                  "additionalProperties": false
+                }
+              }
+            },
+            "additionalProperties": false
           }
         },
         "additionalProperties": false,

@@ -72,6 +72,7 @@ pub(crate) mod hole_marks;
 mod holes;
 pub(crate) mod size_datums;
 pub(crate) use holes::grid_lattice;
+pub(crate) mod inspection;
 pub(crate) mod interior;
 mod label_lanes;
 mod modelled_threads;
