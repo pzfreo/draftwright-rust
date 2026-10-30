@@ -77,6 +77,7 @@ pub(super) fn consolidate(
     given: &mut Vec<Vec<String>>,
     omitted: &mut Vec<Omitted>,
 ) -> References {
+    super::gussets::share(kept, given, omitted);
     let mut references = References::new();
     if !walkable(a) {
         return references;

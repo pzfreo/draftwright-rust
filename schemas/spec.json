@@ -819,6 +819,21 @@
             }
           ]
         },
+        "gusset_view": {
+          "anyOf": [
+            {
+              "enum": [
+                "front",
+                "side",
+                "plan"
+              ],
+              "description": "Transverse view for a readable gusset group; must look along either leg. Legs remain in the triangle view."
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
         "pattern": {
           "anyOf": [
             {

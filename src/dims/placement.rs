@@ -515,8 +515,8 @@ fn plate_strip(frame: &Frame, view: &str, shape: &Shape, horizontal: bool) -> Si
 
 /// The strip of a turned step length anchored on its own body's silhouette (both witnesses off
 /// the outline: [`super::turned`]'s chains on a part of several turned bodies, ARCH0020-2): the
-/// side of the view its witnesses leave the body on, so they never cross a sibling body. None for
-/// any other item.
+/// side of the view its witnesses leave the body on, so they never cross a sibling body.
+/// Gusset box locations use the same outward-silhouette convention. None for any other item.
 fn body_strip(frame: &Frame, w: &Want, horizontal: bool) -> Option<Side> {
     match &w.shape {
         Shape::Linear {
@@ -525,7 +525,12 @@ fn body_strip(frame: &Frame, w: &Want, horizontal: bool) -> Option<Side> {
             b_edge: false,
             ..
         } if !w.measurements.is_empty()
-            && w.measurements.iter().all(|m| m.parameter == "step.length") =>
+            && w.measurements.iter().all(|m| {
+                matches!(
+                    m.parameter.as_str(),
+                    "step.length" | "gusset_location.length"
+                )
+            }) =>
         {
             Some(silhouette_gap(frame, *a, horizontal).0)
         }

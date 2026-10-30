@@ -51,6 +51,7 @@ pub(super) fn wants(
     super::modelled_threads::apply(a, s, &mut result.0, &mut result.1);
     super::restate(a, s, &mut result.0, &mut result.1);
     super::blends::count_equal(s, &mut result.0);
+    super::gussets::apply(s, &mut result.0);
     result
 }
 
@@ -457,9 +458,11 @@ fn cover_uncached(
             || !*default
             || !given[i].is_empty()
             || (!w.measurements.iter().any(|m| m.feature == "envelope")
-                && w.measurements
-                    .iter()
-                    .any(|m| location_role(&m.parameter) || m.parameter.contains("pitch.length")))
+                && w.measurements.iter().any(|m| {
+                    location_role(&m.parameter)
+                        || m.parameter.contains("pitch.length")
+                            && m.parameter != "gusset_pitch.length"
+                }))
         {
             continue;
         }
@@ -506,7 +509,9 @@ fn cover_uncached(
                 .0
                 .measurements
                 .iter()
-                .filter(|m| !m.parameter.contains("pitch.length"))
+                .filter(|m| {
+                    !m.parameter.contains("pitch.length") || m.parameter == "gusset_pitch.length"
+                })
                 .cloned()
                 .collect::<Vec<_>>();
             omitted.push(Omitted {
@@ -541,6 +546,13 @@ fn cover_uncached(
     for i in order {
         let (w, default, ..) = kept[i].clone();
         if gone.contains(&i) || authored(&w) || !default || !given[i].is_empty() {
+            continue;
+        }
+        // Gusset pitch is a printed group size, never an inferred location chain.
+        if w.measurements
+            .iter()
+            .any(|m| m.parameter == "gusset_pitch.length")
+        {
             continue;
         }
         let is_location = w.measurements.iter().any(|m| location_role(&m.parameter))

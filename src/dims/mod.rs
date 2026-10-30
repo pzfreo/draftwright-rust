@@ -87,6 +87,7 @@ pub(crate) use leaders::{default_nominal_intent, sheet_route_limits};
 pub(crate) use leaders::{restore_proven_arc_tips, settle_after_furniture, settle_radius_leaders};
 pub(crate) use placement::collisions_cached as label_collisions;
 pub(crate) use placement::nearest_shared_witnesses;
+mod gussets;
 pub(crate) mod levels;
 mod notches;
 mod oriented_slots;
@@ -660,7 +661,7 @@ struct Planner {
 }
 
 /// The planners, in the order their items are planned.
-const PLANNERS: [Planner; 19] = [
+const PLANNERS: [Planner; 20] = [
     turned::PLANNER,
     envelope::PLANNER,
     stock::PLANNER,
@@ -677,6 +678,7 @@ const PLANNERS: [Planner; 19] = [
     recesses::PLANNER,
     plates::PLANNER,
     pads::PLANNER,
+    gussets::PLANNER,
     oriented_slots::PLANNER,
     profiled_bores::PLANNER,
     modelled_threads::PLANNER,

@@ -292,7 +292,7 @@ The design also includes `views/sections` (for example `"sections": [{"id": "A",
 
 - **Fields read:** `sheet` (`size`, `scale`, `preferred_max_size`, `preferred_max_sheets`, `dimension_spacing`, `frame_gutter`, `table_columns`, `title`, `references`, `fit_deviations`, `fit_limits`, `projection`, `default_finish`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`), `sheets` (below), `views/<name>` (`omit`, `place`, `sheet`, `hidden`, `centre_marks`, `centre_lines`, `thread_depiction`, `knurl_depiction`, `half_section`),
   `iso_scale_factor`, `dimension_source`, `dimension_schemes/<name>` (`scheme`, `axis`, `targets`, `view`, `from`), `hole_table` (`auto`, `always`, `never`), `dimensions/<id>` (`omit`, `tolerance`, `fit`, `text`, `style`, `place`, `kind`, `between`, `along`, and the earlier `view`
-  spelling), `annotations/<id>` (`omit`, `place`, `text` for prose callouts and automatic notes), `features/<id>` (`fit`, `datum`, `controls`, `finish`, `thread`, `knurl`, `note`, `anchor`, `reclassify`, `suppress`, `split`, `pattern`), `feature_declarations`,
+  spelling), `annotations/<id>` (`omit`, `place`, `text` for prose callouts and automatic notes), `features/<id>` (`fit`, `datum`, `controls`, `finish`, `thread`, `knurl`, `note`, `anchor`, `reclassify`, `suppress`, `split`, `pattern`, `gusset_view`), `feature_declarations`,
   `faces/<face>` (`datum`, `controls`, `finish`, `note`: "Datums and controls authored in the Spec" and "Finish, threads,
   knurls and notes authored in the Spec", below; `profile_corners`: "Outer-profile corners", below), `notes` and `tables`.
   Unknown fields, including page coordinates, are refused. Absent fields keep their defaults.
@@ -1236,6 +1236,29 @@ basis, placed, reference?, determined_by?}`:
   none of the part's turned profiles is refused (`feature_not_dimensioned`, ADR3-12). Lint
   credits a grouped length (`3× 10`) only when it prints exactly the count of the adjoining bands
   it claims.
+
+- **Gusset ribs** (`src/dims/gussets.rs`, #256) use lint’s checked groups. Each group states thickness and both legs
+  once, with `n×` for its ribs; arrays state centre pitch, mirrored pairs centre spacing,
+  and every group states the box-minimum distance along its thickness axis to the first
+  centre (mirror plane for a pair). Legs lie in the view square to the triangle; the
+  other spans default to the view looking along the first support axis in part-axis
+  order. `features/<group-id>/gusset_view` selects the view along either leg (`front`,
+  `side`, `plan`); an unreadable group or a view that hides thickness is rejected.
+  Each size statement claims the group and its members, so both gusset lint and
+  general feature completeness follow the same drawn statement.
+  The group ID is the pattern ID, or a lone rib ID. Existing
+  `dimensions/d:<group-id>/gusset_thickness.length`, `gusset_leg.length.<axis>`,
+  `gusset_pitch.length`, `gusset_spacing.length`, `gusset_location.length` overrides
+  control each statement's view, placement, omission, precision and tolerance. They
+  change drafting intent, never recognised geometry or the group's membership/count.
+  An equal size at a different span still needs its own leg dimension. An existing
+  dimension of the exact projected leg span carries the group claim; an explicit
+  dimension override retains a separate statement. PMI precedence
+  uses the existing strict/first/ignore policy and exact attached spans; first fills gaps.
+  Unreadable groups keep their port-gap and unverifiable lint findings.
+  Location witnesses use the box’s outward silhouette; `place/side` overrides the
+  automatic side through the existing per-dimension placement intent.
+
 - **Raised pads** (`src/dims/pads.rs`, stream K5): `d:f:pad:<n>/pad_width.length` and
   `pad_length.length` between the pad's own edges, `pad_height.length` as a callout `5 HIGH`, and
   `location_pad.location.x|y` (a pad along z) or `location_pad.<axis>` from the part's corner to

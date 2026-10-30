@@ -83,7 +83,7 @@ def document():
                         'tolerance': S, 'fit': S, 'view': S, 'place': ref('place')}), 'omit': B}),
         'annotation': obj({**optional({'text': ref('text'), 'place': ref('place')}), 'omit': B}),
         'feature': obj({**optional({'anchor': ref('anchor'), 'reclassify': enum('hole', 'boss', 'turned_step', 'slot', 'pocket'),
-                       'pattern': ref('pattern'), 'fit': S, 'datum': S, 'finish': ref('finish'),
+                       'gusset_view': {**enum('front', 'side', 'plan'), 'description': 'Transverse view for a readable gusset group; must look along either leg. Legs remain in the triangle view.'}, 'pattern': ref('pattern'), 'fit': S, 'datum': S, 'finish': ref('finish'),
                        'modelled_thread': ref('modelled_thread'), 'thread': ref('thread'), 'knurl': ref('knurl'), 'note': S, 'callouts': ref('callouts')}),
                        'suppress': B, 'split': B, 'controls': arr(ref('control')), 'note_satisfies': arr(S)}),
         'face': obj({**optional({'datum': S, 'finish': ref('finish'), 'note': S,
