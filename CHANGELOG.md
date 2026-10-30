@@ -6,6 +6,10 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+## 0.2.3 (2026-10-30)
+
+Now on quiddity-rust **v0.2.3**.
+
 ### Changed
 
 - Pin quiddity-rust v0.2.3. For quiddity-rust#123, use complete turned bodies for overall diameters and half-section eligibility, and call out annular face recesses with rim diameters, depth and sloping wall angles. For quiddity-rust#127, draw cylindrical profiles as grouped radius callouts and include concave fillets with equal edge rounds.
