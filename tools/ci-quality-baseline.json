@@ -472,7 +472,7 @@
       1
     ],
     "nist_ctc_02_asme1_rc": [
-      "A1",
+      "A2",
       "1:5",
       1
     ],
@@ -528,6 +528,6 @@
     ]
   },
   "source": "Recorded from the complete quality.py --record audit",
-  "source_commit": "5599161c8ec8731cc08f7dd56dc0f48761daee0f",
-  "verified_binary_sha256": "70d8a8a22c8dd04d6ff6d66e679b15e85287d3dc0412704927e4dc632cc2b4c1"
+  "source_commit": "72d436a6da942f777e095285ab5751356c006b80",
+  "verified_binary_sha256": "60cde4cd0642fa8dbe882f39843ca418f0cd77b336a656348f13a5d7c0bae728"
 }

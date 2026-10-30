@@ -92,7 +92,8 @@ impl Boss<'_> {
 }
 
 /// A cylindrical boss as quiddity records it (`location` its top's centre, `axis` outward,
-/// `diameter`, `height`), or why it cannot be dimensioned.
+/// `diameter`, `height`), or why it cannot be dimensioned. Since quiddity-rust v0.2.5,
+/// height and top include convex end treatments; their separate callouts add no height.
 fn read<'a>(f: &'a Feature, frame: &QFrame) -> Result<Boss<'a>, String> {
     let p = &f.parameters;
     let top = frame.point(point(p.get("location")).ok_or("its record gives no location")?);

@@ -6,6 +6,10 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### Changed
+
+- Pin quiddity-rust v0.2.5. For quiddity-rust#134, boss heights reach the free end through convex chamfers and rounds, edge-treated plates retain their thickness dimensions, and concave turned fillets remain in counted radius callouts.
+
 ## 0.2.3 (2026-10-30)
 
 Now on quiddity-rust **v0.2.3**.

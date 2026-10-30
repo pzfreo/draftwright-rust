@@ -362,21 +362,23 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         // The presentation the leader points into: the most populous axis and view.
         let mut by: BTreeMap<(&str, &str), Vec<&Edge>> = BTreeMap::new();
         // Keep the established principal fillet's presentation when a residual profile
-        // has the same radius. Every surface still carries its own measurement claim.
-        let has_convex = members.iter().any(|e| {
+        // has the same radius. Turned inside rounds were already fillets before v0.2.5
+        // corrected their side; that correction must not move their valid radius leader.
+        // Every surface still carries its own measurement claim.
+        let preferred = |e: &Edge| {
             e.feature.kind == "fillet"
                 && !e.oriented
-                && e.feature.parameters.get("side").and_then(Value::as_str) != Some("concave")
-        });
+                && (e.turned
+                    || e.feature.parameters.get("side").and_then(Value::as_str) != Some("concave"))
+        };
+        let has_preferred = members.iter().any(preferred);
         let has_fillet = members
             .iter()
             .any(|e| e.feature.kind == "fillet" && !e.oriented);
         let has_principal = members.iter().any(|e| !e.oriented);
         for e in members.iter().filter(|e| {
-            if has_convex {
-                e.feature.kind == "fillet"
-                    && !e.oriented
-                    && e.feature.parameters.get("side").and_then(Value::as_str) != Some("concave")
+            if has_preferred {
+                preferred(e)
             } else if has_fillet {
                 e.feature.kind == "fillet" && !e.oriented
             } else {
