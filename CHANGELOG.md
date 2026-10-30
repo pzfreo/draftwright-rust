@@ -6,10 +6,6 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
-## 0.2.3 (2026-10-30)
-
-Now on quiddity-rust **v0.2.3**.
-
 ### Changed
 
 - Optional inspection balloons read file-owned characteristic numbers from AP242 UDAs on
@@ -18,6 +14,18 @@ Now on quiddity-rust **v0.2.3**.
   placement. Items expose their numbers and the plan lists their sheets and drawn carriers.
   Missing carriers and rings are reported with incomplete impact. Known limit: surface
   textures and semantic notes have no number owner in haecceity 0.2.3 and draw unchanged.
+
+### WASM API
+
+- Add `Session.numberedCharacteristics()` returning file-owned characteristic numbers and
+  their original item, drawn item, sheet and expected inspection rings as JSON.
+
+## 0.2.3 (2026-10-30)
+
+Now on quiddity-rust **v0.2.3**.
+
+### Changed
+
 - Pin quiddity-rust v0.2.3. For quiddity-rust#123, use complete turned bodies for overall diameters and half-section eligibility, and call out annular face recesses with rim diameters, depth and sloping wall angles. For quiddity-rust#127, draw cylindrical profiles as grouped radius callouts and include concave fillets with equal edge rounds.
 
 - Feature control frames on shafts, bosses and other cylinders use the hole-frame attachment
@@ -100,11 +108,6 @@ Now on quiddity-rust **v0.2.3**.
   ⌀13.4 groove a section edge. No other dw-examples drawing or quality part changes;
   in the wider corpus, cadgenbench/threaded_connector_109 now draws its front view half cut too.
   `views/<name>/half_section` still forces (`true`) or forbids (`false`) it.
-
-### WASM API
-
-- Add `Session.numberedCharacteristics()` returning file-owned characteristic numbers and
-  their original item, drawn item, sheet and expected inspection rings as JSON.
 
 ## 0.2.2 (2026-10-29)
 
