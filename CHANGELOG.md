@@ -12,6 +12,11 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Changed
 
+- For #265, Specify's general-tolerance dimensions (nominal-only PMI marked
+  `specify-core:written:v1`, from specify-core-rust 0.1.4) no longer flood the drawing. One that
+  matches a planned dimension is credited to it. One that matches nothing is drawn as an ordinary
+  planned dimension, without PMI precedence. Strict mode still draws them all as PMI. Specify's
+  `specify characteristic numbers` history set is skipped as bookkeeping.
 - For #256: dimension gusset groups with counted thickness and legs, pitch or spacing, and box location in true views; allow a per-group transverse view override. MCP Spec discovery includes `features/<id>/gusset_view`; tools/list and WASM signatures are unchanged.
 
 ## 0.2.4 (2026-10-30)
