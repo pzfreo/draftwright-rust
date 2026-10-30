@@ -6,6 +6,10 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+## 0.2.3 (2026-10-30)
+
+Now on quiddity-rust **v0.2.3**.
+
 ### Changed
 
 - Optional inspection balloons read file-owned characteristic numbers from AP242 UDAs on
