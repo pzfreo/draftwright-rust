@@ -75,3 +75,6 @@ pub mod iso_caption;
 pub mod detail;
 /// Authored corrections resolved into the ordinary feature inventory.
 pub mod recognition_corrections;
+
+#[cfg(not(target_arch = "wasm32"))]
+pub mod pack;

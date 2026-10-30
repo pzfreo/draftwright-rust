@@ -181,6 +181,11 @@ catalogue! {
     "oriented_slot_requirement_missing" => Incomplete, Requirement, "The drawing does not state this required feature parameter.";
     "oriented_slot_requirement_unverifiable" => Incomplete, Requirement, "The drawing does not prove this required feature parameter.";
     "over_dimensioned_pattern" => Advisory, Code, "Repeated pattern dimensions are redundant information.";
+    "pack_buy_guess" => Advisory, Code, "A purchased-part candidate is listed with its detection reason and can be overridden.";
+    "pack_compound" => Advisory, Code, "One product contains multiple solids; the pack reports the upstream part-definition limit.";
+    "pack_geometry_merge" => Advisory, Code, "Products with identical resolved geometry share one drawing and a summed quantity.";
+    "pack_make_guess" => Advisory, Code, "The default manufacturing decision and its evidence are reported and can be overridden.";
+    "pack_single_product" => Advisory, Code, "A single product has multiple placements, counted in its drawing quantity.";
     "pad_footprint_not_defined" => Incomplete, Code, "The pad footprint is not fully defined by dimensions.";
     "pad_requirement_missing" => Incomplete, Requirement, "The drawing does not state this required feature parameter.";
     "pad_requirement_unverifiable" => Incomplete, Requirement, "The drawing does not prove this required feature parameter.";

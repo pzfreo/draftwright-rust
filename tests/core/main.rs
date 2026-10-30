@@ -57,3 +57,6 @@ mod sheets_mcp;
 mod stateless;
 #[path = "../test_support.rs"]
 mod test_support;
+
+#[path = "../pack.rs"]
+mod pack;
