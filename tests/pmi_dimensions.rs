@@ -1692,3 +1692,176 @@ fn derived_requirements_preserve_tolerance_bands_on_owned_and_standalone_dimensi
         );
     }
 }
+
+/// #265: Specify 0.1.4 writes every size the general tolerance covers as its own nominal-only
+/// dimension. They are drawn as the planners draw that geometry, not on top of it: the drawing
+/// is the one the same file makes without them, and one no planned item states is planned as
+/// draftwright's own. Strict mode still draws them as the file's PMI,
+/// and Specify's characteristic-number history is bookkeeping.
+#[test]
+fn specify_general_dimensions_are_drawn_as_planned() {
+    let bytes = gunzip(
+        &std::fs::read(root().join("tests/fixtures/samples/specify-0.1.4-plate.step.gz")).unwrap(),
+    );
+    let (part, a) = analysed("specify-0.1.4-plate.step", &bytes);
+    let Some(Reading::Read(report)) = &a.pmi else {
+        panic!("PMI read")
+    };
+    let general: BTreeSet<&str> = report
+        .records
+        .iter()
+        .filter(|r| {
+            r.category == Category::Dimension
+                && !r.basic
+                && r.upper_tol.is_none()
+                && r.lower_bound.is_none()
+                && r.fit.is_none()
+        })
+        .map(|r| r.source_id.as_str())
+        .collect();
+    assert_eq!(general.len(), 10, "{general:?}");
+    for s in report
+        .sources
+        .iter()
+        .filter(|s| general.contains(s.id.as_str()))
+    {
+        assert!(s.reason.starts_with("Specify-written PMI"), "{s:?}");
+    }
+    let history = report
+        .sources
+        .iter()
+        .find(|s| {
+            s.id.starts_with("attribute_set:")
+                && s.reason.contains("specify characteristic numbers")
+        })
+        .expect("the history set is bookkeeping");
+    assert_eq!(history.outcome, draftwright::pmi::Outcome::Extracted);
+
+    let plan = cache::default_plan(&a, true);
+    let mut without = a.clone();
+    if let Some(Reading::Read(r)) = &mut without.pmi {
+        r.records
+            .retain(|r| !general.contains(r.source_id.as_str()));
+        r.sources.retain(|s| !general.contains(s.id.as_str()));
+    }
+    let planned = cache::default_plan(&without, true);
+    let ink = |p: &Plan| {
+        (
+            p.sheet.size.clone(),
+            p.sheet.scale.clone(),
+            p.dimensions
+                .iter()
+                .map(|d| {
+                    (
+                        d.id.clone(),
+                        d.label.clone(),
+                        d.view.clone(),
+                        d.placed.is_some(),
+                    )
+                })
+                .collect::<Vec<_>>(),
+        )
+    };
+    assert_eq!(ink(&plan), ink(&planned));
+    for id in ["width", "depth", "height"] {
+        let d = plan
+            .dimensions
+            .iter()
+            .find(|d| d.id == format!("d:envelope/{id}.length"))
+            .unwrap();
+        assert!(
+            d.basis.contains("Specify's general-tolerance dimension"),
+            "{d:?}"
+        );
+    }
+    assert!(
+        !plan.problems.iter().any(|p| p.code == "pmi_not_extracted"),
+        "{:#?}",
+        plan.problems
+    );
+    let font =
+        draftwright::text::Font::open(&root().join("fonts").join(draftwright::dims::FONT)).unwrap();
+    let drawing = model::render(&part, &a, &plan, &font).unwrap();
+    let issues = draftwright::lint::pmi_coverage::coverage(&a, &draftwright::lint::marks(&drawing));
+    assert!(
+        !issues.iter().any(|i| i.code == "pmi_not_rendered"
+            || (i.code == "pmi_not_extracted"
+                && i.sources.iter().any(|s| s.starts_with("attribute_set:")))),
+        "{issues:?}"
+    );
+
+    // A general dimension no planned item states (here the slot side's level, its faces made
+    // to include one no recognised feature owns) is one more planned size: drawn as
+    // draftwright's own dimension, not as PMI, with the plan otherwise as without it.
+    let side = "dimension:#2273";
+    let mut unmatched = a.clone();
+    if let Some(Reading::Read(r)) = &mut unmatched.pmi {
+        let r = r.records.iter_mut().find(|r| r.source_id == side).unwrap();
+        assert!(!r.faces.contains(&26));
+        r.faces.push(26);
+    }
+    let mut gone = a.clone();
+    if let Some(Reading::Read(r)) = &mut gone.pmi {
+        r.records.retain(|r| r.source_id != side);
+    }
+    let (drawn, rest) = (
+        cache::default_plan(&unmatched, true),
+        cache::default_plan(&gone, true),
+    );
+    let extra: Vec<_> = drawn
+        .dimensions
+        .iter()
+        .filter(|d| !rest.dimensions.iter().any(|e| e.id == d.id))
+        .collect();
+    let [d] = extra.as_slice() else {
+        panic!("{extra:#?}")
+    };
+    assert!(d.id.starts_with("d:specify_general:"), "{d:?}");
+    assert_eq!(d.label, "17");
+    assert!(d.placed.is_some(), "{d:?}");
+    assert!(
+        d.measurements
+            .iter()
+            .all(|m| !m.feature.starts_with("pmi:")),
+        "{d:?}"
+    );
+    assert!(
+        d.basis.contains(side) && d.basis.contains("Specify-written PMI"),
+        "{d:?}"
+    );
+    let others = |p: &Plan| {
+        (
+            p.sheet.size.clone(),
+            p.sheet.scale.clone(),
+            p.dimensions
+                .iter()
+                .filter(|e| !e.id.starts_with("d:specify_general:"))
+                .map(|e| {
+                    (
+                        e.id.clone(),
+                        e.label.clone(),
+                        e.view.clone(),
+                        e.placed.is_some(),
+                    )
+                })
+                .collect::<Vec<_>>(),
+        )
+    };
+    assert_eq!(others(&drawn), others(&rest));
+
+    let strict = Spec {
+        pmi: model::PmiMode::Strict,
+        ..Spec::default()
+    };
+    let plan = model::plan(&a, &strict).unwrap();
+    let ids = report.identities();
+    for s in &general {
+        let id = ids.id(s).unwrap();
+        assert!(
+            plan.dimensions
+                .iter()
+                .any(|d| d.measurements.iter().any(|m| m.feature == id)),
+            "strict mode draws {s}"
+        );
+    }
+}

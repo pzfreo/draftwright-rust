@@ -229,6 +229,25 @@ pub fn without_recesses(analysis: &Analysis) -> Analysis {
         .collect();
     let mut out = analysis.clone();
     out.features.retain(|f| f.kind != "section_recess");
+    // Specify's general-tolerance sizes of those recesses go with them (#265): planned as
+    // draftwright's own dimensions, they are the recess dimensions this drawing leaves out.
+    let recess: std::collections::BTreeSet<usize> = analysis
+        .features
+        .iter()
+        .filter(|f| f.kind == "section_recess")
+        .flat_map(|f| f.faces.iter().copied())
+        .collect();
+    if let Some(crate::pmi::Reading::Read(report)) = &mut out.pmi {
+        let gone: std::collections::BTreeSet<String> = report
+            .records
+            .iter()
+            .filter(|r| {
+                crate::pmi::specify_general(report, r) && r.faces.iter().any(|f| recess.contains(f))
+            })
+            .map(|r| r.source_id.clone())
+            .collect();
+        report.records.retain(|r| !gone.contains(&r.source_id));
+    }
     for f in out.features.iter_mut().filter(|f| keyholes.contains(&f.id)) {
         f.parameters.insert(KEYHOLE.into(), Value::Bool(true));
     }

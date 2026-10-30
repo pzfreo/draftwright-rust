@@ -196,6 +196,21 @@ pub(crate) fn specify_written(report: &Report, source: &str) -> bool {
         .any(|s| s.id == source && s.reason.starts_with(SPECIFY_WRITTEN))
 }
 
+/// A dimension Specify wrote with its nominal alone: one the general tolerance covers
+/// (specify-core 0.1.4, #63). It states nothing the geometry does not; Specify itself reads
+/// it back as settling no question (`existing.rs`). Draftwright gives it to its own plan
+/// where that plan dimensions the same geometry (#265).
+pub(crate) fn specify_general(report: &Report, r: &Record) -> bool {
+    r.category == Category::Dimension
+        && !r.basic
+        && r.upper_tol.is_none()
+        && r.lower_tol.is_none()
+        && r.lower_bound.is_none()
+        && r.upper_bound.is_none()
+        && r.fit.is_none()
+        && specify_written(report, &r.source_id)
+}
+
 /// Check only this requirement's root, never a shared feature or a referenced datum.
 fn specify_root(doc: &Document, r: &Record) -> bool {
     let root = r.part21_id;
@@ -204,7 +219,18 @@ fn specify_root(doc: &Document, r: &Record) -> bool {
         "knurl" => text_of(doc, root, "TURNED_KNURL", 0) == SPECIFY_MARKER,
         _ => false,
     };
+    // A dimension's token describes its own `SHAPE_DIMENSION_REPRESENTATION` (Specify's
+    // `provenance::dimension`).
+    let dimension = r.category == Category::Dimension
+        && r.instances.iter().any(|&rep| {
+            attributes(doc, rep, "SHAPE_DIMENSION_REPRESENTATION").is_some()
+                && doc.referrers(rep).iter().any(|&id| {
+                    text_of(doc, id, "DESCRIPTION_ATTRIBUTE", 0) == SPECIFY_MARKER
+                        && ref_of(doc, id, "DESCRIPTION_ATTRIBUTE", 1) == Some(rep)
+                })
+        });
     direct
+        || dimension
         || r.instances.iter().any(|&link| {
             ref_of(doc, link, "PROPERTY_DEFINITION_REPRESENTATION", 0) == Some(root)
                 && attributes(doc, root, "PROPERTY_DEFINITION").is_some()
@@ -941,15 +967,19 @@ struct Presentation {
     reasons: Vec<String>,
 }
 
-/// Part-owned bookkeeping written by Specify's `resume::attribute_set` and the editor/MCP
-/// project exporter. Match the names and single text item, as Specify's `resume::is_answers`
-/// does; similarly named foreign properties and feature attributes remain reportable.
+/// Part-owned bookkeeping written by Specify's `resume::attribute_set`, Specify's
+/// characteristic-number history (0.1.4, its numbering's high-water mark; the numbers
+/// themselves sit on each requirement) and the editor/MCP project exporter. Match the names and
+/// single text item, as Specify's `resume::is_answers` does; similarly named foreign properties
+/// and feature attributes remain reportable.
 fn is_draftwright_record(a: &pmi::AttributeSet) -> bool {
-    matches!(
-        a.name.as_str(),
-        "pmi-assist answers" | "draftwright editor project"
-    ) && a.on.is_none()
-        && matches!(a.items.as_slice(), [(name, AttributeValue::Text(_))] if name == &a.name)
+    let item = match a.name.as_str() {
+        "pmi-assist answers" | "draftwright editor project" => a.name.as_str(),
+        "specify characteristic numbers" => "history",
+        _ => return false,
+    };
+    a.on.is_none()
+        && matches!(a.items.as_slice(), [(name, AttributeValue::Text(_))] if name == item)
 }
 
 /// The producer's exact UDA spelling. Text keeps its file spelling (including leading zeros).
