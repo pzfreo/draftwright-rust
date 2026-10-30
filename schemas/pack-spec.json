@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Draftwright pack Spec",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "schema": {
+      "const": "draftwright.pack-spec/1",
+      "default": "draftwright.pack-spec/1"
+    },
+    "parts": {
+      "type": "object",
+      "additionalProperties": {
+        "$ref": "#/$defs/part"
+      },
+      "description": "Intent keyed by stable leaf keys from draftwright parts or merged common-name stems (docs/model.md). Unknown keys are refused with valid keys."
+    }
+  },
+  "$defs": {
+    "part": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "supply": {
+          "enum": [
+            "make",
+            "buy",
+            null
+          ]
+        },
+        "item": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "maximum": 4294967295
+        },
+        "quantity": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1
+        },
+        "separate": {
+          "type": "boolean",
+          "default": false,
+          "description": "Keep this leaf product out of geometry merges; address leaf keys, not a merged-only stem."
+        },
+        "drawing": {
+          "anyOf": [
+            {
+              "$ref": "spec.json"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      }
+    }
+  }
+}

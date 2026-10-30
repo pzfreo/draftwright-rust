@@ -177,6 +177,11 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `oriented_slot_requirement_missing` | incomplete | The drawing does not state this required feature parameter. |
 | `oriented_slot_requirement_unverifiable` | incomplete | The drawing does not prove this required feature parameter. |
 | `over_dimensioned_pattern` | advisory | Repeated pattern dimensions are redundant information. |
+| `pack_buy_guess` | advisory | A purchased-part candidate is listed with its detection reason and can be overridden. |
+| `pack_compound` | advisory | One product contains multiple solids; the pack reports the upstream part-definition limit. |
+| `pack_geometry_merge` | advisory | Products with identical resolved geometry share one drawing and a summed quantity. |
+| `pack_make_guess` | advisory | The default manufacturing decision and its evidence are reported and can be overridden. |
+| `pack_single_product` | advisory | A single product has multiple placements, counted in its drawing quantity. |
 | `pad_footprint_not_defined` | incomplete | The pad footprint is not fully defined by dimensions. |
 | `pad_requirement_missing` | incomplete | The drawing does not state this required feature parameter. |
 | `pad_requirement_unverifiable` | incomplete | The drawing does not prove this required feature parameter. |

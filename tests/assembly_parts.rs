@@ -64,8 +64,8 @@ fn parts_lists_the_plate_and_the_pin_placed_twice() {
     assert_eq!(
         out,
         json!({ "parts": [
-            { "part": 0, "name": "plate", "product_id": "plate", "faces": 13, "instances": 1 },
-            { "part": 1, "name": "pin", "product_id": "pin", "faces": 7, "instances": 2 },
+            { "part": 0, "key": "plate", "name": "plate", "product_id": "plate", "faces": 13, "instances": 1 },
+            { "part": 1, "key": "pin", "name": "pin", "product_id": "pin", "faces": 7, "instances": 2 },
         ]})
     );
 }
