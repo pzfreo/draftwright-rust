@@ -6,6 +6,10 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### Changed
+
+- For #256: dimension gusset groups with counted thickness and legs, pitch or spacing, and box location in true views; allow a per-group transverse view override. MCP Spec discovery includes `features/<id>/gusset_view`; tools/list and WASM signatures are unchanged.
+
 ## 0.2.4 (2026-10-30)
 
 Now on quiddity-rust **v0.2.5**. Adds optional inspection balloons for numbered AP242 characteristics (#254).

@@ -1307,6 +1307,22 @@ pub(crate) fn in_file_axes(doc: &RecognitionDocument) -> RecognitionDocument {
     for r in &mut out.records {
         unmerge(r);
         resolve_origin(r);
+        // A flipped inferred frame reverses native gusset member order in file axes.
+        // Restore that order; lint still checks every section and declared relationship.
+        if framed
+            && ["GussetRibArray", "GussetRibMirrorPair"].contains(&r.record_type.as_str())
+            && let Some(Value::Array(ribs)) = r.parameters.get_mut("ribs")
+        {
+            let centre = |r: &Value| {
+                let bounds = r.get("thickness_bounds")?.as_array()?;
+                Some((bounds.first()?.as_f64()? + bounds.get(1)?.as_f64()?) / 2.0)
+            };
+            if ribs.windows(2).all(
+                |pair| matches!((centre(&pair[0]), centre(&pair[1])), (Some(a), Some(b)) if a > b),
+            ) {
+                ribs.reverse();
+            }
+        }
         if framed {
             r.parameters.values_mut().for_each(snap);
         }

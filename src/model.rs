@@ -508,6 +508,9 @@ pub struct DimensionSpec {
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(deny_unknown_fields, default)]
 pub struct FeatureSpec {
+    /// View along either leg for gusset thickness, spacing/pitch and location.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub gusset_view: Option<String>,
     /// Intent for a recognised physical thread; no geometry is authored here.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub modelled_thread: Option<crate::modelled_threads::Settings>,

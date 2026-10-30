@@ -21,6 +21,8 @@ mod dims_blends;
 mod dims_edges;
 #[path = "../dims_grooves_flats.rs"]
 mod dims_grooves_flats;
+#[path = "../dims_gussets.rs"]
+mod dims_gussets;
 #[path = "../dims_plates.rs"]
 mod dims_plates;
 #[path = "../dims_recesses.rs"]

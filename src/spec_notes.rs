@@ -524,6 +524,25 @@ pub(crate) fn overrides(s: &Record, pmi: &Record) -> bool {
 /// Refuse unknown roles rather than allowing a typo to suppress unrelated coverage.
 pub(crate) fn check_claims(analysis: &Analysis, spec: &Spec) -> Result<(), Invalid> {
     for (id, f) in &spec.features {
+        if let Some(view) = &f.gusset_view {
+            let valid = crate::lint::gussets::groups(analysis).into_iter().any(|g| {
+                g.owner.id == *id
+                    && g.read.is_ok_and(|(ribs, _)| {
+                        ribs[0]
+                            .supports
+                            .iter()
+                            .any(|(k, _)| crate::dims::end_on(*k) == view)
+                    })
+            });
+            if !valid {
+                return Err(invalid(
+                    format!(
+                        "features/{id}/gusset_view must look along a leg of a readable gusset group (front, side or plan)."
+                    ),
+                    vec![],
+                ));
+            }
+        }
         if f.modelled_thread.is_some()
             && !analysis
                 .features
