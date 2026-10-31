@@ -615,33 +615,11 @@ pub(crate) fn no_part_requirement(r: &Record) -> bool {
         )
 }
 
-/// Keep process prose as authored; qualify a bare coating/heat-treatment value. This small
-/// vocabulary is deliberately lexical, not an interpretation of manufacturing parameters.
+/// Keep process prose as authored; qualify a bare coating/heat-treatment value: haecceity's
+/// shared wording (#258), which names the kinds as AP242's semantic text items do (`heat
+/// treatment`), where a record's kind is `heat_treatment`.
 fn part_note_text(r: &Record) -> String {
-    let text = r.label.trim();
-    let title = match r.kind.as_str() {
-        "surface_treatment" => "Coating",
-        "heat_treatment" => "Heat treatment",
-        _ => return text.into(),
-    };
-    let process = text
-        .to_ascii_lowercase()
-        .split(|c: char| !c.is_ascii_alphabetic())
-        .any(|word| {
-            matches!(word, "plate" | "plated" | "plating")
-                || [
-                    "anodis", "anodiz", "paint", "coat", "harden", "temper", "nitrid", "treat",
-                    "anneal", "carbur", "quench", "passivat", "oxid", "phosphat", "galvanis",
-                    "galvaniz",
-                ]
-                .iter()
-                .any(|stem| word.starts_with(stem))
-        });
-    if process {
-        text.into()
-    } else {
-        format!("{title}: {text}")
-    }
+    haecceity::presentation::notes::part_note_text(&r.kind.replace('_', " "), &r.label)
 }
 
 /// A drawing-wide requirement the sheet states.

@@ -12,6 +12,16 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Changed
 
+- Pin quiddity-rust v0.2.6. Its PMI writer's new presentation and semantic shapes (composite
+  aspects, location aspects, datum-of-size split) change no drawing: the quality parts' SVG and
+  PDF are byte-identical, and plans differ only in the engine version and analysis hash.
+- For #258, fit and band notation (the ISO 286 class table and its limit deviations, stacked
+  deviations, `±T` and `+U -L` bands), the datum feature symbol's frame and part-note wording
+  come from haecceity's shared `presentation` module, and Draftwright's copies are deleted.
+  Drawings are byte-identical. Feature control frames, labels and surface texture symbols keep
+  Draftwright's layout: haecceity measures their cells with its Hershey STEP lettering, not the
+  sheet's IBM Plex, and does not expose the frame layout. Sheet text rendering (`src/text.rs`)
+  stays Draftwright's.
 - For #265, Specify's general-tolerance dimensions (nominal-only PMI marked
   `specify-core:written:v1`, from specify-core-rust 0.1.4) no longer flood the drawing. One that
   matches a planned dimension is credited to it. One that matches nothing is drawn as an ordinary

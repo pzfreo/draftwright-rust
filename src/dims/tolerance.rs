@@ -30,13 +30,22 @@ use super::{Omitted, Want, fmt, levenshtein};
 use crate::items::{Op, State, key};
 use crate::model::{Analysis, Invalid, Problem, Spec};
 
+/// The requirement notation of fits and bands: ISO 286 classes and their limit deviations, and
+/// a band or a class's stacked deviations as text. haecceity's shared presentation module owns
+/// it, so the sheet and Specify's STEP callouts state a requirement the same way (#258).
+pub(super) use haecceity::presentation::tolerance::{
+    band, deviations, fit, limits_term, with_limits,
+};
+
 /// A kept item, as [`super::plan`] holds it: the want, whether it is a default, its view and the
 /// views that look along it.
 type Kept = (Want, bool, Option<&'static str>, Vec<&'static str>);
 
 /// The feature kinds a fit can be set on, and the parameter whose size it qualifies.
 const FITTED: [(&str, &str); 2] = [("hole", "bore.diameter"), ("boss", "boss.diameter")];
-/// draftwright's fit table (`fits.py`): the hole classes, the shaft classes and the grades.
+/// The fit table's classes and grades, which [`choices`] lists and [`apply`] sorts into hole and
+/// shaft classes. The table itself (its ISO 286 deviations, and which codes it holds) is
+/// haecceity's shared notation ([`fit`], [`deviations`]); haecceity does not list its classes.
 const HOLE_CLASSES: [&str; 3] = ["H", "G", "F"];
 const SHAFT_CLASSES: [&str; 7] = ["h", "g", "f", "js", "k", "n", "p"];
 const GRADES: std::ops::RangeInclusive<u32> = 5..=11;
@@ -118,112 +127,9 @@ fn tolerance(text: &str) -> Result<(String, bool), String> {
     ))
 }
 
-/// An ISO 286 class from draftwright's table: its letters and grade, or why not.
-pub(super) fn fit(code: &str) -> Result<(&str, u32), String> {
-    let letters = code.trim_end_matches(|c: char| c.is_ascii_digit());
-    let grade = &code[letters.len()..];
-    if letters.is_empty() || grade.is_empty() || !letters.chars().all(|c| c.is_ascii_alphabetic()) {
-        return Err(format!(
-            "{code:?} is not a fit: a fit is an ISO 286 class, letters and a grade (H7, g6)"
-        ));
-    }
-    let grade: u32 = grade
-        .parse()
-        .map_err(|_| format!("{code:?} is not a fit"))?;
-    if !GRADES.contains(&grade) {
-        return Err(format!(
-            "the fit {code:?} has grade IT{grade}, outside draftwright's table (IT5 to IT11)"
-        ));
-    }
-    if !HOLE_CLASSES.contains(&letters) && !SHAFT_CLASSES.contains(&letters) {
-        return Err(format!(
-            "the fit {code:?} is not in draftwright's table (holes H, G, F; shafts h, g, f, js, k, n, p)"
-        ));
-    }
-    Ok((letters, grade))
-}
-
-/// ISO 286 nominal size bands: the upper bound, mm, of each "over the previous, up to and
-/// including this" step (draftwright's `fits._BANDS`).
-const BANDS: [f64; 10] = [3.0, 6.0, 10.0, 18.0, 30.0, 50.0, 80.0, 120.0, 180.0, 250.0];
-/// Standard tolerance grades IT5 to IT11, µm, per band (ISO 286-1 Table 1; `fits._IT`).
-const IT: [[i32; 10]; 7] = [
-    [4, 5, 6, 8, 9, 11, 13, 15, 18, 20],
-    [6, 8, 9, 11, 13, 16, 19, 22, 25, 29],
-    [10, 12, 15, 18, 21, 25, 30, 35, 40, 46],
-    [14, 18, 22, 27, 33, 39, 46, 54, 63, 72],
-    [25, 30, 36, 43, 52, 62, 74, 87, 100, 115],
-    [40, 48, 58, 70, 84, 100, 120, 140, 160, 185],
-    [60, 75, 90, 110, 130, 160, 190, 220, 250, 290],
-];
-/// The shafts' fundamental upper deviation es, µm, per band, for the clearance letters (`fits._ES`);
-/// the hole classes H, G and F mirror them (EI = -es).
-const ES: [(&str, [i32; 10]); 3] = [
-    ("h", [0; 10]),
-    ("g", [-2, -4, -5, -6, -7, -9, -10, -12, -14, -15]),
-    ("f", [-6, -10, -13, -16, -20, -25, -30, -36, -43, -50]),
-];
-/// The shafts' fundamental lower deviation ei, µm, per band, for the interference letters
-/// (`fits._EI`).
-const EI: [(&str, [i32; 10]); 3] = [
-    ("k", [0, 1, 1, 1, 2, 2, 2, 3, 3, 4]),
-    ("n", [4, 8, 10, 12, 15, 17, 20, 23, 27, 31]),
-    ("p", [6, 12, 15, 18, 22, 26, 32, 37, 43, 50]),
-];
-
-/// A class's limit deviations at a nominal diameter, mm: `(lower, upper)`, as draftwright's
-/// `fits.fit_deviation` gives them. None outside the table (a class or grade it does not hold,
-/// a nominal not over 0 or above 250 mm).
-pub(super) fn deviations(code: &str, nominal: f64) -> Option<(f64, f64)> {
-    let (letters, grade) = fit(code).ok()?;
-    let band = BANDS.iter().position(|&b| nominal > 0.0 && nominal <= b)?;
-    let it = IT[(grade - 5) as usize][band];
-    let table =
-        |t: &[(&str, [i32; 10])], l: &str| t.iter().find(|(k, _)| *k == l).map(|(_, v)| v[band]);
-    let lower = letters.to_lowercase();
-    let (lo, hi) = if HOLE_CLASSES.contains(&letters) {
-        let ei = -table(&ES, &lower)?;
-        (ei, ei + it)
-    } else if letters == "js" {
-        return Some((-f64::from(it) / 2000.0, f64::from(it) / 2000.0));
-    } else if let Some(es) = table(&ES, letters) {
-        (es - it, es)
-    } else {
-        // k's tabulated deviation holds for IT4 to IT7 only; ISO 286 makes it 0 for coarser
-        // grades (`fits.fit_deviation`, #29).
-        let ei = if letters == "k" && grade > 7 {
-            0
-        } else {
-            table(&EI, letters)?
-        };
-        (ei, ei + it)
-    };
-    Some((f64::from(lo) / 1000.0, f64::from(hi) / 1000.0))
-}
-
-/// A class with its stacked deviations, encoded upper then lower with a newline.
-pub(super) fn with_limits(code: &str, (lower, upper): (f64, f64)) -> String {
-    format!("{code} {}", limits_term((lower, upper)))
-}
-
-/// The stacked deviations alone, encoded upper then lower with a newline.
-pub(super) fn limits_term((lower, upper): (f64, f64)) -> String {
-    format!("{}\n{}", deviation(upper), deviation(lower))
-}
-
 /// Whether the sheet requests stacked fit deviations (off by default).
 pub(super) fn limits_shown(spec: &Spec) -> bool {
     spec.sheet.fit_deviations.or(spec.sheet.fit_limits) == Some(true)
-}
-
-/// A limit deviation as a fit prints it (draftwright's `fits._fmt_dev`): signed, to the µm
-/// digit, and an exact zero as `0`.
-pub(super) fn deviation(v: f64) -> String {
-    if v.abs() < 5e-5 {
-        return "0".into();
-    }
-    let s = format!("{v:+.4}");
-    s.strip_suffix('0').map_or(s.clone(), str::to_string)
 }
 
 /// Checks every tolerance and fit the spec authors reads as one: the form, never the part (that
@@ -698,30 +604,6 @@ pub(super) fn authored(spec: &Spec, w: &Want) -> Option<(&'static str, bool)> {
     Some(("fit", fits.iter().all(|f| *f == fits[0])))
 }
 
-/// A band from two signed deviations, the upper and the lower, as draftwright prints an
-/// imported requirement on a recognised feature's size (`_fmt_tolerance`): `±T` when they are
-/// opposite, else `+U -L`, each with its authored digits and at least the drawn precision. A band
-/// wholly above or below the nominal keeps its signs (`-0.014 -0.039`, ISO 129-1), which
-/// draftwright's unsigned deviations cannot state. A zero deviation is `0`, unsigned
-/// (`+0.0762 0`, ISO 129-1; #214), where draftwright prints `-0.0`.
-pub(super) fn band(upper: f64, lower: f64) -> String {
-    let m = |v: f64| printed(&format!("{}", v.abs()));
-    let signed = |v: f64, sign: char| {
-        if v == 0.0 {
-            "0".to_string()
-        } else {
-            format!("{sign}{}", m(v))
-        }
-    };
-    if upper > 0.0 && upper == -lower {
-        format!("±{}", m(upper))
-    } else {
-        let up = if upper < 0.0 { '-' } else { '+' };
-        let down = if lower > 0.0 { '+' } else { '-' };
-        format!("{} {}", signed(upper, up), signed(lower, down))
-    }
-}
-
 /// Puts *text* after the term of *w*'s label that states its value, as a spec's tolerance is put
 /// ([`apply`]); false when the label states no value for it to follow.
 pub(super) fn insert(w: &mut super::Want, text: &str) -> bool {
@@ -759,6 +641,7 @@ pub(super) fn limits(w: &mut super::Want, lower: f64, upper: f64) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use haecceity::presentation::tolerance::deviation;
 
     #[test]
     fn tolerances_read_as_draftwright_prints_them() {
