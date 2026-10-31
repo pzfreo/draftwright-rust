@@ -196,7 +196,14 @@ pub fn items(plan: &Plan) -> Vec<Item> {
             characteristic_numbers: plan
                 .characteristics
                 .iter()
-                .filter(|c| c.item.as_deref() == Some(id) || c.drawn_item.as_deref() == Some(id))
+                .filter(|c| {
+                    c.item.as_deref() == Some(id)
+                        || c.drawn_item.as_deref() == Some(id)
+                        || plan
+                            .inspection_balloons
+                            .iter()
+                            .any(|b| b.source == c.source && b.item == id)
+                })
                 .map(|c| c.number.clone())
                 .collect(),
         };
@@ -271,9 +278,13 @@ pub fn items(plan: &Plan) -> Vec<Item> {
         let label = Some(b.tag.clone());
         out.push(item(&b.id, "balloon", Some(&b.view), &b.state, label));
     }
-    for c in &plan.characteristics {
-        if let Some(id) = &c.drawn_item
-            && !out.iter().any(|i| &i.id == id)
+    for id in plan
+        .characteristics
+        .iter()
+        .filter_map(|c| c.drawn_item.as_ref())
+        .chain(plan.inspection_balloons.iter().map(|b| &b.item))
+    {
+        if !out.iter().any(|i| &i.id == id)
             && let Some((t, r)) = plan
                 .hole_table
                 .iter()

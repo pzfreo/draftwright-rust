@@ -2918,7 +2918,9 @@ impl<'a> Fields<'a> {
         let unknown: Vec<&str> = distinct
             .iter()
             .copied()
-            .filter(|n| !known.contains(n))
+            .filter(|n| {
+                !known.contains(n) && !matches!(*n, "id" | "id ambiguity" | "characteristic number")
+            })
             .collect();
         if !unknown.is_empty() {
             return Err(format!(
@@ -3053,10 +3055,10 @@ fn structured_thread(
             }
         }
         if through && let Some(full) = full {
-            let fits = match cylinders {
-                [c] => full <= c.interval[1] - c.interval[0] + 0.01,
-                _ => false,
-            };
+            let fits = !cylinders.is_empty()
+                && cylinders
+                    .iter()
+                    .all(|c| full <= c.interval[1] - c.interval[0] + 0.01);
             if !fits {
                 return Err("structured minimum full thread exceeds source cylinder".into());
             }
@@ -3095,14 +3097,22 @@ fn structured_thread(
 /// Whether record *r* pairs a requirement in words with its structured statement (draftwright's
 /// two source IDs): it has fields, and its label is its words, not its kind (an unpaired
 /// structured statement is labelled with its kind, [`crate::pmi`]).
+fn has_parameters(r: &Record) -> bool {
+    r.fields.iter().any(|(name, _)| {
+        !matches!(
+            name.as_str(),
+            "id" | "id ambiguity" | "characteristic number"
+        )
+    })
+}
 fn paired(r: &Record) -> bool {
-    !r.fields.is_empty() && r.label != r.kind.replace('_', " ")
+    has_parameters(r) && r.label != r.kind.replace('_', " ")
 }
 
 /// A thread from its record (`_thread_requirement`): its words and its structured statement
 /// reconciled, value by value.
 fn thread(r: &Record, cylinders: &[Cylinder]) -> Result<Thread, String> {
-    if r.fields.is_empty() {
+    if !has_parameters(r) {
         return prose_thread(&r.kind, &r.label);
     }
     let prose = match prose_thread(&r.kind, &r.label) {
@@ -3141,7 +3151,7 @@ fn thread(r: &Record, cylinders: &[Cylinder]) -> Result<Thread, String> {
 
 /// A knurl from its record (`_knurl_requirement`, `_structured_knurl_requirement`).
 fn knurl(r: &Record) -> Result<Knurl, String> {
-    if r.fields.is_empty() {
+    if !has_parameters(r) {
         return prose_knurl(&r.label);
     }
     let prose = match prose_knurl(&r.label) {
@@ -3639,7 +3649,8 @@ fn tip_chamfers_cover(
 ///   and its structured statement, reconciled value by value (`_thread_requirement`,
 ///   `_knurl_requirement`); its one cylinder must be the size its text states (a tap's drill
 ///   diameter and drill depth, an external thread's nominal size, a knurl's maximum diameter);
-/// - its owner is the one feature that cylinder proves: a blind hole of the drill depth or a
+/// - each internal-thread cylinder must prove one distinct hole owner; a shared requirement
+///   reaches all of those callouts. Other requirements have one owner: a blind hole of the drill depth or a
 ///   through hole whose bore it is (an internal thread), a turned step or boss whose diameter
 ///   and span hold it (an external thread or knurl; a structured thread length is the cylinder's,
 ///   or the owner's when recognised 45° tip chamfers fill the difference);
@@ -3669,7 +3680,7 @@ pub fn manufacturing(analysis: &Analysis) -> Manufacturing {
     let chamfers = turned_chamfers(analysis);
     let mut claimed: Vec<(usize, u64)> = Vec::new();
     // Each record's proposal: its owner's index and its aspect, or why it has none.
-    let mut proposals: Vec<Result<Proposal, String>> = Vec::new();
+    let mut proposals: Vec<Result<Vec<Proposal>, String>> = Vec::new();
     for r in &records {
         let proposal = (|| {
             // A thread or knurl the Spec authors names its feature ([`crate::spec_notes`]).
@@ -3690,7 +3701,7 @@ pub fn manufacturing(analysis: &Analysis) -> Manufacturing {
                         }
                         _ => None,
                     };
-                    (owner, aspect, depiction)
+                    vec![(owner, aspect, depiction)]
                 });
             }
             let mut reasons = blockers(r);
@@ -3740,28 +3751,30 @@ pub fn manufacturing(analysis: &Analysis) -> Manufacturing {
             {
                 return Err(disagree());
             }
-            let matches: Vec<usize> = if g.cylinders.len() == 1 {
-                (0..candidates.len())
-                    .filter(|&i| owns(&aspect, c, &candidates[i], analysis.envelope))
-                    .collect()
-            } else {
-                Vec::new()
-            };
-            let owner = match matches[..] {
-                [i] => i,
-                [] => {
-                    return Err(
-                        "unmatched manufacturing requirement: no canonical feature matches source topology"
-                            .into(),
-                    );
+            // One semantic tap may apply to several drilled holes. Prove every
+            // cylinder and owner before giving the shared requirement to their callouts.
+            // External thread and knurl depictions still require one continuous cylinder.
+            if g.cylinders.len() > 1 && !matches!(&aspect, Aspect::Thread(t) if t.internal) {
+                return Err("manufacturing requirement needs one continuous cylinder".into());
+            }
+            let mut matched = Vec::new();
+            for cylinder in &g.cylinders {
+                if !expected.is_some_and(|d| same_number(2.0 * cylinder.radius, d, 0.01))
+                    || matches!(&aspect, Aspect::Thread(t) if t.internal && !t.through
+                        && !t.drill_depth.is_some_and(|d| same_number(cylinder.interval[1] - cylinder.interval[0], d, 0.01)))
+                {
+                    return Err(disagree());
                 }
-                _ => {
-                    return Err(format!(
-                        "ambiguous manufacturing requirement: source topology matches {} canonical features",
-                        matches.len()
-                    ));
+                let matches: Vec<usize> = (0..candidates.len())
+                    .filter(|&i| owns(&aspect, cylinder, &candidates[i], analysis.envelope))
+                    .collect();
+                match matches[..] {
+                    [owner] if !matched.contains(&owner) => matched.push(owner),
+                    [] => return Err("unmatched manufacturing requirement: no canonical feature matches source topology".into()),
+                    _ => return Err(format!("ambiguous manufacturing requirement: source topology matches {} canonical features", matches.len())),
                 }
-            };
+            }
+            let owner = matched[0];
             let o = &candidates[owner];
             if let Aspect::Thread(t) = &aspect
                 && !t.internal
@@ -3798,7 +3811,10 @@ pub fn manufacturing(analysis: &Analysis) -> Manufacturing {
                 diameter: o.diameter,
                 kind,
             });
-            Ok((owner, aspect, depiction))
+            Ok(matched
+                .into_iter()
+                .map(|owner| (owner, aspect.clone(), depiction.clone()))
+                .collect())
         })();
         proposals.push(proposal);
     }
@@ -3808,48 +3824,54 @@ pub fn manufacturing(analysis: &Analysis) -> Manufacturing {
         Aspect::Knurl(_) => "knurl",
     };
     let mut claims: BTreeMap<(usize, &'static str), usize> = BTreeMap::new();
-    for p in proposals.iter().flatten() {
+    for p in proposals.iter().flatten().flatten() {
         *claims.entry((p.0, aspect_name(&p.1))).or_default() += 1;
     }
     let ids = report.identities();
     for (r, p) in records.iter().zip(proposals) {
         let refusal = match (p, ids.id(&r.source_id)) {
             (Err(why), _) | (Ok(_), Err(why)) => Some(why),
-            (Ok((owner, aspect, depiction)), Ok(id)) => {
-                let name = aspect_name(&aspect);
-                let o = &candidates[owner];
-                if claims[&(owner, name)] > 1 {
+            (Ok(proposals), Ok(id)) => {
+                if let Some((_, aspect, _)) = proposals
+                    .iter()
+                    .find(|(owner, aspect, _)| claims[&(*owner, aspect_name(aspect))] > 1)
+                {
+                    let name = aspect_name(aspect);
                     Some(format!(
                         "ambiguous {name} ownership: multiple manufacturing requirements claim canonical feature"
                     ))
                 } else {
-                    let (suffix, text, through) = match &aspect {
-                        Aspect::Thread(t) => {
-                            let mut text = t.suffix();
-                            if let Some(d) = t.drill_diameter {
-                                text += &format!("; ⌀{}", g6(d));
-                                if let Some(depth) = t.drill_depth {
-                                    text += &format!(" ↧ {}", g6(depth));
-                                } else {
-                                    text += " THRU";
+                    for (owner, aspect, depiction) in proposals {
+                        let name = aspect_name(&aspect);
+                        let o = &candidates[owner];
+                        let (suffix, text, through) = match &aspect {
+                            Aspect::Thread(t) => {
+                                let mut text = t.suffix();
+                                if let Some(d) = t.drill_diameter {
+                                    text += &format!("; ⌀{}", g6(d));
+                                    if let Some(depth) = t.drill_depth {
+                                        text += &format!(" ↧ {}", g6(depth));
+                                    } else {
+                                        text += " THRU";
+                                    }
                                 }
+                                (t.suffix(), text, t.through)
                             }
-                            (t.suffix(), text, t.through)
-                        }
-                        Aspect::Knurl(k) => (k.suffix(), k.text(), false),
-                    };
-                    out.owned.push(Owned {
-                        id: id.to_string(),
-                        source: r.source_id.clone(),
-                        owner: o.id.clone(),
-                        aspect: name,
-                        suffix,
-                        text,
-                        through,
-                        depiction,
-                        requirement: aspect,
-                        presentation_reason: "source wording",
-                    });
+                            Aspect::Knurl(k) => (k.suffix(), k.text(), false),
+                        };
+                        out.owned.push(Owned {
+                            id: id.to_string(),
+                            source: r.source_id.clone(),
+                            owner: o.id.clone(),
+                            aspect: name,
+                            suffix,
+                            text,
+                            through,
+                            depiction,
+                            requirement: aspect,
+                            presentation_reason: "source wording",
+                        });
+                    }
                     None
                 }
             }
@@ -3881,6 +3903,7 @@ pub fn manufacturing(analysis: &Analysis) -> Manufacturing {
     {
         let mut sources: Vec<&str> = out.owned.iter().map(|o| o.source.as_str()).collect();
         sources.sort();
+        sources.dedup();
         out.tags = sources
             .iter()
             .enumerate()
@@ -4072,9 +4095,10 @@ pub fn manufacturing_for(analysis: &Analysis, spec: &crate::model::Spec) -> Manu
         o.suffix = if style == Style::Full { full } else { compact };
     }
     scheduled.sort();
+    scheduled.dedup();
     for (i, source) in scheduled.into_iter().enumerate() {
         let tag = format!("MFG {}", i + 1);
-        if let Some(o) = m.owned.iter_mut().find(|o| o.source == source) {
+        for o in m.owned.iter_mut().filter(|o| o.source == source) {
             // Reference on the identity line, keeping blind tap/drill lines separate.
             if let Some((first, rest)) = o.suffix.split_once('\n') {
                 o.suffix = format!("{} SEE {tag} \n {}", first.trim_end(), rest.trim_start());

@@ -2314,6 +2314,7 @@ fn select_with(analysis: &Analysis, plan: &Plan, replace_pmi: bool) -> Selection
         .into_iter()
         .filter_map(|(f, h)| Some((f.id.as_str(), h.ok()?)))
         .collect();
+    let manufacturing = crate::pmi_lowering::manufacturing(analysis);
     for view in &plan.views {
         if !plan.spec.dimension_schemes.is_empty()
             && plan
@@ -2465,10 +2466,19 @@ fn select_with(analysis: &Analysis, plan: &Plan, replace_pmi: bool) -> Selection
                 && d.from_spec
                     .iter()
                     .any(|s| matches!(s.as_str(), "fit" | "tolerance"));
+            let shared_thread = d.measurements.iter().any(|m| {
+                m.parameter == "thread"
+                    && manufacturing
+                        .owned
+                        .iter()
+                        .filter(|o| o.id == m.feature)
+                        .count()
+                        > 1
+            });
             let kept = pinned(plan, d)
                 || authored_size
                 || crate::label_text::overridden(d)
-                || (semantic && !replace_pmi);
+                || (semantic && !replace_pmi && !shared_thread);
             // A schedule repeats every size, including sizes owned by retained PMI.
             let source_callout = d.placed.is_some() && semantic && kept;
             for (member, f) in bores(d).into_iter().enumerate() {
@@ -2491,7 +2501,20 @@ fn select_with(analysis: &Analysis, plan: &Plan, replace_pmi: bool) -> Selection
                             .cloned(),
                     );
                 }
-                let mut cells = vec![String::new(), label.clone()];
+                // The schedule replaces the native drill callout as well as
+                // stating the shared thread. Keep that physical size/depth in
+                // its own row; M6 alone must not erase the original ø5 bore.
+                let mut size = label.clone();
+                if shared_thread && !label.contains(['ø', '⌀', 'Ø']) {
+                    let mut drill = format!("⌀{}", schedule_number(h.diameter));
+                    if h.through {
+                        drill += " THRU";
+                    } else if let Some(depth) = h.depth {
+                        drill += &format!(" ↧ {}", schedule_number(depth));
+                    }
+                    size = format!("{drill} {size}");
+                }
+                let mut cells = vec![String::new(), size];
                 for &k in &axes {
                     let parameter = format!("location.length.{}", ["x", "y", "z"][k]);
                     let distance = h.at[k] - origin[k];
@@ -2547,7 +2570,10 @@ fn select_with(analysis: &Analysis, plan: &Plan, replace_pmi: bool) -> Selection
             }
             if !kept {
                 replaced.insert(d.id.clone());
-                frees_native |= !semantic;
+                // A shared thread newly recognized on several distinct bores must
+                // not withdraw their native schedule. The rows retain its complete
+                // statement; independent authored sizes keep the existing PMI gate.
+                frees_native |= !semantic || shared_thread;
                 pmi_replaced |= semantic;
             }
         }
