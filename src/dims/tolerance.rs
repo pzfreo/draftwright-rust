@@ -30,6 +30,11 @@ use super::{Omitted, Want, fmt, levenshtein};
 use crate::items::{Op, State, key};
 use crate::model::{Analysis, Invalid, Problem, Spec};
 
+// The fit table's classes and grades, in order, which [`choices`] lists and [`apply`] sorts into
+// hole and shaft classes, and the largest nominal size it covers, mm (ISO 286's band up to and
+// including 250), are haecceity's, as the table is (#258).
+use haecceity::presentation::tolerance::{GRADES, HOLE_CLASSES, MAX_NOMINAL_MM, SHAFT_CLASSES};
+
 /// The requirement notation of fits and bands: ISO 286 classes and their limit deviations, and
 /// a band or a class's stacked deviations as text. haecceity's shared presentation module owns
 /// it, so the sheet and Specify's STEP callouts state a requirement the same way (#258).
@@ -43,14 +48,6 @@ type Kept = (Want, bool, Option<&'static str>, Vec<&'static str>);
 
 /// The feature kinds a fit can be set on, and the parameter whose size it qualifies.
 const FITTED: [(&str, &str); 2] = [("hole", "bore.diameter"), ("boss", "boss.diameter")];
-/// The fit table's classes and grades, which [`choices`] lists and [`apply`] sorts into hole and
-/// shaft classes. The table itself (its ISO 286 deviations, and which codes it holds) is
-/// haecceity's shared notation ([`fit`], [`deviations`]); haecceity does not list its classes.
-const HOLE_CLASSES: [&str; 3] = ["H", "G", "F"];
-const SHAFT_CLASSES: [&str; 7] = ["h", "g", "f", "js", "k", "n", "p"];
-const GRADES: std::ops::RangeInclusive<u32> = 5..=11;
-/// The largest nominal size the table covers, mm (ISO 286's band up to and including 250).
-const LARGEST: f64 = 250.0;
 /// The accepted forms, as the refusal names them.
 const FORMS: [&str; 2] = ["±0.05", "+0.1 -0.02"];
 
@@ -63,7 +60,7 @@ pub(crate) fn choices(kind: &str, nominal: f64) -> Vec<String> {
     };
     letters
         .iter()
-        .flat_map(|letter| GRADES.map(move |grade| format!("{letter}{grade}")))
+        .flat_map(|letter| GRADES.iter().map(move |grade| format!("{letter}{grade}")))
         .filter(|code| deviations(code, nominal).is_some())
         .collect()
 }
@@ -337,13 +334,13 @@ pub(super) fn apply(
         }
         let d = f.parameters.get("diameter").and_then(|v| v.as_f64());
         match d {
-            Some(d) if d > 0.0 && d <= LARGEST => {}
+            Some(d) if d > 0.0 && d <= MAX_NOMINAL_MM => {}
             _ => {
                 return Err(Invalid {
                     path: None,
                     also: Vec::new(),
                     message: format!(
-                        "The fit {code:?} of {id:?} cannot be resolved: its nominal ⌀{} is outside draftwright's ISO 286 table (up to {LARGEST} mm); give its dimension a tolerance instead.",
+                        "The fit {code:?} of {id:?} cannot be resolved: its nominal ⌀{} is outside draftwright's ISO 286 table (up to {MAX_NOMINAL_MM} mm); give its dimension a tolerance instead.",
                         d.map_or("?".into(), fmt)
                     ),
                     choices: vec![],
