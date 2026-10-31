@@ -457,6 +457,16 @@ pub(crate) fn proof(
     if let Some(path) = route(edges, roots, axis, at, node, &BTreeSet::new()) {
         return Some(path);
     }
+    // A longitudinal slot locator controls its near-end plane. The slot's
+    // centre is derived from that plane and its length, rather than a bore axis.
+    if let Some(id) = node
+        && a.features.iter().any(|f| f.id == id && f.kind == "slot")
+        && let Some(span) = super::redundancy::span(a, id, "location_slot.length")
+        && span.axis == axis
+        && let Some(path) = route(edges, roots, axis, span.hi, None, &BTreeSet::new())
+    {
+        return Some(path);
+    }
     let p = pattern(a, node?)?;
     let mut path = Vec::new();
     for id in &p.members {
@@ -724,9 +734,10 @@ pub(crate) fn identify(a: &Analysis, mark: &Mark, spans: Vec<Edge>) -> Vec<Edge>
                 .iter()
                 .any(|c| c.parameter.starts_with("location_slot."))
         {
-            let mut e = span;
-            e.b_feature = Some(members[0].clone());
-            out.push(e);
+            // A slot's longitudinal locator measures to its near-end support
+            // plane, not its centre axis. Keep a planar station node so an
+            // authored plane-to-plane baseline can state the same quantity.
+            out.push(span);
         } else if location && !right.is_empty() {
             for r in right {
                 let mut e = span.clone();

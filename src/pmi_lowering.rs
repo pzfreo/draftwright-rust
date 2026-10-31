@@ -1565,13 +1565,24 @@ fn linear_geometry(part: &Part, r: &Record, value: f64, g: &mut Geometry) {
     };
     match proof {
         Planar::Not => {
-            if r.kind == "linear"
+            if faces_only && let Some(points) = oblique_plane_witness(part, groups) {
+                stations = points;
+                g.sites = points.to_vec();
+            } else if r.kind == "linear"
                 && faces_only
                 && let Some(bore) = plane_to_bore(part, groups, boxes)
             {
                 stations = bore.0;
                 plane_axis = Some(bore.1);
                 g.view = Some(bore.2.into());
+            } else if r.kind == "linear"
+                && faces_only
+                && let Some(witness) = projected_plane_to_bore(part, groups, boxes)
+            {
+                stations = witness.stations;
+                plane_axis = witness.axis;
+                g.view = Some(witness.view.into());
+                g.sites = stations.to_vec();
             } else if r.kind == "linear" && faces_only && mixed(part, groups) {
                 g.reasons.extend(
                     stations_proof(stations, value, None)
@@ -1937,18 +1948,173 @@ fn common_x_witness(
 
 /// Whether the two groups are one plane and one cylinder (draftwright's `_is_mixed_planar_bore`).
 fn mixed(part: &Part, groups: &[Vec<usize>]) -> bool {
-    if groups.iter().any(|g| g.len() != 1) {
-        return false;
-    }
-    let kinds: Vec<u8> = groups
-        .iter()
-        .map(|g| match part.faces[g[0]].surface {
-            Surface::Plane { .. } => 1,
-            Surface::Cylinder { .. } => 2,
-            _ => 0,
-        })
-        .collect();
+    let kind = |group: &[usize]| {
+        if !group.is_empty()
+            && group
+                .iter()
+                .all(|&f| matches!(part.faces[f].surface, Surface::Plane { .. }))
+        {
+            1
+        } else if !group.is_empty()
+            && group
+                .iter()
+                .all(|&f| matches!(part.faces[f].surface, Surface::Cylinder { .. }))
+        {
+            2
+        } else {
+            0
+        }
+    };
+    let kinds: Vec<_> = groups.iter().map(|g| kind(g)).collect();
     kinds == [1, 2] || kinds == [2, 1]
+}
+
+/// Parallel tilted planes measure along their common normal, never between box centres.
+/// Require an actual normal ray joining two trimmed patches, independent of the nominal.
+fn oblique_plane_witness(part: &Part, groups: &[Vec<usize>]) -> Option<[[f64; 3]; 2]> {
+    let Surface::Plane { frame } = &part.faces[*groups.first()?.first()?].surface else {
+        return None;
+    };
+    let n = frame.z;
+    if exact_axis(n).is_some() || projection_view(n).is_none() {
+        return None;
+    }
+    let mut levels = Vec::new();
+    for group in groups {
+        let mut level = None;
+        for &f in group {
+            let Surface::Plane { frame } = &part.faces[f].surface else {
+                return None;
+            };
+            let dot: f64 = (0..3).map(|i| n[i] * frame.z[i]).sum();
+            if (dot.abs() - 1.).abs() > 1e-9 {
+                return None;
+            }
+            let at: f64 = (0..3).map(|i| n[i] * frame.origin[i]).sum();
+            if level.is_some_and(|v: f64| (v - at).abs() > 1e-6) {
+                return None;
+            }
+            level = Some(at);
+        }
+        levels.push(level?);
+    }
+    for &f in &groups[0] {
+        let (u0, u1, v0, v1) = part.uv_bounds(f)?;
+        for t in [0.5, 0.1, 0.3, 0.7, 0.9] {
+            for v in [0.5, 0.1, 0.3, 0.7, 0.9] {
+                let p = part.faces[f]
+                    .surface
+                    .value(u0 + t * (u1 - u0), v0 + v * (v1 - v0));
+                let q = [0, 1, 2].map(|i| p[i] + n[i] * (levels[1] - levels[0]));
+                if on_face(part, f, p) && groups[1].iter().any(|&g| on_face(part, g, q)) {
+                    return Some([p, q]);
+                }
+            }
+        }
+    }
+    None
+}
+
+/// A bore's axis is a line, not its bounding-box centre. First try a real normal
+/// ray onto the datum patch. If the patches miss in depth, prove independent face
+/// witnesses sharing their transverse coordinate in a principal projection.
+struct LinearWitness {
+    stations: [[f64; 3]; 2],
+    axis: Option<usize>,
+    view: &'static str,
+}
+
+fn projected_plane_to_bore(
+    part: &Part,
+    groups: &[Vec<usize>],
+    boxes: &[Vec<[f64; 6]>],
+) -> Option<LinearWitness> {
+    if !mixed(part, groups) {
+        return None;
+    }
+    let pi = usize::from(!matches!(
+        part.faces[groups[0][0]].surface,
+        Surface::Plane { .. }
+    ));
+    let bi = 1 - pi;
+    let Surface::Plane { frame: plane } = &part.faces[groups[pi][0]].surface else {
+        return None;
+    };
+    let n = plane.z;
+    let level: f64 = (0..3).map(|i| n[i] * plane.origin[i]).sum();
+    for &f in &groups[pi] {
+        let Surface::Plane { frame } = &part.faces[f].surface else {
+            return None;
+        };
+        if ((0..3).map(|i| frame.z[i] * n[i]).sum::<f64>().abs() - 1.).abs() > 1e-9
+            || ((0..3).map(|i| frame.origin[i] * n[i]).sum::<f64>() - level).abs() > 1e-6
+        {
+            return None;
+        }
+    }
+    let cylinders = groups[bi]
+        .iter()
+        .map(|&f| cylinder(part, f))
+        .collect::<Result<Vec<_>, _>>()
+        .ok()?;
+    let first = cylinders.first()?;
+    if (0..3).map(|i| n[i] * first.direction[i]).sum::<f64>().abs() > 1e-9 {
+        return None;
+    }
+    if cylinders.iter().any(|c| {
+        (0..3).any(|i| {
+            (c.origin[i] - first.origin[i]).abs() > 1e-6
+                || (c.direction[i] - first.direction[i]).abs() > 1e-9
+        })
+    }) {
+        return None;
+    }
+    let pair = |p, q| if pi == 0 { [p, q] } else { [q, p] };
+    let k = exact_axis(n);
+    let view = match k {
+        Some(k) => first
+            .principal()
+            .filter(|&axis| axis != k)
+            .map(|axis| ["side", "front", "plan"][axis])
+            .unwrap_or(if k == 1 { "side" } else { "front" }),
+        None => projection_view(n)?,
+    };
+    for c in &cylinders {
+        for t in [0.5, 0.1, 0.3, 0.7, 0.9] {
+            let along = c.interval[0] + t * (c.interval[1] - c.interval[0]);
+            let q = [0, 1, 2].map(|i| c.origin[i] + along * c.direction[i]);
+            let offset = level - (0..3).map(|i| q[i] * n[i]).sum::<f64>();
+            let p = [0, 1, 2].map(|i| q[i] + offset * n[i]);
+            if groups[pi].iter().any(|&f| on_face(part, f, p)) {
+                return Some(LinearWitness {
+                    stations: pair(p, q),
+                    axis: k,
+                    view,
+                });
+            }
+            if let Some(k) = k {
+                for (view, hidden) in [("front", 1), ("side", 0), ("plan", 2)] {
+                    if hidden == k {
+                        continue;
+                    }
+                    for (&f, bounds) in groups[pi].iter().zip(&boxes[pi]) {
+                        for t in [0.5, 0.1, 0.3, 0.7, 0.9] {
+                            let mut p = p;
+                            p[hidden] = bounds[hidden] + t * (bounds[hidden + 3] - bounds[hidden]);
+                            if on_face(part, f, p) {
+                                return Some(LinearWitness {
+                                    stations: pair(p, q),
+                                    axis: Some(k),
+                                    view,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
 }
 
 /// A location from a principal plane to a principal bore's axis across it (draftwright's
@@ -1963,7 +2129,7 @@ fn plane_to_bore(
     groups: &[Vec<usize>],
     boxes: &[Vec<[f64; 6]>],
 ) -> Option<([[f64; 3]; 2], usize, &'static str)> {
-    if !mixed(part, groups) {
+    if !mixed(part, groups) || groups.iter().any(|g| g.len() != 1) {
         return None;
     }
     let plane_i = usize::from(!matches!(

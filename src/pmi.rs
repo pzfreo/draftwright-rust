@@ -209,7 +209,16 @@ pub(crate) fn specify_general(report: &Report, r: &Record) -> bool {
         && r.lower_bound.is_none()
         && r.upper_bound.is_none()
         && r.fit.is_none()
-        && specify_written(report, &r.source_id)
+        && match r.fields.iter().find(|(k, _)| k == "specify origin") {
+            Some((_, Field::Text(origin))) => origin == "general_tolerance",
+            Some(_) => false,
+            None => specify_written(report, &r.source_id),
+        }
+}
+
+/// The authored reference reaches a datum feature, including a composite's members.
+pub(crate) fn datum_referenced(r: &Record) -> bool {
+    r.fields.iter().any(|(k, _)| k == "reference datum")
 }
 
 /// Check only this requirement's root, never a shared feature or a referenced datum.
@@ -1601,6 +1610,8 @@ impl PartReader<'_> {
                 let instances = ids.get(i).cloned().unwrap_or_default();
                 let bookkeeping = item == "attribute_set"
                     && (is_draftwright_record(&pmi.attributes[i])
+                        || (pmi.attributes[i].name == "specify pmi origin"
+                            && matches!(pmi.attributes[i].on, Some(NoteOwner::Dimension(_))))
                         || (characteristic_value(&pmi.attributes[i]).is_some()
                             && ids.get(i).is_some_and(|instances| {
                                 instances.iter().any(|&id| {
@@ -2056,6 +2067,56 @@ impl PartReader<'_> {
             _ => None,
         }) {
             r.label += &format!(" {suffix}");
+        }
+        // Intent is dimension-owned; never borrow it from a shared aspect or datum.
+        let origins: Vec<_> = self
+            .pmi
+            .attributes
+            .iter()
+            .filter(|a| a.name == "specify pmi origin" && a.on == Some(NoteOwner::Dimension(id)))
+            .collect();
+        if let [origin] = origins.as_slice() {
+            let values: Vec<_> = origin.items.iter().filter(|(k, _)| k == "origin").collect();
+            if let [(.., AttributeValue::Text(value))] = values.as_slice()
+                && matches!(
+                    value.as_str(),
+                    "general_tolerance" | "requirement" | "imported"
+                )
+            {
+                r.fields
+                    .push(("specify origin".into(), Field::Text(value.clone())));
+            }
+        }
+        let mut todo = groups.clone();
+        let mut seen = BTreeSet::new();
+        while let Some(feature) = todo.pop() {
+            if !seen.insert(feature) {
+                continue;
+            }
+            for datum in &self.pmi.datums {
+                if datum.feature() == Some(feature)
+                    || datum.feature().is_some_and(|d| {
+                        let reference = self.support(&[feature]);
+                        let datum = self.support(&[d]);
+                        !reference.faces.is_empty()
+                            && reference.faces == datum.faces
+                            && reference.edges == datum.edges
+                    })
+                {
+                    if r.fields.iter().any(|(key, value)| {
+                        key == "reference datum" && *value == Field::Text(datum.label().to_string())
+                    }) {
+                        continue;
+                    }
+                    r.fields.push((
+                        "reference datum".into(),
+                        Field::Text(datum.label().to_string()),
+                    ));
+                }
+            }
+            if let Some(Feature::Group { members, .. }) = self.pmi.features.get(feature.0) {
+                todo.extend(members);
+            }
         }
         self.targets(&groups, &mut r);
         r

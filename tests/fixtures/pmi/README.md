@@ -55,3 +55,10 @@ Regenerate with
 Used directly by the coplanar composite dimension regressions in `tests/pmi_dimensions.rs`;
 retains the source's datum composite, non-face datum member and semantic face links.
 Graphic presentation is deliberately unread. No Python comparison capture is needed.
+
+The `specify-main-{GRM-02_shaft,angle-bracket,nema-17-bracket,sk08}.step.gz`
+regressions are unmodified STEP files from Specify main d9f895e (2026-10-31,
+quiddity v0.2.8, Solid Edge compatible semantic writer), supplied for cx/pmi-groups.
+They exercise dimension-owned origin UDAs, split datums, coplanar composites,
+and plane/bore witnesses. Compressed with gzip mtime=0; kept outside `step/`
+because they have structural assertions rather than Python reference captures.

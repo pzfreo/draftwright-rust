@@ -655,9 +655,8 @@ pub(super) fn lower(cx: &Context, wants: &mut [Want]) -> Lowered {
         for (j, r) in records.iter().enumerate() {
             if let Outcome::Standalone(own) = &outcomes[j]
                 && crate::pmi::specify_general(report, r)
-                // A composite's explicitly proven view and patch attachments are part of
-                // its meaning. A span-only engine match would discard those witnesses;
-                // retain PMI ownership so the automatic same-span item yields to it.
+                && !crate::pmi::datum_referenced(r)
+                // Preserve the composite's explicit patch witnesses (cx/pmi-groups).
                 && !(r.face_groups.iter().any(|group| group.len() > 1)
                     && r.geometry.as_ref().is_some_and(|g| !g.sites.is_empty()))
             {
