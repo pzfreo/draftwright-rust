@@ -1658,7 +1658,7 @@ mod tests {
             fit: None,
         };
         shaft.print(&mut w).unwrap();
-        assert_eq!(w.terms, ["2×", "⌀35", "-0.009 -0.025", "THRU"]);
+        assert_eq!(w.terms, ["2×", "⌀35", "-0.009/-0.025", "THRU"]);
     }
 
     #[test]

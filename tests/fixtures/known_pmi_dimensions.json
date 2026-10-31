@@ -11,11 +11,11 @@
    "outcome": "refused"
   },
   "rust": {
-   "detail": "⌀6 0 -0.008",
+   "detail": "⌀6 0/-0.008",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright does not draw it (pmi_not_rendered: AP242 source dimension:0:1:4:1 reached typed drafting IR but produced no annotation). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '⌀6 0 -0.008'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+  "evidence": "draftwright does not draw it (pmi_not_rendered: AP242 source dimension:0:1:4:1 reached typed drafting IR but produced no annotation). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '⌀6 0 -0.008'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Since haecceity v0.2.7 the port writes single-line deviations as +u/l (ISO 129-1:2004 §6.2), haecceity's shared notation (#258)."
  },
  {
   "file": "bracket_positions.step",
@@ -88,11 +88,11 @@
    "outcome": "refused"
   },
   "rust": {
-   "detail": "⌀10 -0.013 -0.028",
+   "detail": "⌀10 -0.013/-0.028",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "The same instance, statement and cause as thumbwheel_thread_knurl.step's entry for dimension:0:1:4:1 (this file is haecceity's U10 add onto specify-core's thumbwheel_thread_knurl file, which keeps the instance): draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø10 - ø0.028' is not drawn because its source data is unresolved: cylindrical reference diameter(s) 10 mm differ from nominal 5.014 mm; pmi_not_extracted: AP242 dimension dimension:0:1:4:1 was discovered but not extracted: cylindrical reference diameter(s) 10 mm differ from nominal 5.014 mm). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '⌀10 -0.013 -0.028'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here."
+  "evidence": "The same instance, statement and cause as thumbwheel_thread_knurl.step's entry for dimension:0:1:4:1 (this file is haecceity's U10 add onto specify-core's thumbwheel_thread_knurl file, which keeps the instance): draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø10 - ø0.028' is not drawn because its source data is unresolved: cylindrical reference diameter(s) 10 mm differ from nominal 5.014 mm; pmi_not_extracted: AP242 dimension dimension:0:1:4:1 was discovered but not extracted: cylindrical reference diameter(s) 10 mm differ from nominal 5.014 mm). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '⌀10 -0.013 -0.028'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Since haecceity v0.2.7 the port writes single-line deviations as +u/l (ISO 129-1:2004 §6.2), haecceity's shared notation (#258)."
  },
  {
   "file": "hw_thumbwheel_thread_knurl_intent.step",
@@ -642,11 +642,11 @@
    "outcome": "dropped"
   },
   "rust": {
-   "detail": "3× ⌀6.35 +0.0762 0 THRU",
+   "detail": "3× ⌀6.35 +0.0762/0 THRU",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright found no room and dropped this source requirement (callout_dropped: hole callout ø6.3 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)); the port places it with the other planned dimensions, any collision reported against its ID. haecceity now models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17), so the reading no longer refuses it; its faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record: draftwright's XCAF support names one member, NIST's expected PMI states the pattern count). Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18). The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+  "evidence": "draftwright found no room and dropped this source requirement (callout_dropped: hole callout ø6.3 dropped from the front view (front strip full); plan_incomplete: the automatically planned sheet drops 54 required annotation outcome(s) (callout_dropped, circular_channel_dropped, circular_channel_location_dropped, hole_pattern_dim_dropped, off_axis_location_dropped, pmi_dropped, slot_dim_dropped)); the port places it with the other planned dimensions, any collision reported against its ID. haecceity now models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17), so the reading no longer refuses it; its faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record: draftwright's XCAF support names one member, NIST's expected PMI states the pattern count). Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18). The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Since haecceity v0.2.7 the port writes single-line deviations as +u/l (ISO 129-1:2004 §6.2), haecceity's shared notation (#258)."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
@@ -654,9 +654,9 @@
   "port": "dimension:#9889",
   "field": "label",
   "python": "⌀6.3 +0.0762 -0.0 THRU",
-  "rust": "3× ⌀6.35 +0.0762 0 THRU",
+  "rust": "3× ⌀6.35 +0.0762/0 THRU",
   "verdict": "rust-correct",
-  "evidence": "Both give the AP242 tolerance to the hole callout; haecceity now models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17), so the reading no longer refuses it; its faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record: draftwright's XCAF support names one member, NIST's expected PMI states the pattern count), and the port's callout counts the holes the requirement applies to, draftwright's names one. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18). The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+  "evidence": "Both give the AP242 tolerance to the hole callout; haecceity now models the hole occurrence's feature definition (basic_round_hole, quiddity-rust 694dc17), so the reading no longer refuses it; its faces are the whole pattern (known_pmi.json's rust-correct faces difference for this record: draftwright's XCAF support names one member, NIST's expected PMI states the pattern count), and the port's callout counts the holes the requirement applies to, draftwright's names one. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18). The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Since haecceity v0.2.7 the port writes single-line deviations as +u/l (ISO 129-1:2004 §6.2), haecceity's shared notation (#258)."
  },
  {
   "file": "nist_stc_09_asme1_ap242-e4.stp",
@@ -687,11 +687,11 @@
    "outcome": "refused"
   },
   "rust": {
-   "detail": "2× ⌀130 -0.014 -0.039",
+   "detail": "2× ⌀130 -0.014/-0.039",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø130 - ø0.039' is not drawn because its source data is unresolved: cylindrical reference diameter(s) 130 mm differ from nominal 65.0195 mm; pmi_not_extracted: AP242 dimension dimension:0:1:4:3 was discovered but not extracted: cylindrical reference diameter(s) 130 mm differ from nominal 65.0195 mm). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '2× ⌀130 -0.014 -0.039'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here."
+  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø130 - ø0.039' is not drawn because its source data is unresolved: cylindrical reference diameter(s) 130 mm differ from nominal 65.0195 mm; pmi_not_extracted: AP242 dimension dimension:0:1:4:3 was discovered but not extracted: cylindrical reference diameter(s) 130 mm differ from nominal 65.0195 mm). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '2× ⌀130 -0.014 -0.039'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Since haecceity v0.2.7 the port writes single-line deviations as +u/l (ISO 129-1:2004 §6.2), haecceity's shared notation (#258)."
  },
  {
   "file": "spool_fits.step",
@@ -706,11 +706,11 @@
    "outcome": "refused"
   },
   "rust": {
-   "detail": "2× ⌀130 -0.014 -0.039",
+   "detail": "2× ⌀130 -0.014/-0.039",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø130 - ø0.039' is not drawn because its source data is unresolved: cylindrical reference diameter(s) 130 mm differ from nominal 65.0195 mm; pmi_not_extracted: AP242 dimension dimension:0:1:4:4 was discovered but not extracted: cylindrical reference diameter(s) 130 mm differ from nominal 65.0195 mm). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '2× ⌀130 -0.014 -0.039'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here."
+  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø130 - ø0.039' is not drawn because its source data is unresolved: cylindrical reference diameter(s) 130 mm differ from nominal 65.0195 mm; pmi_not_extracted: AP242 dimension dimension:0:1:4:4 was discovered but not extracted: cylindrical reference diameter(s) 130 mm differ from nominal 65.0195 mm). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '2× ⌀130 -0.014 -0.039'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Since haecceity v0.2.7 the port writes single-line deviations as +u/l (ISO 129-1:2004 §6.2), haecceity's shared notation (#258)."
  },
  {
   "file": "spool_fits.step",
@@ -725,11 +725,11 @@
    "outcome": "refused"
   },
   "rust": {
-   "detail": "⌀70 -0.03 -0.06 OD",
+   "detail": "⌀70 -0.03/-0.06 OD",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø70 - ø0.06' is not drawn because its source data is unresolved: cylindrical reference diameter(s) 70 mm differ from nominal 35.03 mm; pmi_not_extracted: AP242 dimension dimension:0:1:4:5 was discovered but not extracted: cylindrical reference diameter(s) 70 mm differ from nominal 35.03 mm). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '⌀70 -0.03 -0.06 OD'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here."
+  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø70 - ø0.06' is not drawn because its source data is unresolved: cylindrical reference diameter(s) 70 mm differ from nominal 35.03 mm; pmi_not_extracted: AP242 dimension dimension:0:1:4:5 was discovered but not extracted: cylindrical reference diameter(s) 70 mm differ from nominal 35.03 mm). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '⌀70 -0.03 -0.06 OD'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Since haecceity v0.2.7 the port writes single-line deviations as +u/l (ISO 129-1:2004 §6.2), haecceity's shared notation (#258)."
  },
  {
   "file": "thumbwheel_thread_knurl.step",
@@ -744,11 +744,11 @@
    "outcome": "refused"
   },
   "rust": {
-   "detail": "⌀10 -0.013 -0.028",
+   "detail": "⌀10 -0.013/-0.028",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø10 - ø0.028' is not drawn because its source data is unresolved: cylindrical reference diameter(s) 10 mm differ from nominal 5.014 mm; pmi_not_extracted: AP242 dimension dimension:0:1:4:1 was discovered but not extracted: cylindrical reference diameter(s) 10 mm differ from nominal 5.014 mm). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '⌀10 -0.013 -0.028'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here."
+  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø10 - ø0.028' is not drawn because its source data is unresolved: cylindrical reference diameter(s) 10 mm differ from nominal 5.014 mm; pmi_not_extracted: AP242 dimension dimension:0:1:4:1 was discovered but not extracted: cylindrical reference diameter(s) 10 mm differ from nominal 5.014 mm). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '⌀10 -0.013 -0.028'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Since haecceity v0.2.7 the port writes single-line deviations as +u/l (ISO 129-1:2004 §6.2), haecceity's shared notation (#258)."
  },
  {
   "file": "hw_string_post_tapped_intent.step",
@@ -1006,9 +1006,9 @@
   "port": "dimension:#1330",
   "python": "6× ⌀6.6 +0.09 -0.0 THRU (2×3)",
   "record": "dimension:0:1:4:3",
-  "rust": "6× ⌀6.6 +0.09 0 THRU",
+  "rust": "6× ⌀6.6 +0.09/0 THRU",
   "verdict": "equivalent",
-  "evidence": "Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+  "evidence": "Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Since haecceity v0.2.7 the port writes single-line deviations as +u/l (ISO 129-1:2004 §6.2), haecceity's shared notation (#258)."
  },
  {
   "field": "label",
@@ -1016,9 +1016,9 @@
   "port": "dimension:#15130",
   "python": "4× ⌀6.3 +0.0762 -0.0 ↧ 7.6",
   "record": "dimension:0:1:4:85",
-  "rust": "4× ⌀6.35 +0.0762 0 ↧ 7.62",
+  "rust": "4× ⌀6.35 +0.0762/0 ↧ 7.62",
   "verdict": "equivalent",
-  "evidence": "Both give the AP242 tolerance to the same four-hole callout; the port recognises the holes as a 2×2 grid and names the arrangement '(2×2)', draftwright calls them out as a plain count group. The tolerance text agrees. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18). The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+  "evidence": "Both give the AP242 tolerance to the same four-hole callout; the port recognises the holes as a 2×2 grid and names the arrangement '(2×2)', draftwright calls them out as a plain count group. The tolerance text agrees. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18). The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Since haecceity v0.2.7 the port writes single-line deviations as +u/l (ISO 129-1:2004 §6.2), haecceity's shared notation (#258)."
  },
  {
   "field": "label",
@@ -1026,9 +1026,9 @@
   "port": "dimension:#15238",
   "python": "4× ⌀6.3 +0.0762 -0.0 ↧ 7.6",
   "record": "dimension:0:1:4:87",
-  "rust": "4× ⌀6.35 +0.0762 0 ↧ 7.62",
+  "rust": "4× ⌀6.35 +0.0762/0 ↧ 7.62",
   "verdict": "equivalent",
-  "evidence": "Both give the AP242 tolerance to the same four-hole callout; the port recognises the holes as a 2×2 grid and names the arrangement '(2×2)', draftwright calls them out as a plain count group. The tolerance text agrees. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18). The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+  "evidence": "Both give the AP242 tolerance to the same four-hole callout; the port recognises the holes as a 2×2 grid and names the arrangement '(2×2)', draftwright calls them out as a plain count group. The tolerance text agrees. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18). The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Since haecceity v0.2.7 the port writes single-line deviations as +u/l (ISO 129-1:2004 §6.2), haecceity's shared notation (#258)."
  },
  {
   "field": "label",
@@ -1036,9 +1036,9 @@
   "port": "dimension:#15344",
   "python": "4× ⌀6.3 +0.0762 -0.0 ↧ 7.6",
   "record": "dimension:0:1:4:89",
-  "rust": "4× ⌀6.35 +0.0762 0 ↧ 7.62",
+  "rust": "4× ⌀6.35 +0.0762/0 ↧ 7.62",
   "verdict": "equivalent",
-  "evidence": "Both give the AP242 tolerance to the same four-hole callout; the port recognises the holes as a 2×2 grid and names the arrangement '(2×2)', draftwright calls them out as a plain count group. The tolerance text agrees. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18). The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+  "evidence": "Both give the AP242 tolerance to the same four-hole callout; the port recognises the holes as a 2×2 grid and names the arrangement '(2×2)', draftwright calls them out as a plain count group. The tolerance text agrees. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18). The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Since haecceity v0.2.7 the port writes single-line deviations as +u/l (ISO 129-1:2004 §6.2), haecceity's shared notation (#258)."
  },
  {
   "field": "label",
@@ -1046,9 +1046,9 @@
   "port": "dimension:#15389",
   "python": "4× ⌀6.3 +0.0762 -0.0254 ↧ 7.6 (2×2)",
   "record": "dimension:0:1:4:90",
-  "rust": "4× ⌀6.35 +0.0762 -0.0254\n↧ 7.62",
+  "rust": "4× ⌀6.35 +0.0762/-0.0254\n↧ 7.62",
   "verdict": "rust-correct",
-  "evidence": "Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
+  "evidence": "Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18). Since haecceity v0.2.7 the port writes single-line deviations as +u/l (ISO 129-1:2004 §6.2), haecceity's shared notation (#258)."
  },
  {
   "field": "outcome",
@@ -1062,11 +1062,11 @@
   },
   "record": "dimension:0:1:4:96",
   "rust": {
-   "detail": "4× ⌀15.082 +0.3048 -0.0508\nTHRU",
+   "detail": "4× ⌀15.082\n+0.3048/-0.0508 THRU",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.594 +0.012/-0.002 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀15.1 +0.3048 -0.0508 THRU'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
+  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.594 +0.012/-0.002 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀15.1 +0.3048 -0.0508 THRU'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18). Since haecceity v0.2.7 the port writes single-line deviations as +u/l (ISO 129-1:2004 §6.2), haecceity's shared notation (#258)."
  },
  {
   "field": "outcome",
@@ -1080,11 +1080,11 @@
   },
   "record": "dimension:0:1:4:97",
   "rust": {
-   "detail": "4× ⌀7.137 +0.1524 -0.0254\nTHRU ⌴ ⌀11.11 ↧ 7.62",
+   "detail": "4× ⌀7.137 +0.1524/-0.0254\nTHRU ⌴ ⌀11.11 ↧ 7.62",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.281 +0.006/-0.001 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀7.1 +0.1524 -0.0254 THRU ⌴ ⌀11.1 ↧ 7.6 (2×2)'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
+  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.281 +0.006/-0.001 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀7.1 +0.1524 -0.0254 THRU ⌴ ⌀11.1 ↧ 7.6 (2×2)'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18). Since haecceity v0.2.7 the port writes single-line deviations as +u/l (ISO 129-1:2004 §6.2), haecceity's shared notation (#258)."
  },
  {
   "field": "outcome",
@@ -1098,11 +1098,11 @@
   },
   "record": "dimension:0:1:4:100",
   "rust": {
-   "detail": "4× ⌀15.082 +0.3048 -0.0508\nTHRU",
+   "detail": "4× ⌀15.082\n+0.3048/-0.0508 THRU",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.594 +0.012/-0.002 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀15.1 +0.3048 -0.0508 THRU'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18)."
+  "evidence": "draftwright does not draw it (authored_dim_source_unresolved: authored dimension 'ø0.594 +0.012/-0.002 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references multiple distinct cylinder axis lines; no single truthful leader target exists). The port's reading proves its cylinders (stage 1 reads the limits draftwright misreads, or the cylinders are exact) and matches them to a recognised feature's diameter (same axis line, diameter and extent), which states it with its band: '4× ⌀15.1 +0.3048 -0.0508 THRU'. Python's own rule (lower_ap242_hole_tolerances / lower_ap242_external_diameter_tolerances) gives such a requirement to that owner; its correlation failed here. Nominal label updated to shortest faithful decimals up to three places; tolerance and absorption semantics unchanged (drawn-values-2026-10-18). Since haecceity v0.2.7 the port writes single-line deviations as +u/l (ISO 129-1:2004 §6.2), haecceity's shared notation (#258)."
  },
  {
   "field": "outcome",
@@ -1421,11 +1421,11 @@
   },
   "record": "dimension:0:1:4:1",
   "rust": {
-   "detail": "⌀62 +0.03 0 THRU ⌴ ⌀70\n↧ 10",
+   "detail": "⌀62 +0.03/0 THRU ⌴ ⌀70\n↧ 10",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright found no owner and drew it standalone ('⌀62 +0.03/0') beside the callout that already states that hole's size. The port's cylinders match the callout's holes (axis lines, axis, diameter), so by draftwright's rule the callout takes the band and states the size once: '⌀62 +0.03 0 THRU ⌴ ⌀70 ↧ 10'. Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+  "evidence": "draftwright found no owner and drew it standalone ('⌀62 +0.03/0') beside the callout that already states that hole's size. The port's cylinders match the callout's holes (axis lines, axis, diameter), so by draftwright's rule the callout takes the band and states the size once: '⌀62 +0.03 0 THRU ⌴ ⌀70 ↧ 10'. Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Since haecceity v0.2.7 the port writes single-line deviations as +u/l (ISO 129-1:2004 §6.2), haecceity's shared notation (#258)."
  },
  {
   "field": "label",
@@ -1433,9 +1433,9 @@
   "port": "dimension:#6360",
   "python": "6× ⌀10 +0.09 -0.0 THRU EQ SP ON ⌀90 BC",
   "record": "dimension:0:1:4:2",
-  "rust": "6× ⌀10 +0.09 0 THRU EQ SP\nON ⌀90 BC",
+  "rust": "6× ⌀10 +0.09/0 THRU EQ SP\nON ⌀90 BC",
   "verdict": "equivalent",
-  "evidence": "Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+  "evidence": "Callout presentation now wraps at 48 mm and uses compact thread identities and source-bound manufacturing notes; source values and claims remain checked. See docs/thread-callouts.md. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Since haecceity v0.2.7 the port writes single-line deviations as +u/l (ISO 129-1:2004 §6.2), haecceity's shared notation (#258)."
  },
  {
   "field": "label",
@@ -1509,9 +1509,9 @@
   "port": "dimension:#3103",
   "python": "⌀1.7 +0.06 -0.0 ↧ 5.4",
   "record": "dimension:0:1:4:2",
-  "rust": "⌀1.7 +0.06 0 ↧ 5.4",
+  "rust": "⌀1.7 +0.06/0 ↧ 5.4",
   "verdict": "rust-correct",
-  "evidence": "draftwright states '⌀1.7 +0.06 -0.0 ↧ 5.4'; the port states '⌀1.7 +0.06 0 ↧ 5.4'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+  "evidence": "draftwright states '⌀1.7 +0.06 -0.0 ↧ 5.4'; the port states '⌀1.7 +0.06 0 ↧ 5.4'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Since haecceity v0.2.7 the port writes single-line deviations as +u/l (ISO 129-1:2004 §6.2), haecceity's shared notation (#258)."
  },
  {
   "field": "label",
@@ -1519,9 +1519,9 @@
   "port": "dimension:#120",
   "python": "⌀35 +0.0 -0.2 THRU",
   "record": "dimension:0:1:4:21",
-  "rust": "⌀35 0 -0.2 THRU",
+  "rust": "⌀35 0/-0.2 THRU",
   "verdict": "rust-correct",
-  "evidence": "draftwright states '⌀35 +0.0 -0.2 THRU'; the port states '⌀35 0 -0.2 THRU'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+  "evidence": "draftwright states '⌀35 +0.0 -0.2 THRU'; the port states '⌀35 0 -0.2 THRU'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Since haecceity v0.2.7 the port writes single-line deviations as +u/l (ISO 129-1:2004 §6.2), haecceity's shared notation (#258)."
  },
  {
   "field": "label",
@@ -1529,9 +1529,9 @@
   "port": "dimension:#121",
   "python": "⌀35 +0.2 -0.0 THRU",
   "record": "dimension:0:1:4:22",
-  "rust": "⌀35 +0.2 0 THRU",
+  "rust": "⌀35 +0.2/0 THRU",
   "verdict": "rust-correct",
-  "evidence": "draftwright states '⌀35 +0.2 -0.0 THRU'; the port states '⌀35 +0.2 0 THRU'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+  "evidence": "draftwright states '⌀35 +0.2 -0.0 THRU'; the port states '⌀35 +0.2 0 THRU'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Since haecceity v0.2.7 the port writes single-line deviations as +u/l (ISO 129-1:2004 §6.2), haecceity's shared notation (#258)."
  },
  {
   "field": "label",
@@ -1549,9 +1549,9 @@
   "port": "dimension:#120",
   "python": "⌀35 +0.0 -0.2 THRU",
   "record": "dimension:0:1:4:21",
-  "rust": "⌀35 0 -0.2 THRU",
+  "rust": "⌀35 0/-0.2 THRU",
   "verdict": "rust-correct",
-  "evidence": "draftwright states '⌀35 +0.0 -0.2 THRU'; the port states '⌀35 0 -0.2 THRU'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+  "evidence": "draftwright states '⌀35 +0.0 -0.2 THRU'; the port states '⌀35 0 -0.2 THRU'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Since haecceity v0.2.7 the port writes single-line deviations as +u/l (ISO 129-1:2004 §6.2), haecceity's shared notation (#258)."
  },
  {
   "field": "label",
@@ -1559,9 +1559,9 @@
   "port": "dimension:#121",
   "python": "⌀35 +0.2 -0.0 THRU",
   "record": "dimension:0:1:4:22",
-  "rust": "⌀35 +0.2 0 THRU",
+  "rust": "⌀35 +0.2/0 THRU",
   "verdict": "rust-correct",
-  "evidence": "draftwright states '⌀35 +0.2 -0.0 THRU'; the port states '⌀35 +0.2 0 THRU'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+  "evidence": "draftwright states '⌀35 +0.2 -0.0 THRU'; the port states '⌀35 +0.2 0 THRU'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Since haecceity v0.2.7 the port writes single-line deviations as +u/l (ISO 129-1:2004 §6.2), haecceity's shared notation (#258)."
  },
  {
   "field": "label",
@@ -1582,6 +1582,46 @@
   "rust": "8× ⌀2.5 ±0.15 THRU",
   "verdict": "rust-correct",
   "evidence": "draftwright prints the grid's arrangement after its callout; ISO 129 has no notation for it and the grid's pitches already show it, so the port prints none (#225). Size, tolerance and count are the same."
+ },
+ {
+  "file": "nist_ctc_01_asme1_ap242-e1.stp",
+  "record": "dimension:0:1:4:23",
+  "port": "dimension:#122",
+  "field": "label",
+  "python": "⌀20 +0.05 -0.1 ↧ 45",
+  "rust": "⌀20 +0.05/-0.1 ↧ 45",
+  "verdict": "equivalent",
+  "evidence": "The same deviations; the port writes them as +u/l on one line, draftwright as +u -l. Since haecceity v0.2.7 the port writes single-line deviations as +u/l (ISO 129-1:2004 §6.2), haecceity's shared notation (#258)."
+ },
+ {
+  "file": "nist_ctc_01_asme1_ap242-e1.stp",
+  "record": "dimension:0:1:4:24",
+  "port": "dimension:#123",
+  "field": "label",
+  "python": "⌀20 +0.1 -0.05 ↧ 45",
+  "rust": "⌀20 +0.1/-0.05 ↧ 45",
+  "verdict": "equivalent",
+  "evidence": "The same deviations; the port writes them as +u/l on one line, draftwright as +u -l. Since haecceity v0.2.7 the port writes single-line deviations as +u/l (ISO 129-1:2004 §6.2), haecceity's shared notation (#258)."
+ },
+ {
+  "file": "nist_ctc_01_merge.step",
+  "record": "dimension:0:1:4:23",
+  "port": "dimension:#122",
+  "field": "label",
+  "python": "⌀20 +0.05 -0.1 ↧ 45",
+  "rust": "⌀20 +0.05/-0.1 ↧ 45",
+  "verdict": "equivalent",
+  "evidence": "The same deviations; the port writes them as +u/l on one line, draftwright as +u -l. Since haecceity v0.2.7 the port writes single-line deviations as +u/l (ISO 129-1:2004 §6.2), haecceity's shared notation (#258)."
+ },
+ {
+  "file": "nist_ctc_01_merge.step",
+  "record": "dimension:0:1:4:24",
+  "port": "dimension:#123",
+  "field": "label",
+  "python": "⌀20 +0.1 -0.05 ↧ 45",
+  "rust": "⌀20 +0.1/-0.05 ↧ 45",
+  "verdict": "equivalent",
+  "evidence": "The same deviations; the port writes them as +u/l on one line, draftwright as +u -l. Since haecceity v0.2.7 the port writes single-line deviations as +u/l (ISO 129-1:2004 §6.2), haecceity's shared notation (#258)."
  },
  {
   "file": "nist_ftc_10_asme1_ap242-e2.stp",
@@ -1671,7 +1711,7 @@
   },
   "record": "dimension:0:1:4:95",
   "rust": {
-   "detail": "4× ⌀4.394 +0.127 -0.0254\nTHRU",
+   "detail": "4× ⌀4.394 +0.127/-0.0254\nTHRU",
    "outcome": "absorbed"
   },
   "verdict": "rust-correct",

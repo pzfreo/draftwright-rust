@@ -673,14 +673,15 @@ mod tests {
     }
 
     #[test]
-    fn imported_bands_print_as_draftwright_prints_them() {
+    fn imported_bands_print_as_haecceity_states_them() {
+        // One line, upper/lower (ISO 129-1:2004 §6.2), as haecceity v0.2.7 writes them.
         assert_eq!(band(0.2, -0.2), "±0.2");
-        assert_eq!(band(0.09, 0.0), "+0.09 0");
-        assert_eq!(band(0.0, -0.2), "0 -0.2");
-        assert_eq!(band(0.0762, -0.0254), "+0.0762 -0.0254");
+        assert_eq!(band(0.09, 0.0), "+0.09/0");
+        assert_eq!(band(0.0, -0.2), "0/-0.2");
+        assert_eq!(band(0.0762, -0.0254), "+0.0762/-0.0254");
         assert_eq!(band(1.0, -1.0), "±1.0");
-        assert_eq!(band(-0.014, -0.039), "-0.014 -0.039");
-        assert_eq!(band(0.039, 0.014), "+0.039 +0.014");
+        assert_eq!(band(-0.014, -0.039), "-0.014/-0.039");
+        assert_eq!(band(0.039, 0.014), "+0.039/+0.014");
     }
 
     #[test]

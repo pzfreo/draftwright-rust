@@ -904,7 +904,37 @@ fn ctc_axis_repairs_preserve_stc09s_own_hole_attachment() {
     let g = p.gdt.iter().find(|g| g.id == ID).unwrap();
     let placed = g.placed.as_ref().unwrap();
     let v = p.views.iter().find(|v| v.id == g.view).unwrap();
-    assert!(!placed.lines.is_empty());
+    assert!(
+        !p.problems
+            .iter()
+            .any(|p| p.code == "annotation_ink_overlap" && p.subjects.contains(&ID.to_owned()))
+    );
+    // Over its two holes' own size callout (`2× ⌀5.613`), left-aligned with it and without a
+    // leader, once that callout has room (since haecceity v0.2.7's one-line deviations); else
+    // on a leader to one of its own holes' rims.
+    if placed.lines.is_empty() {
+        let callout = p
+            .dimensions
+            .iter()
+            .find(|d| d.id == "d:f:hole:21/bore.diameter")
+            .unwrap();
+        let holes: Vec<&str> = callout
+            .measurements
+            .iter()
+            .filter(|m| m.parameter == "bore.diameter")
+            .map(|m| m.feature.as_str())
+            .collect();
+        assert_eq!(holes, ["f:hole:21", "f:hole:22"]);
+        let b = callout.placed.as_ref().unwrap().label_box;
+        assert_eq!(placed.label_box[0], b[0]);
+        assert!(placed.label_box[1] >= b[3] && placed.label_box[1] - b[3] < 1.0);
+        assert!(
+            g.basis.contains("over the holes' size callout"),
+            "{}",
+            g.basis
+        );
+        return;
+    }
     let on_own_rim = g.faces.iter().any(|&fi| {
         let f = &a.face_attachments[fi];
         let k = f.axis.unwrap();
@@ -921,11 +951,6 @@ fn ctc_axis_repairs_preserve_stc09s_own_hole_attachment() {
     assert!(
         on_own_rim,
         "the frame must identify one of its own two holes"
-    );
-    assert!(
-        !p.problems
-            .iter()
-            .any(|p| p.code == "annotation_ink_overlap" && p.subjects.contains(&ID.to_owned()))
     );
 }
 
