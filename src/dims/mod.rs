@@ -1810,13 +1810,17 @@ fn lanes_uncached(
         holes::consolidate(analysis, &mut kept, &mut given, &mut omitted);
         plates::share(analysis, &mut kept, &mut given, &mut omitted);
         share_statements(&mut kept, &mut given, &mut omitted, true);
+        let before_pmi = omitted.len();
         share_pmi(analysis, &mut kept, &mut given, &mut omitted);
+        let pmi_covered: BTreeSet<String> =
+            omitted[before_pmi..].iter().map(|o| o.id.clone()).collect();
         let references =
             redundancy::consolidate(analysis, spec, &mut kept, &mut given, &mut omitted);
-        // Auxiliary dimensions omitted by the sheet policy reserve no independent rung.
-        // Use the normal covered-owner lane sharing, without changing other reservations.
+        // Auxiliary dimensions omitted by the sheet policy reserve no independent rung, nor do
+        // spans the part's PMI states (as when they are placed). Use the normal covered-owner lane
+        // sharing, without changing other reservations.
         for o in &omitted {
-            if references.contains_key(&o.id)
+            if (references.contains_key(&o.id) || pmi_covered.contains(&o.id))
                 && let State::Covered { by } = &o.state
                 && let (Some(i), Some(j)) = (
                     wants.iter().position(|w| w.id == o.id),
@@ -2951,7 +2955,7 @@ fn plan_inventory_ordered(
     });
     // The spec chooses what is drawn, and states the tolerances and fits on the kept labels.
     let all = wants.clone();
-    let owner = placement::owners(analysis, spec, &all, &chosen);
+    let mut owner = placement::owners(analysis, spec, &all, &chosen);
     let mut omitted: Vec<_> = retired
         .into_iter()
         .map(|w| Omitted {
@@ -3084,7 +3088,24 @@ fn plan_inventory_ordered(
     recesses::consolidate(&mut kept, &mut given, &mut omitted);
     plates::share(analysis, &mut kept, &mut given, &mut omitted);
     share_statements(&mut kept, &mut given, &mut omitted, true);
+    let before_pmi = omitted.len();
     share_pmi(analysis, &mut kept, &mut given, &mut omitted);
+    // A span the part's PMI states (again, or for a recognised feature's dimension) is one
+    // dimension: the item it conveys is not drawn, so it takes its survivor's lane rather than
+    // leaving an empty rung in the ladder.
+    let index: BTreeMap<&str, usize> = all
+        .iter()
+        .enumerate()
+        .map(|(i, w)| (w.id.as_str(), i))
+        .collect();
+    for o in &omitted[before_pmi..] {
+        if let State::Covered { by } = &o.state
+            && let (Some(&i), Some(&j)) = (index.get(o.id.as_str()), index.get(by.as_str()))
+            && owner[i].is_none()
+        {
+            owner[i] = Some(owner[j].unwrap_or(j));
+        }
+    }
     let references = redundancy::consolidate(analysis, spec, &mut kept, &mut given, &mut omitted);
     problems.extend(pmi_dimensions::omitted(analysis, &all, &kept, &omitted));
 

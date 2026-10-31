@@ -200,7 +200,10 @@ fn numbered_pmi_round_trips_to_items_and_clear_rings() {
         let p = model::plan_recovered(&a, &on()).unwrap();
         // Main's #254 fixtures, with the same UDA edits and balloons enabled.
         let (paper, scale, crossings, extensions) = match name {
-            "tests/fixtures/parts/editor_pmi.step" => ("A3", "1:1", 1, 1),
+            // Drawn at 2:1 now that covered PMI spans leave no empty rungs (main: 1:1, one
+            // leader crossing and one extension crossing). The two numbers whose carriers stand
+            // deep inside the plan view take rings just outside it.
+            "tests/fixtures/parts/editor_pmi.step" => ("A3", "2:1", 0, 0),
             "tests/fixtures/pmi/step/GRM-03_thumbwheel_drive_screw_AP242_PMI.step.gz" => {
                 ("A4", "2:1", 0, 0)
             }
@@ -438,12 +441,17 @@ fn grouped_occurrences_and_relative_pins_keep_the_files_numbers() {
         },
     );
     let q = model::plan_recovered(&a, &s).unwrap();
-    assert_eq!(
-        q.inspection_balloons
-            .iter()
-            .find(|c| c.source == b.source)
-            .unwrap()
-            .at,
+    // The ring is placed again from its offset to the carrier's centre: a ring far from its
+    // carrier (one outside the view its carrier stands deep in) round-trips to within rounding.
+    let again = q
+        .inspection_balloons
+        .iter()
+        .find(|c| c.source == b.source)
+        .unwrap()
+        .at;
+    assert!(
+        (again[0] - b.at[0]).abs() < 1e-9 && (again[1] - b.at[1]).abs() < 1e-9,
+        "{again:?} {:?}",
         b.at
     );
     s.balloons.items.get_mut(&b.source).unwrap().position = Some([0., 0.]);
@@ -535,16 +543,18 @@ fn specify_plate_draws_every_number_on_its_requirement() {
         2
     );
     // Main's inspection-sheet baseline: rings and newly read shared threads must
-    // not cost paper or exchange the established hole schedule for long leaders.
+    // not cost paper or exchange the established hole schedule for long leaders. With covered
+    // PMI spans no longer leaving empty rungs, the plate is drawn full size on the same paper,
+    // its 2× position frame's leader crossing the ladder above the plan view once more.
     assert_eq!(p.sheet.size, "A3");
-    assert_eq!(p.sheet.scale, "1:2");
+    assert_eq!(p.sheet.scale, "1:1");
     assert!(
         !p.problems
             .iter()
             .any(|p| p.code == "sheet_preference_exceeded")
     );
     for (code, maximum) in [
-        ("annotation_leader_crossing", 1),
+        ("annotation_leader_crossing", 2),
         ("extension_through_feature", 8),
     ] {
         assert!(

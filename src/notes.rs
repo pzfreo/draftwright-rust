@@ -97,6 +97,34 @@ pub(crate) fn reconcile(
         .iter()
         .filter(|r| r.kind == "document_note")
         .collect();
+    let normalized = |text: &str| {
+        text.split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ")
+            .to_lowercase()
+    };
+    // An assembly drawn whole carries each part's notes. A note the parts state alike is stated
+    // once; one that only some of them state names them, so the reader knows which part it is for.
+    let part_of = |r: &crate::pmi_lowering::SheetRequirement| match &analysis.pmi {
+        Some(crate::pmi::Reading::Read(report)) => report
+            .records
+            .iter()
+            .find(|record| record.source_id == r.source)
+            .map(|record| record.part),
+        _ => None,
+    };
+    let drawn: Vec<_> = model_notes.iter().filter(|r| !omitted(&r.id)).collect();
+    let noting: std::collections::BTreeSet<usize> =
+        drawn.iter().filter_map(|r| part_of(r)).collect();
+    let part_name = |k: usize| {
+        analysis
+            .parts
+            .iter()
+            .find(|p| p.part == k)
+            .map(|p| p.name.trim().to_uppercase())
+            .filter(|n| !n.is_empty())
+            .unwrap_or_else(|| k.to_string())
+    };
     for r in &model_notes {
         if omitted(&r.id) {
             inactive.push(undrawn(
@@ -106,19 +134,47 @@ pub(crate) fn reconcile(
                 State::OmittedByUser,
                 false,
             ));
-        } else {
-            active.push(NoteSpec {
-                id: r.id.clone(),
-                text: r.value.clone(),
-            });
+            continue;
         }
+        let alike: Vec<_> = drawn
+            .iter()
+            .filter(|d| normalized(&d.value) == normalized(&r.value))
+            .collect();
+        // Invariant: r is drawn, so it is among the notes alike to it.
+        let first = alike[0];
+        if first.id != r.id {
+            inactive.push(undrawn(
+                &r.id,
+                &r.value,
+                format!(
+                    "{}; stated once: general note {} states the same text",
+                    r.basis, first.id
+                ),
+                State::Covered {
+                    by: first.id.clone(),
+                },
+                true,
+            ));
+            continue;
+        }
+        let parts: std::collections::BTreeSet<usize> =
+            alike.iter().filter_map(|d| part_of(d)).collect();
+        let text = if noting.len() > 1 && !parts.is_empty() && parts.len() < noting.len() {
+            let names: Vec<_> = parts.iter().map(|&k| part_name(k)).collect();
+            format!(
+                "{} ({} {})",
+                r.value,
+                if names.len() == 1 { "PART" } else { "PARTS" },
+                names.join(", ")
+            )
+        } else {
+            r.value.clone()
+        };
+        active.push(NoteSpec {
+            id: r.id.clone(),
+            text,
+        });
     }
-    let normalized = |text: &str| {
-        text.split_whitespace()
-            .collect::<Vec<_>>()
-            .join(" ")
-            .to_lowercase()
-    };
     if let Some(text) = assembly_note(analysis) {
         if omitted(ASSEMBLY_NOTE) {
             inactive.push(undrawn(
