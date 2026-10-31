@@ -794,7 +794,24 @@ pub(super) fn lanes<'a>(
     }
     let mut lane = vec![0usize; n];
     for ((view, _), list) in &mut strips {
-        list.sort();
+        // Equal independent PMI spans follow their stations, not STEP entity
+        // order. In particular, the upper short span takes the outer lane: its
+        // outside label then leaves the above-view control-frame strip clear.
+        // Preserve category, length and the established automatic-item order.
+        list.sort_by_key(|&(outer, order, length, i)| {
+            let w = items[i].0;
+            let source = w.id.starts_with("d:pmi:");
+            let station = if source
+                && let Shape::Linear { a, b, axis, .. } = w.shape
+                && let Some(horizontal) = across(&frames[view], axis)
+            {
+                let along = usize::from(!horizontal);
+                key(frames[view].page(a)[along].min(frames[view].page(b)[along]))
+            } else {
+                0
+            };
+            (outer, order, length, source, station, i)
+        });
         let links: Vec<_> = list.iter().map(|(_, _, _, i)| items[*i].0).collect();
         for ((_, _, _, i), n) in list.iter().zip(chain_lanes(&frames[view], &links)) {
             lane[*i] = n;
@@ -5418,6 +5435,51 @@ mod tests {
             aligned_strip([22., 30.], [15., 34.], outline, Side::Above),
             Side::Below
         );
+    }
+
+    #[test]
+    fn equal_source_spans_follow_geometry_in_either_entity_order() {
+        let a: Analysis = serde_json::from_value(serde_json::json!({
+            "schema": crate::model::ANALYSIS_SCHEMA,
+            "binding":{"source_sha256":"", "part":"plate", "face_count":0, "loader":"test"},
+            "envelope":[[0,0,0],[100,60,100]], "iso_bounds":[0,0,100,100]
+        }))
+        .unwrap();
+        let frames = BTreeMap::from([(
+            "front",
+            Frame::looking(&a, [0., -1., 0.], [0., 0., 1.], [0., 0.], 1.),
+        )]);
+        let want = |id: &str, lo| Want {
+            id: format!("d:pmi:{id}"),
+            views: vec!["front"],
+            value: 10.,
+            terms: vec!["10".into(), "±0.2".into()],
+            measurements: vec![],
+            basis: String::new(),
+            turning: None,
+            shape: Shape::Linear {
+                a: [50., 0., lo],
+                b: [50., 0., lo + 10.],
+                axis: 2,
+                a_edge: false,
+                b_edge: false,
+                order: 1,
+            },
+        };
+        for items in [
+            [want("upper", 70.), want("lower", 20.)],
+            [want("lower", 20.), want("upper", 70.)],
+        ] {
+            let (_, lanes) = lanes(
+                &a,
+                &frames,
+                items.iter().map(|w| (w, Some("front"))),
+                &[None; 2],
+            );
+            for (w, lane) in items.iter().zip(lanes) {
+                assert_eq!(lane, usize::from(w.id.ends_with("upper")), "{}", w.id);
+            }
+        }
     }
 
     #[test]

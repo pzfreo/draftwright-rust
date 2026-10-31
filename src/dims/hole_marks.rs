@@ -710,7 +710,13 @@ fn leader_candidates(
         old.label_box[3] - old.label_box[1],
     ];
     let mut out = Vec::new();
-    for reach in REACH {
+    let mut reaches: Vec<_> = REACH.into_iter().map(|r| (r, false)).collect();
+    if fine {
+        // Try narrow gaps between coarse samples only after ordinary routes fail.
+        reaches.extend(REACH.windows(2).map(|w| (0.5 * (w[0] + w[1]), true)));
+        reaches.sort_by(|a, b| a.0.total_cmp(&b.0));
+    }
+    for (reach, intermediate) in reaches {
         for rim in &circles {
             let (c, r) = (rim.c, rim.r);
             // Only after the ordinary eight directions fail, try the intermediate rays.
@@ -719,7 +725,7 @@ fn leader_candidates(
             let divisions = if fine { 32 } else { 8 };
             let step = std::f64::consts::FRAC_PI_4 / if fine { 4.0 } else { 1.0 };
             let mut directions: Vec<P2> = (0..divisions)
-                .filter(|i| !fine || i % 4 != 0)
+                .filter(|i| !fine || intermediate || i % 4 != 0)
                 .map(|i| {
                     let a = f64::from(i) * step;
                     [a.cos(), a.sin()]
@@ -767,6 +773,74 @@ fn leader_candidates(
                         && !along_centre(leader, c, r, [elbow, end])
                     {
                         out.push((LEADER, next));
+                    }
+                }
+            }
+        }
+    }
+    if fine {
+        // Radial exit, then a rail around the view's witness/frame corridor.
+        // Existing direct routes remain first and every leg keeps their checks.
+        for reach in [4.0, 8.0, 15.0, 27.0] {
+            for rim in &circles {
+                let (c, r) = (rim.c, rim.r);
+                for i in 0..32 {
+                    let angle = f64::from(i) * std::f64::consts::TAU / 32.0;
+                    let u = [angle.cos(), angle.sin()];
+                    let tip = [c[0] + r * u[0], c[1] + r * u[1]];
+                    let elbow = [c[0] + (r + reach) * u[0], c[1] + (r + reach) * u[1]];
+                    if !on_rim(rim, tip)
+                        || crowded(tip, taken)
+                        || rim_seen(analysis, view, rim, u) == hidden
+                        || through_others(leader.others, c, r, [tip, elbow])
+                        || along_centre(leader, c, r, [tip, elbow])
+                    {
+                        continue;
+                    }
+                    for x in [
+                        elbow[0],
+                        o[0] - super::GAP - gdt::SHELF,
+                        o[2] + super::GAP + gdt::SHELF,
+                    ] {
+                        let rail = [x, elbow[1]];
+                        let mut path = vec![[tip, elbow]];
+                        if (x - elbow[0]).abs() > 1e-6 {
+                            if through_others(leader.others, c, r, [elbow, rail])
+                                || along_centre(leader, c, r, [elbow, rail])
+                            {
+                                continue;
+                            }
+                            path.push([elbow, rail]);
+                        }
+                        for gap in [3.0, 11.0, 27.0] {
+                            for y in [o[3] + gap + 0.5 * size[1], o[1] - gap - 0.5 * size[1]] {
+                                let bend = [x, y];
+                                if (rail[1] - y).abs() < 2.0
+                                    || through_others(leader.others, c, r, [rail, bend])
+                                    || along_centre(leader, c, r, [rail, bend])
+                                {
+                                    continue;
+                                }
+                                for dir in [1.0, -1.0] {
+                                    let end = [x + dir * gdt::SHELF, y];
+                                    if through_others(leader.others, c, r, [bend, end])
+                                        || along_centre(leader, c, r, [bend, end])
+                                    {
+                                        continue;
+                                    }
+                                    let x0 = if dir > 0.0 { end[0] } else { end[0] - size[0] };
+                                    let mut next = beneath(old, [x0, y + 0.5 * size[1]]);
+                                    next.tip = tip;
+                                    next.lines = path.clone();
+                                    next.lines.extend([[rail, bend], [bend, end]]);
+                                    next.arrows = vec![placement::arrow(tip, elbow)];
+                                    if leader.count > 1 {
+                                        gdt::with_count(&mut next, leader.count);
+                                    }
+                                    out.push((LEADER, next));
+                                }
+                            }
+                        }
                     }
                 }
             }
@@ -1079,6 +1153,7 @@ pub(super) fn settle(
         .as_ref()
         .filter(|_| plan.gdt[gi].view == view.id);
     let mut chosen = None;
+    let mut best_crossings = [usize::MAX; 2];
     for (side, next) in candidates {
         // An unchanged frame retains its old paper; only its new leader is checked against
         // the existing findings below. A repair must not increase any of their counts.
@@ -1091,6 +1166,21 @@ pub(super) fn settle(
         trial.placed = Some(next.clone());
         all[i] = gdt::proxy(&trial).expect("just placed");
         let problems = placement::collisions_for(analysis, &all, sheet, &plan.views, cache, id);
+        let crossings = ["leader", "arrow"].map(|kind| {
+            problems
+                .iter()
+                .filter(|p| {
+                    p.code == "annotation_leader_crossing"
+                        && p.crossing_kinds.iter().any(|k| k == kind)
+                })
+                .count()
+        });
+        // Keep the first valid route as a fallback. Prefer a later route only
+        // to avoid a crossed arrowhead without increasing leader crossings.
+        // Once the arrowheads are clear, retain the first valid route.
+        let improves =
+            crossings != best_crossings && (0..2).all(|k| crossings[k] <= best_crossings[k]);
+
         // A leader to the hole may pass through material as often as the leader it replaces
         // did: the frame then says which hole it controls at no new cost. *relaxed*, it may
         // cross other leaders as often too.
@@ -1113,8 +1203,14 @@ pub(super) fn settle(
         };
         let problems = tolerated(&problems);
         if problems.is_empty() {
-            chosen = Some((side, next, None));
-            break;
+            if improves {
+                chosen = Some((side, next, None));
+                best_crossings = crossings;
+            }
+            if best_crossings[1] == 0 {
+                break;
+            }
+            continue;
         }
         // Past its view's reserved area alone: that area grows to hold it where the
         // sheet has vacant paper, and nothing else may change.
@@ -1134,8 +1230,13 @@ pub(super) fn settle(
             ))
             .is_empty()
             {
-                chosen = Some((side, next, Some((vi, area))));
-                break;
+                if improves {
+                    chosen = Some((side, next, Some((vi, area))));
+                    best_crossings = crossings;
+                }
+                if best_crossings[1] == 0 {
+                    break;
+                }
             }
         }
     }
