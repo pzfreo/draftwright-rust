@@ -6,6 +6,14 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### Changed
+
+- Recovery tries the note form once per drawn callout, not once per owner: a thread several
+  bores share is stated by one counted callout, and a callout a hole table states cannot fit
+  better in another form. On draftwright-editor's Plate sample (two M6 bores) planning with PMI
+  took 44.1 G instructions retired in 0.2.6 and now takes 31.8 G (0.2.4: 23.5 G), with the
+  same plan.
+
 ## 0.2.6 (2026-10-31)
 
 Still on quiddity-rust **v0.2.6**. The PMI report now lowers each record to the item that draws
