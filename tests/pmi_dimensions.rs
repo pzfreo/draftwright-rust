@@ -1136,6 +1136,101 @@ fn what_the_faces_do_not_prove_is_reported_not_guessed() {
 }
 
 #[test]
+fn coplanar_composites_measure_the_plane_and_attach_to_its_patches() {
+    let raw = std::fs::read(fixtures().join("spindle-coplanar-groups.step.gz")).unwrap();
+    let (part, a) = analysed("spindle-coplanar-groups.step", &gunzip(&raw));
+    let plan = cache::default_plan(&a, false);
+    for (id, value, axis, view, groups) in [
+        (1397, 4.9, "Z", "v:front", vec![vec![1049], vec![734, 914]]),
+        (1413, 5.0, "X", "v:plan", vec![vec![939, 1074], vec![1198]]),
+    ] {
+        let r = records(&a).iter().find(|r| r.part21_id == id).unwrap();
+        assert_eq!(r.value, Some(value));
+        // The datum's non-face member must not enter either reference group.
+        assert_eq!(
+            r.face_groups.iter().map(Vec::len).collect::<Vec<_>>(),
+            groups.iter().map(Vec::len).collect::<Vec<_>>()
+        );
+        assert_eq!(
+            r.face_ids.iter().copied().collect::<BTreeSet<_>>(),
+            groups.into_iter().flatten().collect()
+        );
+        let g = r.geometry.as_ref().unwrap();
+        assert!(g.reasons.is_empty(), "{}: {:?}", r.source_id, g.reasons);
+        assert_eq!(g.axis.as_deref(), Some(axis));
+        for (faces, &p) in r.face_groups.iter().zip(&g.stations) {
+            assert!(
+                faces.iter().any(|&f| {
+                    let s = &part.faces[f].surface;
+                    let Some((u, v)) = s.parameters(p, None) else {
+                        return false;
+                    };
+                    let q = s.value(u, v);
+                    (0..3).all(|k| (p[k] - q[k]).abs() < 1e-6)
+                        && part.domain(f).is_some_and(|d| d.contains(u, v))
+                }),
+                "{}: {p:?} is not on its reference patches",
+                r.source_id
+            );
+        }
+        let d = stating(&plan, &a, r).expect("PMI must be claimed by a dimension");
+        assert!(d.placed.is_some(), "{d:?}");
+        assert_eq!(d.value, value);
+        assert_eq!(d.label, value.to_string());
+        assert_eq!(d.view, view);
+        assert!(
+            !plan
+                .problems
+                .iter()
+                .any(|p| REFUSALS.contains(&p.code.as_str()) && p.refs.contains(&r.source_id)),
+            "{:?}",
+            plan.problems
+        );
+        // The engine's same span must yield to PMI, even if its label is identical.
+        assert_eq!(
+            plan.dimensions
+                .iter()
+                .filter(|other| other.placed.is_some() && other.label == d.label)
+                .count(),
+            1
+        );
+    }
+}
+
+#[test]
+fn coplanar_composites_still_refuse_an_inconsistent_nominal() {
+    let raw = std::fs::read(fixtures().join("spindle-coplanar-groups.step.gz")).unwrap();
+    let (part, mut a) = analysed_uncached("spindle-coplanar-groups.step", &gunzip(&raw));
+    let Some(Reading::Read(report)) = &mut a.pmi else {
+        panic!("PMI")
+    };
+    for r in report
+        .records
+        .iter_mut()
+        .filter(|r| [1397, 1413].contains(&r.part21_id))
+    {
+        r.value = r.value.map(|v| v + 1.0);
+        r.geometry = Some(draftwright::pmi_lowering::dimension_geometry(&part, r));
+        assert!(
+            r.geometry
+                .as_ref()
+                .unwrap()
+                .reasons
+                .iter()
+                .any(|s| s.contains("differs from nominal"))
+        );
+    }
+    let plan = cache::default_plan(&a, false);
+    for id in [1397, 1413] {
+        let r = records(&a).iter().find(|r| r.part21_id == id).unwrap();
+        assert!(stating(&plan, &a, r).is_none());
+        assert!(plan.problems.iter().any(|p| p.code == "pmi_not_lowered"
+            && p.refs.contains(&r.source_id)
+            && p.message.contains("differs from nominal")));
+    }
+}
+
+#[test]
 fn an_external_diameter_annotates_the_turned_size_with_its_signs() {
     // spool_fits' two ø130 flanges (a shaft band wholly below its nominal) and its ø70 step.
     let (_, _, plan) = planned("spool_fits");

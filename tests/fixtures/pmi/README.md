@@ -48,3 +48,10 @@ Regenerate with
   `~/repos/draftwright/.venv/bin/python tools/capture_pmi_dimensions.py <draftwright>/src`.
 
 `GRM-03_thumbwheel_drive_screw_AP242_PMI.step.gz`: unchanged user-supplied GRM-03 from quiddity-rust commit `6ab5f29df418a06ee26e86ce1f7b010b653e1ade`, `tests/fixtures/ap242/derived/`; decompressed SHA-256 `4b6462b9cc9f0d419250933bd77fb305f9cfebb7ec2b3f377008732876010a21`. Used for derived geometry regression, rather than Python comparison captures.
+
+`spindle-coplanar-groups.step.gz`: gzip (`mtime=0`) of the supplied specify-core AP242
+`input-19-spindle.step`, decompressed SHA-256
+`944681ac51ef0a2a51760c085c2252f7310cd2cd74bbdade0c2e4046de232d2d` (23 KB compressed).
+Used directly by the coplanar composite dimension regressions in `tests/pmi_dimensions.rs`;
+retains the source's datum composite, non-face datum member and semantic face links.
+Graphic presentation is deliberately unread. No Python comparison capture is needed.
