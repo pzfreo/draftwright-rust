@@ -4223,9 +4223,56 @@ pub fn plan_recovered(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid>
         spec.sheet.frame_gutter.unwrap_or(layout::FRAME_GUTTER),
         || {
             let plan = plan_recovered_once(analysis, spec)?;
+            let plan = balloon_fallback(analysis, spec, plan)?;
             manufacturing_fallback(analysis, spec, plan, |s| plan_recovered_once(analysis, s))
         },
     )
+}
+
+/// Inspection balloons are placed on the finished sheet, after the paper policy has chosen its
+/// scale. When the automatic scale leaves some numbered characteristic without a clear place for
+/// its balloon, the next smaller standard scale on the same sheet is tried, and taken when it
+/// places more of them with no more hard layout findings: a larger drawing never costs a reader
+/// the inspection numbers the smaller one shows. An explicit scale is the user's to keep.
+fn balloon_fallback(analysis: &Analysis, spec: &Spec, plan: Plan) -> Result<Plan, Invalid> {
+    let missing = |p: &Plan| {
+        p.problems
+            .iter()
+            .filter(|q| q.code == "characteristic_balloon_missing")
+            .count()
+    };
+    if spec.sheet.scale.is_some()
+        || !crate::characteristics::enabled(&plan)
+        || missing(&plan) == 0
+        || !plan.sheets.is_empty()
+    {
+        return Ok(plan);
+    }
+    let Some(&smaller) = layout::SCALES
+        .iter()
+        .find(|s| **s < plan.sheet.scale_factor - 1e-12)
+    else {
+        return Ok(plan);
+    };
+    let mut named = spec.clone();
+    named.sheet.size = Some(plan.sheet.size.clone());
+    named.sheet.scale = Some(scale_name(smaller));
+    let Ok(mut trial) = plan_recovered_once(analysis, &named) else {
+        return Ok(plan);
+    };
+    if missing(&trial) >= missing(&plan) || findings(&trial).hard > findings(&plan).hard {
+        return Ok(plan);
+    }
+    trial.sheet.basis = format!(
+        "{}; {} at {} left {} inspection balloon(s) without a clear place, so the next smaller scale, which places more, is kept",
+        trial.sheet.basis,
+        plan.sheet.size,
+        plan.sheet.scale,
+        missing(&plan)
+    );
+    trial.sheet.default = plan.sheet.default;
+    trial.spec = plan.spec.clone();
+    Ok(trial)
 }
 
 /// draftwright's fallback for a manufacturing requirements table with no place on the finished
@@ -10537,6 +10584,16 @@ fn render_annotations_with_cuts(
                 elbow: None,
                 interior: false,
             });
+        }
+    }
+    // A part note covered by an identical one the block states (an assembly's parts stating
+    // the same note) is stated by that note's runs.
+    for n in &plan.notes {
+        if let ItemState::Covered { by } = &n.state
+            && n.id.starts_with("pmi:")
+            && let Some(runs) = stated.get(by).cloned()
+        {
+            stated.entry(n.id.clone()).or_default().extend(runs);
         }
     }
     // The default surface finish beside the title block: its symbol and its requirement.

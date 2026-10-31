@@ -365,7 +365,9 @@ fn candidate(
                 return false;
             }
             if obs.iter().any(|o| {
-                (if o.id == own {
+                // A ring grown from another ring may start on that ring's rim, but a bend after
+                // its first stroke keeps the same clearance from it as from any other ring.
+                (if o.id == own && (i == 0 || !routing.circular) {
                     crosses(checked, pad(o.bounds, -0.05))
                 } else {
                     crosses(line, pad(o.bounds, 0.5))

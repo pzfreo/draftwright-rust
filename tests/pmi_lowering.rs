@@ -842,6 +842,136 @@ fn a_part_placed_twice_is_not_annotated_on_one_placement_by_guess() {
     }
 }
 
+/// The plate's PMI states several of its basic locations more than once (and covers the
+/// recognised holes' own locations): each span is drawn once, and an item it covers takes no
+/// lane of its own, so the ladders above and beside the plan view keep the normal pitch from
+/// rung to rung rather than leaving a gap where each covered item would have stood.
+#[test]
+fn covered_pmi_spans_leave_no_gaps_in_the_ladders() {
+    let (_, _, plan) = planned("assembly_plate_pin");
+    let pitch = if plan.sheet.dimension_spacing == draftwright::model::DimensionSpacing::Compact {
+        draftwright::dims::LANE_COMPACT
+    } else {
+        draftwright::dims::LANE_NORMAL
+    };
+    let basic: Vec<_> = plan
+        .dimensions
+        .iter()
+        .filter(|d| d.view == "v:plan" && d.id.ends_with("/linear.basic"))
+        .filter_map(|d| Some((d.label.as_str(), d.placed.as_ref()?)))
+        .collect();
+    assert!(basic.len() >= 6, "{basic:?}");
+    // Each strip's rungs by their labels' distance across it: horizontal labels above the
+    // view, vertical ones beside it, grouped by the side of the view they stand on.
+    let mut strips: BTreeMap<(bool, bool), Vec<f64>> = BTreeMap::new();
+    let centre = |p: &draftwright::dims::Placed| {
+        let b = p.label_box;
+        [0.5 * (b[0] + b[2]), 0.5 * (b[1] + b[3])]
+    };
+    let mid = {
+        let all: Vec<[f64; 2]> = basic.iter().map(|(_, p)| centre(p)).collect();
+        let n = all.len() as f64;
+        [
+            all.iter().map(|c| c[0]).sum::<f64>() / n,
+            all.iter().map(|c| c[1]).sum::<f64>() / n,
+        ]
+    };
+    for (_, p) in &basic {
+        let c = centre(p);
+        let vertical = p.rotation.abs() > 45.0;
+        let (across, high) = if vertical {
+            (c[0], c[0] > mid[0])
+        } else {
+            (c[1], c[1] > mid[1])
+        };
+        strips.entry((vertical, high)).or_default().push(across);
+    }
+    let mut checked = 0;
+    for ((vertical, high), mut rungs) in strips {
+        rungs.sort_by(f64::total_cmp);
+        for gap in rungs.windows(2).map(|w| w[1] - w[0]) {
+            assert!(
+                (gap - pitch).abs() < 0.05,
+                "rungs {} the plan view {} are {gap:.2} mm apart, not {pitch} mm: {rungs:?}",
+                if vertical { "beside" } else { "across" },
+                if high { "(high side)" } else { "(low side)" },
+            );
+            checked += 1;
+        }
+    }
+    assert!(checked >= 3, "no ladder of the plan view was checked");
+}
+
+/// The assembly's two parts each state "Break sharp edges 0.2 max": the GENERAL NOTES block
+/// states it once, the other kept in the plan as covered by it. Omitting the drawn one brings
+/// the other back, so nothing is lost.
+#[test]
+fn a_note_both_parts_state_is_stated_once() {
+    let (_, a, plan) = planned("assembly_plate_pin");
+    let alike: Vec<_> = plan
+        .notes
+        .iter()
+        .filter(|n| n.text == "Break sharp edges 0.2 max")
+        .collect();
+    assert_eq!(alike.len(), 2, "{:?}", plan.notes);
+    let shown: Vec<_> = alike
+        .iter()
+        .filter(|n| n.state == draftwright::items::State::Shown)
+        .collect();
+    assert_eq!(shown.len(), 1, "{alike:?}");
+    assert_eq!(shown[0].rows, ["1  Break sharp edges 0.2 max"]);
+    let covered = alike.iter().find(|n| n.id != shown[0].id).unwrap();
+    assert_eq!(
+        covered.state,
+        draftwright::items::State::Covered {
+            by: shown[0].id.clone()
+        }
+    );
+    assert_eq!(covered.number, 0);
+    let mut spec = Spec::default();
+    spec.annotations
+        .entry(shown[0].id.clone())
+        .or_default()
+        .omit = true;
+    let edited = model::plan(&a, &spec).unwrap();
+    let back = edited.notes.iter().find(|n| n.id == covered.id).unwrap();
+    assert_eq!(back.state, draftwright::items::State::Shown);
+    assert_eq!(back.rows, ["1  Break sharp edges 0.2 max"]);
+}
+
+/// When the parts' notes differ, both are stated, each naming the part it is for.
+#[test]
+fn notes_the_parts_state_differently_name_their_parts() {
+    let (_, a, _) = planned("assembly_plate_pin");
+    let mut a = a.clone();
+    let Some(Reading::Read(report)) = &mut a.pmi else {
+        panic!("its PMI is read")
+    };
+    let mut edges: Vec<&mut Record> = report
+        .records
+        .iter_mut()
+        .filter(|r| r.kind == "edge_condition")
+        .collect();
+    assert_eq!(edges.len(), 2);
+    edges.sort_by_key(|r| r.part);
+    edges[1].label = edges[1].label.replace("0.2", "0.5");
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let mut rows: Vec<_> = plan
+        .notes
+        .iter()
+        .filter(|n| n.state == draftwright::items::State::Shown)
+        .flat_map(|n| n.rows.clone())
+        .collect();
+    rows.sort();
+    assert_eq!(
+        rows,
+        [
+            "1  Break sharp edges 0.2 max (PART PLATE)",
+            "2  Break sharp edges 0.5 max (PART PIN)"
+        ]
+    );
+}
+
 #[test]
 fn frames_and_symbols_are_searchable_and_drawn_from_the_font() {
     let (part, a, plan) = planned("nist_ftc_07_asme1_ap242-e2");

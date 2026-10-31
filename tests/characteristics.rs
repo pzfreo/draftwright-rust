@@ -200,7 +200,11 @@ fn numbered_pmi_round_trips_to_items_and_clear_rings() {
         let p = model::plan_recovered(&a, &on()).unwrap();
         // Main's #254 fixtures, with the same UDA edits and balloons enabled.
         let (paper, scale, crossings, extensions) = match name {
-            "tests/fixtures/parts/editor_pmi.step" => ("A3", "1:1", 1, 1),
+            // At 2:1, which the plate takes with its rings off now that covered PMI spans leave
+            // no empty rungs, two rings have no clear place, so the balloon fallback keeps 1:1.
+            // There its frames, no longer spaced by those empty rungs, hang across the plan
+            // view's ladder: 10 crossings where main had 1 (and one extension crossing fewer).
+            "tests/fixtures/parts/editor_pmi.step" => ("A3", "1:1", 10, 0),
             "tests/fixtures/pmi/step/GRM-03_thumbwheel_drive_screw_AP242_PMI.step.gz" => {
                 ("A4", "2:1", 0, 0)
             }
@@ -535,16 +539,18 @@ fn specify_plate_draws_every_number_on_its_requirement() {
         2
     );
     // Main's inspection-sheet baseline: rings and newly read shared threads must
-    // not cost paper or exchange the established hole schedule for long leaders.
+    // not cost paper or exchange the established hole schedule for long leaders. With covered
+    // PMI spans no longer leaving empty rungs, the plate is drawn full size on the same paper,
+    // its 2× position frame's leader crossing the ladder above the plan view once more.
     assert_eq!(p.sheet.size, "A3");
-    assert_eq!(p.sheet.scale, "1:2");
+    assert_eq!(p.sheet.scale, "1:1");
     assert!(
         !p.problems
             .iter()
             .any(|p| p.code == "sheet_preference_exceeded")
     );
     for (code, maximum) in [
-        ("annotation_leader_crossing", 1),
+        ("annotation_leader_crossing", 2),
         ("extension_through_feature", 8),
     ] {
         assert!(

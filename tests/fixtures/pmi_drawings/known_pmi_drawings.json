@@ -8626,14 +8626,14 @@
     {
      "boxed": false,
      "kind": "dimension",
-     "rides_on": "bore.diameter",
-     "text": "6× ⌀6.6 H11 THRU",
+     "rides_on": "size",
+     "text": "⌀6.6 H11 THRU",
      "view": "plan"
     }
    ]
   },
   "verdict": "rust-correct",
-  "evidence": "S5 native symbolic-bore port: this source declares its literal ISO 286 H7/H11 class without numeric limits. Proven internal cylinders correlate uniquely to the recognised bore owner; its native text now retains the class without computing unstated limits or duplicating the dimension. Python drops the class (and draws the 62 mm bore separately). The symbolic-fit regression and unchanged exact-one-outcome/NIST open-question tests verify the reading and owner. Maintainer decision 2026-10-16: the default drawing states the class alone; sheet/fit_deviations explicitly adds stacked upper/lower deviations."
+  "evidence": "S5 native symbolic-bore port: this source declares its literal ISO 286 H7/H11 class without numeric limits. Proven internal cylinders correlate uniquely to the recognised bore owner; its native text now retains the class without computing unstated limits or duplicating the dimension. Python drops the class (and draws the 62 mm bore separately). The symbolic-fit regression and unchanged exact-one-outcome/NIST open-question tests verify the reading and owner. Maintainer decision 2026-10-16: the default drawing states the class alone; sheet/fit_deviations explicitly adds stacked upper/lower deviations. The six holes are scheduled in the plan view's hole table since the plate is drawn at 1:1 (covered PMI spans no longer leave empty rungs in its ladders, so 1:1 fits): the table's size cell states the class, one row per hole."
  },
  {
   "file": "hw_assembly_plate_pin_intent.step",
