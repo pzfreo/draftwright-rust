@@ -181,6 +181,9 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `over_dimensioned_pattern` | advisory | Repeated pattern dimensions are redundant information. |
 | `pack_buy_guess` | advisory | A purchased-part candidate is listed with its detection reason and can be overridden. |
 | `pack_compound` | advisory | One product contains multiple solids; the pack reports the upstream part-definition limit. |
+| `pack_ga_balloon_unplaced` | incomplete | A visible assembly item has no clear item-reference route. |
+| `pack_ga_failed` | incomplete | The requested general assembly front sheet could not be drawn. |
+| `pack_ga_not_visible` | advisory | No face of this listed assembly item has proven visibility; no leader is fabricated. |
 | `pack_geometry_merge` | advisory | Products with identical resolved geometry share one drawing and a summed quantity. |
 | `pack_make_guess` | advisory | The default manufacturing decision and its evidence are reported and can be overridden. |
 | `pack_single_product` | advisory | A single product has multiple placements, counted in its drawing quantity. |

@@ -2960,9 +2960,90 @@ multi-page `pack.pdf`, RFC 4180 `pack.csv`, and `pack.json`. The library entry
 points are `pack::build` (report and drawings in memory) and `pack::render`
 (report and encoded files). The default formats are PDF, CSV and JSON. Failures
 of individual parts retain their rows and error details, with no sheet reference;
-other made parts still draw. Zero made sheets produces a zero-page PDF. The CLI
+other made parts still draw. Without a GA, zero made sheets produces a zero-page PDF. The CLI
 returns success for a completed report even when it contains failed parts; check
 `rows[].error` and `rows[].problems` before sending a pack to manufacture.
+
+
+A **general assembly (GA)** is the front page when the pack has more than one
+**group** (including bought groups). It counts in global SHEET numbering; part
+page references shift accordingly. A single-group pack keeps its existing sheets.
+`ga.include: false` omits the GA; `true` forces it for a single group. An all-buy
+assembly still gets its GA and parts list. GA failure is a `pack_ga_failed`
+finding; the remaining part sheets retain correct numbering.
+
+The GA draws the complete placed assembly, through the existing view selection,
+HLR and A4-first paper/scale policy. It uses principal views plus an isometric,
+with only the envelope reference sizes (`d:envelope/width.length`,
+`d:envelope/depth.length`, `d:envelope/height.length`). Component PMI and feature
+manufacturing dimensions do not appear. Sizes are untoleranced auxiliary dimensions in parentheses, rounded to 0.1 mm with integer values kept as integers. Equal rounded envelope sizes are stated once; explicit dimension intent can retain both axes. Existing dimension `style` and `precision` intent overrides these defaults. Hidden lines default **off**. There is
+**no exploded view**: this slice has no source of explode directions. The
+assembly's top-level PRODUCT name and ID supply TITLE and DWG NO.; QTY is blank.
+Generic root names/IDs (ASSEMBLY, PART, PRODUCT, UNTITLED, COMPONENT and known numbered CAD defaults) fall back to the STEP file stem. Authored TITLE/DWG NO. always win.
+
+The ISO 7573 parts list sits directly above the title-block furniture. Its
+columns are ITEM, QTY, NAME / DESCRIPTION, REFERENCE, SUPPLY and MATERIAL. The
+rows match the pack rows/CSV, including bought and failed parts. REFERENCE uses
+the part's authored DWG NO. (`parts/<key>/drawing/sheet/title/number`), otherwise
+its product key; a reference equal to the description is left blank in both list and CSV. A suffix used only to disambiguate repeated product names is not treated as a drawing number. MATERIAL stays blank until #267 provides material evidence.
+The CSV also carries `reference` and blank `material` columns. Rows read **from
+the bottom upwards**, with the lowest item number at the bottom (item 1 normally).
+The full list is reserved during planning; the final position must clear views
+and their dimensions. A rigid lift preserves the principal views' alignment;
+if it cannot fit cleanly, the ordinary paper and ISO scale trials are retried.
+
+ISO 6433 **item references** mark one visible instance per group, including
+bought groups, using the pack's stable item number. Their default **6 mm radius**
+circle (expanded to fit unusually long item numbers) is larger than both the small number-only inspection characteristic
+rings (`sheet/balloons`, `characteristics.rs`) and the 4.5 mm hole-table TAG rings.
+They have separate `ga_item_<item>` identities and never claim an inspection
+characteristic or a hole-table measurement. The shared balloon band/lane solver
+aligns outside circles and rejects crossings with earlier leaders, dimensions,
+the parts list and other views. A depth/ownership map per camera measures unobstructed visible area per physical instance; the clearest carrier wins. Exact edge probes recover exposed thin rims between pixels. Interior face sites use dots and outline sites use arrows, and sites for different items are separated before the references on a view are assigned jointly to nearby lanes. Alternative proven sites/views are retried when a band is full. Every attachment retains the owning source instance; unresolved rays are rejected. Native product HLR and cut contours are reused across proven congruent groups/placements; depth samples are shared by repeated cameras and the assembled kernel resolves inter-product occlusion. Resolved part curves retain their exact line, conic and rational geometry. When every GA view hides hidden lines, invisible curves are discarded before rendering; a hidden-line override retains them. Detail crops reject distant positive-weight splines by their conservative control hull before the ordinary clipping/render pass, retaining uncertain or degenerate input for normal findings. Recognised physical threads reuse the ordinary ISO 6410 carriers and conventional ink, with the grouping proof’s face correspondence mapped through STEP face entities to each instance. This also reuses recognition already performed for bought groups. The existing `ga.drawing.sheet.thread_depiction` and per-view `thread_depiction` overrides select physical geometry instead; unrecognised threads retain their native geometry. The JSON records face, instance,
+GA-frame point, page tip and ring centre for review. `general_assembly.frame` maps STEP assembly coordinates to that common drawing frame. For cut attachments, `section: true` identifies the generated cut face/outline; `face` is the original ownership witness, and its source instance is independently classified at the target. A group with no proven visible
+face is listed and reported as `pack_ga_not_visible`; one with no clear route is
+`pack_ga_balloon_unplaced`. Neither gets a fabricated leader.
+
+The assembly is oriented with its longest source axis horizontal while preserving the source depth/up convention where possible (`ga.horizontal_axis` selects x/y/z instead). All principal views share this frame and the ordinary first/third-angle projection. Native cylindrical faces supply centre lines, respecting `ga.drawing` sheet/view `centre_lines` intent.
+
+An item without a distinguishable external site triggers full SECTION A–A through its centre, marked on the plan view. Cut material is classified per item and uses distinct hatch angle/spacing combinations; longitudinal screws, pins, shafts, rods and washers are left unhatched. A section wall below 0.7 paper mm triggers DETAIL B at a larger standard scale. These use existing section, clipping, hatch and free-paper placement machinery, retrying A4 before larger paper. Derived views reserve paper before the subordinate isometric, using the existing free-rectangle and isometric fitting policy. `ga.sections: false` and `ga.details: false` disable those recoveries. `ga.section_item` chooses the item whose centre selects the section plane; `ga.detail_scale` selects its enlarged region’s standard scale (larger than the section). `ga.hatching/<item>/{omit,angle,spacing}` overrides hatch intent (degrees 0–180, paper spacing 0.5–10 mm); omitted/null `omit` uses the automatic longitudinal-standard-part exception, `false` forces hatch and `true` omits it. Nested references prefer the recovered section/detail; `ga.balloons/<item>/view` also accepts `section_aa` and `detail_b`. Unresolved items retain findings and list rows.
+
+GA intent lives in the strict `ga` pack Spec object:
+
+```json
+{
+  "ga": {
+    "include": true,
+    "drawing": {
+      "sheet": { "hidden": false, "size": "A4", "scale": "1:2",
+        "title": { "title": "ASSEMBLY", "number": "GRM-00" } },
+      "views": { "plan": { "omit": true } },
+      "dimensions": { "d:envelope/width.length": { "view": "front" } }
+    },
+    "balloon_radius": 6,
+    "balloons": {
+      "1": { "view": "front", "position": [-35, 20] },
+      "9": { "suppress": true }
+    },
+    "parts_list": true
+  }
+}
+```
+
+All GA fields are optional. `ga.drawing` uses the existing drawing Spec for
+view selection/omission/relative placement, hidden lines (sheet or view),
+paper/scale, title, and envelope dimension wording/placement/omission. Its
+complete dimension set starts with the three envelope sizes; `omit: true`
+removes a size. `sheet.keep_layout: true` prevents the automatic GA lift.
+`ga.balloon_radius` overrides circle size (5–15 mm); `ga.parts_list: false`
+omits the list. Table `t:1` is reserved for the list when enabled.
+`ga.balloons` keys are **final item numbers**, so item-number overrides apply
+first. `view` chooses a carrying view; `position: [dx,dy]` pins the circle centre
+relative to that view's origin, in paper mm, y up; `suppress: true` records an
+intentional omission. Unknown items and invalid views/radii are refused. Hidden
+items remain reported even with a position override. `general_assembly` in the
+pack report gives sheet, paper, scale, envelope, list, drawn/suppressed/unballooned
+items and problems; `ga_seconds` is outside the deterministic report.
 
 The independent, strict pack Spec (`schemas/pack-spec.json`) contains intent:
 

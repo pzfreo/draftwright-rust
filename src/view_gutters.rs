@@ -608,7 +608,12 @@ pub(crate) fn apply(analysis: &Analysis, plan: &mut Plan) {
 }
 
 /// Translate each view and its annotations by its gutter delta, and record the delta.
-fn transport(analysis: &Analysis, plan: &mut Plan, bounds: Vec<Rect>, deltas: Vec<[f64; 2]>) {
+pub(crate) fn transport(
+    analysis: &Analysis,
+    plan: &mut Plan,
+    bounds: Vec<Rect>,
+    deltas: Vec<[f64; 2]>,
+) {
     // Rebase editor tip metadata from the transported paper point. Keeping the old
     // relative offset can lose an ulp when added to a translated view origin, so a
     // no-op offset pin would otherwise change its reported tip.
