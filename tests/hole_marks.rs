@@ -344,6 +344,122 @@ fn a_bare_pin_holds_an_attached_datum() {
 fn frames_citing_undrawn_datums_are_said() {
     let a = nist("nist_stc_10_asme1_ap242-e2.stp.gz");
     let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    // The recovered routes now leave room for J on its authored feature of size.
+    // Opposite faces define the width's median plane, rather than either face.
+    let j = plan.gdt.iter().find(|g| g.source == "datum:#117").unwrap();
+    assert_eq!(j.faces, [39, 43]);
+    let planes = [&a.face_attachments[39], &a.face_attachments[43]];
+    for f in planes {
+        assert_eq!(f.surface.as_deref(), Some("plane"));
+        assert_eq!(f.axis, Some(0));
+        let bounds = f.bounds.unwrap();
+        assert!((bounds[0] - bounds[3]).abs() < 1e-6);
+    }
+    assert!((planes[0].bounds.unwrap()[0] - planes[1].bounds.unwrap()[0] - 15.0).abs() < 1e-6);
+    let normals = planes.map(|f| f.normal.unwrap());
+    assert!(
+        (normals[0]
+            .iter()
+            .zip(normals[1])
+            .map(|(a, b)| a * b)
+            .sum::<f64>()
+            + 1.0)
+            .abs()
+            < 1e-6
+    );
+    assert_eq!(j.state, draftwright::items::State::Shown);
+    assert!(j.basis.contains("median plane"));
+    let size = plan
+        .dimensions
+        .iter()
+        .find(|d| d.id == "d:pmi:dimension.linear:f39,43/linear")
+        .unwrap();
+    assert_eq!(size.value, 15.0);
+    assert_eq!(size.terms, ["15", "±0.2"]);
+    assert_eq!(size.view, j.view);
+    let v = plan.views.iter().find(|v| v.id == size.view).unwrap();
+    let width = size.placed.as_ref().unwrap();
+    assert!(((width.lines[1][0][0] - width.lines[0][0][0]).abs() / v.scale - 15.0).abs() < 1e-6);
+    let symbol = j.placed.as_ref().unwrap();
+    let intersections = width.lines[..2]
+        .iter()
+        .map(|line| [line[0][0], width.lines[2][0][1]])
+        .collect::<Vec<_>>();
+    let tip = intersections
+        .iter()
+        .find(|p| (p[0] - symbol.tip[0]).hypot(p[1] - symbol.tip[1]) < 1e-6)
+        .unwrap();
+    let other = intersections.iter().find(|p| *p != tip).unwrap();
+    for q in symbol.lines.iter().flatten() {
+        assert!((q[1] - tip[1]).abs() < 1e-6);
+        assert!((q[0] - tip[0]) * (tip[0] - other[0]) >= -1e-6);
+    }
+    assert_eq!(
+        width.arrows.len(),
+        1,
+        "the triangle replaces only its own arrowhead"
+    );
+    assert!(
+        width
+            .arrows
+            .iter()
+            .all(|a| (a[0][0] - tip[0]).hypot(a[0][1] - tip[1]) > 1e-6)
+    );
+    assert!(
+        !plan
+            .problems
+            .iter()
+            .any(|p| p.code == "pmi_not_lowered" && p.refs.contains(&j.source))
+    );
+    assert!(
+        !plan
+            .problems
+            .iter()
+            .any(|p| p.code == "frame_datum_not_drawn" && p.refs.contains(&"datum J".into()))
+    );
+
+    // C keeps a proven surface site where the front stack has no clear place.
+    let c = plan.gdt.iter().find(|g| g.source == "datum:#114").unwrap();
+    assert_eq!(c.faces, [25]);
+    assert_eq!(c.view, "v:side");
+    let v = plan.views.iter().find(|v| v.id == c.view).unwrap();
+    let tip = c.placed.as_ref().unwrap().tip;
+    let face = &a.face_attachments[25];
+    assert_eq!(face.surface.as_deref(), Some("cylinder"));
+    assert_eq!(face.axis, Some(1));
+    assert!(face.sites.iter().any(|p| {
+        let q = page(&a, v, *p);
+        (q[0] - tip[0]).hypot(q[1] - tip[1]) < 1e-6
+    }));
+    // E can now stand on a frame belonging to its own bore, seen end-on.
+    let e = plan.gdt.iter().find(|g| g.source == "datum:#119").unwrap();
+    assert_eq!(e.faces, [87]);
+    assert_eq!(e.view, "v:front");
+    let base = &e.placed.as_ref().unwrap().fills[0];
+    assert!(plan.gdt.iter().any(|g| {
+        if g.kind != "control_frame" || g.faces != e.faces || g.view != e.view {
+            return false;
+        }
+        let Some(p) = &g.placed else {
+            return false;
+        };
+        [base[0], base[2]].iter().all(|q| {
+            q[0] >= p.label_box[0]
+                && q[0] <= p.label_box[2]
+                && ((q[1] - p.label_box[1]).abs() - 0.5)
+                    .abs()
+                    .min(((q[1] - p.label_box[3]).abs() - 0.5).abs())
+                    < 1e-6
+        })
+    }));
+
+    // Keep the missing-reference check non-vacuous: deliberately omit J.
+    let mut omitted = Spec::default();
+    omitted.annotations.insert(
+        j.id.clone(),
+        serde_json::from_value(serde_json::json!({"omit": true})).unwrap(),
+    );
+    let plan = model::plan_recovered(&a, &omitted).unwrap();
     let drawn: Vec<&str> = plan
         .gdt
         .iter()
@@ -377,7 +493,7 @@ fn frames_citing_undrawn_datums_are_said() {
             said += 1;
         }
     }
-    // stc-10's symmetry frame alone cites an undrawn datum, J, which the file never lowers.
+    // The symmetry frame alone now cites the deliberately omitted datum J.
     assert_eq!(said, 1);
     let lacking: Vec<&String> = plan
         .problems

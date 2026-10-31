@@ -12658,5 +12658,17 @@
   "source": "manufacturing_requirement:#1543",
   "verdict": "rust-correct",
   "evidence": "S5 reads semantic metric thread #1543 and its paired attribute into one requirement, preserving both sets of provenance (tests/editor_session.rs). This historical haecceity writer states full thread depth, which the native manufacturing vocabulary does not accept as minimum full thread; the record is therefore reported as not lowered rather than silently reinterpreted. Python leaves the semantic thread as an unprojected source and has no corresponding lint finding. The exclusive drawn-or-reported gate remains enabled."
+ },
+ {
+  "code": "pmi_not_lowered",
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "python": {
+   "id": "datum:0:1:4:5",
+   "severity": "error"
+  },
+  "rust": null,
+  "source": "datum:#117",
+  "verdict": "rust-correct",
+  "evidence": "2026-10-31 cx/pmi-groups: datum J is the median plane of the authored 15 ±0.2 width between opposite x-normal faces 39/43. The dimension joins exactly those faces and its projected witness span is 15 mm. Recovered rim routes leave room for the symbol on that size dimension, in line with its dimension line, replacing one arrowhead. J is therefore drawn and the symmetry frame citing it reads in full; the old non-coplanar-face refusal is no longer appropriate. tests/hole_marks.rs proves the face pair, size, witness span and symbol support, and deliberately omits J to retain the missing-reference warning assertion. No geometry check or gate limit is relaxed."
  }
 ]
