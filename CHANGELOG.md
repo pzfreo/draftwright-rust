@@ -6,6 +6,11 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+## 0.2.5 (2026-10-31)
+
+Now on quiddity-rust **v0.2.6**. Adds assembly drawing packs with a general assembly front sheet
+(#41), and Specify's own characteristic numbers on inspection balloons (#254).
+
 ### Added
 
 - For #41: a general assembly front sheet for drawing packs, with overall sizes,
