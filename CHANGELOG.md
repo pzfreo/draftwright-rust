@@ -6,6 +6,17 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+### Fixed
+
+- For #265, the PMI report (`Engine::pmi`, the session's `pmi_report`) lowers each PMI record to
+  the item that draws it. A Specify general-tolerance dimension is lowered to the planners' item
+  that conveys it, or to the planned dimension made for one no item conveys. And any record whose
+  item is not drawn because another states what it would (`covered`: a hole callout the hole
+  table replaces, a level other dimensions determine) is lowered to that item, with kind
+  `covered`. Such records were listed as `unresolved` ("has no supported drawing
+  representation") although drawn, which the editor shows as PMI missing from the sheet: its
+  Plate sample with Specify 0.1.4 went from 35 issues to 8.
+
 ## 0.2.5 (2026-10-31)
 
 Now on quiddity-rust **v0.2.6**. Adds assembly drawing packs with a general assembly front sheet

@@ -502,6 +502,26 @@ enum Outcome {
 /// The parameter of a Specify general-tolerance dimension planned as draftwright's own.
 pub(crate) const GENERAL_SIZE: &str = "general_size.length";
 
+/// The feature of a Specify general-tolerance dimension planned as draftwright's own, for the
+/// record whose identity is `id` (`pmi:<identity>`).
+pub(crate) fn general_feature(id: &str) -> String {
+    format!("specify_general:{}", id.strip_prefix("pmi:").unwrap_or(id))
+}
+
+/// What a planners' item's basis says when it conveys the Specify general-tolerance dimension
+/// `source_id` (#265), so the PMI report can credit that item ([`conveys`]) without a claim.
+fn conveyed_note(how: &str) -> String {
+    format!("; it conveys Specify's general-tolerance {how}, drawn as draftwright plans it (#265)")
+}
+
+/// Whether a planned item's basis says it conveys the Specify general-tolerance dimension
+/// `source_id` ([`conveyed_note`]).
+pub(crate) fn conveys(basis: &str, source_id: &str) -> bool {
+    basis.contains(&format!(
+        "it conveys Specify's general-tolerance dimension {source_id} "
+    ))
+}
+
 /// A Specify general-tolerance dimension no planners' item conveys, as an ordinary planned
 /// dimension (#265): the same span and views as *own* would have, but its feature is
 /// `specify_general:<identity>`, never `pmi:`, so it takes no PMI precedence or placement
@@ -509,13 +529,7 @@ pub(crate) const GENERAL_SIZE: &str = "general_size.length";
 /// drop findings treat it as any planned dimension. Its basis names the record's source, which
 /// carries its characteristic number and Specify's authorship ([`crate::characteristics`]).
 fn general(report: &crate::pmi::Report, r: &Record, own: Want) -> Want {
-    let feature = format!(
-        "specify_general:{}",
-        own.measurements[0]
-            .feature
-            .strip_prefix("pmi:")
-            .unwrap_or(&own.measurements[0].feature)
-    );
+    let feature = general_feature(&own.measurements[0].feature);
     let reason = report
         .sources
         .iter()
@@ -883,11 +897,7 @@ pub(super) fn lower(cx: &Context, wants: &mut [Want]) -> Lowered {
             }
             // Not claimed: a claim makes the planners' item authored PMI, which every later
             // stage reads as the file's own statement and location evidence.
-            Outcome::Conveyed(i, how) => {
-                wants[i].basis += &format!(
-                    "; it conveys Specify's general-tolerance {how}, drawn as draftwright plans it (#265)"
-                );
-            }
+            Outcome::Conveyed(i, how) => wants[i].basis += &conveyed_note(&how),
         }
     }
     // Qualifiers belong to the requirement even when a recognised size owns its ink.

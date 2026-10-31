@@ -15,3 +15,12 @@ geometry, not on top of it, that one with no planned equivalent is planned as dr
 history set is bookkeeping.
 
 It is kept in `samples/`, outside the single-sheet byte guard's `parts/` and `pmi/step/`.
+
+`specify-0.1.4-plate-plus-minus.step.gz` is the same part written by the same Specify through
+draftwright-editor's WASM build (`writePmi(acceptDefaults(answers))`), with the answers the
+editor's Plate sample starts with: `{"part.locating": "± dimensions",
+"hole.function:holes:13.25": "general", "hole.function:hole_patterns.rectangle:6.12.15.24":
+"general"}`. Locating by ± makes Specify write the holes' sizes and locations as general
+dimensions too, and the drawing states them in its hole table. The regression
+(`tests/editor_session.rs`) checks that the PMI report lowers each to the item that draws it,
+the hole table included.

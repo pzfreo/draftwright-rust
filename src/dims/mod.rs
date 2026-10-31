@@ -94,7 +94,7 @@ mod oriented_slots;
 mod pads;
 mod placement;
 mod plates;
-mod pmi_dimensions;
+pub(crate) mod pmi_dimensions;
 pub(crate) mod pmi_policy;
 pub mod precision;
 mod profile_angles;

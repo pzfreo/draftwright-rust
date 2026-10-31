@@ -457,3 +457,90 @@ fn semantic_thread_nominal_disagreement_is_not_lowered() {
             .any(|r| r["kind"] == "internal_thread")
     );
 }
+
+fn specify_session(name: &str) -> Session {
+    use std::io::Read;
+    let mut bytes = Vec::new();
+    flate2::read::GzDecoder::new(
+        std::fs::File::open(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join(format!("tests/fixtures/samples/{name}.gz")),
+        )
+        .unwrap(),
+    )
+    .read_to_end(&mut bytes)
+    .unwrap();
+    let (part, analysis) = model::analyse_native_step(std::path::Path::new(name), &bytes).unwrap();
+    Session::new(part, analysis, model::Spec::default()).unwrap()
+}
+
+/// #265: Specify 0.1.4's general-tolerance dimensions are drawn by the planners' items that
+/// convey them, or as planned dimensions; the PMI report lowers them to those items, never
+/// lists them unresolved (the editor reads `unresolved` as PMI the drawing cannot show).
+#[test]
+fn specify_general_dimensions_are_lowered_not_unresolved() {
+    let s = specify_session("specify-0.1.4-plate.step");
+    let report = s.pmi_report();
+    let unresolved: Vec<_> = report["unresolved"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|r| {
+            r["category"] == "dimension" || r["kind"] == "linear" || r["kind"] == "diameter"
+        })
+        .map(|r| format!("{} {}", r["label"], r["reason"]))
+        .collect();
+    assert!(
+        unresolved.is_empty(),
+        "general dimensions left unresolved: {unresolved:#?}"
+    );
+    let lowered = report["lowered"].as_array().unwrap();
+    // The plate's overall sizes go to the envelope items that convey them; the 8 to the step
+    // height that conveys it, itself left out because other stated dimensions determine it.
+    for size in ["120", "80", "12"] {
+        assert!(
+            lowered.iter().any(|r| r["label"] == size
+                && r["feature_id"]
+                    .as_str()
+                    .is_some_and(|f| f.starts_with("d:envelope/"))),
+            "{size} is lowered to its envelope dimension"
+        );
+    }
+    assert!(
+        lowered
+            .iter()
+            .any(|r| r["label"] == "8" && r["kind"] == "covered")
+    );
+}
+
+/// #265, the editor's Plate sample as it starts (located by ±, holes general): Specify writes
+/// the holes' sizes and locations as general dimensions, which the hole table states. Each is
+/// lowered to the hole table, which covers the hole callouts that state or convey them.
+#[test]
+fn specify_general_dimensions_in_a_hole_table_are_lowered_to_it() {
+    let s = specify_session("specify-0.1.4-plate-plus-minus.step");
+    let report = s.pmi_report();
+    let unresolved: Vec<_> = report["unresolved"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|r| r["kind"] != "internal_thread")
+        .map(|r| format!("{} {} {}", r["source_id"], r["label"], r["reason"]))
+        .collect();
+    assert!(unresolved.is_empty(), "left unresolved: {unresolved:#?}");
+    let lowered = report["lowered"].as_array().unwrap();
+    for size in ["ø22", "ø6.6", "108", "70"] {
+        assert!(
+            lowered.iter().any(|r| r["kind"] == "covered"
+                && r["feature_id"]
+                    .as_str()
+                    .is_some_and(|f| f.starts_with("hole_schedule"))
+                && report["extraction"]["records"]
+                    .as_array()
+                    .unwrap()
+                    .iter()
+                    .any(|x| x["source_id"] == r["source_id"] && x["label"] == size)),
+            "{size} is lowered to the hole table"
+        );
+    }
+}
