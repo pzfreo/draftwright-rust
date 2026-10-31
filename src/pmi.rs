@@ -498,7 +498,8 @@ pub struct Geometry {
     pub targets: Vec<Option<DerivedTarget>>,
     /// A datum's attachment site on each face, face by face (`ref_pts`): a point inside a plane,
     /// or on a cylinder's projected silhouette (`_datum_face_site`); a radius's proven point on
-    /// its arc. A tolerance on derived geometry keeps a point on its resolved target.
+    /// its arc; a linear dimension's trimmed-face witnesses when its composite box gives none.
+    /// A tolerance on derived geometry keeps a point on its resolved target.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub sites: Vec<[f64; 3]>,
     /// Other proven sites on a datum's first face, ranked as draftwright ranks its choice and
@@ -527,8 +528,8 @@ pub struct Geometry {
     /// knurl's too ([`crate::pmi_lowering::requirement_geometry`]).
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub cylinders: Vec<crate::pmi_lowering::Cylinder>,
-    /// The one view a linear dimension's faces prove a witness in (`plan` or `side`), when only
-    /// one does (draftwright's `support_view`).
+    /// A linear dimension's explicitly proven witness view (`front`, `plan` or `side`),
+    /// selected from its trimmed reference faces (draftwright's `support_view`).
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub view: Option<String>,
     /// An angular dimension's sides: its vertex and a witness on each side

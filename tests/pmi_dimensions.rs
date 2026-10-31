@@ -1178,6 +1178,26 @@ fn coplanar_composites_measure_the_plane_and_attach_to_its_patches() {
         assert_eq!(d.value, value);
         assert_eq!(d.label, value.to_string());
         assert_eq!(d.view, view);
+        let camera = plan.views.iter().find(|v| v.id == d.view).unwrap();
+        let projection =
+            draftwright::haecceity::hlr::View::new(camera.direction, camera.up).unwrap();
+        let centre = projection.map([0, 1, 2].map(|k| 0.5 * (a.envelope[0][k] + a.envelope[1][k])));
+        let ink = d.placed.as_ref().unwrap();
+        for &station in &g.stations {
+            let projected = projection.map(station);
+            let page = [0, 1].map(|k| camera.at[k] + camera.scale * (projected[k] - centre[k]));
+            // Each extension starts one paper mm away from its proven attachment.
+            assert!(
+                ink.lines[..2].iter().any(|line| ((line[0][0] - page[0])
+                    .hypot(line[0][1] - page[1])
+                    - 1.0)
+                    .abs()
+                    < 1e-6),
+                "{}: extensions miss the face witness at {page:?}: {:?}",
+                d.id,
+                ink.lines
+            );
+        }
         assert!(
             !plan
                 .problems

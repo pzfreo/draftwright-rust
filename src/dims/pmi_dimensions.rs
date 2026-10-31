@@ -655,6 +655,11 @@ pub(super) fn lower(cx: &Context, wants: &mut [Want]) -> Lowered {
         for (j, r) in records.iter().enumerate() {
             if let Outcome::Standalone(own) = &outcomes[j]
                 && crate::pmi::specify_general(report, r)
+                // A composite's explicitly proven view and patch attachments are part of
+                // its meaning. A span-only engine match would discard those witnesses;
+                // retain PMI ownership so the automatic same-span item yields to it.
+                && !(r.face_groups.iter().any(|group| group.len() > 1)
+                    && r.geometry.as_ref().is_some_and(|g| !g.sites.is_empty()))
             {
                 outcomes[j] = match conveyed(cx.analysis, wants, r, own) {
                     Some((i, how)) => Outcome::Conveyed(i, how),
@@ -1242,7 +1247,9 @@ fn linear(ids: &Identities, r: &Record, g: &crate::pmi::Geometry, k: usize, valu
     let (mut a, mut e) = (at, at);
     a[k] = lo;
     e[k] = hi;
-    if !g.targets.is_empty() {
+    // Explicit face sites can carry proven witnesses away from the
+    // composite's box midpoint. Preserve them through projection into the drawing.
+    if !g.targets.is_empty() || !g.sites.is_empty() {
         a = s[0];
         e = s[1];
     }

@@ -1601,6 +1601,12 @@ fn linear_geometry(part: &Part, r: &Record, value: f64, g: &mut Geometry) {
                 }
             }
         }
+        Planar::Projected(k, view, witness) => {
+            plane_axis = Some(k);
+            g.view = Some(view.into());
+            stations = witness;
+            g.sites = witness.to_vec();
+        }
     }
     let (points, axis, reasons) = stations_proof(stations, value, plane_axis);
     g.stations = points.to_vec();
@@ -1759,11 +1765,14 @@ enum Planar {
     /// Not every face is a principal plane, thin along its normal, one station per group, one
     /// normal for both.
     Not,
-    /// Parallel planes along x with no witness both share.
+    /// Parallel planes with no proven witness in a principal view.
     Unwitnessed,
     /// Parallel planes: their normal, when a view's witness proves it; the one view that does,
     /// when only one does; the witness coordinates the stations take.
     Axis(Option<usize>, Option<&'static str>, Vec<(usize, f64)>),
+    /// Points on the trimmed patches sharing a transverse coordinate in this view.
+    /// Their hidden coordinates may differ; the measured span is the planes' separation.
+    Projected(usize, &'static str, [[f64; 3]; 2]),
 }
 
 fn planar(part: &Part, groups: &[Vec<usize>], boxes: &[Vec<[f64; 6]>]) -> Planar {
@@ -1809,16 +1818,63 @@ fn planar(part: &Part, groups: &[Vec<usize>], boxes: &[Vec<[f64; 6]>]) -> Planar
         0 if midpoint(2) => Planar::Axis(Some(0), None, Vec::new()),
         0 => match common_x_witness(part, groups, boxes) {
             Some((y, z)) => Planar::Axis(Some(0), Some("plan"), vec![(1, y), (2, z)]),
-            None => Planar::Unwitnessed,
+            None => projected_planar_witness(part, groups, boxes, k),
         },
-        2 => Planar::Axis(midpoint(0).then_some(2), None, Vec::new()),
+        2 if midpoint(0) => Planar::Axis(Some(2), None, Vec::new()),
+        2 => projected_planar_witness(part, groups, boxes, k),
         _ => match (midpoint(2), midpoint(0)) {
             (true, true) => Planar::Axis(Some(1), None, Vec::new()),
             (true, false) => Planar::Axis(Some(1), Some("side"), Vec::new()),
             (false, true) => Planar::Axis(Some(1), Some("plan"), Vec::new()),
-            (false, false) => Planar::Axis(None, None, Vec::new()),
+            (false, false) => projected_planar_witness(part, groups, boxes, k),
         },
     }
+}
+
+/// A composite's bounding-box midpoint can lie between its patches. Search face pairs in
+/// each edge-on view instead: both attachment points must lie on a trimmed face and share
+/// the displayed transverse coordinate. A common 3D normal ray is unnecessary when the
+/// faces overlap in projection (for example, a split datum beside a recessed end face).
+/// This search never uses the nominal; `stations_proof` still checks the plane separation.
+fn projected_planar_witness(
+    part: &Part,
+    groups: &[Vec<usize>],
+    boxes: &[Vec<[f64; 6]>],
+    k: usize,
+) -> Planar {
+    let views = match k {
+        0 => [("front", 2, 1), ("plan", 1, 2)],
+        1 => [("side", 2, 0), ("plan", 0, 2)],
+        _ => [("front", 0, 1), ("side", 1, 0)],
+    };
+    let fractions = [0.5, 0.1, 0.2, 0.3, 0.4, 0.6, 0.7, 0.8, 0.9];
+    for (view, across, hidden) in views {
+        for (&a, ba) in groups[0].iter().zip(&boxes[0]) {
+            for (&b, bb) in groups[1].iter().zip(&boxes[1]) {
+                let lo = ba[across].max(bb[across]);
+                let hi = ba[across + 3].min(bb[across + 3]);
+                if hi < lo {
+                    continue;
+                }
+                for fraction in fractions {
+                    let transverse = lo + fraction * (hi - lo);
+                    let point = |face, bounds: &[f64; 6]| {
+                        fractions.iter().find_map(|t| {
+                            let mut p = [0.0; 3];
+                            p[k] = 0.5 * (bounds[k] + bounds[k + 3]);
+                            p[across] = transverse;
+                            p[hidden] = bounds[hidden] + t * (bounds[hidden + 3] - bounds[hidden]);
+                            on_face(part, face, p).then_some(p)
+                        })
+                    };
+                    if let (Some(p), Some(q)) = (point(a, ba), point(b, bb)) {
+                        return Planar::Projected(k, view, [p, q]);
+                    }
+                }
+            }
+        }
+    }
+    Planar::Unwitnessed
 }
 
 /// A point inside both trimmed x faces (draftwright's `_common_x_face_witness`): the largest
