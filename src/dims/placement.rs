@@ -5036,6 +5036,7 @@ pub(super) fn collisions_for(
 /// Ordered leader, arrow and total crossing counts for a rim route. Peers must be on
 /// the same sheet. This is a cheap rejection test, not admission: a surviving
 /// route still takes the complete collision check before it can be drawn.
+/// Stop once any limit is exceeded; otherwise all three returned counts are exact.
 pub(super) fn route_crossings(
     d: &PlannedDimension,
     peers: &[&PlannedDimension],
