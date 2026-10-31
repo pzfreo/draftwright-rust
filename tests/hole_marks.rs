@@ -112,6 +112,30 @@ fn ftc10_hole_frames_and_datums_attach_to_their_marks() {
         mark_box(&plan, triangle, 0.5 + 1e-6).is_some(),
         "the triangle's base stands on its mark: {triangle:?}"
     );
+    // Repacking the recovered source spans leaves room for B on its own bore's
+    // frame. The end-on attachment identifies the same cylinder as the former
+    // edge-on surface symbol, without borrowing another hole's control frame.
+    let b = plan
+        .gdt
+        .iter()
+        .find(|g| g.source == "datum:#18109")
+        .unwrap();
+    let owner = plan
+        .gdt
+        .iter()
+        .find(|g| g.source == "geometric_tolerance:#18546")
+        .unwrap();
+    assert_eq!(b.faces, [163, 164]);
+    assert_eq!(b.faces, owner.faces);
+    assert_eq!(b.view, "v:front");
+    assert_eq!(b.view, owner.view);
+    let support = owner.placed.as_ref().unwrap().label_box;
+    let triangle = &b.placed.as_ref().unwrap().fills[0];
+    for base in [triangle[0], triangle[2]] {
+        assert!((base[1] - support[3] - 0.5).abs() < 1e-6);
+        assert!(base[0] >= support[0] && base[0] <= support[2]);
+    }
+
     // Nothing moved has a finding of its own.
     for id in [CYLINDRICITY, POSITION_7, DATUM_F] {
         let own: Vec<_> = plan

@@ -10127,5 +10127,35 @@
   },
   "verdict": "rust-correct",
   "evidence": "cx/pmi-groups proves the four inclined bore owners by all eight native faces, their full 3D axis lines (Y=sin(1 degree), Z=cos(1 degree)), and the exact 4.3942 mm diameter. The existing nearly end-on rim callout now states the source +0.127/-0.0254 mm band. The old principal-axis restriction discarded this valid requirement. Geometry and nominal checks remain strict; this is the same full-axis ownership proof used for the new-writer H11 hole."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:6",
+  "port": "datum:#18109",
+  "field": "drawing",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "datum_ref",
+     "rides_on": null,
+     "text": "B",
+     "view": "side"
+    }
+   ]
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "datum_ref",
+     "rides_on": null,
+     "text": "B",
+     "view": "front"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "2026-10-31 cx/pmi-groups: datum B (#18109) retains faces 163/164 and their common y-axis cylinder. The recovered 10 mm spans and rim routing leave a clear attachment on its own perpendicularity frame (#18546, the same faces) in the front view, which sees the bore end-on; the old side-view surface attachment sees it edge-on. The new attachment identifies the same hole where its surface is hidden. This is a proven view-only placement difference, not a changed datum or dimension. tests/hole_marks.rs checks the shared faces, source frame and triangle support. No crossing limit or refusal expectation changes."
  }
 ]
