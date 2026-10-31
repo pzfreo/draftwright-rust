@@ -365,7 +365,9 @@ fn candidate(
                 return false;
             }
             if obs.iter().any(|o| {
-                (if o.id == own {
+                // A ring grown from another ring may start on that ring's rim, but a bend after
+                // its first stroke keeps the same clearance from it as from any other ring.
+                (if o.id == own && (i == 0 || !routing.circular) {
                     crosses(checked, pad(o.bounds, -0.05))
                 } else {
                     crosses(line, pad(o.bounds, 0.5))
@@ -772,6 +774,27 @@ pub(crate) fn place(analysis: &Analysis, plan: &mut Plan, r: &Record, c: &mut Ch
                     for dy in [-1., -0.5, 0.5, 1.] {
                         places.push([mid[0] + dx * reach, mid[1] + dy * reach]);
                     }
+                }
+            }
+        }
+        if setting.position.is_none()
+            && let Some(&(_, o)) = page
+                .views()
+                .iter()
+                .find(|(id, b)| Some(*id) == c.view.as_deref() && boxes_overlap(*b, t))
+        {
+            // Last, a carrier deep inside a large view may be further from every edge than
+            // the reaches above. Its ring can still stand just outside that view, square to the
+            // carrier, its leader crossing the view's interior as interior callouts' do.
+            for gap in [3.0, 8.0, 14.0] {
+                for f in [0.5, 0.25, 0.75, 0., 1.] {
+                    let along = [t[0] + (t[2] - t[0]) * f, t[1] + (t[3] - t[1]) * f];
+                    places.extend([
+                        [o[0] - radius - gap, along[1]],
+                        [o[2] + radius + gap, along[1]],
+                        [along[0], o[1] - radius - gap],
+                        [along[0], o[3] + radius + gap],
+                    ]);
                 }
             }
         }

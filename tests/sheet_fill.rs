@@ -160,7 +160,8 @@ fn manufacturing_plate() -> Analysis {
     model::analyse_native(&path).unwrap().1
 }
 
-/// The supplied plate chooses A3 at 1:1 with every frame clear. Smaller
+/// The supplied plate chooses A3 at 2:1 with every frame clear (1:1 until covered PMI spans
+/// stopped leaving empty rungs in its ladders). Smaller
 /// measured candidates can exist; the independent sheet-rule oracle must
 /// still select the fuller allowed drawing rather than compacting the plate.
 #[test]
@@ -170,7 +171,7 @@ fn specify_plate_pmi_fits_a3_at_full_size_with_every_frame_clear() {
     sheet_rule::assert_rule("manufacturing-pmi", &p);
     assert_eq!(
         (p.sheet.size.as_str(), p.sheet.scale.as_str()),
-        ("A3", "1:1")
+        ("A3", "2:1")
     );
     // #127's fixed-size source note must remain drawn, without rewarding a
     // compact 1:5 diagram after PMI covers the generated dimensions.

@@ -14,6 +14,34 @@ All notable changes to draftwright-rust are recorded here, in the style of
   took 44.1 G instructions retired in 0.2.6 and now takes 31.8 G (0.2.4: 23.5 G), with the
   same plan.
 
+### Fixed
+
+- A dimension the part's PMI conveys (a basic location the PMI states twice over one span, or a
+  recognised hole's location its rooted location network states) no longer takes a lane of its
+  own. It shares its survivor's lane, as other merged dimensions do, both when the dimensions
+  are placed and when the views' bands are reserved. Before, each covered item kept an empty
+  rung: on the `assembly_plate_pin` PMI fixture the ladder above the plan view stood 25 mm from
+  the view with rungs 28, 14 and 14 mm apart (and 30 and 45 beside it were 14 mm apart). Every
+  rung is now one lane pitch from the last, and with the ladders no longer inflated the fixture
+  fits A4 at 1:2 (drawn-item fill 36.5%) where every candidate used to be refused and it fell
+  back to A3 at 1:2 (fill 22.7%).
+- An assembly drawn whole states a general note once when its parts state it alike: the copy
+  is kept in the plan as covered by the drawn note, and omitting the drawn one brings it back.
+  A note only some of the parts state names them (`(PART PLATE)`). `assembly_plate_pin` listed
+  "Break sharp edges 0.2 max" twice, once for each part. The PMI coverage check reads the
+  copy as stated by the drawn note, and a note's part names as its own.
+- An inspection balloon whose carrier stands deep inside a large view can take a ring just
+  outside that view, square to the carrier, its leader crossing the view's interior. Before, rings
+  were tried only within 52 mm of the carrier, so on `editor_pmi` drawn at 2:1 two numbers had no
+  place.
+- Inspection balloons are placed once the paper policy has chosen the scale. When some numbered
+  characteristic then has no clear place for its balloon, the next smaller standard scale on the
+  same sheet is tried, and kept only when it places more balloons with no more hard layout
+  findings and no more leader crossings. An explicit sheet/scale is kept as asked.
+- A balloon grown from another ring of the same compound callout keeps the usual clearance from
+  that ring after its leader's first bend: on the Specify 0.1.4 plate drawn at 1:1, one such
+  leader ran along the bottom of the ring it started from.
+
 ## 0.2.6 (2026-10-31)
 
 Still on quiddity-rust **v0.2.6**. The PMI report now lowers each record to the item that draws

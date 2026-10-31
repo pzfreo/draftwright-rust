@@ -423,6 +423,11 @@ fn manufacturing_text(report: &Report, marks: &[Mark], ids: &Identities) -> Vec<
                     Some(n) if n > 0 => &words[1..],
                     _ => &words[..],
                 };
+                // An assembly's note only some parts state ends naming them (`(PART PIN)`).
+                let note = match note.iter().rposition(|w| *w == "(PART" || *w == "(PARTS") {
+                    Some(k) if note.last().is_some_and(|w| w.ends_with(')')) => &note[..k],
+                    _ => note,
+                };
                 let source = r.label.split_whitespace().collect::<Vec<_>>();
                 let qualified = match r.kind.as_str() {
                     "surface_treatment" => note.strip_prefix(&["Coating:"]),
