@@ -79,7 +79,9 @@ catalogue! {
     "channel_requirement_missing" => Incomplete, Requirement, "The drawing does not state this required feature parameter.";
     "channel_requirement_unverifiable" => Incomplete, Requirement, "The drawing does not prove this required feature parameter.";
     "characteristic_balloon_missing" => Incomplete, Source, "A numbered characteristic has no inspection balloon while inspection is enabled.";
+    "characteristic_id_ambiguous" => Incomplete, Source, "Duplicate requirement ids leave its inspection number unknown.";
     "characteristic_not_drawn" => Incomplete, Source, "A numbered characteristic has no drawn carrier.";
+    "characteristic_number_conflict" => Decision, Source, "The requirement id and legacy UDA disagree; the id supplies the inspection number.";
     "circular_blind_step_requirement_missing" => Incomplete, Requirement, "The drawing does not state this required feature parameter.";
     "circular_blind_step_requirement_unverifiable" => Incomplete, Requirement, "The drawing does not prove this required feature parameter.";
     "circular_channel_requirement_missing" => Incomplete, Requirement, "The drawing does not state this required feature parameter.";

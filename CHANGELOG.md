@@ -19,6 +19,19 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Changed
 
+- For #254 and quiddity-rust#143, pin quiddity-rust and haecceity v0.2.6. Recognition schema
+  `/6` and fingerprints `/3` are unchanged; the dependency graph has one Draftwright copy.
+- For #254, read Specify's characteristic numbers from each requirement's own `ID_ATTRIBUTE`,
+  retaining the interim UDA fallback. Report conflicting numbers (id wins) and duplicate ids
+  (no number). Extend rings to surface textures, including the default symbol, thread/knurl
+  callouts and notes explicitly numbered on their own requirement. General-tolerance dimensions
+  keep their numbers on the items credited by #265, including covered intervals. A shared
+  internal-thread requirement reaches every individually proven hole, with a counted
+  callout or numbered schedule rows. Keep established native hole schedules when recognizing
+  shared threads, retain their native drilling sizes beside the thread statements in the rows,
+  and retain size callouts when replacing them would add frame-leader crossings. PMI JSON fields retain id metadata;
+  WASM signatures and MCP tools/list shapes are unchanged.
+
 - For #265, Specify's general-tolerance dimensions (nominal-only PMI marked
   `specify-core:written:v1`, from specify-core-rust 0.1.4) no longer flood the drawing. One that
   matches a planned dimension is credited to it. One that matches nothing is drawn as an ordinary

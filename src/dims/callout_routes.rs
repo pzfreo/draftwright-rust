@@ -44,7 +44,7 @@ fn improves(before: &[Problem], after: &[Problem]) -> bool {
 }
 
 /// The complete ring/tag and shaft of a schedule balloon are fixed annotation ink.
-fn balloon_obstacle(b: &crate::hole_table::Balloon) -> PlannedDimension {
+pub(super) fn balloon_obstacle(b: &crate::hole_table::Balloon) -> PlannedDimension {
     let [x, y] = b.at;
     let r = b.radius;
     let ring = [x - r, y - r, x + r, y + r];

@@ -1,9 +1,8 @@
 //! File-owned inspection numbers, their final drawing carriers and inspection rings.
-//! Surface textures and semantic notes have no number owner in the pinned reader.
 use crate::{
     items::State,
     model::{Analysis, Plan, Problem},
-    pmi::{Category, Field, Reading, Record},
+    pmi::{Field, Reading, Record},
 };
 use serde::{Deserialize, Serialize};
 use std::collections::{BTreeMap, BTreeSet};
@@ -81,10 +80,41 @@ impl Balloon {
 }
 /// The number exactly as the STEP states it; no allocation or feature-level inheritance.
 pub fn number(record: &Record) -> Option<&str> {
+    if text(record, "id ambiguity").is_some() {
+        return None;
+    }
+    text(record, "id")
+        .filter(|n| numeric(n))
+        .or_else(|| text(record, "characteristic number"))
+}
+fn text<'a>(record: &'a Record, key: &str) -> Option<&'a str> {
     record.fields.iter().find_map(|(k, v)| match v {
-        Field::Text(n) if k == "characteristic number" => Some(n.as_str()),
+        Field::Text(n) if k == key => Some(n.as_str()),
         _ => None,
     })
+}
+/// Positive decimal integers only, without machine-integer truncation or respelling.
+pub(crate) fn numeric(n: &str) -> bool {
+    !n.is_empty() && n.bytes().all(|b| b.is_ascii_digit()) && n.bytes().any(|b| b != b'0')
+}
+fn diagnostic(record: &Record) -> Option<(&'static str, String)> {
+    if let Some(why) = text(record, "id ambiguity") {
+        let code = "characteristic_id_ambiguous";
+        return Some((code, format!("{why}; no inspection number is used.")));
+    }
+    if let Some(id) = text(record, "id").filter(|n| numeric(n))
+        && let Some(uda) = text(record, "characteristic number")
+        && id.trim_start_matches('0') != uda.trim_start_matches('0')
+    {
+        let code = "characteristic_number_conflict";
+        return Some((
+            code,
+            format!(
+                "Requirement id {id} disagrees with characteristic number UDA {uda}; the id is used."
+            ),
+        ));
+    }
+    None
 }
 /// Numbered characteristics, including undrawn requirements, with their resolved sheet/item.
 pub fn list(plan: &Plan) -> &[Characteristic] {
@@ -104,6 +134,12 @@ fn mentions(basis: &str, source: &str) -> bool {
 fn original(plan: &Plan, r: &Record, identity: Option<&str>) -> Option<String> {
     if let Some(g) = plan.gdt.iter().find(|g| g.source == r.source_id) {
         return Some(g.id.clone());
+    }
+    if let Some(r) = plan.requirements.iter().find(|g| g.source == r.source_id) {
+        return Some(r.id.clone());
+    }
+    if let Some(n) = plan.notes.iter().find(|n| identity == Some(n.id.as_str())) {
+        return Some(n.id.clone());
     }
     let matches = |d: &&crate::dims::PlannedDimension| {
         identity.is_some_and(|id| d.measurements.iter().any(|m| m.feature == id))
@@ -157,7 +193,7 @@ pub(crate) fn finding(plan: &mut Plan, c: &Characteristic, code: &str, why: &str
 pub(crate) fn apply(analysis: &Analysis, plan: &mut Plan) {
     if plan.characteristics.is_empty()
         && plan.inspection_balloons.is_empty()
-        && !matches!(&analysis.pmi,Some(Reading::Read(r)) if r.records.iter().any(|r|number(r).is_some()))
+        && !matches!(&analysis.pmi,Some(Reading::Read(r)) if r.records.iter().any(|r|number(r).is_some() || diagnostic(r).is_some()))
     {
         return;
     }
@@ -166,25 +202,37 @@ pub(crate) fn apply(analysis: &Analysis, plan: &mut Plan) {
     plan.problems.retain(|p| {
         !matches!(
             p.code.as_str(),
-            "characteristic_not_drawn" | "characteristic_balloon_missing"
+            "characteristic_not_drawn"
+                | "characteristic_balloon_missing"
+                | "characteristic_number_conflict"
+                | "characteristic_id_ambiguous"
         )
     });
     let Some(Reading::Read(report)) = &analysis.pmi else {
         return;
     };
-    if !report.records.iter().any(|r| number(r).is_some()) {
+    if !report
+        .records
+        .iter()
+        .any(|r| number(r).is_some() || diagnostic(r).is_some())
+    {
         return;
     }
     let identities = report.identities();
     for r in &report.records {
-        if !matches!(
-            r.category,
-            Category::Dimension | Category::GeometricTolerance | Category::Datum
-        ) {
-            continue;
+        let item = original(plan, r, identities.id(&r.source_id).ok());
+        if let Some((code, message)) = diagnostic(r) {
+            plan.problems.push(Problem {
+                id: format!("p:{code}:{}", r.source_id),
+                code: code.into(),
+                severity: "warning".into(),
+                message,
+                subjects: vec![item.clone().unwrap_or_else(|| r.source_id.clone())],
+                refs: vec![r.source_id.clone()],
+                ..Default::default()
+            });
         }
         let Some(n) = number(r) else { continue };
-        let item = original(plan, r, identities.id(&r.source_id).ok());
         let carried = item.as_deref().and_then(|id| carrier(plan, id));
         let mut c = Characteristic {
             id: format!("characteristic:{}", r.source_id),
@@ -207,15 +255,25 @@ pub(crate) fn apply(analysis: &Analysis, plan: &mut Plan) {
                 .hole_table
                 .iter()
                 .chain(&plan.hole_tables)
-                .filter(|t| &t.id == id)
+                .filter(|t| {
+                    &t.id == id
+                        || ms.iter().any(|m| {
+                            m.parameter == "bore.diameter"
+                                && t.rows.iter().any(|row| row.feature == m.feature)
+                        })
+                })
                 .find_map(|t| {
                     t.rows
                         .iter()
                         .find(|row| {
-                            row.measurements.iter().any(|m| {
-                                ms.contains(m)
-                                    || identities.id(&r.source_id).is_ok_and(|id| m.feature == id)
-                            })
+                            ms.iter()
+                                .any(|m| m.parameter == "bore.diameter" && m.feature == row.feature)
+                                || row.measurements.iter().any(|m| {
+                                    ms.contains(m)
+                                        || identities
+                                            .id(&r.source_id)
+                                            .is_ok_and(|id| m.feature == id)
+                                })
                         })
                         .map(|row| (t, row))
                 })
@@ -225,14 +283,29 @@ pub(crate) fn apply(analysis: &Analysis, plan: &mut Plan) {
                 c.view = table.view.clone();
             }
         }
-        if enabled(plan) {
+        plan.characteristics.push(c);
+    }
+    if enabled(plan) {
+        // Give each carrier its first ring before growing groups of numbers on
+        // compound callouts: a group must not close a neighbouring label's exit.
+        // The source inventory retains its file order.
+        let mut characteristics = std::mem::take(&mut plan.characteristics);
+        let mut order: Vec<_> = (0..characteristics.len()).collect();
+        order.sort_by_key(|&i| {
+            characteristics[..i]
+                .iter()
+                .filter(|c| c.drawn_item == characteristics[i].drawn_item)
+                .count()
+        });
+        for i in order {
+            let c = &mut characteristics[i];
             if c.drawn_item.is_none() {
-                finding(plan, &c, "characteristic_not_drawn", "has no drawn item");
-            } else {
-                crate::dims::inspection::place(analysis, plan, r, &mut c);
+                finding(plan, c, "characteristic_not_drawn", "has no drawn item");
+            } else if let Some(r) = report.records.iter().find(|r| r.source_id == c.source) {
+                crate::dims::inspection::place(analysis, plan, r, c);
             }
         }
-        plan.characteristics.push(c);
+        plan.characteristics = characteristics;
     }
     plan.status = crate::completeness::status(&plan.problems);
 }
@@ -241,6 +314,7 @@ pub(crate) fn apply(analysis: &Analysis, plan: &mut Plan) {
 mod tests {
     use super::*;
     use crate::model::{self, Spec};
+    use crate::pmi::Category;
     fn numbered() -> (haecceity::Part, Analysis, String) {
         let bytes = include_bytes!("../tests/fixtures/parts/editor_pmi.step");
         let (part, mut a) = model::analyse_native_bytes("numbered.step", bytes).unwrap();
@@ -273,6 +347,16 @@ mod tests {
                     .as_ref()
                     .is_some_and(|id| id.starts_with("hole_schedule_"))
         }));
+        let rows: BTreeSet<_> = p
+            .inspection_balloons
+            .iter()
+            .map(|b| b.item.clone())
+            .collect();
+        assert_eq!(
+            rows.len(),
+            6,
+            "the numbered six-hole requirement has one ring per row"
+        );
         // The allocator's table transfer changes the ownership before the final ring pass.
         for t in p.hole_table.iter_mut().chain(&mut p.hole_tables) {
             t.sheet = 2;
@@ -285,13 +369,24 @@ mod tests {
         p.sheets.push(second);
         crate::title_block::number_sheets(&mut p);
         apply(&a, &mut p);
-        assert_eq!(p.inspection_balloons.len(), 1, "{:?}", p.problems);
-        assert_eq!(p.inspection_balloons[0].sheet, 2);
-        assert_eq!(p.inspection_balloons[0].number, "407");
+        assert_eq!(p.inspection_balloons.len(), 6, "{:?}", p.problems);
+        assert_eq!(
+            p.inspection_balloons
+                .iter()
+                .map(|b| b.item.clone())
+                .collect::<BTreeSet<_>>(),
+            rows
+        );
+        assert!(
+            p.inspection_balloons
+                .iter()
+                .all(|b| b.sheet == 2 && b.number == "407" && b.source == source)
+        );
         let pages = model::render_sheets(&part, &a, &p, crate::dims::font()).unwrap();
-        let id = &p.inspection_balloons[0].id;
-        assert!(!pages[0].sheet.items.iter().any(|i| &i.name == id));
-        assert!(pages[1].sheet.items.iter().any(|i| &i.name == id));
+        for balloon in &p.inspection_balloons {
+            assert!(!pages[0].sheet.items.iter().any(|i| i.name == balloon.id));
+            assert!(pages[1].sheet.items.iter().any(|i| i.name == balloon.id));
+        }
     }
     #[test]
     fn covered_numbered_dimensions_follow_their_note_line() {

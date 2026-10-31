@@ -2912,11 +2912,17 @@ and the entity identity remains in structured sources.
 ### Inspection characteristic balloons (#254)
 
 `sheet/balloons: "all"` draws inspection rings for numbered AP242 dimensions, geometric
-tolerance frames and datum features; `"off"` and an absent setting keep them off. Numbers
-come from the exact PMI entity's `characteristic number` UDA ([storage convention](pmi-bookkeeping.md#characteristic-numbers-producer-convention-254)).
-Draftwright does not allocate or change a number. Unnumbered derived items and general CSV
-rows get no ring. Surface textures and semantic notes have no supported number owner in
-haecceity 0.2.5 and draw unchanged: this is a known limit.
+tolerance frames, datum features, surface textures and thread/knurl callouts; `"off"` and
+an absent setting keep them off. Numbers come from the requirement's own `ID_ATTRIBUTE`
+([storage convention](pmi-bookkeeping.md#characteristic-numbers-producer-convention-254)),
+with the interim `characteristic number` UDA as fallback. Conflicting numeric values are
+reported and the id wins; duplicate ids are reported on the item and supply no number.
+Non-integer ids are quietly ignored for numbering. Draftwright does not allocate or change
+a number. Unnumbered derived items and general CSV rows get no ring. Semantic notes stay
+unnumbered unless their own requirement carries a numeric id. A part-default texture's
+ring attaches to its default texture symbol beside the title block; a numbered note's ring
+attaches to its own note line. General-tolerance dimensions credited by #265 carry their
+numbers onto the credited planned item.
 
 `Plan.characteristics` lists the file's numbers, original `item`, final `drawn_item` and
 `sheet`, including requirements that cannot be drawn. `items::items` exposes
@@ -2925,11 +2931,16 @@ can state several requirements). The library offers `characteristics::list(plan)
 `Session::numbered_characteristics`; WASM offers `numberedCharacteristics()` as JSON.
 
 A grouped `n×` characteristic gets one number-only circular ring on the callout. Hole-table
-characteristics get their rings beside their rows; the existing TAG rings retain their
-letters. Number rings enclose the measured glyph bounds with 0.35 mm inner clearance
+characteristics get their rings beside their rows, repeating a shared size or thread
+number at every applicable row (including when a retained size callout also states it);
+the existing TAG rings retain their letters. Number rings enclose the measured glyph bounds with 0.35 mm inner clearance
 and have a minimum 3 mm outer radius. A covered dimension's ring attaches to the dimension, table row or general-note
 line that states it. Rings use settled label/leader clearance predicates and belong to the
-sheet carrying that item. A failed placement is reported, never drawn over information.
+sheet carrying that item. Like other annotation leaders, ring leaders may cross dimension
+extension strokes transversely; they cannot follow them or cross text, dimension lines or
+other leaders. Several numbers conveyed by one compound callout may form a connected
+group of rings on that same carrier, sharing its single exit into free space. A failed placement is reported, never drawn over information, and does
+not itself request larger paper.
 
 `balloons/occurrences: true` additionally requests the same number at each proven repeated
 cylindrical occurrence in the carrier's end-on view. Unlocatable occurrences are not guessed.
