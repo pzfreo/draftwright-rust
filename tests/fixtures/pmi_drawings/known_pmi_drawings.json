@@ -9998,5 +9998,25 @@
   },
   "verdict": "rust-correct",
   "evidence": "The native drawing attaches datum C (datum:#8442, faces 24/25) to its hole control frame in the front view, which sees the y-axis bore end-on. Its basis names that attachment and the same two source faces. Python places C edge-on in the side view. Both retain the datum letter; the native attachment identifies the controlled hole when its surface is hidden. quiddity-rust#127 changes the radius inventory and available strips. An explicit view or side at annotations/pmi:datum.datum:f24,25:t=C/place keeps the surface attachment."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:120",
+  "port": "dimension:#19998",
+  "field": "drawing",
+  "python": {"codes": ["authored_dim_source_unresolved", "pmi_not_extracted"], "outcome": "refused"},
+  "rust": {"drawn": [{"boxed": false, "kind": "dimension", "rides_on": null, "text": "10 ±0.2", "view": "front"}]},
+  "verdict": "rust-correct",
+  "evidence": "The composite target's four Z planes are at 27.5 mm and its source plane at 37.5 mm, exactly the authored 10 mm apart. The old combined-box centres describe an oblique relationship and are not the measured plane separation. Coplanar-group lowering proves attachment points on the trimmed reference faces, checks the unchanged nominal-span tolerance and draws the source's 10 ±0.2 dimension in front. known_pmi_dimensions.json records the same corrected outcome; the spindle regression separately proves that inconsistent nominals are still refused."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:134",
+  "port": "dimension:#20584",
+  "field": "drawing",
+  "python": {"codes": ["authored_dim_source_unresolved", "pmi_not_extracted"], "outcome": "refused"},
+  "rust": {"drawn": [{"boxed": false, "kind": "dimension", "rides_on": null, "text": "10 ±0.2", "view": "front"}]},
+  "verdict": "rust-correct",
+  "evidence": "The composite target's four Z planes are at -27.5 mm and its source plane at -37.5 mm, exactly the authored 10 mm apart. The old combined-box centres describe an oblique relationship and are not the measured plane separation. Coplanar-group lowering proves attachment points on the trimmed reference faces, checks the unchanged nominal-span tolerance and draws the source's 10 ±0.2 dimension in front. known_pmi_dimensions.json records the same corrected outcome; the spindle regression separately proves that inconsistent nominals are still refused."
  }
 ]

@@ -1849,27 +1849,41 @@ fn projected_planar_witness(
     };
     let fractions = [0.5, 0.1, 0.2, 0.3, 0.4, 0.6, 0.7, 0.8, 0.9];
     for (view, across, hidden) in views {
+        let mut candidates = Vec::new();
         for (&a, ba) in groups[0].iter().zip(&boxes[0]) {
             for (&b, bb) in groups[1].iter().zip(&boxes[1]) {
                 let lo = ba[across].max(bb[across]);
                 let hi = ba[across + 3].min(bb[across + 3]);
-                if hi < lo {
-                    continue;
+                if hi >= lo {
+                    candidates.push((lo, hi, a, b, ba, bb));
                 }
-                for fraction in fractions {
-                    let transverse = lo + fraction * (hi - lo);
-                    let point = |face, bounds: &[f64; 6]| {
-                        fractions.iter().find_map(|t| {
-                            let mut p = [0.0; 3];
-                            p[k] = 0.5 * (bounds[k] + bounds[k + 3]);
-                            p[across] = transverse;
-                            p[hidden] = bounds[hidden] + t * (bounds[hidden + 3] - bounds[hidden]);
-                            on_face(part, face, p).then_some(p)
-                        })
-                    };
-                    if let (Some(p), Some(q)) = (point(a, ba), point(b, bb)) {
-                        return Planar::Projected(k, view, [p, q]);
-                    }
+            }
+        }
+        // Use a patch near the normal dimension strip, rather than the first face's
+        // ordinal: vertical front/side dimensions run on the right, horizontal plan
+        // dimensions above, and the others below or left (dims::placement::strip).
+        // This keeps extensions short and leaves paper for hole marks and frames.
+        let high = k == 2 || (k == 0 && view == "plan");
+        candidates.sort_by(|a, b| {
+            let order = (a.0 + a.1).total_cmp(&(b.0 + b.1));
+            (if high { order.reverse() } else { order })
+                .then(a.2.cmp(&b.2))
+                .then(a.3.cmp(&b.3))
+        });
+        for (lo, hi, a, b, ba, bb) in candidates {
+            for fraction in fractions {
+                let transverse = lo + fraction * (hi - lo);
+                let point = |face, bounds: &[f64; 6]| {
+                    fractions.iter().find_map(|t| {
+                        let mut p = [0.0; 3];
+                        p[k] = 0.5 * (bounds[k] + bounds[k + 3]);
+                        p[across] = transverse;
+                        p[hidden] = bounds[hidden] + t * (bounds[hidden + 3] - bounds[hidden]);
+                        on_face(part, face, p).then_some(p)
+                    })
+                };
+                if let (Some(p), Some(q)) = (point(a, ba), point(b, bb)) {
+                    return Planar::Projected(k, view, [p, q]);
                 }
             }
         }
