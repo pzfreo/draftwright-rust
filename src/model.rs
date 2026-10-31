@@ -4530,6 +4530,8 @@ fn with_uncapped<T>(uncapped: bool, run: impl FnOnce() -> T) -> T {
 /// are installed once more with those callouts kept beside their rows, as they were before; and
 /// so they are where a frame or datum symbol on a callout the rows replace can attach to its hole
 /// in no other way (a tag, a frame of the same hole, or for a frame a leader to the hole itself).
+/// A newly recognized shared thread keeps that fallback when retaining size callouts avoids
+/// additional frame-leader crossings; its thread statement still moves to each applicable row.
 fn install_schedules(
     analysis: &Analysis,
     unscheduled: &Plan,
@@ -4556,6 +4558,38 @@ fn install_schedules(
     };
     if !errors(replacing).is_subset(&errors(unscheduled)) {
         return keeping();
+    }
+    // Replacing a size callout can force its tolerance frame onto a long leader.
+    // Keep the source size beside its row when that avoids new crossings; the
+    // table still replaces the generated drill callout of a shared thread.
+    let crossings = |p: &Plan| {
+        p.problems
+            .iter()
+            .filter(|q| q.code == "annotation_leader_crossing")
+            .count()
+    };
+    let manufacturing = crate::pmi_lowering::manufacturing(analysis);
+    let shared_thread = selection
+        .tables
+        .iter()
+        .flat_map(|t| &t.rows)
+        .flat_map(|r| &r.measurements)
+        .any(|m| {
+            m.parameter == "thread"
+                && manufacturing
+                    .owned
+                    .iter()
+                    .filter(|o| o.id == m.feature)
+                    .count()
+                    > 1
+        });
+    if shared_thread
+        && crossings(replacing) > crossings(unscheduled)
+        && let Some(kept) = keeping()?
+        && errors(&kept).is_subset(&errors(unscheduled))
+        && crossings(&kept) < crossings(replacing)
+    {
+        return Ok(Some(kept));
     }
     // A frame or datum symbol held a PMI callout back where it attached to a callout the rows
     // replace; it now attaches to the hole itself (a leader, a tag, or its hole's frame), and

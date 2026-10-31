@@ -455,17 +455,21 @@ pub(super) fn consolidate(
             };
             let Some(owner) = by.first() else { continue };
             suppressed.insert(w.id.clone(), owner.clone());
+            let mut basis = format!(
+                "conveyed by {}: other stated dimensions determine this interval; dependencies: {}",
+                owner,
+                by.join(", ")
+            );
+            if w.basis.contains("Specify's general-tolerance dimension") {
+                basis += &format!("; {}", w.basis);
+            }
             omitted.push(Omitted {
                 id: w.id.clone(),
                 label: w.terms[0]
                     .trim_start_matches('(')
                     .trim_end_matches(')')
                     .into(),
-                basis: format!(
-                    "conveyed by {}: other stated dimensions determine this interval; dependencies: {}",
-                    owner,
-                    by.join(", ")
-                ),
+                basis,
                 state: State::Covered { by: by[0].clone() },
             });
             gone.insert(i);

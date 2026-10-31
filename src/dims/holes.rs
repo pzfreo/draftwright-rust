@@ -569,18 +569,21 @@ fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
         }
     }
 
-    // The holes left: identical ones grouped and counted (ARCH0008-2). A hole that carries an
-    // AP242 thread keeps a callout of its own (draftwright: identical threads on distinct owners
-    // keep two annotations, ISSUE-1298-a).
-    // (requirement, the threaded hole's own ID, recessed at both mouths), members.
-    type Group<'a> = ((Vec<i64>, Option<&'a str>, bool), Vec<usize>);
+    // Identical holes share a counted callout only when their manufacturing requirements
+    // are the same source statements. Independent threads keep independent annotations
+    // (ISSUE-1298-a); one requirement applied to several holes is stated once with a count.
+    // (geometry, manufacturing sources, recessed at both mouths), members.
+    type Group<'a> = ((Vec<i64>, Vec<&'a str>, bool), Vec<usize>);
     let mut groups: Vec<Group> = Vec::new();
     for (i, h) in holes.iter().enumerate() {
         if taken.contains(&i) {
             continue;
         }
-        let threaded =
-            (!manufacturing.on(&h.feature.id).is_empty()).then_some(h.feature.id.as_str());
+        let threaded = manufacturing
+            .on(&h.feature.id)
+            .iter()
+            .map(|o| o.source.as_str())
+            .collect();
         let req = (h.requirement(), threaded, h.both);
         match groups.iter_mut().find(|g| g.0 == req) {
             Some(g) => g.1.push(i),
