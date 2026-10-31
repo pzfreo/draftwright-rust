@@ -4513,15 +4513,6 @@
   "file": "nist_ftc_10_asme1_ap242-e2.stp",
   "python": null,
   "rust": "error",
-  "source": "dimension:#19998",
-  "verdict": "equivalent",
-  "evidence": "Both leave the dimension off the drawing for the same reason, found at a different stage: draftwright checks the faces when it extracts the record (pmi_not_extracted), the port reads the record and its lowering makes the same check (dimension_geometry, as draftwright's _proved_planar_linear and _cylindrical_references), so it is pmi_not_lowered. Reason: 'linear reference relationship does not lie in a principal projection plane (delta=(-4, 8, -10) mm)'. port: \"linear reference relationship does not lie in a principal projection plane (delta=(-4, 8, -10) mm)\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_ftc_10_asme1_ap242-e2.stp",
-  "python": null,
-  "rust": "error",
   "source": "dimension:#20047",
   "verdict": "equivalent",
   "evidence": "Both leave the dimension off the drawing for the same reason, found at a different stage: draftwright checks the faces when it extracts the record (pmi_not_extracted), the port reads the record and its lowering makes the same check (dimension_geometry, as draftwright's _proved_planar_linear and _cylindrical_references), so it is pmi_not_lowered. Reason: 'diameter references mix internal and external cylindrical faces'. port: \"diameter references mix internal and external cylindrical faces\""
@@ -4579,15 +4570,6 @@
   "source": "dimension:#20491",
   "verdict": "equivalent",
   "evidence": "Both leave the dimension off the drawing for the same reason, found at a different stage: draftwright checks the faces when it extracts the record (pmi_not_extracted), the port reads the record and its lowering makes the same check (dimension_geometry, as draftwright's _proved_planar_linear and _cylindrical_references), so it is pmi_not_lowered. Reason: 'linear reference relationship does not lie in a principal projection plane (delta=(-27.5, -0.499998, 23.5) mm)'. port: \"linear reference relationship does not lie in a principal projection plane (delta=(-27.5, -0.499998, 23.5) mm)\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_ftc_10_asme1_ap242-e2.stp",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#20584",
-  "verdict": "equivalent",
-  "evidence": "Both leave the dimension off the drawing for the same reason, found at a different stage: draftwright checks the faces when it extracts the record (pmi_not_extracted), the port reads the record and its lowering makes the same check (dimension_geometry, as draftwright's _proved_planar_linear and _cylindrical_references), so it is pmi_not_lowered. Reason: 'linear reference relationship does not lie in a principal projection plane (delta=(-19, 8, 10) mm)'. port: \"linear reference relationship does not lie in a principal projection plane (delta=(-19, 8, 10) mm)\""
  },
  {
   "code": "pmi_not_lowered",

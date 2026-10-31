@@ -4966,12 +4966,12 @@
      "kind": "datum_ref",
      "rides_on": null,
      "text": "E",
-     "view": "front"
+     "view": "side"
     }
    ]
   },
   "verdict": "rust-correct",
-  "evidence": "Python drops datum E for lack of legible room (plan_incomplete, pmi_dropped). Rust retains E on the front view after quiddity-rust#127 adds radius callouts and changes the available strips; the datum remains attached to its cylindrical feature, with all source faces and the datum letter preserved. This is an information gain, not parity: the Python drawing has no E. An explicit annotation view/side can retain the original lowered surface attachment."
+  "evidence": "Python drops E for lack of room. Rust retains its cylindrical-feature attachment in side after the two proven front-view coplanar spans occupy the annotation lanes (cx/pmi-groups). Moving E leaves those dimensions and hole-frame attachments readable; all source faces and the letter are preserved. The side-view routing introduces one centreline run, retained for attachment rather than moving the symbol off its feature."
  },
  {
   "file": "nist_ftc_10_asme1_ap242-e2.stp",
@@ -10004,19 +10004,51 @@
   "record": "dimension:0:1:4:120",
   "port": "dimension:#19998",
   "field": "drawing",
-  "python": {"codes": ["authored_dim_source_unresolved", "pmi_not_extracted"], "outcome": "refused"},
-  "rust": {"drawn": [{"boxed": false, "kind": "dimension", "rides_on": null, "text": "10 ±0.2", "view": "front"}]},
+  "python": {
+   "codes": [
+    "authored_dim_source_unresolved",
+    "pmi_not_extracted"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": null,
+     "text": "10 ±0.2",
+     "view": "front"
+    }
+   ]
+  },
   "verdict": "rust-correct",
-  "evidence": "The composite target's four Z planes are at 27.5 mm and its source plane at 37.5 mm, exactly the authored 10 mm apart. The old combined-box centres describe an oblique relationship and are not the measured plane separation. Coplanar-group lowering proves attachment points on the trimmed reference faces, checks the unchanged nominal-span tolerance and draws the source's 10 ±0.2 dimension in front. known_pmi_dimensions.json records the same corrected outcome; the spindle regression separately proves that inconsistent nominals are still refused."
+  "evidence": "The composite target's four Z planes are at 27.5 mm and its source plane at 37.5 mm, exactly the authored 10 mm apart. The old combined-box centres describe an oblique relationship and are not the measured plane separation. Coplanar-group lowering proves attachment points on the trimmed reference faces, checks the unchanged nominal-span tolerance and draws the source's 10 ±0.2 dimension in front. known_pmi_dimensions.json records the same corrected outcome; the spindle regression separately proves that inconsistent nominals are still refused. Reviewer decision: now proven: coplanar composite measured as one plane (cx/pmi-groups)."
  },
  {
   "file": "nist_ftc_10_asme1_ap242-e2.stp",
   "record": "dimension:0:1:4:134",
   "port": "dimension:#20584",
   "field": "drawing",
-  "python": {"codes": ["authored_dim_source_unresolved", "pmi_not_extracted"], "outcome": "refused"},
-  "rust": {"drawn": [{"boxed": false, "kind": "dimension", "rides_on": null, "text": "10 ±0.2", "view": "front"}]},
+  "python": {
+   "codes": [
+    "authored_dim_source_unresolved",
+    "pmi_not_extracted"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": null,
+     "text": "10 ±0.2",
+     "view": "front"
+    }
+   ]
+  },
   "verdict": "rust-correct",
-  "evidence": "The composite target's four Z planes are at -27.5 mm and its source plane at -37.5 mm, exactly the authored 10 mm apart. The old combined-box centres describe an oblique relationship and are not the measured plane separation. Coplanar-group lowering proves attachment points on the trimmed reference faces, checks the unchanged nominal-span tolerance and draws the source's 10 ±0.2 dimension in front. known_pmi_dimensions.json records the same corrected outcome; the spindle regression separately proves that inconsistent nominals are still refused."
+  "evidence": "The composite target's four Z planes are at -27.5 mm and its source plane at -37.5 mm, exactly the authored 10 mm apart. The old combined-box centres describe an oblique relationship and are not the measured plane separation. Coplanar-group lowering proves attachment points on the trimmed reference faces, checks the unchanged nominal-span tolerance and draws the source's 10 ±0.2 dimension in front. known_pmi_dimensions.json records the same corrected outcome; the spindle regression separately proves that inconsistent nominals are still refused. Reviewer decision: now proven: coplanar composite measured as one plane (cx/pmi-groups)."
  }
 ]
