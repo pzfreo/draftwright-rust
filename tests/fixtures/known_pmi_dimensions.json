@@ -1658,5 +1658,23 @@
   },
   "verdict": "rust-correct",
   "evidence": "cx/pmi-groups proves the authored basic 1.2 mm plane-to-bore axis location along X, from the plane at -1.2 to the axis at 0, with a trimmed face witness in plan. The old box centres included an unrelated Z offset. The unchanged nominal check passes; the existing basic 1.2 on the same projected axis station now states both sources without duplicate ink."
+ },
+ {
+  "field": "outcome",
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "port": "dimension:#15699",
+  "python": {
+   "detail": [
+    "authored_dim_source_unresolved"
+   ],
+   "outcome": "refused"
+  },
+  "record": "dimension:0:1:4:95",
+  "rust": {
+   "detail": "4× ⌀4.394 +0.127 -0.0254\nTHRU",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "cx/pmi-groups proves the four inclined bore owners by all eight native faces, their full 3D axis lines (Y=sin(1 degree), Z=cos(1 degree)), and the exact 4.3942 mm diameter. The existing nearly end-on rim callout now states the source +0.127/-0.0254 mm band. The old principal-axis restriction discarded this valid requirement. Geometry and nominal checks remain strict; this is the same full-axis ownership proof used for the new-writer H11 hole."
  }
 ]
