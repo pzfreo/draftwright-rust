@@ -27,6 +27,7 @@ mod local_fix;
 use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 
+use draftwright::fixes::Scope;
 use draftwright::items::{Op, key};
 use draftwright::lint::{self, LintIssue, Severity};
 use draftwright::model::{self, Analysis, Spec};
@@ -695,10 +696,22 @@ fn the_plan_and_lint_agree_on_a_leader_cutting_back_into_the_material() {
     );
     assert_eq!(p, l, "{} / {}", planned[0].message, linted[0].message);
     assert!(p.parse::<f64>().unwrap() > 1.0, "{p}");
-    // The pin is the author's: the fix offered is to release it.
+    // The pin is the author's: the fix offered is to release it, locally with the layout kept
+    // or, when keeping the layout is not offered (as since haecceity v0.2.7's one-line
+    // deviations narrowed the view's callouts), at sheet scope.
+    let releases: Vec<_> = if planned[0].offered_fixes()[0].scope() == Scope::Local {
+        local_fix::edits(&planned[0], &plan)
+    } else {
+        planned[0]
+            .fix
+            .iter()
+            .filter(|op| !local_fix::constraint(op))
+            .collect()
+    };
+    assert_eq!(releases.len(), 1, "{:?}", planned[0].fix);
     assert_eq!(
-        local_fix::edits(&planned[0], &plan).len(),
-        1,
+        releases[0].path,
+        format!("dimensions/{}/place", key(ID)),
         "{:?}",
         planned[0].fix
     );

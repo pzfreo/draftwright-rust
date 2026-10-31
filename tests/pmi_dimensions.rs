@@ -666,7 +666,7 @@ fn a_toleranced_bore_annotates_its_callout_and_a_spec_tolerance_wins() {
         .iter()
         .find(|d| d.id == "d:f:hole_pattern:1/bore.diameter")
         .unwrap();
-    assert_eq!(callout.label, "6× ⌀10 +0.09 0 THRU EQ SP\nON ø90 BC");
+    assert_eq!(callout.label, "6× ⌀10 +0.09/0 THRU EQ SP\nON ø90 BC");
     assert!(callout.basis.contains("lower_ap242_hole_tolerances"));
     let feature = callout
         .measurements
@@ -769,8 +769,8 @@ fn holes_of_different_requirements_are_called_out_apart() {
         .filter(|d| d.id.ends_with("/bore.diameter") && d.view == "v:front")
         .map(|d| d.label.as_str())
         .collect();
-    assert!(labels.contains(&"⌀20 +0.1 -0.05 ↧ 45"), "{labels:?}");
-    assert!(labels.contains(&"⌀20 +0.05 -0.1 ↧ 45"), "{labels:?}");
+    assert!(labels.contains(&"⌀20 +0.1/-0.05 ↧ 45"), "{labels:?}");
+    assert!(labels.contains(&"⌀20 +0.05/-0.1 ↧ 45"), "{labels:?}");
     // The 2×2 grid of ⌀35 whose holes carry three requirements is split too (its pitches still
     // locate the holes).
     let plan_labels: Vec<&str> = plan
@@ -779,7 +779,7 @@ fn holes_of_different_requirements_are_called_out_apart() {
         .filter(|d| d.id.ends_with("/bore.diameter") && d.view == "v:plan")
         .map(|d| d.label.as_str())
         .collect();
-    for want in ["⌀35 0 -0.2 THRU", "⌀35 +0.2 0 THRU", "2× ⌀35 ±0.2 THRU"] {
+    for want in ["⌀35 0/-0.2 THRU", "⌀35 +0.2/0 THRU", "2× ⌀35 ±0.2 THRU"] {
         assert!(plan_labels.contains(&want), "{want}: {plan_labels:?}");
     }
     assert!(
@@ -1146,10 +1146,10 @@ fn an_external_diameter_annotates_the_turned_size_with_its_signs() {
             .map(|d| d.label.clone())
             .unwrap()
     };
-    assert_eq!(label("d:envelope/od.diameter"), "2× ø130 -0.014 -0.039");
+    assert_eq!(label("d:envelope/od.diameter"), "2× ø130 -0.014/-0.039");
     assert_eq!(
         label("d:f:turned_step:3/step.diameter"),
-        "ø70 -0.03 -0.06 OD"
+        "ø70 -0.03/-0.06 OD"
     );
     // bolt_thread_knurl's shank: the turned step's ø6 takes its band, and nothing restates it.
     let (_, _, plan) = planned("bolt_thread_knurl");
@@ -1158,7 +1158,7 @@ fn an_external_diameter_annotates_the_turned_size_with_its_signs() {
         .iter()
         .find(|d| d.id == "d:f:turned_step:3/step.diameter")
         .unwrap();
-    assert_eq!(d.label, "ø6 0 -0.008");
+    assert_eq!(d.label, "ø6 0/-0.008");
     assert!(d.basis.contains("lower_ap242_external_diameter_tolerances"));
     assert!(!plan.dimensions.iter().any(|d| d.id.starts_with("d:pmi:")));
 }
