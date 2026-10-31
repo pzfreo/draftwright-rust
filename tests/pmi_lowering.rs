@@ -279,7 +279,9 @@ fn rust_text(l: &Lowered) -> Value {
     match &l.glyph {
         Glyph::Datum { letter, .. } => json!(letter),
         Glyph::Label { text } => json!(text),
-        Glyph::Finish { lines, .. } => json!(lines.join(", ")),
+        Glyph::Finish { texture, .. } => json!(
+            draftwright::haecceity::presentation::notes::texture_parameters(texture).join(", ")
+        ),
         Glyph::ControlFrame {
             characteristic,
             tolerance,
