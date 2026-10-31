@@ -200,11 +200,10 @@ fn numbered_pmi_round_trips_to_items_and_clear_rings() {
         let p = model::plan_recovered(&a, &on()).unwrap();
         // Main's #254 fixtures, with the same UDA edits and balloons enabled.
         let (paper, scale, crossings, extensions) = match name {
-            // At 2:1, which the plate takes with its rings off now that covered PMI spans leave
-            // no empty rungs, two rings have no clear place, so the balloon fallback keeps 1:1.
-            // There its frames, no longer spaced by those empty rungs, hang across the plan
-            // view's ladder: 10 crossings where main had 1 (and one extension crossing fewer).
-            "tests/fixtures/parts/editor_pmi.step" => ("A3", "1:1", 10, 0),
+            // Drawn at 2:1 now that covered PMI spans leave no empty rungs (main: 1:1, one
+            // leader crossing and one extension crossing). The two numbers whose carriers stand
+            // deep inside the plan view take rings just outside it.
+            "tests/fixtures/parts/editor_pmi.step" => ("A3", "2:1", 0, 0),
             "tests/fixtures/pmi/step/GRM-03_thumbwheel_drive_screw_AP242_PMI.step.gz" => {
                 ("A4", "2:1", 0, 0)
             }
@@ -442,12 +441,17 @@ fn grouped_occurrences_and_relative_pins_keep_the_files_numbers() {
         },
     );
     let q = model::plan_recovered(&a, &s).unwrap();
-    assert_eq!(
-        q.inspection_balloons
-            .iter()
-            .find(|c| c.source == b.source)
-            .unwrap()
-            .at,
+    // The ring is placed again from its offset to the carrier's centre: a ring far from its
+    // carrier (one outside the view its carrier stands deep in) round-trips to within rounding.
+    let again = q
+        .inspection_balloons
+        .iter()
+        .find(|c| c.source == b.source)
+        .unwrap()
+        .at;
+    assert!(
+        (again[0] - b.at[0]).abs() < 1e-9 && (again[1] - b.at[1]).abs() < 1e-9,
+        "{again:?} {:?}",
         b.at
     );
     s.balloons.items.get_mut(&b.source).unwrap().position = Some([0., 0.]);

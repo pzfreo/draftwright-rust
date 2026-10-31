@@ -4232,8 +4232,9 @@ pub fn plan_recovered(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid>
 /// Inspection balloons are placed on the finished sheet, after the paper policy has chosen its
 /// scale. When the automatic scale leaves some numbered characteristic without a clear place for
 /// its balloon, the next smaller standard scale on the same sheet is tried, and taken when it
-/// places more of them with no more hard layout findings: a larger drawing never costs a reader
-/// the inspection numbers the smaller one shows. An explicit scale is the user's to keep.
+/// places more of them with no more hard layout findings and no more leader crossings: a larger
+/// drawing never costs a reader the inspection numbers the smaller one shows, and the numbers
+/// are never bought with crossings. An explicit scale is the user's to keep.
 fn balloon_fallback(analysis: &Analysis, spec: &Spec, plan: Plan) -> Result<Plan, Invalid> {
     let missing = |p: &Plan| {
         p.problems
@@ -4260,7 +4261,17 @@ fn balloon_fallback(analysis: &Analysis, spec: &Spec, plan: Plan) -> Result<Plan
     let Ok(mut trial) = plan_recovered_once(analysis, &named) else {
         return Ok(plan);
     };
-    if missing(&trial) >= missing(&plan) || findings(&trial).hard > findings(&plan).hard {
+    let crossings = |p: &Plan| {
+        p.problems
+            .iter()
+            .filter(|q| q.code == "annotation_leader_crossing")
+            .count()
+    };
+    // Balloons are not bought with crossings: the smaller scale must not cross more lines.
+    if missing(&trial) >= missing(&plan)
+        || findings(&trial).hard > findings(&plan).hard
+        || crossings(&trial) > crossings(&plan)
+    {
         return Ok(plan);
     }
     trial.sheet.basis = format!(

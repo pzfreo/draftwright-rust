@@ -22,10 +22,14 @@ All notable changes to draftwright-rust are recorded here, in the style of
   A note only some of the parts state names them (`(PART PLATE)`). `assembly_plate_pin` listed
   "Break sharp edges 0.2 max" twice, once for each part. The PMI coverage check reads the
   copy as stated by the drawn note, and a note's part names as its own.
+- An inspection balloon whose carrier stands deep inside a large view can take a ring just
+  outside that view, square to the carrier, its leader crossing the view's interior. Before, rings
+  were tried only within 52 mm of the carrier, so on `editor_pmi` drawn at 2:1 two numbers had no
+  place.
 - Inspection balloons are placed once the paper policy has chosen the scale. When some numbered
   characteristic then has no clear place for its balloon, the next smaller standard scale on the
-  same sheet is tried, and kept when it places more balloons with no more hard layout findings.
-  An explicit sheet/scale is kept as asked.
+  same sheet is tried, and kept only when it places more balloons with no more hard layout
+  findings and no more leader crossings. An explicit sheet/scale is kept as asked.
 - A balloon grown from another ring of the same compound callout keeps the usual clearance from
   that ring after its leader's first bend: on the Specify 0.1.4 plate drawn at 1:1, one such
   leader ran along the bottom of the ring it started from.
