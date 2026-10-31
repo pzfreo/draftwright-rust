@@ -1659,6 +1659,99 @@ pub(crate) fn analyse_pack_part(
     )
 }
 
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn pack_projection(
+    a: &Analysis,
+    direction: [f64; 3],
+    up: [f64; 3],
+) -> Option<Vec<Projected>> {
+    if a.squared.is_some() {
+        return None;
+    }
+    projected_ink::prepared(&a.binding, direction, up)
+}
+
+/// Whole assembled geometry, without the merged-draw principal-part heuristic.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn analyse_pack_assembly(
+    name: &str,
+    bytes: &[u8],
+    horizontal: Option<usize>,
+) -> Result<(Part, Analysis, haecceity::step::Placement), Unanalysed> {
+    let part = haecceity::read_step(bytes).map_err(|e| step_refused(name, e))?;
+    let b = part.bounds();
+    let x = horizontal.unwrap_or_else(|| {
+        (0..3)
+            .max_by(|&i, &j| (b.max[i] - b.min[i]).total_cmp(&(b.max[j] - b.min[j])))
+            .expect("three axes")
+    });
+    // Use one proper-rigid frame for the entire projection set. Preserve the
+    // source depth axis where possible, and keep z up when swapping x and y.
+    let mut dx = [0.; 3];
+    dx[x] = 1.;
+    let mut dy = [0.; 3];
+    if x == 1 {
+        dy[0] = -1.;
+    } else {
+        dy[1] = 1.;
+    }
+    let dz = haecceity::geom::cross(dx, dy);
+    let placement = [dx, dy, dz].map(|d| [d[0], d[1], d[2], 0.]);
+    let part = part
+        .transformed(&placement)
+        .map_err(|e| step_refused(name, e))?;
+    let b = part.bounds();
+    let mut analysis = Analysis {
+        schema: ANALYSIS_SCHEMA.into(),
+        binding: Binding {
+            source_sha256: Sha256::digest(bytes)
+                .iter()
+                .map(|x| format!("{x:02x}"))
+                .collect(),
+            part: name.into(),
+            face_count: part.faces.len(),
+            loader: LOADER.into(),
+            part_index: None,
+        },
+        product_name: None,
+        source_stem: Some(name.into()),
+        envelope: [b.min, b.max],
+        solid_count: Some(part.solids.len()),
+        body_faces: None,
+        stock_faces: Vec::new(),
+        face_accounting: None,
+        recognition: None,
+        features: Vec::new(),
+        blend_sites: BTreeMap::new(),
+        radius_arcs: BTreeMap::new(),
+        profile_arcs: BTreeMap::new(),
+        radius_reliefs: Vec::new(),
+        iso_bounds: [0.; 4],
+        edge_ink: None,
+        modelled_thread_ink: BTreeMap::new(),
+        levels: Vec::new(),
+        level_supports: Vec::new(),
+        risers: Vec::new(),
+        principal_profiles: Vec::new(),
+        outer_profiles: Vec::new(),
+        unrecognised: Vec::new(),
+        unexplained_shapes: Vec::new(),
+        pmi: None,
+        face_attachments: Vec::new(),
+        parts: Vec::new(),
+        coincident: Vec::new(),
+        principal: false,
+        squared: None,
+    };
+    // Envelope projections suffice to reserve GA ink. Manufacturing recognition,
+    // PMI attachment and an eager isometric HLR are irrelevant here; the renderer
+    // resolves the actual assembled outlines once per camera.
+    let iso = View::new(VIEWS[3].1, VIEWS[3].2).expect("standard camera");
+    let (size, _) = extent(&analysis, &iso);
+    analysis.iso_bounds = [-size[0] / 2., -size[1] / 2., size[0] / 2., size[1] / 2.];
+    Ok((part, analysis, placement))
+}
+
 #[allow(clippy::too_many_arguments)]
 fn analyse_read_part(
     name: &str,
@@ -8855,6 +8948,174 @@ fn bits(numbers: &[&[f64]]) -> Vec<u64> {
 }
 
 impl Projections {
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn assembly_view(
+        &mut self,
+        a: &Analysis,
+        spec: &Spec,
+        v: &PlannedView,
+        pieces: Vec<Projected>,
+    ) {
+        self.bind(a, spec);
+        let cut = projection_cut(v);
+        let mut key = bits(&[
+            &v.direction,
+            &v.up,
+            cut.map_or(&[], |c| &c.origin[..]),
+            cut.map_or(&[], |c| &c.normal[..]),
+        ]);
+        key.extend(crate::modelled_threads::cache_key(a, spec, v));
+        self.views.insert(key, pieces);
+    }
+
+    /// Prime a GA detail using the ordinary crop renderer, without converting
+    /// distant exact splines to Beziers. Positive rational weights keep a curve
+    /// inside its control hull. Uncertain/degenerate input is retained so the
+    /// renderer still reports it; the complete camera remains available to its
+    /// parent and any other crops.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn assembly_crop(
+        &mut self,
+        part: &Part,
+        a: &Analysis,
+        plan: &Plan,
+        v: &PlannedView,
+    ) -> Result<(), Unresolved> {
+        if v.detail.is_none() || v.half_section.is_some() {
+            return Ok(());
+        }
+        self.bind(a, &plan.spec);
+        let cut = projection_cut(v);
+        let mut key = bits(&[
+            &v.direction,
+            &v.up,
+            cut.map_or(&[], |c| &c.origin[..]),
+            cut.map_or(&[], |c| &c.normal[..]),
+        ]);
+        key.extend(crate::modelled_threads::cache_key(a, &plan.spec, v));
+        let Some(pieces) = self.views.remove(&key) else {
+            return Ok(());
+        };
+        let (size, centre) = crate::detail::crop_extent(a, v);
+        let rect = [
+            centre[0] - size[0] / 2.,
+            centre[1] - size[1] / 2.,
+            centre[0] + size[0] / 2.,
+            centre[1] + size[1] / 2.,
+        ];
+        let kept: Vec<_> = pieces
+            .iter()
+            .filter(|p| {
+                let Some(Exact::Nurbs {
+                    degree,
+                    poles,
+                    weights,
+                    knots,
+                    t0,
+                    t1,
+                }) = &p.exact
+                else {
+                    return true;
+                };
+                if *degree == 0
+                    || poles.len() != weights.len()
+                    || !poles.iter().flatten().all(|n| n.is_finite())
+                    || !weights.iter().all(|n| n.is_finite() && *n > 0.)
+                    || !knots.iter().all(|n| n.is_finite())
+                {
+                    return true;
+                }
+                let Some(curve) = haecceity::nurbs::NurbsCurve::new(
+                    *degree,
+                    poles.iter().map(|p| [p[0], p[1], 0.]).collect(),
+                    weights.clone(),
+                    knots.clone(),
+                ) else {
+                    return true;
+                };
+                let (lo, hi) = curve.domain();
+                if !(*t0 >= lo
+                    && *t0 <= hi
+                    && *t1 >= lo
+                    && *t1 <= hi
+                    && (*t1 - *t0).abs() > 1e-9 * (hi - lo).max(1.))
+                {
+                    return true;
+                }
+                let mut b = [
+                    f64::INFINITY,
+                    f64::INFINITY,
+                    f64::NEG_INFINITY,
+                    f64::NEG_INFINITY,
+                ];
+                for p in poles {
+                    for k in 0..2 {
+                        b[k] = b[k].min(p[k]);
+                        b[k + 2] = b[k + 2].max(p[k]);
+                    }
+                }
+                let magnitude = b.iter().chain(&rect).map(|n| n.abs()).fold(1., f64::max);
+                let pad = (1e-5 / v.scale).max(1e-12 * magnitude);
+                !(b[2] < rect[0] - pad
+                    || b[0] > rect[2] + pad
+                    || b[3] < rect[1] - pad
+                    || b[1] > rect[3] + pad)
+            })
+            .cloned()
+            .collect();
+        if kept.len() == pieces.len() {
+            self.views.insert(key, pieces);
+            return Ok(());
+        }
+        if std::env::var_os("DRAFTWRIGHT_GA_PROFILE").is_some() {
+            eprintln!(
+                "GA crop {}: {} of {} pieces",
+                v.id,
+                kept.len(),
+                pieces.len()
+            );
+        }
+        self.views.insert(key.clone(), kept);
+        let result = self.geometry(part, a, v, &plan.spec);
+        self.views.insert(key, pieces);
+        result.map(|_| ())
+    }
+
+    /// Pack-only ownership-aware hatching, resolved with the ordinary cut primitives.
+    #[cfg(not(target_arch = "wasm32"))]
+    pub(crate) fn assembly_hatch(
+        &mut self,
+        a: &Analysis,
+        plan: &Plan,
+        v: &PlannedView,
+        ink: Vec<Item>,
+        contours: &[Vec<[f64; 3]>],
+        material: bool,
+    ) {
+        self.bind(a, &plan.spec);
+        if let Some(cut) = &v.cut {
+            let centre = extent(a, &View::new(v.direction, v.up).expect("section camera")).1;
+            let mut key = bits(&[
+                &v.direction,
+                &v.up,
+                &cut.origin,
+                &cut.normal,
+                &[v.scale],
+                &centre,
+                &v.at,
+            ]);
+            let extra = crate::modelled_threads::cache_key(a, &plan.spec, v);
+            key.extend(&extra);
+            self.hatches.insert(key, ink);
+            let mut key = bits(&[&cut.origin, &cut.normal]);
+            key.extend(extra);
+            self.cuts.insert(key.clone(), contours.to_vec());
+            if material {
+                self.cut_material.insert(key, true);
+            }
+        }
+    }
+
     pub fn stats(&self) -> ProjectionStats {
         self.stats
     }
@@ -10663,19 +10924,31 @@ fn render_annotations_with_cuts(
         }
         if let Some([tip, end]) = b.leader {
             dims.push(Item::Edge(Curve::Line(tip, end)));
-            let d = [end[0] - tip[0], end[1] - tip[1]];
-            let len = d[0].hypot(d[1]).max(1e-12);
-            let u = [d[0] / len, d[1] / len];
-            let a = crate::dims::ARROW.min(len);
-            let tail = [tip[0] + a * u[0], tip[1] + a * u[1]];
-            let h = crate::dims::ARROW / 6.0;
-            let b1 = [tail[0] - h * u[1], tail[1] + h * u[0]];
-            let b2 = [tail[0] + h * u[1], tail[1] - h * u[0]];
-            dims.push(Item::Face(vec![vec![
-                Curve::Line(tip, b1),
-                Curve::Line(b1, b2),
-                Curve::Line(b2, tip),
-            ]]));
+            if b.interior {
+                // GA attachment sites lie inside a proven visible face (ISO 6433).
+                dims.push(Item::Face(vec![vec![Curve::Conic {
+                    centre: tip,
+                    radii: [0.3, 0.3],
+                    x_axis: [1., 0.],
+                    y_axis: [0., 1.],
+                    t0: 0.,
+                    t1: 2. * std::f64::consts::PI,
+                }]]));
+            } else {
+                let d = [end[0] - tip[0], end[1] - tip[1]];
+                let len = d[0].hypot(d[1]).max(1e-12);
+                let u = [d[0] / len, d[1] / len];
+                let a = crate::dims::ARROW.min(len);
+                let tail = [tip[0] + a * u[0], tip[1] + a * u[1]];
+                let h = crate::dims::ARROW / 6.0;
+                let b1 = [tail[0] - h * u[1], tail[1] + h * u[0]];
+                let b2 = [tail[0] + h * u[1], tail[1] - h * u[0]];
+                dims.push(Item::Face(vec![vec![
+                    Curve::Line(tip, b1),
+                    Curve::Line(b1, b2),
+                    Curve::Line(b2, tip),
+                ]]));
+            }
             lines.insert(0, [tip, end]);
         }
         if let Some(ink) = items_bbox(&dims[from..]) {
@@ -11459,5 +11732,103 @@ mod squared_tests {
                 None => assert!(degrees > 2.0, "{degrees}° not squared"),
             }
         }
+    }
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod ga_crop_cache_tests {
+    use super::*;
+
+    #[test]
+    fn a_culled_detail_preserves_geometry_findings_and_its_parent_camera() {
+        let path = Path::new(env!("CARGO_MANIFEST_DIR"))
+            .join("tests/fixtures/assembly/pack-small.step.gz");
+        let bytes = read_step_file(&path).unwrap();
+        let (part, a, _) = analyse_pack_assembly("crop-cache", &bytes, None).unwrap();
+        let mut spec = Spec::default();
+        spec.sheet.hidden = Some(false);
+        let mut plan = crate::api::plan_analysed(&a, &spec).unwrap();
+        let front = plan
+            .views
+            .iter()
+            .find(|v| v.id == "v:front")
+            .unwrap()
+            .clone();
+        let camera = View::new(front.direction, front.up).unwrap();
+        let mut pieces = project(&part, &camera).unwrap();
+        // The native part's straight edges, represented by equivalent rational
+        // splines, exercise the pre-conversion path without changing geometry.
+        for piece in &mut pieces {
+            if let Some(Exact::Line(p, q)) = &piece.exact {
+                piece.exact = Some(Exact::Nurbs {
+                    degree: 1,
+                    poles: vec![*p, *q],
+                    weights: vec![1., 1.],
+                    knots: vec![0., 0., 1., 1.],
+                    t0: 0.,
+                    t1: 1.,
+                });
+            }
+        }
+        // Even far outside the crop, malformed evidence must still produce
+        // the same edges_not_drawn finding rather than disappearing in culling.
+        pieces.push(Projected {
+            class: hlr::Class::Sharp,
+            visible: true,
+            points: vec![[1000., 1000.], [1001., 1001.]],
+            exact: Some(Exact::Nurbs {
+                degree: 2,
+                poles: vec![[1000., 1000.]],
+                weights: vec![1.],
+                knots: vec![0., 1.],
+                t0: 0.,
+                t1: 1.,
+            }),
+        });
+        let mut bounds = a.envelope;
+        bounds[1][0] = bounds[0][0] + (bounds[1][0] - bounds[0][0]) * 0.25;
+        bounds[1][2] = bounds[0][2] + (bounds[1][2] - bounds[0][2]) * 0.5;
+        let mut crop = front.clone();
+        crop.id = "v:detail_b".into();
+        crop.scale = 2.;
+        crop.detail = Some(crate::detail::Detail {
+            label: "B".into(),
+            axis: 1,
+            source_view: front.id.clone(),
+            source_cut: None,
+            kind: "crop-cache".into(),
+            bounds,
+            marked_bounds: bounds,
+            dimensions: Vec::new(),
+            scale: 2.,
+            authored: true,
+            partial_profile: true,
+        });
+        plan.views = vec![crop.clone()];
+        let mut baseline = Projections::default();
+        baseline.assembly_view(&a, &plan.spec, &crop, pieces.clone());
+        let expected = render_geometry(&part, &a, &plan, &mut baseline).unwrap();
+        let mut culled = Projections::default();
+        culled.assembly_view(&a, &plan.spec, &crop, pieces);
+        culled.assembly_crop(&part, &a, &plan, &crop).unwrap();
+        assert_eq!(
+            culled.stats().bounds,
+            1,
+            "distant native splines should be culled and the detail primed"
+        );
+        let actual = render_geometry(&part, &a, &plan, &mut culled).unwrap();
+        let equal = |a: &ViewGeometry, b: &ViewGeometry| {
+            assert_eq!(a.visible, b.visible);
+            assert_eq!(a.hidden, b.hidden);
+            assert_eq!(a.breaks, b.breaks);
+            assert_eq!(a.bbox, b.bbox);
+            assert_eq!(a.undrawn, b.undrawn);
+        };
+        equal(&expected.views[0].1, &actual.views[0].1);
+        assert!(actual.views[0].1.undrawn > 0);
+        plan.views = vec![front];
+        let expected_parent = render_geometry(&part, &a, &plan, &mut baseline).unwrap();
+        let actual_parent = render_geometry(&part, &a, &plan, &mut culled).unwrap();
+        equal(&expected_parent.views[0].1, &actual_parent.views[0].1);
     }
 }

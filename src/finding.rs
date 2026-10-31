@@ -183,6 +183,9 @@ catalogue! {
     "over_dimensioned_pattern" => Advisory, Code, "Repeated pattern dimensions are redundant information.";
     "pack_buy_guess" => Advisory, Code, "A purchased-part candidate is listed with its detection reason and can be overridden.";
     "pack_compound" => Advisory, Code, "One product contains multiple solids; the pack reports the upstream part-definition limit.";
+    "pack_ga_balloon_unplaced" => Incomplete, Code, "A visible assembly item has no clear item-reference route.";
+    "pack_ga_failed" => Incomplete, Code, "The requested general assembly front sheet could not be drawn.";
+    "pack_ga_not_visible" => Advisory, Code, "No face of this listed assembly item has proven visibility; no leader is fabricated.";
     "pack_geometry_merge" => Advisory, Code, "Products with identical resolved geometry share one drawing and a summed quantity.";
     "pack_make_guess" => Advisory, Code, "The default manufacturing decision and its evidence are reported and can be overridden.";
     "pack_single_product" => Advisory, Code, "A single product has multiple placements, counted in its drawing quantity.";

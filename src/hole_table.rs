@@ -159,6 +159,9 @@ pub struct Balloon {
     pub features: Vec<String>,
     /// Whether a table row states what it marks (a pattern's balloon states nothing).
     pub certifying: bool,
+    /// Interior face attachments use a dot; outline attachments use an arrow.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub interior: bool,
     /// The ring's centre, mm on the page.
     pub at: [f64; 2],
     pub radius: f64,
@@ -1435,6 +1438,39 @@ fn assign_bands(
         .collect()
 }
 
+/// Place assembly references using the same capacitated bands and crossing predicates as
+/// hole-table tags. Targets are already proven visible by the assembly reader's face sources.
+#[cfg(not(target_arch = "wasm32"))]
+pub(crate) fn item_references(
+    targets: &[(String, [f64; 2])],
+    analysis: &Analysis,
+    view: &PlannedView,
+    radius: f64,
+    plan: &Plan,
+    fixed: &[Rect],
+) -> Vec<Option<Balloon>> {
+    let wanted: Vec<_> = targets
+        .iter()
+        .map(|(tag, hole)| Wanted {
+            tag: tag.clone(),
+            features: Vec::new(),
+            hole: *hole,
+            radius: 0.0,
+            certifying: false,
+        })
+        .collect();
+    place_reference_bands(
+        &wanted,
+        Frame::new(analysis, view).outline,
+        &view.id,
+        radius,
+        plan,
+        &plan.dimensions,
+        fixed,
+        false,
+    )
+}
+
 fn place_balloons(
     wanted: &[Wanted],
     frame: &Frame,
@@ -1443,10 +1479,33 @@ fn place_balloons(
     fixed: &[Rect],
     perimeter: bool,
 ) -> Vec<Option<Balloon>> {
+    place_reference_bands(
+        wanted,
+        frame.outline,
+        "v:plan",
+        RADIUS,
+        plan,
+        dims,
+        fixed,
+        perimeter,
+    )
+}
+
+/// Shared item-reference bands. Hole tags retain their original frame and radius.
+#[allow(clippy::too_many_arguments)]
+fn place_reference_bands(
+    wanted: &[Wanted],
+    outline: Rect,
+    view: &str,
+    r: f64,
+    plan: &Plan,
+    dims: &[PlannedDimension],
+    fixed: &[Rect],
+    perimeter: bool,
+) -> Vec<Option<Balloon>> {
     if wanted.is_empty() {
         return Vec::new();
     }
-    let r = RADIUS;
     let [pw, ph] = plan.sheet.page;
     let m = crate::layout::FRAME;
     let drawable = [m, m, pw - m, ph - m];
@@ -1463,9 +1522,7 @@ fn place_balloons(
     // their compound bounding rectangles, are required ink the optional balloons must clear.
     let retained: Vec<Segment> = ink
         .iter()
-        .filter(|d| {
-            d.view == "v:plan" && matches!(d.kind.as_str(), "callout" | "diameter" | "radius")
-        })
+        .filter(|d| d.view == view && matches!(d.kind.as_str(), "callout" | "diameter" | "radius"))
         .filter_map(|d| d.placed.as_ref())
         .flat_map(|p| p.lines.iter().copied())
         .collect();
@@ -1483,13 +1540,13 @@ fn place_balloons(
             ]);
         }
     }
-    let [pl, pb, pr, pt] = frame.outline;
+    let [pl, pb, pr, pt] = outline;
     // How deep the placed annotations in the view's reserved area reach into each band
     // (draftwright measures each band up to its strip's limit).
     let area = plan
         .views
         .iter()
-        .find(|v| v.id == "v:plan")
+        .find(|v| v.id == view)
         .map_or(drawable, |v| v.area);
     let (mut left, mut right, mut top, mut bottom) = (0.0f64, 0.0f64, 0.0f64, 0.0f64);
     for b in occupants.iter().filter(|b| overlap(**b, area)) {
@@ -1514,7 +1571,7 @@ fn place_balloons(
         .iter()
         .chain(fixed)
         .copied()
-        .chain(std::iter::once(frame.outline))
+        .chain(std::iter::once(outline))
         .collect();
     let pad = r + STRIP_SPACING;
     let band = |axis: usize, line: f64| -> Band {
@@ -1688,9 +1745,10 @@ fn place_balloons(
         out[i] = Some(Balloon {
             id: format!("balloon_plan_{}_0", w.tag),
             tag: w.tag.clone(),
-            view: "v:plan".into(),
+            view: view.into(),
             features: w.features.clone(),
             certifying: w.certifying,
+            interior: false,
             at,
             radius: r,
             label_box: None,
@@ -3477,6 +3535,7 @@ fn install_at(analysis: &Analysis, plan: &mut Plan, selection: &Selection) -> bo
                 view: view.id.clone(),
                 features: g.features,
                 certifying: true,
+                interior: false,
                 at,
                 radius: 0.0,
                 label_box: None,
@@ -3510,6 +3569,7 @@ fn install_at(analysis: &Analysis, plan: &mut Plan, selection: &Selection) -> bo
             view: view.id.clone(),
             features: Vec::new(),
             certifying: false,
+            interior: false,
             at,
             radius: 0.0,
             label_box: None,
@@ -3536,6 +3596,7 @@ fn install_at(analysis: &Analysis, plan: &mut Plan, selection: &Selection) -> bo
                 view: view.id.clone(),
                 features: Vec::new(),
                 certifying: false,
+                interior: false,
                 at: text,
                 radius: 0.0,
                 label_box: None,

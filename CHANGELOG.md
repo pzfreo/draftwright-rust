@@ -8,6 +8,13 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ### Added
 
+- For #41: a general assembly front sheet for drawing packs, with overall sizes,
+  visible source-owned item balloons, a bottom-up parts list above the title block,
+  global sheet numbering and pack Spec overrides for GA presentation and references;
+  reference envelope sizes, consistent projection, visibility-ranked item dots, nested-item
+  sections/details, per-item hatching, cylindrical centre lines, generic-root title fallback,
+  and reused product projections, depth samples, cut contours and recognised thread carriers.
+
 - For #41: assembly drawing packs through the library and `draftwright pack`, with conservative geometry grouping, re-export-stable name keys, quantities, name/feature-based make/buy guesses and strict intent overrides, item/QTY and global SHEET title cells, a multi-page PDF, CSV parts list and per-part JSON findings and failures.
 
 ### Changed
