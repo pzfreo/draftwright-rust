@@ -72,8 +72,9 @@ use haecceity::p21::{self, Attribute, Document, RawEntity};
 use haecceity::pmi::{
     self, Anchor, AngleUnit, AttributeValue, AuxiliaryClassification, DatumId, DimTolerance,
     Dimension, DimensionId, DimensionKind, EdgeIndex, FaceIndex, Feature, FeatureId,
-    GeneralTolerance, GeometricTolerance, GroupKind, LengthUnit, LocationKind, NoteOwner, PartPmi,
-    PartProvenance, Quantity, SizeKind, ToleranceKind, ToleranceModifier, ToleranceTarget, Value,
+    GeneralTolerance, GeometricTolerance, GroupKind, LengthUnit, LocationKind, NoteOwner,
+    PartIdentifiers, PartPmi, PartProvenance, Quantity, SizeKind, ToleranceKind, ToleranceModifier,
+    ToleranceTarget, Value,
 };
 use haecceity::step::{PartDefinition, read_part_definitions};
 use serde::{Deserialize, Serialize};
@@ -707,6 +708,7 @@ pub fn report_part(
             p,
             pmi,
             prov,
+            identifiers: &read.identifiers.parts[p],
             def: &defs[p],
             drawing: &drawing,
             numbers: characteristic_numbers(doc, pmi, prov),
@@ -721,7 +723,21 @@ pub fn report_part(
                     .first()
                     .is_some_and(|id| record.instances.binary_search(id).is_ok());
             if on {
+                if f.detail.contains("more than one id_attribute")
+                    && !requirement_id_owner(doc, record, f.ids[0])
+                {
+                    continue;
+                }
                 attached[i] = true;
+                // Identifier ambiguity does not invalidate the requirement's geometry or
+                // value. Retain it as item metadata and report it at the final carrier.
+                if f.detail.contains("more than one id_attribute") {
+                    record.fields.retain(|(name, _)| name != "id");
+                    record
+                        .fields
+                        .push(("id ambiguity".into(), Field::Text(f.detail.clone())));
+                    continue;
+                }
                 record.blockers.push(format!(
                     "haecceity {} on #{} ({}): {}",
                     f.kind.as_str(),
@@ -1003,6 +1019,25 @@ fn characteristic_value(a: &pmi::AttributeSet) -> Option<String> {
     }
 }
 
+/// Whether a finding's subject is the requirement's own id carrier, not its support.
+fn requirement_id_owner(doc: &Document, r: &Record, owner: u64) -> bool {
+    match r.category {
+        Category::Datum => {
+            attributes(doc, owner, "DATUM").is_some() && text_of(doc, owner, "DATUM", 4) == r.label
+        }
+        Category::ManufacturingRequirement => match r.kind.as_str() {
+            "internal_thread" | "external_thread" | "knurl" => {
+                ref_of(doc, owner, "PRODUCT_DEFINITION_SHAPE", 2) == Some(r.part21_id)
+            }
+            "surface_finish" | "surface_texture" => {
+                text_of(doc, owner, "PROPERTY_DEFINITION", 0) == "surface texture"
+            }
+            _ => owner == r.part21_id,
+        },
+        _ => owner == r.part21_id,
+    }
+}
+
 fn characteristic_owner(doc: &Document, owner: u64) -> bool {
     let supported = |name: &str| {
         [
@@ -1074,6 +1109,7 @@ struct PartReader<'a> {
     p: usize,
     pmi: &'a PartPmi,
     prov: &'a PartProvenance,
+    identifiers: &'a PartIdentifiers,
     def: &'a PartDefinition,
     drawing: &'a Drawing<'a>,
     numbers: BTreeMap<(Category, u64), BTreeSet<String>>,
@@ -1403,8 +1439,59 @@ impl PartReader<'_> {
         out
     }
 
+    /// Requirement ids are index-parallel to provenance. Never use the feature array:
+    /// a shared supporting shape is not the requirement's identity (quiddity-rust#143).
+    fn identifier(&self, r: &Record) -> Option<&str> {
+        let p = self.prov;
+        let i = self.identifiers;
+        let groups = match r.category {
+            Category::Dimension if r.kind != "common_label" => vec![(&p.dimensions, &i.dimensions)],
+            Category::GeometricTolerance => vec![(&p.tolerances, &i.tolerances)],
+            Category::Datum => {
+                // Several labels may share one DATUM_FEATURE. The id belongs to the
+                // DATUM, so matching only the feature instance would borrow its first id.
+                return self
+                    .pmi
+                    .datums
+                    .iter()
+                    .zip(&i.datums)
+                    .find_map(|(datum, id)| {
+                        (datum.label().as_str() == r.label)
+                            .then_some(id.as_deref())
+                            .flatten()
+                    });
+            }
+            Category::ManufacturingRequirement => match r.kind.as_str() {
+                "internal_thread" | "external_thread" => vec![(&p.threads, &i.threads)],
+                "knurl" => vec![(&p.knurls, &i.knurls)],
+                "surface_finish" | "surface_texture" => {
+                    vec![(&p.surface_textures, &i.surface_textures)]
+                }
+                _ => vec![
+                    (&p.notes, &i.notes),
+                    (&p.attributes, &i.attributes),
+                    (&p.general, &i.general),
+                ],
+            },
+            _ => vec![(&p.attributes, &i.attributes)],
+        };
+        groups.into_iter().find_map(|(provenance, identifiers)| {
+            provenance.iter().zip(identifiers).find_map(|(ids, value)| {
+                ids.contains(&r.part21_id)
+                    .then_some(value.as_deref())
+                    .flatten()
+            })
+        })
+    }
+
     /// Keeps a read record, or reports the one whose support does not resolve.
     fn keep(&self, mut record: Record, records: &mut Vec<Record>, sources: &mut Vec<Source>) {
+        if let Some(id) = self
+            .identifier(&record)
+            .filter(|id| crate::characteristics::numeric(id))
+        {
+            record.fields.push(("id".into(), Field::Text(id.into())));
+        }
         if matches!(
             record.category,
             Category::Dimension | Category::GeometricTolerance | Category::Datum
@@ -1420,7 +1507,7 @@ impl PartReader<'_> {
             && !record
                 .fields
                 .iter()
-                .any(|(k, _)| k == "characteristic number")
+                .any(|(k, _)| k == "characteristic number" || k == "id")
         {
             sources.push(Source {
                 id: record.source_id.clone(),
@@ -2157,6 +2244,21 @@ impl PartReader<'_> {
             .or_else(|| self.subject(own, &|n| n == "DATUM"))
             .or_else(|| own.first().copied())
             .unwrap_or(0);
+        // Preserve the legacy feature source for ordinary datums, but distinguish
+        // separate requirements that share one datum feature by their own DATUM roots.
+        let part21_id = if d.feature().is_some()
+            && self
+                .pmi
+                .datums
+                .iter()
+                .filter(|other| other.feature() == d.feature())
+                .count()
+                > 1
+        {
+            self.subject(own, &|n| n == "DATUM").unwrap_or(part21_id)
+        } else {
+            part21_id
+        };
         let mut r = self.record(Category::Datum, part21_id, own, support, blockers);
         r.kind = "datum".into();
         r.label = d.label().to_string();

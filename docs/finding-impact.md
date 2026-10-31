@@ -75,7 +75,9 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `channel_requirement_missing` | incomplete | The drawing does not state this required feature parameter. |
 | `channel_requirement_unverifiable` | incomplete | The drawing does not prove this required feature parameter. |
 | `characteristic_balloon_missing` | incomplete | A numbered characteristic has no inspection balloon while inspection is enabled. |
+| `characteristic_id_ambiguous` | incomplete | Duplicate requirement ids leave its inspection number unknown. |
 | `characteristic_not_drawn` | incomplete | A numbered characteristic has no drawn carrier. |
+| `characteristic_number_conflict` | decision | The requirement id and legacy UDA disagree; the id supplies the inspection number. |
 | `circular_blind_step_requirement_missing` | incomplete | The drawing does not state this required feature parameter. |
 | `circular_blind_step_requirement_unverifiable` | incomplete | The drawing does not prove this required feature parameter. |
 | `circular_channel_requirement_missing` | incomplete | The drawing does not state this required feature parameter. |

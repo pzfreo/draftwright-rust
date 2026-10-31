@@ -11,28 +11,49 @@ They remain extracted `other` sources in the analysis, with their instance prove
 
 ## Characteristic numbers (producer convention, #254)
 
-Specify owns inspection characteristic numbers and stores them in AP242; Draftwright must
-never allocate or infer them. The interim convention is a CAx-IF User Defined Attribute
-(UDA practice §5–7) named exactly `characteristic number`, with one item of the same name,
-whose value is text such as `"17"` or an integer such as `17`. Edition 4's
-`characterized_item` SELECT carries direct size/tolerance owners. Attach it to the PMI entity
-that states the requirement, rather than its supporting faces or the part. The attribute's
-`property_definition` is associated with a `general_property` by a
-`general_property_association`; its representation holds the named value. Read it through
-haecceity's extracted `PartPmi.attributes`, retaining the owner and provenance. Unnumbered
-derived dimensions and general CSV rows remain unnumbered.
+Specify owns inspection characteristic numbers and stores them in the standard derived id
+slot: `ID_ATTRIBUTE('<positive decimal integer>', #requirement)` (CAx-IF PMI RP v4.1
+§5.1). Draftwright reads `PmiRead.identifiers` from haecceity 0.2.6, index for index with
+semantic PMI provenance, and never allocates, changes or infers a number.
 
-The pinned haecceity 0.2.3 (`ced75a5`) can write and read both value forms with
-`NoteOwner::Dimension`, `NoteOwner::Tolerance` and `NoteOwner::Feature` (including datum
-features). **Known limit: surface textures and semantic notes remain unnumbered.** Its
-`NoteOwner` has no surface-texture or semantic-note owner. Surface textures and semantic
-notes are themselves `PROPERTY_DEFINITION` records: directly using one as another
-`property_definition.definition` fails AP242's `characterized_definition` SELECT, and the
-reader does not reach the attached UDA. A feature-owned number cannot substitute: several
-requirements can share the same feature.
+Each requirement has exactly one owner:
 
-Dimensions, geometric tolerance frames and datum features use this convention for inspection
-balloons. Surface textures and semantic notes keep their existing drawing behavior until a
-schema-valid attachment and reader/writer ownership support exists in quiddity/haecceity.
-Their attributes retain the existing unsupported-PMI accounting; no number is inferred from
-an adjacent requirement or a shared face.
+| Requirement | Id carrier |
+| --- | --- |
+| Dimension | Its `DIMENSIONAL_SIZE` or `DIMENSIONAL_LOCATION` |
+| Geometric tolerance | Its `GEOMETRIC_TOLERANCE` root, including complex roots |
+| Datum requirement | Its `DATUM`, reached from the datum feature |
+| Surface texture, including part default | Its `PROPERTY_DEFINITION('surface texture', ...)` |
+| Thread or knurl | Its own exclusive `PRODUCT_DEFINITION_SHAPE` |
+| Semantic note | Its own requirement property, when explicitly identified |
+
+Supporting faces, shared shape aspects, parameter properties and part ids do not supply
+requirement numbers. Positive decimal ids retain their file spelling, including leading
+zeros; other valid AP242 ids such as `thread-01` are quietly ignored for numbering.
+Unnumbered derived dimensions and general CSV rows stay unnumbered. Specify's nominal-only
+general-tolerance dimensions carry their numbers onto the planned items credited by #265.
+
+The interim CAx-IF UDA remains a fallback: an attribute set named exactly `characteristic
+number`, with one item of that name, containing positive decimal text or a positive integer,
+on the exact size, tolerance or datum-feature owner. An id wins if both routes supply
+numbers. Different integer values produce `characteristic_number_conflict` on the item;
+equivalent leading-zero spellings do not conflict. Duplicate `ID_ATTRIBUTE`s produce
+`characteristic_id_ambiguous` on the item and no number, even when a UDA is present or the
+ids agree. This preserves haecceity's finding without preventing the requirement itself
+from being drawn.
+
+PMI record `fields` retain the numeric `id` with its file spelling, an `id ambiguity` diagnostic when present, and the
+legacy `characteristic number`. These are metadata, not manufacturing parameters. JSON
+containers and WASM/MCP signatures are unchanged.
+
+Inspection rings attach to settled dimension labels, tolerance/datum frames, face-texture
+symbols and thread/knurl callouts. A shared internal-thread requirement is applied only
+after every source cylinder proves one distinct hole owner. Identical holes sharing
+that source use a counted callout; independently authored thread requirements retain
+independent callouts. A hole schedule retains the native drilling size/depth beside
+the thread in each applicable row and
+repeats the same requirement number beside those rows, including rows also stated by
+retained size callouts. A part-default texture's ring sits beside its default
+texture symbol near the title block. A numbered semantic note uses its own general-note
+line; ordinary notes remain unnumbered. Missing carriers or clear ring positions are
+reported; no identity is borrowed from an adjacent requirement.

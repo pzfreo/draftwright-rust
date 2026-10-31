@@ -6,7 +6,7 @@ pub(super) fn apply(analysis: &Analysis, spec: &Spec, wants: &mut [Want]) {
     let raw = crate::pmi_lowering::manufacturing(analysis);
     let m = crate::pmi_lowering::manufacturing_for(analysis, spec);
     for w in wants {
-        let owned: Vec<_> = m
+        let mut owned: Vec<_> = m
             .owned
             .iter()
             .filter(|o| {
@@ -15,6 +15,11 @@ pub(super) fn apply(analysis: &Analysis, spec: &Spec, wants: &mut [Want]) {
                     .any(|v| v.feature == o.id && v.parameter == o.aspect)
             })
             .collect();
+        // A shared requirement can own several holes. Prefer this callout's
+        // physical owner and state each requirement once, not once per owner.
+        owned.sort_by_key(|o| !w.measurements.iter().any(|v| v.feature == o.owner));
+        let mut stated = std::collections::BTreeSet::new();
+        owned.retain(|o| stated.insert((&o.id, o.aspect)));
         if !owned.is_empty() {
             let count = w.terms.first().filter(|s| s.ends_with('×')).cloned();
             let original = w.terms.join(" ");
