@@ -3270,9 +3270,12 @@ fn recover_callouts(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Pla
             return Ok(candidate);
         }
     }
-    // Try one source owner at a time on the chosen paper and scale before allowing
-    // its callout to demand larger paper. Other feature overrides stay authoritative.
+    // Try one callout at a time on the chosen paper and scale before allowing it to demand
+    // larger paper. Other feature overrides stay authoritative. A requirement several owners
+    // share (a thread on several bores) is stated by one counted callout: its owners take the
+    // note form together, in one trial, not one full paper search per owner.
     let mut intent = spec.clone();
+    let mut callouts: Vec<(String, Vec<&str>, Vec<&str>)> = Vec::new();
     for o in &m.owned {
         if crate::callouts::style(spec, &o.owner) != crate::callouts::Style::Auto {
             continue;
@@ -3284,14 +3287,30 @@ fn recover_callouts(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Pla
         else {
             continue;
         };
-        if d.label.split_whitespace().count() <= 1 {
+        // A one-word callout has no note form to gain, and a callout the drawing does not draw
+        // (a hole table states it) cannot fit the sheet any better in another form.
+        if d.label.split_whitespace().count() <= 1 || d.placed.is_none() {
             continue;
         }
+        match callouts.iter_mut().find(|(id, ..)| *id == d.id) {
+            Some((_, owners, ids)) => {
+                owners.push(&o.owner);
+                ids.push(&o.id);
+            }
+            None => callouts.push((d.id.clone(), vec![&o.owner], vec![&o.id])),
+        }
+    }
+    for (_, owners, ids) in &callouts {
         let mut trial = intent.clone();
-        trial.features.entry(o.owner.clone()).or_default().callouts =
-            Some(crate::callouts::Settings {
+        for owner in owners {
+            trial
+                .features
+                .entry((*owner).to_string())
+                .or_default()
+                .callouts = Some(crate::callouts::Settings {
                 style: crate::callouts::Style::Note,
             });
+        }
         trial.sheet.size = Some(spec.sheet.size.clone().unwrap_or_else(|| "A4".into()));
         trial.sheet.scale = Some(best.sheet.scale.clone());
         let seed = plan_escalated_layout(analysis, &trial)?;
@@ -3303,7 +3322,10 @@ fn recover_callouts(analysis: &Analysis, spec: &Spec, first: Plan) -> Result<Pla
                 || !clean(&best))
         {
             for d in &mut candidate.dimensions {
-                if d.measurements.iter().any(|v| v.feature == o.id) {
+                if d.measurements
+                    .iter()
+                    .any(|v| ids.contains(&v.feature.as_str()))
+                {
                     d.basis = d
                         .basis
                         .replace("callouts/style Note", "callouts/style Auto")
