@@ -109,12 +109,11 @@ pub enum Glyph {
     },
     /// A surface or common label's text.
     Label { text: String },
-    /// A face's ISO 1302 surface texture symbol: its parameters, one per line (`Ra 0.8`, in
-    /// µm), and its material removal condition (ISO 10303-1110's term: `any process allowed`,
-    /// `material removal required` or `no material removal`).
+    /// A face's ISO 1302 surface texture symbol: the requirement haecceity's shared notation
+    /// draws (#258), its parameters one per line (`Ra 0.8`, in µm, as the record states them to
+    /// three significant figures) under its material removal condition's mark.
     Finish {
-        lines: Vec<String>,
-        removal: String,
+        texture: haecceity::pmi::SurfaceTexture,
         /// `plane` or `cylinder`.
         surface: String,
         /// Its sites lie inside the cylinder's outline, seen head-on ([`Geometry::face_on`]):
@@ -1299,19 +1298,41 @@ fn lane_free_side(at: &mut EdgeOn, r: &Record, centre: [f64; 3]) -> bool {
 /// datum feature symbol is ([`edge_on`]), or why it is not: its reading's or attachment's
 /// blockers, or no parameter to state.
 fn surface_finish(r: &Record, centre: [f64; 3]) -> Result<Lowered, Vec<String>> {
+    use haecceity::pmi::{
+        Decimal, Length, LengthUnit, MaterialRemoval, SurfaceTexture, SurfaceTextureParameter,
+    };
     let mut reasons = blockers(r);
-    let mut removal = String::new();
-    let mut lines = Vec::new();
+    let mut texture = SurfaceTexture {
+        on: None,
+        material_removal: MaterialRemoval::AnyProcessAllowed,
+        parameters: Vec::new(),
+    };
     for (name, value) in &r.fields {
         match value {
-            crate::pmi::Field::Text(t) if name == "material removal" => removal = t.clone(),
+            crate::pmi::Field::Text(t) if name == "material removal" => {
+                texture.material_removal =
+                    MaterialRemoval::from_term(t).unwrap_or(MaterialRemoval::AnyProcessAllowed);
+            }
             crate::pmi::Field::Length(mm) => {
-                lines.push(format!("{name} {}", crate::pmi::fmt_g3(mm * 1000.0)));
+                // Stated in µm to three significant figures, as the record's label states it;
+                // the value is held in mm, which haecceity states in µm without rounding.
+                let um: f64 = crate::pmi::fmt_g3(mm * 1000.0)
+                    .parse()
+                    .unwrap_or(mm * 1000.0);
+                if let Ok(value) = Decimal::parse(&(um / 1000.0).to_string()) {
+                    texture.parameters.push(SurfaceTextureParameter {
+                        characteristic: name.clone(),
+                        value: Length {
+                            value,
+                            unit: LengthUnit::Millimetre,
+                        },
+                    });
+                }
             }
             crate::pmi::Field::Text(_) => {}
         }
     }
-    if lines.is_empty() {
+    if texture.parameters.is_empty() {
         reasons.push("the surface texture states no parameter".into());
     }
     let mut at = edge_on(r, centre, "surface finish", reasons)?;
@@ -1321,8 +1342,7 @@ fn surface_finish(r: &Record, centre: [f64; 3]) -> Result<Lowered, Vec<String>> 
         id: String::new(),
         source: r.source_id.clone(),
         glyph: Glyph::Finish {
-            lines,
-            removal,
+            texture,
             surface: at.surface.clone(),
             face_on,
         },

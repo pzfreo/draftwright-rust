@@ -410,8 +410,10 @@ pub fn references(a: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
 }
 
 /// Whether reference text *text* prints a tolerance: a `±` band, a `+0.1 -0.02` deviation pair
-/// or an ISO 286 class after its size (`H7`, `h6`, `js9`).
+/// or an ISO 286 class after its size (`H7`, `h6`, `js9`): one of haecceity's fit table's classes
+/// and grades.
 fn toleranced(text: &str) -> bool {
+    use haecceity::presentation::tolerance::{GRADES, HOLE_CLASSES, SHAFT_CLASSES};
     text.contains('±')
         || text
             .split(|c: char| c.is_whitespace() || c == '(' || c == ')')
@@ -419,9 +421,12 @@ fn toleranced(text: &str) -> bool {
                 let digits = t.trim_start_matches(|c: char| c.is_ascii_alphabetic());
                 let letters = &t[..t.len() - digits.len()];
                 (t.starts_with('+') && t[1..].starts_with(|c: char| c.is_ascii_digit()))
-                    || (["H", "G", "F", "h", "g", "f", "js", "k", "n", "p"].contains(&letters)
+                    || (HOLE_CLASSES
+                        .iter()
+                        .chain(&SHAFT_CLASSES)
+                        .any(|c| *c == letters)
                         && !digits.is_empty()
-                        && digits.parse::<u32>().is_ok_and(|g| (5..=11).contains(&g)))
+                        && digits.parse::<u32>().is_ok_and(|g| GRADES.contains(&g)))
             })
 }
 
