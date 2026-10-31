@@ -2192,3 +2192,43 @@ fn specify_main_plane_and_axis_locations_use_geometric_directions() {
         }
     }
 }
+
+#[test]
+fn an_inclined_bore_keeps_its_h11_fit_on_its_proven_callout() {
+    let bytes =
+        gunzip(&std::fs::read(fixtures().join("specify-main-angle-bracket.step.gz")).unwrap());
+    let (_, a) = analysed("specify-main-angle-bracket.step", &bytes);
+    let r = records(&a).iter().find(|r| r.part21_id == 745).unwrap();
+    assert_eq!(r.fit.as_deref(), Some("H11"));
+    assert!(r.blockers.is_empty(), "{:?}", r.blockers);
+    assert!(
+        r.geometry
+            .as_ref()
+            .unwrap()
+            .cylinders
+            .iter()
+            .all(|c| c.principal().is_none())
+    );
+    let plan = cache::default_plan(&a, true);
+    let d = stating(&plan, &a, r).unwrap();
+    assert_eq!(d.id, "d:f:hole:2/bore.diameter");
+    assert!(d.placed.is_some());
+    assert_eq!(d.value, 10.);
+    assert!(d.label.contains("H11"), "{d:?}");
+    assert!(
+        !plan
+            .problems
+            .iter()
+            .any(|p| p.code == "pmi_not_lowered" && p.refs.contains(&r.source_id))
+    );
+    assert_eq!(
+        plan.dimensions
+            .iter()
+            .filter(|d| d.placed.is_some()
+                && d.measurements
+                    .iter()
+                    .any(|m| m.feature == "f:hole:2" && m.parameter == "bore.diameter"))
+            .count(),
+        1
+    );
+}
