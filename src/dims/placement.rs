@@ -5033,6 +5033,34 @@ pub(super) fn collisions_for(
     collisions_impl(analysis, dims, sheet, views, cache, Some(id))
 }
 
+/// The two ordered crossing counts used to improve a rim route. Peers must be on
+/// the same sheet. This is a cheap rejection test, not admission: a surviving
+/// route still takes the complete collision check before it can be drawn.
+pub(super) fn route_crossings(d: &PlannedDimension, peers: &[&PlannedDimension]) -> [usize; 2] {
+    let Some(p) = d.placed.as_ref() else {
+        return [0; 2];
+    };
+    let mut counts = [0; 2];
+    for q in peers.iter().filter(|q| q.id != d.id) {
+        let Some(r) = q.placed.as_ref() else {
+            continue;
+        };
+        for (a, pa, b, pb) in [(d, p, *q, r), (*q, r, d, p)] {
+            if a.kind != "callout" {
+                continue;
+            }
+            let meets = |lines: &[[P2; 2]]| {
+                pa.lines
+                    .iter()
+                    .any(|s| lines.iter().any(|t| super::leaders::lines_meet(*s, *t)))
+            };
+            counts[0] += usize::from(b.kind == "callout" && meets(&pb.lines));
+            counts[1] += usize::from(meets(&pb.arrows));
+        }
+    }
+    counts
+}
+
 /// `place_linear_at` and `aligned_at_offset` reserve index 2 for the dimension
 /// stroke. Any appended strokes are clipped extension continuations.
 fn crossing_kind(kind: &str, index: usize) -> &'static str {
@@ -5052,27 +5080,82 @@ fn collisions_impl(
     cache: &super::footprints::Cache,
     only: Option<&str>,
 ) -> Vec<Problem> {
+    let geometry = CollisionGeometry::new(analysis, dims, sheet, views, cache);
+    collisions_prepared(analysis, dims, sheet, views, &geometry, only)
+}
+
+/// Immutable projection evidence shared by route trials. Only annotation ink and
+/// reserved view areas may change while it is reused; paper and view frames stay fixed.
+pub(super) struct CollisionGeometry<'a> {
+    interior_proofs: BTreeMap<String, std::rc::Rc<super::interior::Proof>>,
+    datum_proofs: BTreeMap<String, std::rc::Rc<super::interior::Proof>>,
+    outlines: Vec<(&'a str, [f64; 4])>,
+    footprints: BTreeMap<&'a str, std::rc::Rc<super::footprints::Footprints>>,
+}
+
+impl<'a> CollisionGeometry<'a> {
+    pub(super) fn new(
+        analysis: &Analysis,
+        dims: &[PlannedDimension],
+        sheet: &PlannedSheet,
+        views: &'a [PlannedView],
+        cache: &super::footprints::Cache,
+    ) -> Self {
+        let interior_proofs = super::interior::proofs(analysis, views);
+        let datum_proofs = if dims.iter().any(|d| d.id.starts_with("pmi:datum.")) {
+            super::interior::exterior_proofs(analysis, views)
+        } else {
+            BTreeMap::new()
+        };
+        let outlines: Vec<_> = outlines(analysis, views)
+            .into_iter()
+            .filter(|(id, _)| views.iter().any(|v| v.id == *id && v.sheet == sheet.number))
+            .collect();
+        let footprints: BTreeMap<_, _> = views
+            .iter()
+            .filter_map(|v| {
+                let name = v.id.strip_prefix("v:")?;
+                super::NAMES
+                    .contains(&name)
+                    .then(|| (v.id.as_str(), cache.get(analysis, v)))
+            })
+            .collect();
+        Self {
+            interior_proofs,
+            datum_proofs,
+            outlines,
+            footprints,
+        }
+    }
+
+    pub(super) fn for_item(
+        &self,
+        analysis: &Analysis,
+        dims: &[PlannedDimension],
+        sheet: &PlannedSheet,
+        views: &[PlannedView],
+        id: &str,
+    ) -> Vec<Problem> {
+        collisions_prepared(analysis, dims, sheet, views, self, Some(id))
+    }
+}
+
+fn collisions_prepared(
+    analysis: &Analysis,
+    dims: &[PlannedDimension],
+    sheet: &PlannedSheet,
+    views: &[PlannedView],
+    geometry: &CollisionGeometry<'_>,
+    only: Option<&str>,
+) -> Vec<Problem> {
     let mut problems = Vec::new();
     let drawable = drawable(sheet);
-    let interior_proofs = super::interior::proofs(analysis, views);
-    let datum_proofs = if dims.iter().any(|d| d.id.starts_with("pmi:datum.")) {
-        super::interior::exterior_proofs(analysis, views)
-    } else {
-        BTreeMap::new()
-    };
-    let outlines: Vec<_> = outlines(analysis, views)
-        .into_iter()
-        .filter(|(id, _)| views.iter().any(|v| v.id == *id && v.sheet == sheet.number))
-        .collect();
-    let footprints: BTreeMap<_, _> = views
-        .iter()
-        .filter_map(|v| {
-            let name = v.id.strip_prefix("v:")?;
-            super::NAMES
-                .contains(&name)
-                .then(|| (v.id.as_str(), cache.get(analysis, v)))
-        })
-        .collect();
+    let CollisionGeometry {
+        interior_proofs,
+        datum_proofs,
+        outlines,
+        footprints,
+    } = geometry;
     let placed: Vec<(&PlannedDimension, &Placed)> = dims
         .iter()
         .filter(|d| {
@@ -5227,7 +5310,7 @@ fn collisions_impl(
                 ),
             );
         }
-        for (view, b) in &outlines {
+        for (view, b) in outlines {
             if boxes_overlap(lb, *b)
                 && !(*view == d.view
                     && views.iter().find(|v| v.id == d.view).is_some_and(|v| {
@@ -5483,6 +5566,46 @@ mod tests {
     }
 
     #[test]
+    fn reused_route_geometry_rechecks_moved_ink_and_grown_areas() {
+        let analysis: Analysis = serde_json::from_value(serde_json::json!({
+            "schema": crate::model::ANALYSIS_SCHEMA,
+            "binding":{"source_sha256":"", "part":"plate", "face_count":0, "loader":"test"},
+            "envelope":[[0,0,0],[100,60,10]], "iso_bounds":[0,0,100,60]
+        }))
+        .unwrap();
+        let plan = crate::model::plan(&analysis, &crate::model::Spec::default()).unwrap();
+        let cache = super::super::footprints::Cache::default();
+        let geometry = CollisionGeometry::new(
+            &analysis,
+            &plan.dimensions,
+            &plan.sheet,
+            &plan.views,
+            &cache,
+        );
+        let mut dims = plan.dimensions.clone();
+        let id = dims[0].id.clone();
+        for dx in [0., 15.] {
+            let p = dims[0].placed.as_mut().unwrap();
+            p.label_box[2] += dx;
+            for pad in [-5., 5.] {
+                let mut views = plan.views.clone();
+                let v = views.iter_mut().find(|v| v.id == dims[0].view).unwrap();
+                let b = super::super::ink_box(&dims[0]).unwrap();
+                v.area = [b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad];
+                let fresh = collisions_for(&analysis, &dims, &plan.sheet, &views, &cache, &id);
+                assert_eq!(
+                    geometry.for_item(&analysis, &dims, &plan.sheet, &views, &id),
+                    fresh
+                );
+                assert_eq!(
+                    fresh.iter().any(|p| p.code == "annotation_outside_area"),
+                    pad < 0.
+                );
+            }
+        }
+    }
+
+    #[test]
     fn crossing_kinds_and_dimension_strokes_follow_the_placed_structure() {
         let analysis: Analysis = serde_json::from_value(serde_json::json!({
             "schema": crate::model::ANALYSIS_SCHEMA,
@@ -5553,6 +5676,35 @@ mod tests {
         );
         peer.placed.as_mut().unwrap().lines = vec![far; 3];
         assert_eq!(kinds(&leader, &peer).crossing_kinds, ["arrow"]);
+
+        // The rim-search rejection must count both ordered pairs, all shaft
+        // legs and arrow-only contacts exactly as the complete checker does.
+        for ak in ["callout", "linear", "angular"] {
+            for bk in ["callout", "linear", "angular"] {
+                for shift in [0., 20., 50.] {
+                    let mut a = leader.clone();
+                    a.kind = ak.into();
+                    a.placed.as_mut().unwrap().arrows = vec![horizontal];
+                    let mut b = peer.clone();
+                    b.kind = bk.into();
+                    let stroke = vertical.map(|p| [p[0] + shift, p[1]]);
+                    b.placed.as_mut().unwrap().lines = vec![stroke; 4];
+                    b.placed.as_mut().unwrap().arrows = vec![stroke];
+                    let problems = collisions(&analysis, &[a.clone(), b.clone()], &plan.sheet, &[]);
+                    let expected = ["leader", "arrow"].map(|kind| {
+                        problems
+                            .iter()
+                            .filter(|p| {
+                                p.code == "annotation_leader_crossing"
+                                    && p.crossing_kinds.iter().any(|k| k == kind)
+                            })
+                            .count()
+                    });
+                    assert_eq!(route_crossings(&a, &[&a, &b]), expected);
+                    assert_eq!(route_crossings(&b, &[&a, &b]), expected);
+                }
+            }
+        }
 
         // The leader through a label is distinct from a linear line or a flare-only hit.
         peer.placed.as_mut().unwrap().label_box = [45., 79., 55., 81.];

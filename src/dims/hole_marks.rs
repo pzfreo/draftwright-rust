@@ -1147,13 +1147,31 @@ pub(super) fn settle(
                 .filter(|q| !q.id.starts_with(&own_triangle) && on_sheet(&q.view)),
         )
         .collect();
-    let before = placement::collisions_for(analysis, &all, sheet, &plan.views, cache, id);
+    let geometry = placement::CollisionGeometry::new(analysis, &all, sheet, &plan.views, cache);
+    let before = geometry.for_item(analysis, &all, sheet, &plan.views, id);
     let old = plan.gdt[gi]
         .placed
         .as_ref()
         .filter(|_| plan.gdt[gi].view == view.id);
     let mut chosen = None;
     let mut best_crossings = [usize::MAX; 2];
+    let crossing_peers: Vec<_> = all
+        .iter()
+        .filter(|q| {
+            q.id != *id
+                && plan
+                    .views
+                    .iter()
+                    .find(|v| v.id == q.view)
+                    .map_or(sheet.number == 1, |v| v.sheet == sheet.number)
+        })
+        .cloned()
+        .collect();
+    let crossing_peers: Vec<_> = crossing_peers.iter().collect();
+    let old_crossings = before
+        .iter()
+        .filter(|p| p.code == "annotation_leader_crossing")
+        .count();
     for (side, next) in candidates {
         // An unchanged frame retains its old paper; only its new leader is checked against
         // the existing findings below. A repair must not increase any of their counts.
@@ -1165,7 +1183,19 @@ pub(super) fn settle(
         trial.view.clone_from(&view.id);
         trial.placed = Some(next.clone());
         all[i] = gdt::proxy(&trial).expect("just placed");
-        let problems = placement::collisions_for(analysis, &all, sheet, &plan.views, cache, id);
+        let crossings = placement::route_crossings(&all[i], &crossing_peers);
+        // Each category is a lower bound on the complete crossing count. A
+        // strict route permits none; repairs may retain the old count. Reject
+        // proven failures before preparing a complete diagnostic report.
+        let allowed = if relaxed || held { old_crossings } else { 0 };
+        if crossings.iter().any(|&n| n > allowed)
+            || (chosen.is_some()
+                && (crossings == best_crossings
+                    || (0..2).any(|k| crossings[k] > best_crossings[k])))
+        {
+            continue;
+        }
+        let problems = geometry.for_item(analysis, &all, sheet, &plan.views, id);
         let crossings = ["leader", "arrow"].map(|kind| {
             problems
                 .iter()
@@ -1225,11 +1255,7 @@ pub(super) fn settle(
                 .position(|v| v.id == view.id)
                 .expect("its view");
             views[vi].area = area;
-            if tolerated(&placement::collisions_for(
-                analysis, &all, sheet, &views, cache, id,
-            ))
-            .is_empty()
-            {
+            if tolerated(&geometry.for_item(analysis, &all, sheet, &views, id)).is_empty() {
                 if improves {
                     chosen = Some((side, next, Some((vi, area))));
                     best_crossings = crossings;
