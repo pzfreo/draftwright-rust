@@ -244,12 +244,26 @@ pub(crate) fn attach(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
             // A mark in the end-on view orders the holes a leader tries.
             let near = marks.first().filter(|m| m.view == view.id);
             let count = named.len();
+            let prefix = format!("ink:{}:", view.id);
+            let centres: Vec<_> = view
+                .line_work
+                .iter()
+                .flat_map(|w| {
+                    let own = w.kind == "cross"
+                        && w.id
+                            .strip_prefix(&prefix)
+                            .is_some_and(|id| named.contains(id));
+                    crate::centrelines::segments(w)
+                        .into_iter()
+                        .map(move |s| (s, own))
+                })
+                .collect();
             let leader = Leader {
                 view,
                 rims: &rims,
                 others: &others,
                 count,
-                own: &named,
+                centres: &centres,
                 own_arm: false,
             };
             for (mark, hidden, relaxed, fine, own_arm) in steps {
@@ -516,7 +530,8 @@ struct Leader<'a> {
     rims: &'a [Rim],
     others: &'a [Other],
     count: usize,
-    own: &'a BTreeSet<&'a str>,
+    /// Centreline segments and whether each is one of the controlled holes' own arms.
+    centres: &'a [([P2; 2], bool)],
     /// Last resort for a hole frame: only the controlled circle's own short arm.
     own_arm: bool,
 }
@@ -644,21 +659,16 @@ fn rim_seen(analysis: &Analysis, view: &crate::model::PlannedView, rim: &Rim, u:
 /// rim, so that the two read as one line ([`crate::centrelines::runs_beside`], as the leader
 /// router avoids).
 fn along_centre(leader: &Leader, centre: P2, radius: f64, s: [P2; 2]) -> bool {
-    leader.view.line_work.iter().any(|w| {
-        crate::centrelines::segments(w).into_iter().any(|c| {
-            let own_arm = leader.own_arm
-                && w.kind == "cross"
-                && w.id
-                    .strip_prefix(&format!("ink:{}:", leader.view.id))
-                    .is_some_and(|id| leader.own.contains(id))
-                && (0..2).all(|k| (0.5 * (c[0][k] + c[1][k]) - centre[k]).abs() < 1e-6)
-                && c.iter().all(|p| {
-                    (p[0] - centre[0]).hypot(p[1] - centre[1])
-                        <= radius + crate::centrelines::overrun(radius) + 1e-6
-                });
-            (!own_arm && crate::centrelines::runs_beside(s, c))
-                || super::contacts::along_centreline(s, c)
-        })
+    leader.centres.iter().any(|&(c, own)| {
+        let own_arm = leader.own_arm
+            && own
+            && (0..2).all(|k| (0.5 * (c[0][k] + c[1][k]) - centre[k]).abs() < 1e-6)
+            && c.iter().all(|p| {
+                (p[0] - centre[0]).hypot(p[1] - centre[1])
+                    <= radius + crate::centrelines::overrun(radius) + 1e-6
+            });
+        (!own_arm && crate::centrelines::runs_beside(s, c))
+            || super::contacts::along_centreline(s, c)
     })
 }
 
@@ -1183,14 +1193,17 @@ pub(super) fn settle(
         trial.view.clone_from(&view.id);
         trial.placed = Some(next.clone());
         all[i] = gdt::proxy(&trial).expect("just placed");
-        let crossings = placement::route_crossings(&all[i], &crossing_peers);
-        // Each category is a lower bound on the complete crossing count. A
-        // strict route permits none; repairs may retain the old count. Reject
+        // A strict route permits no crossing; repairs may retain the old count. Reject
         // proven failures before preparing a complete diagnostic report.
         let allowed = if relaxed || held { old_crossings } else { 0 };
-        if crossings.iter().any(|&n| n > allowed)
+        let crossings = placement::route_crossings(
+            &all[i],
+            &crossing_peers,
+            [best_crossings[0], best_crossings[1], allowed],
+        );
+        if crossings[2] > allowed
             || (chosen.is_some()
-                && (crossings == best_crossings
+                && (crossings[..2] == best_crossings
                     || (0..2).any(|k| crossings[k] > best_crossings[k])))
         {
             continue;

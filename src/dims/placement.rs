@@ -5033,14 +5033,18 @@ pub(super) fn collisions_for(
     collisions_impl(analysis, dims, sheet, views, cache, Some(id))
 }
 
-/// The two ordered crossing counts used to improve a rim route. Peers must be on
+/// Ordered leader, arrow and total crossing counts for a rim route. Peers must be on
 /// the same sheet. This is a cheap rejection test, not admission: a surviving
 /// route still takes the complete collision check before it can be drawn.
-pub(super) fn route_crossings(d: &PlannedDimension, peers: &[&PlannedDimension]) -> [usize; 2] {
+pub(super) fn route_crossings(
+    d: &PlannedDimension,
+    peers: &[&PlannedDimension],
+    limits: [usize; 3],
+) -> [usize; 3] {
     let Some(p) = d.placed.as_ref() else {
-        return [0; 2];
+        return [0; 3];
     };
-    let mut counts = [0; 2];
+    let mut counts = [0; 3];
     for q in peers.iter().filter(|q| q.id != d.id) {
         let Some(r) = q.placed.as_ref() else {
             continue;
@@ -5054,8 +5058,14 @@ pub(super) fn route_crossings(d: &PlannedDimension, peers: &[&PlannedDimension])
                     .iter()
                     .any(|s| lines.iter().any(|t| super::leaders::lines_meet(*s, *t)))
             };
-            counts[0] += usize::from(b.kind == "callout" && meets(&pb.lines));
-            counts[1] += usize::from(meets(&pb.arrows));
+            let lines = meets(&pb.lines);
+            let arrows = meets(&pb.arrows);
+            counts[0] += usize::from(b.kind == "callout" && lines);
+            counts[1] += usize::from(arrows);
+            counts[2] += usize::from(lines || arrows);
+            if (0..3).any(|k| counts[k] > limits[k]) {
+                return counts;
+            }
         }
     }
     counts
@@ -5691,17 +5701,29 @@ mod tests {
                     b.placed.as_mut().unwrap().lines = vec![stroke; 4];
                     b.placed.as_mut().unwrap().arrows = vec![stroke];
                     let problems = collisions(&analysis, &[a.clone(), b.clone()], &plan.sheet, &[]);
-                    let expected = ["leader", "arrow"].map(|kind| {
+                    let expected = ["leader", "arrow", "total"].map(|kind| {
                         problems
                             .iter()
                             .filter(|p| {
                                 p.code == "annotation_leader_crossing"
-                                    && p.crossing_kinds.iter().any(|k| k == kind)
+                                    && (kind == "total"
+                                        || p.crossing_kinds.iter().any(|k| k == kind))
                             })
                             .count()
                     });
-                    assert_eq!(route_crossings(&a, &[&a, &b]), expected);
-                    assert_eq!(route_crossings(&b, &[&a, &b]), expected);
+                    for d in [&a, &b] {
+                        assert_eq!(route_crossings(d, &[&a, &b], [usize::MAX; 3]), expected);
+                        for limit in 0..=2 {
+                            let counts = route_crossings(d, &[&a, &b], [limit; 3]);
+                            assert_eq!(
+                                counts.iter().any(|&n| n > limit),
+                                expected.iter().any(|&n| n > limit)
+                            );
+                            if counts.iter().all(|&n| n <= limit) {
+                                assert_eq!(counts, expected);
+                            }
+                        }
+                    }
                 }
             }
         }

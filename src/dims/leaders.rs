@@ -6576,7 +6576,18 @@ const ALONG_RUN: f64 = 0.5;
 /// Whether two lines' ink meets: they cross ([`segments_cross`]), or run along each other (a
 /// leader laid on an extension line or another leader, [`ALONG`] apart for [`ALONG_RUN`] or more).
 pub(super) fn lines_meet(a: [P2; 2], b: [P2; 2]) -> bool {
-    segments_cross(a, b) || segments_along(a, b)
+    may_meet(a, b) && (segments_cross(a, b) || segments_along(a, b))
+}
+
+/// Conservative broad phase for both crossing and near-parallel ink. An along
+/// contact has a point within ALONG of the other segment, so its coordinate
+/// bounds cannot be farther apart. Keep a numerical hair beyond that distance.
+fn may_meet(a: [P2; 2], b: [P2; 2]) -> bool {
+    (0..2).all(|k| {
+        let lo = a[0][k].min(a[1][k]).max(b[0][k].min(b[1][k]));
+        let hi = a[0][k].max(a[1][k]).min(b[0][k].max(b[1][k]));
+        !lo.is_finite() || !hi.is_finite() || lo <= hi + ALONG + 1e-6
+    })
 }
 
 /// Whether two segments run along each other: parallel, within [`ALONG`], overlapping by
@@ -6607,7 +6618,7 @@ impl Line {
 
     /// [`lines_meet`] of this line and *b*.
     pub(super) fn meets(&self, b: [P2; 2]) -> bool {
-        segments_cross(self.a, b) || self.along(b)
+        may_meet(self.a, b) && (segments_cross(self.a, b) || self.along(b))
     }
 
     fn collinear(&self, b: [P2; 2]) -> bool {
@@ -8546,6 +8557,37 @@ mod tests {
             [[0.0, 0.0], [0.0, 10.0]],
             [[0.0, 10.0], [0.0, 20.0]]
         ));
+    }
+
+    #[test]
+    fn contact_bounds_preserve_crossings_and_parallel_runs() {
+        let mut seed = 7143_u64;
+        let mut coordinate = || {
+            seed = seed.wrapping_mul(6364136223846793005).wrapping_add(1);
+            (seed >> 32) as f64 / u32::MAX as f64 * 200. - 100.
+        };
+        for _ in 0..10_000 {
+            let a = [[coordinate(), coordinate()], [coordinate(), coordinate()]];
+            let b = [[coordinate(), coordinate()], [coordinate(), coordinate()]];
+            assert_eq!(
+                lines_meet(a, b),
+                segments_cross(a, b) || segments_along(a, b)
+            );
+            assert_eq!(Line::new(a).meets(b), lines_meet(a, b));
+        }
+        for angle in 0..32 {
+            let theta = f64::from(angle) * std::f64::consts::TAU / 32.;
+            let u = [theta.cos(), theta.sin()];
+            let point = |t: f64, offset: f64| [t * u[0] - offset * u[1], t * u[1] + offset * u[0]];
+            for offset in [0., 0.999999, 1., 1.000001, 2.] {
+                let a = [point(0., 0.), point(10., 0.)];
+                let b = [point(5., offset), point(15., offset)];
+                assert_eq!(
+                    lines_meet(a, b),
+                    segments_cross(a, b) || segments_along(a, b)
+                );
+            }
+        }
     }
 
     #[test]
