@@ -1134,33 +1134,39 @@ impl Session {
                 // conveys it, or as draftwright's own planned dimension, neither of which
                 // claims it (#265): either lowers it.
                 let general = crate::pmi::specify_general(report, record);
+                // The items that state it: one claiming it, or for a Specify general dimension
+                // the planned item made for it or one that conveys it, neither of which claims it
+                // (#265). One that is drawn lowers it; one not drawn because another item states
+                // what it would (a hole callout the hole table replaces) lowers it to that item.
                 let ids: Vec<_> = self
                     .plan()
                     .dimensions
                     .iter()
                     .filter(|d| {
-                        d.placed.is_some()
-                            && identities.id(&record.source_id).is_ok_and(|id| {
-                                d.measurements.iter().any(|m| {
-                                    m.feature == id
-                                        || general
-                                            && m.feature
-                                                == crate::dims::pmi_dimensions::general_feature(id)
-                                }) || general
-                                    && crate::dims::pmi_dimensions::conveys(
-                                        &d.basis,
-                                        &record.source_id,
-                                    )
-                            })
+                        identities.id(&record.source_id).is_ok_and(|id| {
+                            d.measurements.iter().any(|m| {
+                                m.feature == id
+                                    || general
+                                        && m.feature
+                                            == crate::dims::pmi_dimensions::general_feature(id)
+                            }) || general
+                                && crate::dims::pmi_dimensions::conveys(&d.basis, &record.source_id)
+                        })
                     })
-                    .map(|d| {
+                    .filter_map(|d| {
                         let kind = d
                             .measurements
                             .iter()
                             .find(|m| matches!(m.parameter.as_str(), "thread" | "knurl"))
                             .map(|m| m.parameter.clone())
                             .unwrap_or_else(|| d.kind.clone());
-                        (d.id.clone(), d.label.clone(), kind)
+                        match (&d.placed, &d.state) {
+                            (Some(_), _) => Some((d.id.clone(), d.label.clone(), kind)),
+                            (None, crate::items::State::Covered { by }) => {
+                                Some((by.clone(), d.label.clone(), "covered".to_string()))
+                            }
+                            _ => None,
+                        }
                     })
                     // A planners' item that conveys it but is itself left out because other
                     // stated dimensions determine it still states that size on the sheet.
