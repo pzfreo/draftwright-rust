@@ -495,27 +495,21 @@ fn specify_general_dimensions_are_lowered_not_unresolved() {
         "general dimensions left unresolved: {unresolved:#?}"
     );
     let lowered = report["lowered"].as_array().unwrap();
-    // The plate's overall sizes go to the envelope items that convey them; the 8 to the step
-    // height that conveys it, itself left out because other stated dimensions determine it.
-    for size in ["120", "80", "12"] {
+    // These source dimensions cite A/B/C. The maintainer's datum rule retains
+    // their own PMI items, including the 8, rather than restating them (#265).
+    for size in ["120", "80", "12", "8"] {
         assert!(
             lowered.iter().any(|r| r["label"] == size
                 && r["feature_id"]
                     .as_str()
-                    .is_some_and(|f| f.starts_with("d:envelope/"))),
-            "{size} is lowered to its envelope dimension"
+                    .is_some_and(|f| f.starts_with("d:pmi:"))),
+            "{size} retains its authored datum dimension"
         );
     }
-    assert!(
-        lowered
-            .iter()
-            .any(|r| r["label"] == "8" && r["kind"] == "covered")
-    );
 }
 
-/// #265, the editor's Plate sample as it starts (located by ±, holes general): Specify writes
-/// the holes' sizes and locations as general dimensions, which the hole table states. Each is
-/// lowered to the hole table, which covers the hole callouts that state or convey them.
+/// The editor's ± Plate sample: no-datum general sizes keep #265's hole-table
+/// carrier, while datum-referenced locations retain their own authored dimensions.
 #[test]
 fn specify_general_dimensions_in_a_hole_table_are_lowered_to_it() {
     let s = specify_session("specify-0.1.4-plate-plus-minus.step");
@@ -529,7 +523,8 @@ fn specify_general_dimensions_in_a_hole_table_are_lowered_to_it() {
         .collect();
     assert!(unresolved.is_empty(), "left unresolved: {unresolved:#?}");
     let lowered = report["lowered"].as_array().unwrap();
-    for size in ["ø22", "ø6.6", "108", "70"] {
+    // Diameter sizes have no datum reference and keep #265's hole-table path.
+    for size in ["ø22", "ø6.6"] {
         assert!(
             lowered.iter().any(|r| r["kind"] == "covered"
                 && r["feature_id"]
@@ -541,6 +536,17 @@ fn specify_general_dimensions_in_a_hole_table_are_lowered_to_it() {
                     .iter()
                     .any(|x| x["source_id"] == r["source_id"] && x["label"] == size)),
             "{size} is lowered to the hole table"
+        );
+    }
+    // Datum-referenced locations retain their own source items and values.
+    for size in ["108", "70"] {
+        assert!(
+            lowered.iter().any(|r| r["label"] == size
+                && r["kind"] == "linear"
+                && r["feature_id"]
+                    .as_str()
+                    .is_some_and(|f| f.starts_with("d:pmi:"))),
+            "{size} keeps its authored datum baseline"
         );
     }
 }

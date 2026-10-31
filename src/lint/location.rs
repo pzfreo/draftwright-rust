@@ -457,16 +457,6 @@ pub(crate) fn proof(
     if let Some(path) = route(edges, roots, axis, at, node, &BTreeSet::new()) {
         return Some(path);
     }
-    // A longitudinal slot locator controls its near-end plane. The slot's
-    // centre is derived from that plane and its length, rather than a bore axis.
-    if let Some(id) = node
-        && a.features.iter().any(|f| f.id == id && f.kind == "slot")
-        && let Some(span) = super::redundancy::span(a, id, "location_slot.length")
-        && span.axis == axis
-        && let Some(path) = route(edges, roots, axis, span.hi, None, &BTreeSet::new())
-    {
-        return Some(path);
-    }
     let p = pattern(a, node?)?;
     let mut path = Vec::new();
     for id in &p.members {
@@ -498,6 +488,79 @@ fn pitch_states(a: &Analysis, p: &crate::bridge::HolePattern, k: usize, text: &s
         && xs
             .windows(2)
             .all(|q| ((q[1] - q[0]) - (xs[1] - xs[0])).abs() < super::redundancy::TOL)
+}
+
+fn slot_end_witness(
+    a: &Analysis,
+    r: &crate::pmi::Record,
+    f: &crate::bridge::Feature,
+    k: usize,
+    at: f64,
+) -> bool {
+    let Some(span) = super::redundancy::span(a, &f.id, "location_slot.length") else {
+        return false;
+    };
+    if span.axis != k || (span.hi - at).abs() > EPS || f.faces.len() < 2 {
+        return false;
+    }
+    // Drawing may sort the ends. Recover the authored group by station.
+    let Some((side, _)) = r.geometry.as_ref().and_then(|g| {
+        g.stations
+            .iter()
+            .enumerate()
+            .find(|(_, p)| (p[k] - at).abs() <= EPS)
+    }) else {
+        return false;
+    };
+    let Some(group) = r.face_groups.get(side).filter(|g| !g.is_empty()) else {
+        return false;
+    };
+    if !group.iter().all(|&i| {
+        a.face_attachments
+            .get(i)
+            .is_some_and(|face| face.surface.as_deref() == Some("plane") && face.axis == Some(k))
+    }) {
+        return false;
+    }
+    let mut bounds = [f64::INFINITY; 6];
+    bounds[3..].fill(f64::NEG_INFINITY);
+    let mut common = [[f64::NEG_INFINITY; 3], [f64::INFINITY; 3]];
+    for &i in &f.faces {
+        let Some(wall) = a.face_attachments.get(i) else {
+            return false;
+        };
+        let Some(wb) = wall.bounds else {
+            return false;
+        };
+        if wall.surface.as_deref() != Some("plane")
+            || wall.axis.is_none_or(|axis| axis == k)
+            || (wb[k] - at).abs().min((wb[k + 3] - at).abs()) > EPS
+        {
+            return false;
+        }
+        for j in 0..3 {
+            bounds[j] = bounds[j].min(wb[j]);
+            bounds[j + 3] = bounds[j + 3].max(wb[j + 3]);
+            if j != k && Some(j) != wall.axis {
+                common[0][j] = common[0][j].max(wb[j]);
+                common[1][j] = common[1][j].min(wb[j + 3]);
+            }
+        }
+    }
+    // Use an actual trimmed-face site, not a potentially hollow box centre.
+    group
+        .iter()
+        .filter_map(|&i| a.face_attachments.get(i))
+        .flat_map(|face| &face.sites)
+        .any(|p| {
+            (p[k] - at).abs() <= EPS
+                && (0..3).all(|j| {
+                    bounds[j] - EPS <= p[j]
+                        && p[j] <= bounds[j + 3] + EPS
+                        && common[0][j] - EPS <= p[j]
+                        && p[j] <= common[1][j] + EPS
+                })
+        })
 }
 
 pub(crate) fn identify(a: &Analysis, mark: &Mark, spans: Vec<Edge>) -> Vec<Edge> {
@@ -587,6 +650,20 @@ pub(crate) fn identify(a: &Analysis, mark: &Mark, spans: Vec<Edge>) -> Vec<Edge>
                                     .is_some_and(|p| (p - at).abs() < super::redundancy::TOL)
                         })
                         .collect();
+                    // A planar slot end may not be among the recogniser's
+                    // two side-wall faces. Its proven face witness must be at
+                    // the near-end station, inside those walls' common extent.
+                    let mut candidates = candidates;
+                    let slots: Vec<_> = a
+                        .features
+                        .iter()
+                        .filter(|f| {
+                            f.kind == "slot"
+                                && slot_end_witness(a, r, f, e.axis, at)
+                                && !candidates.iter().any(|c| c.id == f.id)
+                        })
+                        .collect();
+                    candidates.extend(slots);
                     if candidates.len() == 1 {
                         return Some(candidates[0].id.clone());
                     }
@@ -601,6 +678,36 @@ pub(crate) fn identify(a: &Analysis, mark: &Mark, spans: Vec<Edge>) -> Vec<Edge>
                 };
                 e.a_feature = feature(0, e.a);
                 e.b_feature = feature(1, e.b);
+                // A proven slot cap is both a support plane and that slot's
+                // locating end. Retain the physical plane edge for size-chain
+                // coverage as well as the slot's existing virtual identity.
+                if r.face_groups.iter().all(|group| {
+                    !group.is_empty()
+                        && group.iter().all(|&f| {
+                            a.face_attachments.get(f).is_some_and(|face| {
+                                face.surface.as_deref() == Some("plane")
+                                    && face.axis == Some(e.axis)
+                            })
+                        })
+                }) && [e.a_feature.as_deref(), e.b_feature.as_deref()]
+                    .iter()
+                    .enumerate()
+                    .any(|(side, id)| {
+                        id.and_then(|id| a.features.iter().find(|f| f.id == id))
+                            .is_some_and(|f| {
+                                f.kind == "slot"
+                                    && slot_end_witness(
+                                        a,
+                                        r,
+                                        f,
+                                        e.axis,
+                                        if side == 0 { e.a } else { e.b },
+                                    )
+                            })
+                    })
+                {
+                    out.push(span.clone());
+                }
                 out.push(e);
             }
             continue;
@@ -734,10 +841,9 @@ pub(crate) fn identify(a: &Analysis, mark: &Mark, spans: Vec<Edge>) -> Vec<Edge>
                 .iter()
                 .any(|c| c.parameter.starts_with("location_slot."))
         {
-            // A slot's longitudinal locator measures to its near-end support
-            // plane, not its centre axis. Keep a planar station node so an
-            // authored plane-to-plane baseline can state the same quantity.
-            out.push(span);
+            let mut e = span;
+            e.b_feature = Some(members[0].clone());
+            out.push(e);
         } else if location && !right.is_empty() {
             for r in right {
                 let mut e = span.clone();

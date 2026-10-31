@@ -2061,6 +2061,19 @@ fn datum_general_dimensions_keep_their_authored_baselines_and_characteristics() 
             .iter()
             .any(|d| d.placed.is_some() && d.id == "d:f:slot:1/location_slot.length")
     );
+    assert!(
+        !plan
+            .dimensions
+            .iter()
+            .any(|d| d.placed.is_some() && d.id == "d:f:slot:1/slot_length.length")
+    );
+    assert!(
+        !plan.problems.iter().any(|p| p.code == "feature_not_located"
+            && p.subjects.iter().any(|s| s == "f:slot:1")
+            && p.message.contains(" on x:")),
+        "the authored baseline locates the slot end: {:?}",
+        plan.problems
+    );
     // Every numbered source is carried by ink stating its own quantity, never an
     // unrelated engine envelope reached through a coverage chain.
     for c in &plan.characteristics {
@@ -2231,4 +2244,30 @@ fn an_inclined_bore_keeps_its_h11_fit_on_its_proven_callout() {
             .count(),
         1
     );
+}
+
+#[test]
+fn authored_slot_ends_preserve_existing_engine_location_proofs() {
+    for (file, lost) in [
+        (
+            "nist_ctc_01_asme1_ap242-e1.stp",
+            vec!["f:slot:1", "f:slot:2"],
+        ),
+        ("nist_ctc_01_merge.step", vec!["f:slot:1", "f:slot:2"]),
+        ("nist_stc_09_asme1_ap242-e4.stp", vec!["f:slot:3"]),
+    ] {
+        let bytes =
+            gunzip(&std::fs::read(fixtures().join("step").join(format!("{file}.gz"))).unwrap());
+        let (_, a) = analysed(file, &bytes);
+        let plan = cache::default_plan(&a, true);
+        for id in lost {
+            assert!(
+                !plan.problems.iter().any(|p| p.code == "feature_not_located"
+                    && p.subjects.iter().any(|s| s == id)
+                    && p.message.contains(" on x:")),
+                "{file}: {id} lost its longitudinal locator: {:?}",
+                plan.problems
+            );
+        }
+    }
 }
