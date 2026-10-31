@@ -432,9 +432,9 @@
   "port": null,
   "field": "drawing",
   "python": "ValueError: project_to_viewport returned empty geometry for view 'plan' (camera (-0.20598045072850368, 1.2878802308874988, 245.83221857376392)) — check the camera position and look_at.",
-  "rust": "20 records drawn",
+  "rust": "25 records drawn",
   "verdict": "rust-correct",
-  "evidence": "known_pmi_dimensions.json (drawing, rust-correct): draftwright cannot draw this part at all (its plan-view projection raises, as known_pmi_lowering.json records for the same file); the port draws it, lowers its PMI dimensions, and carries its drawing-wide requirements (general tolerance ISO 2768-m in the title block, the Ra 3.2 default finish beside it, the edge-condition note), so 20 records are drawn."
+  "evidence": "known_pmi_dimensions.json (drawing, rust-correct): draftwright cannot draw this part at all (its plan-view projection raises, as known_pmi_lowering.json records for the same file); the port draws it, lowers its PMI dimensions, and carries its drawing-wide requirements (general tolerance ISO 2768-m in the title block, the Ra 3.2 default finish beside it, the edge-condition note), so 20 records are drawn. cx/pmi-groups proves the five additional plane-to-bore normal distances: the nominal check remains strict, their actual face/axis witnesses are retained, and all five dimensions now draw (25 source records in total)."
  },
  {
   "file": "hw_assembly_plate_pin_intent.step",
@@ -10050,5 +10050,57 @@
   },
   "verdict": "rust-correct",
   "evidence": "The composite target's four Z planes are at -27.5 mm and its source plane at -37.5 mm, exactly the authored 10 mm apart. The old combined-box centres describe an oblique relationship and are not the measured plane separation. Coplanar-group lowering proves attachment points on the trimmed reference faces, checks the unchanged nominal-span tolerance and draws the source's 10 ±0.2 dimension in front. known_pmi_dimensions.json records the same corrected outcome; the spindle regression separately proves that inconsistent nominals are still refused. Reviewer decision: now proven: coplanar composite measured as one plane (cx/pmi-groups)."
+ },
+ {
+  "file": "string_post_tapped.step",
+  "record": "dimension:0:1:4:3",
+  "port": "dimension:#3115",
+  "field": "drawing",
+  "python": {
+   "codes": [
+    "authored_dim_source_unresolved",
+    "pmi_not_extracted"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": true,
+     "kind": "dimension",
+     "rides_on": "linear.basic",
+     "text": "1.2",
+     "view": "plan"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "cx/pmi-groups proves the basic 1.2 mm location along X from the plane at -1.2 to the bore axis at 0. A trimmed projected face witness replaces the erroneous 3D box-centre distance. The existing basic 1.2 dimension on the coincident projected station states both sources without duplicate ink; the unchanged nominal check passes."
+ },
+ {
+  "file": "hw_string_post_tapped_intent.step",
+  "record": "dimension:0:1:4:3",
+  "port": "dimension:#3122",
+  "field": "drawing",
+  "python": {
+   "codes": [
+    "authored_dim_source_unresolved",
+    "pmi_not_extracted"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": true,
+     "kind": "dimension",
+     "rides_on": "linear.basic",
+     "text": "1.2",
+     "view": "plan"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "cx/pmi-groups proves the basic 1.2 mm location along X from the plane at -1.2 to the bore axis at 0. A trimmed projected face witness replaces the erroneous 3D box-centre distance. The existing basic 1.2 dimension on the coincident projected station states both sources without duplicate ink; the unchanged nominal check passes."
  }
 ]
