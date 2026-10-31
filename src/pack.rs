@@ -6,6 +6,8 @@ use std::path::Path;
 use std::time::Instant;
 
 mod buy;
+mod ga;
+pub use ga::{BalloonSpec, GaSpec, GeneralAssembly, HatchSpec, ItemReference};
 mod keys;
 pub use keys::part_keys;
 
@@ -48,6 +50,7 @@ pub struct PartSpec {
 pub struct PackSpec {
     pub schema: String,
     pub parts: BTreeMap<String, PartSpec>,
+    pub ga: GaSpec,
 }
 
 impl Default for PackSpec {
@@ -55,6 +58,7 @@ impl Default for PackSpec {
         Self {
             schema: SPEC_SCHEMA.into(),
             parts: BTreeMap::new(),
+            ga: GaSpec::default(),
         }
     }
 }
@@ -73,6 +77,7 @@ pub struct Row {
     pub key: String,
     pub item: u32,
     pub name: String,
+    pub reference: String,
     pub products: Vec<String>,
     pub part_indices: Vec<usize>,
     pub qty: usize,
@@ -91,10 +96,13 @@ pub struct Report {
     pub rows: Vec<Row>,
     pub findings: Vec<Finding>,
     pub pages: usize,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub general_assembly: Option<GeneralAssembly>,
 }
 
 /// A completed pack in memory. Drawings retain each part's own embedded drawing Spec.
-/// An all-buy or all-failed pack has zero drawings and a valid zero-page PDF.
+/// The optional GA precedes the made-part sheets. Without it, an all-buy or
+/// all-failed pack has zero drawings and a valid zero-page PDF.
 pub struct Pack {
     pub report: Report,
     pub drawings: Vec<Drawing>,
@@ -106,6 +114,7 @@ pub struct Pack {
 pub struct Timings {
     pub read_seconds: f64,
     pub grouping_seconds: f64,
+    pub ga_seconds: f64,
     pub parts: Vec<PartTiming>,
 }
 
@@ -150,16 +159,20 @@ fn face_equal(a: &FaceFingerprint, b: &FaceFingerprint, motion: &Motion) -> bool
         }
 }
 
-fn equal_at(a: &Part, af: &Fingerprints, b: &Part, bf: &Fingerprints, m: &Motion) -> bool {
+fn equal_at(
+    a: &Part,
+    af: &Fingerprints,
+    b: &Part,
+    bf: &Fingerprints,
+    m: &Motion,
+) -> Option<Vec<(usize, usize)>> {
+    let mut correspondence = Vec::new();
     let mut unused: BTreeSet<_> = (0..bf.faces.len()).collect();
     for face in &af.faces {
-        let Some(j) = unused
+        let j = unused
             .iter()
             .copied()
-            .find(|&j| face_equal(face, &bf.faces[j], m))
-        else {
-            return false;
-        };
+            .find(|&j| face_equal(face, &bf.faces[j], m))?;
         // Face moments alone cannot distinguish equal boxes with different trims or freeform
         // surfaces. Test samples against exact trimmed faces in both directions as well.
         let probe = FaceProbe::new(b, j);
@@ -168,7 +181,7 @@ fn equal_at(a: &Part, af: &Fingerprints, b: &Part, bf: &Fingerprints, m: &Motion
             .iter()
             .all(|&p| probe.distance(m.point(p)) <= DISTANCE)
         {
-            return false;
+            return None;
         }
         let probe = FaceProbe::new(a, face.index);
         if !b.face_cloud(j, 0.1).iter().all(|&p| {
@@ -176,11 +189,12 @@ fn equal_at(a: &Part, af: &Fingerprints, b: &Part, bf: &Fingerprints, m: &Motion
             let inverse = [0, 1, 2].map(|i| (0..3).map(|k| m.r[k][i] * q[k]).sum());
             probe.distance(inverse) <= DISTANCE
         }) {
-            return false;
+            return None;
         }
         unused.remove(&j);
+        correspondence.push((face.index, j));
     }
-    true
+    Some(correspondence)
 }
 
 // An exact B-rep path also covers surfaces for which the kernel cannot integrate an
@@ -302,9 +316,17 @@ fn exact_brep(a: &Part, b: &Part) -> bool {
         })
 }
 
-fn identical(a: &Part, af: &Fingerprints, b: &Part, bf: &Fingerprints) -> bool {
+fn congruence(
+    a: &Part,
+    af: &Fingerprints,
+    b: &Part,
+    bf: &Fingerprints,
+) -> Option<(Motion, Vec<(usize, usize)>)> {
     if exact_brep(a, b) {
-        return true;
+        return Some((
+            Motion::IDENTITY,
+            (0..a.faces.len()).map(|i| (i, i)).collect(),
+        ));
     }
     if a.faces.len() != b.faces.len()
         || a.edges.len() != b.edges.len()
@@ -316,14 +338,25 @@ fn identical(a: &Part, af: &Fingerprints, b: &Part, bf: &Fingerprints) -> bool {
         || !a.unresolved_edges().is_empty()
         || !b.unresolved_edges().is_empty()
     {
-        return false;
+        return None;
     }
-    // Most exports retain the same product frame. Try it before a proper-rigid alignment.
-    if equal_at(a, af, b, bf, &Motion::IDENTITY) {
-        return true;
+    if let Some(faces) = equal_at(a, af, b, bf, &Motion::IDENTITY) {
+        return Some((Motion::IDENTITY, faces));
     }
     let (motion, alignment) = align(af, bf, &Default::default());
-    alignment.found && equal_at(a, af, b, bf, &motion)
+    alignment
+        .found
+        .then(|| equal_at(a, af, b, bf, &motion))
+        .flatten()
+        .map(|faces| (motion, faces))
+}
+
+/// Proven correspondence from a representative to a re-exported product.
+struct Alias {
+    part: usize,
+    placement: haecceity::step::Placement,
+    /// Representative STEP face entity -> this product's STEP face entity.
+    faces: BTreeMap<u64, u64>,
 }
 
 fn finding(code: &str, message: String, products: Vec<String>) -> Finding {
@@ -362,12 +395,17 @@ pub fn build(step: &Path, spec: &PackSpec) -> Result<Pack, Error> {
             .map(|d| (d.name.as_str(), d.product_id.as_str())),
     );
     let mut groups: Vec<Group> = Vec::new();
+    // Retain the already-proven proper-rigid correspondence for GA projection
+    // reuse, including equal geometry exported under different products/frames.
+    let mut aliases = BTreeMap::new();
     let mut findings = Vec::new();
     for (i, d) in file.parts.iter().enumerate() {
         let key = &keys[i];
         let separate = spec.parts.get(key).is_some_and(|p| p.separate);
         let part = file.part(i).map_err(|e| e.to_string());
         let mut identity = None;
+        let mut correspondence = Motion::IDENTITY;
+        let mut corresponding_faces = Vec::new();
         let merged = if separate {
             None
         } else {
@@ -385,6 +423,7 @@ pub fn build(step: &Path, spec: &PackSpec) -> Result<Pack, Error> {
                     return false;
                 }
                 if exact_brep(a, b) {
+                    corresponding_faces = (0..a.faces.len()).map(|i| (i, i)).collect();
                     return true;
                 }
                 // Fingerprint only genuinely different B-reps with compatible topology.
@@ -393,11 +432,46 @@ pub fn build(step: &Path, spec: &PackSpec) -> Result<Pack, Error> {
                 let bf = g
                     .identity
                     .get_or_insert_with(|| fingerprint(b, &Default::default()));
-                identical(a, af, b, bf)
+                if let Some((motion, faces)) = congruence(a, af, b, bf) {
+                    correspondence = motion;
+                    corresponding_faces = faces;
+                    true
+                } else {
+                    false
+                }
             })
         };
         let reason = buy::name_reason(&d.name);
         if let Some(j) = merged {
+            let representative = groups[j].row.part_indices[0];
+            let inverse = std::array::from_fn(|row| {
+                std::array::from_fn(|col| {
+                    if col == 3 {
+                        -(0..3)
+                            .map(|k| correspondence.r[k][row] * correspondence.t[k])
+                            .sum::<f64>()
+                    } else {
+                        correspondence.r[col][row]
+                    }
+                })
+            });
+            let faces = match (&part, &groups[j].part) {
+                (Ok(a), Ok(b)) => corresponding_faces
+                    .into_iter()
+                    .filter_map(|(ai, bi)| {
+                        Some((b.face_source(bi)?.entity, a.face_source(ai)?.entity))
+                    })
+                    .collect(),
+                _ => BTreeMap::new(),
+            };
+            aliases.insert(
+                i,
+                Alias {
+                    part: representative,
+                    placement: inverse,
+                    faces,
+                },
+            );
             let row = &mut groups[j].row;
             row.products.push(key.clone());
             row.part_indices.push(i);
@@ -412,11 +486,20 @@ pub fn build(step: &Path, spec: &PackSpec) -> Result<Pack, Error> {
             }
             continue;
         }
+        aliases.insert(
+            i,
+            Alias {
+                part: i,
+                placement: haecceity::step::IDENTITY,
+                faces: BTreeMap::new(),
+            },
+        );
         groups.push(Group {
             row: Row {
                 key: key.clone(),
                 item: 0,
                 name: d.name.clone(),
+                reference: key.clone(),
                 products: vec![key.clone()],
                 part_indices: vec![i],
                 qty: d.placements.len(),
@@ -477,6 +560,7 @@ pub fn build(step: &Path, spec: &PackSpec) -> Result<Pack, Error> {
     let mut reserved = BTreeSet::new();
     let mut rows = Vec::new();
     let mut prepared = Vec::new();
+    let mut bought_geometry = Vec::new();
     for g in groups {
         let mut row = g.row;
         let mut timing = PartTiming {
@@ -529,6 +613,13 @@ pub fn build(step: &Path, spec: &PackSpec) -> Result<Pack, Error> {
             )));
         }
         let drawing_spec = values.first().map(|v| (*v).clone()).unwrap_or_default();
+        row.reference = drawing_spec
+            .sheet
+            .title
+            .get("number")
+            .filter(|s| !s.trim().is_empty())
+            .cloned()
+            .unwrap_or_else(|| row.key.clone());
         if file.parts.len() == 1 && file.parts[0].placements.len() > 1 {
             findings.push(finding("pack_single_product", "one product with multiple placements; quantity counts placements, geometry is drawn once in its own frame".into(), row.products.clone()));
         }
@@ -541,7 +632,7 @@ pub fn build(step: &Path, spec: &PackSpec) -> Result<Pack, Error> {
         // Known bought names need no geometry analysis unless the Spec requests a drawing.
         // Unknown shapes share their ONE native recognition with subsequent drawing.
         let read_error = g.part.as_ref().err().cloned();
-        let analysed = if row.buy_reasons.is_empty()
+        let mut analysed = if row.buy_reasons.is_empty()
             || supply == Some(Supply::Make)
             || file.parts.len() == 1
         {
@@ -598,6 +689,7 @@ pub fn build(step: &Path, spec: &PackSpec) -> Result<Pack, Error> {
         let started = Instant::now();
         let planned = if row.supply == Supply::Make {
             match analysed
+                .take()
                 .expect("made groups analysed")
                 .and_then(|(part, analysis)| {
                     let plan = crate::api::plan_analysed(&analysis, &drawing_spec)?;
@@ -620,6 +712,23 @@ pub fn build(step: &Path, spec: &PackSpec) -> Result<Pack, Error> {
             }
             None
         };
+        if let Some(Ok((part, analysis))) = analysed {
+            bought_geometry.push((row.part_indices[0], part, analysis));
+        }
+        if let Some(p) = &planned
+            && let Some(number) = p.plan.sheet.title.get("number")
+            && number != "DWG-001"
+        {
+            row.reference = number.clone();
+        }
+        let alias = !drawing_spec.sheet.title.contains_key("number")
+            && row.reference == row.key
+            && row.key.rsplit_once('#').is_some_and(|(name, suffix)| {
+                name == row.name && !suffix.is_empty() && suffix.chars().all(|c| c.is_ascii_digit())
+            });
+        if row.reference == row.name || alias {
+            row.reference.clear();
+        }
         timing.drawing_seconds = started.elapsed().as_secs_f64();
         rows.push((
             row,
@@ -641,6 +750,36 @@ pub fn build(step: &Path, spec: &PackSpec) -> Result<Pack, Error> {
             reserved.insert(next);
         }
     }
+    let ga_started = Instant::now();
+    let reused: BTreeMap<_, _> = rows
+        .iter()
+        .filter_map(|(r, p, ..)| {
+            p.as_ref()
+                .map(|p| (r.part_indices[0], (&p.part, &p.analysis)))
+        })
+        .chain(bought_geometry.iter().map(|(i, part, a)| (*i, (part, a))))
+        .collect();
+    let mut ga = if spec.ga.include.unwrap_or(rows.len() > 1) {
+        match ga::prepare(
+            step,
+            &bytes,
+            &file,
+            &spec.ga,
+            rows.iter().map(|(r, ..)| r),
+            &reused,
+            &aliases,
+        ) {
+            Ok(ga) => Some(ga),
+            Err(error) if error.code == "invalid" => return Err(error),
+            Err(error) => {
+                findings.push(finding("pack_ga_failed", error.message, Vec::new()));
+                None
+            }
+        }
+    } else {
+        None
+    };
+    timings.ga_seconds = ga_started.elapsed().as_secs_f64();
     let font = Font::new(crate::api::MONO.to_vec()).expect("bundled font");
     // Final sheet totals exclude failed parts. Rendering normally happens once; if a
     // renderer fails, retain its row and renumber survivors using their cached projections.
@@ -649,8 +788,21 @@ pub fn build(step: &Path, spec: &PackSpec) -> Result<Pack, Error> {
             .iter()
             .filter_map(|(_, p, ..)| p.as_ref())
             .map(|p| 1 + p.plan.sheets.len())
-            .sum();
+            .sum::<usize>()
+            + usize::from(ga.is_some());
         let mut drawings = Vec::new();
+        if let Some(front) = &mut ga {
+            let started = Instant::now();
+            match front.render(total, &font) {
+                Ok(drawing) => drawings.push(drawing),
+                Err(error) => {
+                    findings.push(finding("pack_ga_failed", error.message, Vec::new()));
+                    ga = None;
+                    continue;
+                }
+            }
+            timings.ga_seconds += started.elapsed().as_secs_f64();
+        }
         let mut failed = false;
         for (row, p, timing, explicit_title) in &mut rows {
             row.sheets.clear();
@@ -714,12 +866,17 @@ pub fn build(step: &Path, spec: &PackSpec) -> Result<Pack, Error> {
         timings.parts.push(timing);
         prepared.push(row);
     }
+    let general_assembly = ga.map(|g| {
+        findings.extend(g.findings);
+        g.report
+    });
     Ok(Pack {
         report: Report {
             schema: REPORT_SCHEMA.into(),
             rows: prepared,
             findings,
             pages: drawings.len(),
+            general_assembly,
         },
         drawings,
         timings,
@@ -732,7 +889,8 @@ impl Report {
         fn quote(s: &str) -> String {
             format!("\"{}\"", s.replace('"', "\"\""))
         }
-        let mut out = "item,name,products,qty,supply,buy_reasons,sheets\r\n".to_string();
+        let mut out =
+            "item,name,products,qty,supply,buy_reasons,sheets,reference,material\r\n".to_string();
         for row in &self.rows {
             let fields = [
                 row.item.to_string(),
@@ -751,6 +909,8 @@ impl Report {
                     .map(usize::to_string)
                     .collect::<Vec<_>>()
                     .join("; "),
+                row.reference.clone(),
+                String::new(),
             ];
             out.push_str(
                 &fields

@@ -127,7 +127,7 @@ fn end_cross(
 }
 
 #[allow(clippy::too_many_arguments)]
-fn axis(
+pub(crate) fn axis(
     a: &Analysis,
     v: &PlannedView,
     id: String,

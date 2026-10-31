@@ -831,6 +831,7 @@ mod tests {
             view: "v:plan".into(),
             features: Vec::new(),
             certifying: true,
+            interior: false,
             at: [140., 170.],
             radius: 0.,
             label_box: Some([138., 168.5, 142., 171.5]),

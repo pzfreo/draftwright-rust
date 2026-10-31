@@ -185,8 +185,9 @@ fn one_failed_drawing_keeps_its_row_and_other_drawings() {
     assert!(pack.report.rows[0].sheets.is_empty());
     assert!(pack.report.rows[1].error.is_none());
     assert!(!pack.report.rows[1].sheets.is_empty());
-    assert_eq!(pack.report.pages, 1);
-    assert!(pack.drawings[0].svg().contains(">1/1<"));
+    assert_eq!(pack.report.pages, 2);
+    assert!(pack.drawings[0].svg().contains(">1/2<"));
+    assert!(pack.drawings[1].svg().contains(">2/2<"));
 }
 
 #[test]
@@ -360,22 +361,26 @@ fn nested_drawing_spec_keeps_multiple_sheets_and_pack_fields_on_each_page() {
         ..Default::default()
     };
     let pack = pack::build(&fixture("pack-small.step.gz"), &spec).unwrap();
-    assert_eq!(pack.report.rows[0].sheets, [1, 2]);
-    assert_eq!(pack.report.rows[1].sheets, [3]);
-    for (i, drawing) in pack.drawings[..2].iter().enumerate() {
+    assert_eq!(pack.report.rows[0].sheets, [2, 3]);
+    assert_eq!(pack.report.rows[1].sheets, [4]);
+    for (i, drawing) in pack.drawings[1..3].iter().enumerate() {
         let texts: Vec<_> = drawing.text.iter().map(|t| t.text.as_str()).collect();
-        for value in ["plate", "SHOP", "ITEM", "QTY", "1", &format!("{}/3", i + 1)] {
+        for value in ["plate", "SHOP", "ITEM", "QTY", "1", &format!("{}/4", i + 2)] {
             assert!(texts.contains(&value), "page {}: {}", i + 1, value);
         }
         assert_eq!(texts.contains(&"SECOND SHEET"), i == 1);
     }
     let (_, files) = pack::render(&fixture("pack-small.step.gz"), &spec, &["pdf"]).unwrap();
-    assert!(String::from_utf8_lossy(&files[0].1).contains("/Count 3"));
+    assert!(String::from_utf8_lossy(&files[0].1).contains("/Count 4"));
 }
 
 #[test]
-fn all_buy_pack_keeps_every_row_with_no_drawing_pages() {
+fn all_buy_pack_can_omit_ga_and_keep_every_row_with_no_drawing_pages() {
     let spec = PackSpec {
+        ga: pack::GaSpec {
+            include: Some(false),
+            ..Default::default()
+        },
         parts: small()
             .report
             .rows
@@ -641,4 +646,479 @@ fn renamed_gramil_custom_screw_and_bolt_still_do_not_match_catalogue_shapes() {
         assert!(row.buy_reasons.is_empty());
         assert!(row.error.is_none());
     }
+}
+
+fn check_ga(pack: &Pack, step: &Path) {
+    let structural = draftwright::lint::structural::check(&pack.drawings[0]);
+    assert!(
+        structural.is_empty(),
+        "{}",
+        serde_json::to_string_pretty(&structural).unwrap()
+    );
+    assert!(pack.drawings[0].layers[1].items.is_empty());
+    let ga = pack
+        .report
+        .general_assembly
+        .as_ref()
+        .expect("GA front page");
+    assert_eq!(ga.sheet, 1);
+    assert!(
+        pack.report
+            .rows
+            .iter()
+            .flat_map(|r| &r.sheets)
+            .all(|&s| s > 1)
+    );
+    assert!(
+        pack.drawings[0]
+            .svg()
+            .contains(&format!(">1/{}<", pack.report.pages))
+    );
+    let table = ga.parts_list.as_ref().unwrap();
+    assert_eq!(table.rows.len(), pack.report.rows.len() + 1);
+    let mut items: Vec<_> = pack.report.rows.iter().map(|r| r.item).collect();
+    items.sort_unstable();
+    let printed: Vec<_> = table.rows[1..]
+        .iter()
+        .rev()
+        .map(|r| r[0].parse::<u32>().unwrap())
+        .collect();
+    assert_eq!(printed, items);
+    let placed = table.placed.as_ref().unwrap();
+    for pair in placed.cells_at[1..].windows(2) {
+        assert!(pair[0][0].unwrap()[1] > pair[1][0].unwrap()[1]);
+    }
+    for row in &pack.report.rows {
+        let cells = table
+            .rows
+            .iter()
+            .skip(1)
+            .find(|c| c[0] == row.item.to_string())
+            .unwrap();
+        assert_eq!(cells[1], row.qty.to_string());
+        assert_eq!(cells[2], row.name);
+        assert_eq!(cells[3], row.reference);
+        assert_eq!(
+            cells[4],
+            if row.supply == Supply::Make {
+                "make"
+            } else {
+                "buy"
+            }
+        );
+        assert_eq!(cells[5], "");
+        let count = ga.balloons.iter().filter(|b| b.item == row.item).count();
+        assert!(count <= 1);
+        assert_eq!(
+            count
+                + usize::from(ga.unballooned.contains(&row.item))
+                + usize::from(ga.suppressed.contains(&row.item)),
+            1
+        );
+        if ga.unballooned.contains(&row.item) {
+            assert!(
+                pack.report
+                    .findings
+                    .iter()
+                    .any(|f| f.code.starts_with("pack_ga_") && f.products == row.products)
+            );
+        }
+    }
+    // Independent reader ownership check, including bought groups and placements.
+    let bytes = draftwright::model::read_step_file(step).unwrap();
+    let file = draftwright::haecceity::step::StepFile::read(&bytes).unwrap();
+    let part = draftwright::haecceity::read_step(&bytes).unwrap();
+    for b in &ga.balloons {
+        let row = pack.report.rows.iter().find(|r| r.item == b.item).unwrap();
+        assert!(row.part_indices.iter().any(|&i| {
+            file.parts[i]
+                .placements
+                .iter()
+                .any(|p| p.instances.contains(&b.instance))
+        }));
+        assert_eq!(part.face_source(b.face).unwrap().instance, b.instance);
+        let source_point = [0, 1, 2].map(|k| {
+            (0..3)
+                .map(|j| ga.frame[j][k] * (b.point[j] - ga.frame[j][3]))
+                .sum()
+        });
+        if b.section {
+            let solid = part
+                .solids
+                .iter()
+                .find(|s| s.faces.contains(&b.face))
+                .unwrap();
+            let classifier =
+                draftwright::haecceity::classify::Classifier::for_faces(&part, solid.faces.clone());
+            let state = classifier.classify(source_point);
+            assert!(
+                state == draftwright::haecceity::classify::State::In
+                    || (!b.interior && state == draftwright::haecceity::classify::State::On),
+                "item {} cut ownership",
+                b.item
+            );
+        } else {
+            assert!(
+                draftwright::haecceity::cloud::FaceProbe::new(&part, b.face).distance(source_point)
+                    < 1e-3,
+                "item {} face attachment",
+                b.item
+            );
+        }
+
+        assert!(b.radius > draftwright::hole_table::RADIUS);
+        assert!(
+            pack.drawings[0]
+                .text
+                .iter()
+                .any(|r| r.text == b.item.to_string() && r.at == b.at)
+        );
+        assert!(
+            pack.drawings[0]
+                .sheet
+                .items
+                .iter()
+                .any(|d| d.name == format!("ga_item_{}", b.item))
+        );
+    }
+    let segment = |b: &draftwright::pack::ItemReference| {
+        let d = [b.at[0] - b.tip[0], b.at[1] - b.tip[1]];
+        let length = d[0].hypot(d[1]);
+        [
+            b.tip,
+            [
+                b.at[0] - b.radius * d[0] / length,
+                b.at[1] - b.radius * d[1] / length,
+            ],
+        ]
+    };
+    let cross = |p: [f64; 2], q: [f64; 2]| p[0] * q[1] - p[1] * q[0];
+    for (i, b) in ga.balloons.iter().enumerate() {
+        let [p, q] = segment(b);
+        let d = [q[0] - p[0], q[1] - p[1]];
+        for c in &ga.balloons[i + 1..] {
+            let [r, s] = segment(c);
+            let e = [s[0] - r[0], s[1] - r[1]];
+            let denominator = cross(d, e);
+            if denominator.abs() > 1e-8 {
+                let offset = [r[0] - p[0], r[1] - p[1]];
+                let t = cross(offset, e) / denominator;
+                let u = cross(offset, d) / denominator;
+                assert!(
+                    !(0. ..=1.).contains(&t) || !(0. ..=1.).contains(&u),
+                    "leaders {} and {} cross",
+                    b.item,
+                    c.item
+                );
+            }
+        }
+        let dot=pack.drawings[0].layers.iter().flat_map(|l|&l.items).any(|item|matches!(item,
+            draftwright::output::Item::Face(loops) if loops.len()==1 && matches!(loops[0].as_slice(),
+            [draftwright::output::Curve::Conic {centre,radii,..}] if *centre==b.tip && *radii==[0.3,0.3])));
+        assert_eq!(
+            dot, b.interior,
+            "item {} dot/outline-arrow convention",
+            b.item
+        );
+    }
+    let dimensions: Vec<_> = pack.drawings[0]
+        .annotations
+        .iter()
+        .filter(|a| a.name.starts_with("d:"))
+        .collect();
+    assert_eq!(dimensions.len(), 3);
+    assert!(dimensions.iter().all(|d| d.name.starts_with("d:envelope/")));
+    assert!(
+        pack.drawings[0]
+            .sheet
+            .fields
+            .iter()
+            .all(|f| f.field != "pack_qty")
+    );
+}
+
+#[test]
+fn ga_small_sources_list_and_numbering() {
+    check_ga(small(), &fixture("pack-small.step.gz"));
+    assert!(
+        !small()
+            .report
+            .general_assembly
+            .as_ref()
+            .unwrap()
+            .balloons
+            .is_empty()
+    );
+}
+
+#[test]
+fn ga_gramil_sources_list_and_numbering() {
+    let step = fixture("gramil.step.gz");
+    let pack = pack::build(&step, &Default::default()).unwrap();
+    check_ga(&pack, &step);
+}
+
+#[test]
+fn ga_overrides_and_omission_preserve_part_geometry() {
+    let step = fixture("pack-small.step.gz");
+    let off: PackSpec = serde_json::from_value(json!({"ga":{"include":false}})).unwrap();
+    let without = pack::build(&step, &off).unwrap();
+    assert!(without.report.general_assembly.is_none());
+    assert_eq!(small().drawings.len(), without.drawings.len() + 1);
+    for (before, after) in without.drawings.iter().zip(&small().drawings[1..]) {
+        assert_eq!(before.layers[0].items, after.layers[0].items);
+        assert_eq!(before.layers[1].items, after.layers[1].items);
+    }
+    let item = small().report.general_assembly.as_ref().unwrap().balloons[0].item;
+    let spec: PackSpec = serde_json::from_value(json!({"ga":{
+        "drawing":{"sheet":{"size":"A3","scale":"1:1","hidden":true}},
+        "balloons":{item.to_string():{"suppress":true}}
+    }}))
+    .unwrap();
+    let pack = pack::build(&step, &spec).unwrap();
+    let ga = pack.report.general_assembly.as_ref().unwrap();
+    assert_eq!(ga.size, "A3");
+    assert_eq!(ga.scale, "1:1");
+    assert_eq!(ga.suppressed, [item]);
+    assert!(!ga.balloons.iter().any(|b| b.item == item));
+    assert!(!pack.drawings[0].layers[1].items.is_empty());
+    let b = &small().report.general_assembly.as_ref().unwrap().balloons[0];
+    let frame = &small().drawings[0].sheet.frames[b.view.trim_start_matches("v:")];
+    let position = [b.at[0] - frame.at[0], b.at[1] - frame.at[1] + 4.];
+    let pinned: PackSpec = serde_json::from_value(json!({"ga":{
+        "balloon_radius":7, "parts_list":false,
+        "balloons":{b.item.to_string():{"view":b.view.trim_start_matches("v:"),"position":position}}
+    }, "parts":{"plate":{"drawing":{"sheet":{"title":{"number":"PL-01"}}}}}}))
+    .unwrap();
+    let pinned = pack::build(&fixture("pack-small.step.gz"), &pinned).unwrap();
+    let ga = pinned.report.general_assembly.as_ref().unwrap();
+    assert!(ga.parts_list.is_none());
+    let actual = ga.balloons.iter().find(|r| r.item == b.item).unwrap();
+    let frame = &pinned.drawings[0].sheet.frames[actual.view.trim_start_matches("v:")];
+    assert_eq!(
+        actual.at,
+        [frame.at[0] + position[0], frame.at[1] + position[1]]
+    );
+    assert_eq!(actual.radius, 7.);
+    assert_eq!(pinned.report.rows[0].reference, "PL-01");
+    for invalid in [
+        json!({"ga":{"balloon_radius":1}}),
+        json!({"ga":{"horizontal_axis":"q"}}),
+        json!({"ga":{"section_item":999}}),
+        json!({"ga":{"detail_scale":"3:1"}}),
+        json!({"ga":{"hatching":{"1":{"angle":200}}}}),
+        json!({"ga":{"balloons":{"999":{}}}}),
+        json!({"ga":{"balloons":{"1":{"view":"rear"}}}}),
+    ] {
+        let spec = serde_json::from_value(invalid).unwrap();
+        assert_eq!(
+            pack::build(&fixture("pack-small.step.gz"), &spec)
+                .err()
+                .unwrap()
+                .code,
+            "invalid"
+        );
+    }
+    let step = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/parts/plate.step");
+    assert!(
+        pack::build(&step, &Default::default())
+            .unwrap()
+            .report
+            .general_assembly
+            .is_none()
+    );
+    let force: PackSpec = serde_json::from_value(json!({"ga":{"include":true}})).unwrap();
+    let pack = pack::build(&step, &force).unwrap();
+    assert!(pack.report.general_assembly.is_some());
+    assert!(pack.report.rows[0].sheets.iter().all(|&s| s > 1));
+}
+
+#[test]
+fn ga_reference_sizes_projection_and_generic_title() {
+    let pack = small();
+    let ga = pack.report.general_assembly.as_ref().unwrap();
+    let drawing = &pack.drawings[0];
+    let labels: Vec<_> = drawing
+        .annotations
+        .iter()
+        .filter(|a| a.name.starts_with("d:envelope/"))
+        .collect();
+    assert_eq!(labels.len(), 3);
+    let mut printed: Vec<_> = labels
+        .iter()
+        .flat_map(|label| label.runs.iter().map(|&i| drawing.text[i].text.as_str()))
+        .collect();
+    printed.sort();
+    assert_eq!(printed, ["(22)", "(30)", "(42)"]);
+    let front = ga.views.iter().find(|v| v.id == "v:front").unwrap();
+    let plan = ga.views.iter().find(|v| v.id == "v:plan").unwrap();
+    let camera = |v: &draftwright::model::PlannedView| {
+        draftwright::haecceity::hlr::View::new(v.direction, v.up).unwrap()
+    };
+    assert_eq!(camera(front).x, camera(plan).x);
+    assert!((front.at[0] - plan.at[0]).abs() < 1e-8);
+    assert!(ga.envelope[0] >= ga.envelope[1] && ga.envelope[0] >= ga.envelope[2]);
+    assert!(
+        pack.report
+            .rows
+            .iter()
+            .filter(|r| r.name == r.key)
+            .all(|r| r.reference.is_empty())
+    );
+}
+
+#[test]
+fn ga_nested_items_have_a_section_and_readable_detail() {
+    let step = fixture("pack-nested.step.gz");
+    let pack = pack::build(&step, &PackSpec::default()).unwrap();
+    check_ga(&pack, &step);
+    let ga = pack.report.general_assembly.as_ref().unwrap();
+    let section = ga
+        .views
+        .iter()
+        .find(|v| v.id == "v:section_aa")
+        .expect("nested assembly section");
+    assert_eq!(section.cut.as_ref().unwrap().marked_in, "v:plan");
+    let detail = ga
+        .views
+        .iter()
+        .find(|v| v.id == "v:detail_b")
+        .expect("0.25 mm liner detail");
+    assert!(detail.scale > section.scale);
+    let liner = pack.report.rows.iter().find(|r| r.name == "liner").unwrap();
+    assert_eq!(
+        ga.balloons
+            .iter()
+            .find(|b| b.item == liner.item)
+            .unwrap()
+            .view,
+        "v:detail_b"
+    );
+    assert!(ga.unballooned.is_empty(), "{:?}", ga.unballooned);
+    let drawing = &pack.drawings[0];
+    assert!(drawing.text.iter().any(|r| r.text == "pack-nested"));
+    assert!(drawing.text.iter().any(|r| r.text.starts_with("SECTION A")));
+    assert!(drawing.text.iter().any(|r| r.text.starts_with("DETAIL B")));
+    assert!(drawing.sheet.items.iter().any(|i| i.name == "section_line"));
+    for (i, b) in ga.balloons.iter().enumerate() {
+        for c in &ga.balloons[i + 1..] {
+            assert!(b.view != c.view || (b.tip[0] - c.tip[0]).hypot(b.tip[1] - c.tip[1]) >= 3.);
+        }
+    }
+    let hatch = drawing
+        .layers
+        .iter()
+        .find(|l| l.name == "ga_hatch_v:detail_b")
+        .unwrap();
+    let centre = (detail.detail.as_ref().unwrap().bounds[0][0]
+        + detail.detail.as_ref().unwrap().bounds[1][0])
+        / 2.;
+    let mut bush = 0;
+    let mut liner_hatch = 0;
+    for item in &hatch.items {
+        if let draftwright::output::Item::Edge(draftwright::output::Curve::Line(p, q)) = item {
+            let x = (centre + ((p[0] + q[0]) / 2. - detail.at[0]) / detail.scale).abs();
+            let diagonal = (q[0] - p[0]) * (q[1] - p[1]);
+            if x > 4. + 1e-5 && x < 5. - 1e-5 {
+                assert!(diagonal < 0.);
+                bush += 1;
+            }
+            if x > 3.75 + 1e-5 && x < 4. - 1e-5 {
+                assert!(diagonal > 0.);
+                liner_hatch += 1;
+            }
+        }
+    }
+    assert!(
+        bush > 0 && liner_hatch > 0,
+        "both adjacent cut items need distinct hatch directions"
+    );
+    let bush_item = pack
+        .report
+        .rows
+        .iter()
+        .find(|r| r.name == "bushing")
+        .unwrap()
+        .item;
+    let overrides:PackSpec=serde_json::from_value(json!({"ga":{"section_item":liner.item,"detail_scale":"10:1","hatching":{
+        bush_item.to_string():{"angle":30,"spacing":1,"omit":false},liner.item.to_string():{"omit":true}
+    }}})).unwrap();
+    let changed = pack::build(&step, &overrides).unwrap();
+    let changed_ga = changed.report.general_assembly.as_ref().unwrap();
+    let changed_detail = changed_ga
+        .views
+        .iter()
+        .find(|v| v.id == "v:detail_b")
+        .unwrap();
+    assert_eq!(changed_detail.scale, 10.);
+    assert!(
+        changed_ga
+            .balloons
+            .iter()
+            .any(|b| b.item == liner.item && b.view == "v:detail_b")
+    );
+    let centre = (changed_detail.detail.as_ref().unwrap().bounds[0][0]
+        + changed_detail.detail.as_ref().unwrap().bounds[1][0])
+        / 2.;
+    let mut altered = 0;
+    for item in &changed.drawings[0]
+        .layers
+        .iter()
+        .find(|l| l.name == "ga_hatch_v:detail_b")
+        .unwrap()
+        .items
+    {
+        if let draftwright::output::Item::Edge(draftwright::output::Curve::Line(p, q)) = item {
+            let x =
+                (centre + ((p[0] + q[0]) / 2. - changed_detail.at[0]) / changed_detail.scale).abs();
+            assert!(
+                !(3.75 + 1e-5..4. - 1e-5).contains(&x),
+                "suppressed liner hatch"
+            );
+            if x > 4. + 1e-5 && x < 5. - 1e-5 {
+                assert!(((q[1] - p[1]) / (q[0] - p[0]) - 1. / 3f64.sqrt()).abs() < 1e-8);
+                altered += 1;
+            }
+        }
+    }
+    assert!(altered > 0);
+    let off: PackSpec =
+        serde_json::from_value(json!({"ga":{"sections":false,"horizontal_axis":"y"}})).unwrap();
+    let off = pack::build(&step, &off).unwrap();
+    let ga = off.report.general_assembly.as_ref().unwrap();
+    assert!(
+        ga.views
+            .iter()
+            .all(|v| v.cut.is_none() && v.detail.is_none())
+    );
+    assert_eq!(ga.envelope[0], 40.);
+}
+
+#[test]
+fn ga_item_hatch_override_survives_conventional_thread_rendering() {
+    let spec: PackSpec = serde_json::from_value(json!({
+        "parts": {"body_6": {"item":25,"supply":"make"}},
+        "ga": {"section_item":25,"hatching":{"25":{"omit":false,"angle":17,"spacing":1.1}}}
+    }))
+    .unwrap();
+    let pack = pack::build(&fixture("pack-shapes.step.gz"), &spec).unwrap();
+    let ga = pack.report.general_assembly.as_ref().unwrap();
+    assert!(ga.views.iter().any(|v| v.id == "v:section_aa"));
+    let hatch = pack.drawings[0]
+        .layers
+        .iter()
+        .flat_map(|l| &l.items)
+        .filter_map(|item| match item {
+            draftwright::output::Item::Edge(draftwright::output::Curve::Line(a, b)) => {
+                let d = [b[0] - a[0], b[1] - a[1]];
+                (d[0].hypot(d[1]) > 0.5).then_some(d[1].atan2(d[0]).to_degrees().rem_euclid(180.))
+            }
+            _ => None,
+        })
+        .filter(|angle| (*angle - 17.).abs() < 1e-5)
+        .count();
+    assert!(
+        hatch >= 3,
+        "the item's authored hatch angle must survive the thread carrier's section cache key"
+    );
 }

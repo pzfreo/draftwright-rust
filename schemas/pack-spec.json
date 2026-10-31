@@ -14,6 +14,9 @@
         "$ref": "#/$defs/part"
       },
       "description": "Intent keyed by stable leaf keys from draftwright parts or merged common-name stems (docs/model.md). Unknown keys are refused with valid keys."
+    },
+    "ga": {
+      "$ref": "#/$defs/ga"
     }
   },
   "$defs": {
@@ -57,6 +60,183 @@
               "type": "null"
             }
           ]
+        }
+      }
+    },
+    "ga": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "include": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "Default: GA front sheet for more than one group. False omits it; true forces it for one group. Counts in pack SHEET numbering."
+        },
+        "drawing": {
+          "$ref": "spec.json",
+          "description": "Existing view, A4-first sheet/scale, hidden-line, title and envelope-dimension intent for the assembled product. Hidden defaults false. Recognised threads use the existing conventional carriers; sheet/view thread_depiction false selects physical geometry. No exploded geometry."
+        },
+        "balloon_radius": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 5,
+          "maximum": 15,
+          "description": "Item-reference circle radius in paper mm; default 6, distinct from inspection characteristic rings and hole-table TAG rings."
+        },
+        "balloons": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[1-9][0-9]*$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/itemBalloon"
+          },
+          "description": "One reference per group, keyed by final pack item number, including bought items. Unknown items refused."
+        },
+        "parts_list": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "Default true: bottom-up parts list directly above title-block furniture, item 1 at the bottom. False omits it."
+        },
+        "horizontal_axis": {
+          "enum": [
+            "x",
+            "y",
+            "z",
+            null
+          ],
+          "description": "Source axis to read horizontally; default longest assembly axis. All principal cameras share one proper-rigid frame."
+        },
+        "sections": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "Default true: recover indistinguishable or enclosed items in a full section through the item centre, with a cutting plane on plan."
+        },
+        "details": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "Default true: enlarge a section region when an item wall is thinner than 0.7 paper mm; section recovery must be enabled."
+        },
+        "hatching": {
+          "type": "object",
+          "propertyNames": {
+            "pattern": "^[1-9][0-9]*$"
+          },
+          "additionalProperties": {
+            "$ref": "#/$defs/hatch"
+          },
+          "description": "Section hatch intent by final item number. Defaults use distinct angle/spacing combinations by item; longitudinal screws, pins, rods, shafts and washers are not hatched."
+        },
+        "section_item": {
+          "type": [
+            "integer",
+            "null"
+          ],
+          "minimum": 1,
+          "description": "Choose the item whose centre selects the full-section plane. Forces recovery for this item; sections must be enabled."
+        },
+        "detail_scale": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "10:1",
+            "5:1",
+            "2:1",
+            "1:1",
+            "1:2",
+            "1:5",
+            "1:10",
+            "1:20",
+            "1:50",
+            "1:100",
+            "1:200",
+            "1:500",
+            "1:1000",
+            "1:2000",
+            "1:5000",
+            "1:10000",
+            null
+          ],
+          "description": "Override the enlarged region standard scale; it must exceed the carrying section scale."
+        }
+      }
+    },
+    "itemBalloon": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "suppress": {
+          "type": "boolean",
+          "default": false
+        },
+        "view": {
+          "type": [
+            "string",
+            "null"
+          ],
+          "enum": [
+            "front",
+            "plan",
+            "side",
+            "iso",
+            "section_aa",
+            "detail_b",
+            null
+          ],
+          "description": "Choose the visible carrying view. A group hidden in that view is reported, never given a false leader."
+        },
+        "position": {
+          "type": [
+            "array",
+            "null"
+          ],
+          "items": {
+            "type": "number"
+          },
+          "minItems": 2,
+          "maxItems": 2,
+          "description": "Ring centre [dx,dy] in paper mm relative to carrying view origin (y up). Omit to use aligned outside bands."
+        }
+      }
+    },
+    "hatch": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "omit": {
+          "type": [
+            "boolean",
+            "null"
+          ],
+          "description": "Null: automatic longitudinal-standard-part exception. True: omit hatch. False: force hatch."
+        },
+        "angle": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0,
+          "maximum": 180
+        },
+        "spacing": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "minimum": 0.5,
+          "maximum": 10
         }
       }
     }

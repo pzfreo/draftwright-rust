@@ -40,3 +40,8 @@ structural tests; supply must follow recognised shape evidence. The constant
 trapezoidal helical-cut construction is adapted from quiddity-rust's original
 `tools/make_thread_fixtures.py`; no third-party model is included. Shared under
 this repository's licence, gzip without a timestamp.
+
+`pack-nested.step.gz` is an original synthetic GA fixture from `pack-nested.py`:
+60 × 40 × 6 plate, a concentric bushing and a 0.25 mm liner, with generic root
+name ASSEMBLY. It exercises distinguishable section/detail item references and
+root-title fallback. Shared under this repository's licence.
