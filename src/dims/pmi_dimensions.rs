@@ -133,6 +133,46 @@ pub(super) fn feature(ids: &Identities, source: &str) -> String {
     }
 }
 
+/// Plane spans touching a required profile corner may leave the nearer side of
+/// their proven faces, freeing the corner for its angle. Their datum is unchanged.
+pub(super) fn local_plane_spans(a: &Analysis, corners: &[P3]) -> BTreeSet<String> {
+    if corners.is_empty() {
+        return BTreeSet::new();
+    }
+    let Some(Reading::Read(report)) = &a.pmi else {
+        return BTreeSet::new();
+    };
+    let ids = report.identities();
+    report
+        .records
+        .iter()
+        .filter(|r| {
+            r.category == Category::Dimension
+                && matches!(r.kind.as_str(), "linear" | "thickness")
+                && r.face_groups.len() == 2
+                && r.face_groups.iter().all(|fs| {
+                    !fs.is_empty()
+                        && fs.iter().all(|&f| {
+                            a.face_attachments
+                                .get(f)
+                                .is_some_and(|f| f.surface.as_deref() == Some("plane"))
+                        })
+                })
+                && r.geometry
+                    .as_ref()
+                    .is_some_and(|g| g.axis.is_some() && g.reasons.is_empty())
+                && r.face_groups.iter().flatten().any(|&f| {
+                    a.face_attachments[f].bounds.is_some_and(|bounds| {
+                        corners.iter().any(|p| {
+                            (0..3).all(|k| p[k] >= bounds[k] - 1e-6 && p[k] <= bounds[k + 3] + 1e-6)
+                        })
+                    })
+                })
+        })
+        .map(|r| feature(&ids, &r.source_id))
+        .collect()
+}
+
 /// Whether a planned item is a basic PMI dimension: its label is then boxed.
 pub(crate) fn basic(measurements: &[Measurement]) -> bool {
     measurements

@@ -2010,6 +2010,18 @@ fn specify_plate_general_locations_keep_their_datums() {
         .collect();
     assert_eq!(general.len(), 10);
     let plan = cache::default_plan(&a, true);
+    assert_eq!(
+        plan.sheet.size, "A2",
+        "the authored datum baseline flood is retained"
+    );
+    assert_eq!(plan.sheet.scale, "1:1");
+    assert_eq!(
+        plan.dimensions
+            .iter()
+            .filter(|d| d.placed.is_some())
+            .count(),
+        24
+    );
     for r in general {
         assert!(r.fields.iter().any(|(key, _)| key == "reference datum"));
         let d = stating(&plan, &a, r).unwrap();
@@ -2244,6 +2256,45 @@ fn an_inclined_bore_keeps_its_h11_fit_on_its_proven_callout() {
             .count(),
         1
     );
+}
+
+#[test]
+fn recovered_thicknesses_leave_the_bend_angle_defined() {
+    let bytes =
+        gunzip(&std::fs::read(fixtures().join("specify-main-angle-bracket.step.gz")).unwrap());
+    let (_, a) = analysed("specify-main-angle-bracket.step", &bytes);
+    let plan = cache::default_plan(&a, true);
+    assert!(
+        plan.dimensions
+            .iter()
+            .any(|d| d.kind == "angular" && (d.value - 120.).abs() < 1e-6 && d.placed.is_some())
+    );
+    assert!(
+        !plan
+            .problems
+            .iter()
+            .any(|p| p.code == "angular_dimension_dropped")
+    );
+    for id in [770, 774] {
+        let r = records(&a).iter().find(|r| r.part21_id == id).unwrap();
+        let c = plan
+            .characteristics
+            .iter()
+            .find(|c| c.source == r.source_id)
+            .unwrap();
+        let d = plan
+            .dimensions
+            .iter()
+            .find(|d| Some(&d.id) == c.drawn_item.as_ref())
+            .unwrap();
+        assert_eq!(d.value, 8.);
+        let p = d.placed.as_ref().expect("both authored thicknesses draw");
+        // Local witnesses stay near their arm instead of traversing the bend and
+        // crossing the opposite overall dimension (over 40 mm in the regression).
+        for [a, b] in p.lines[..2].iter().filter(|_| id == 774) {
+            assert!((a[0] - b[0]).hypot(a[1] - b[1]) < 25., "{d:?}");
+        }
+    }
 }
 
 #[test]

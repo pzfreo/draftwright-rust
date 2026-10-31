@@ -394,6 +394,30 @@ fn callout_strip(view: &str) -> Side {
     }
 }
 
+/// An inclined span belongs beside its witnesses, rather than beyond the remote end of
+/// the whole part. Choose the nearer parallel support of the view's outline; keep the
+/// usual strip when both are equally near. Explicit placement still overrides this.
+fn aligned_strip(a: P2, b: P2, outline: [f64; 4], preferred: Side) -> Side {
+    let mut n = [a[1] - b[1], b[0] - a[0]];
+    let outward = match preferred {
+        Side::Above => [0.0, 1.0],
+        Side::Below => [0.0, -1.0],
+        Side::Left => [-1.0, 0.0],
+        Side::Right => [1.0, 0.0],
+    };
+    if n[0] * outward[0] + n[1] * outward[1] < 0.0 {
+        n = n.map(|v| -v);
+    }
+    let distance = (0..2)
+        .map(|k| n[k] * (a[k] + b[k] - outline[k] - outline[k + 2]))
+        .sum::<f64>();
+    if distance < -1e-6 {
+        opposite(preferred)
+    } else {
+        preferred
+    }
+}
+
 /// The page position of lane *lane* in strip *side*, and the outward sign.
 fn lane_at(o: [f64; 4], side: Side, lane: usize) -> (f64, f64) {
     let d = first_line() + lane as f64 * lane_pitch();
@@ -631,6 +655,7 @@ pub(super) fn owners(
 /// (ARCH0009-5), then callouts by their tips, right to left. An item merged away ([`owners`])
 /// takes its survivor's lane number and, when parallel, its strip.
 pub(super) fn lanes<'a>(
+    analysis: &Analysis,
     frames: &BTreeMap<&str, Frame>,
     items: impl ExactSizeIterator<Item = (&'a Want, Option<&'static str>)>,
     owner: &[Option<usize>],
@@ -682,7 +707,12 @@ pub(super) fn lanes<'a>(
             Shape::Aligned { a, b } => {
                 let (a, b) = (f.page(*a), f.page(*b));
                 (
-                    strip(view, (b[0] - a[0]).abs() >= (b[1] - a[1]).abs()),
+                    aligned_strip(
+                        a,
+                        b,
+                        f.outline(),
+                        strip(view, (b[0] - a[0]).abs() >= (b[1] - a[1]).abs()),
+                    ),
                     (1, key((b[0] - a[0]).hypot(b[1] - a[1]))),
                 )
             }
@@ -706,6 +736,60 @@ pub(super) fn lanes<'a>(
                 rank.1,
                 i,
             ));
+        }
+    }
+    // Keep a plane span off the required profile corner it touches. Other source
+    // dimensions keep their established strips, including datum baseline ladders.
+    let mut corners: BTreeMap<&str, Vec<P3>> = BTreeMap::new();
+    for &(w, view) in &items {
+        if super::profile_angles::is_profile_angle(w)
+            && let (Some(view), Shape::Angular { angle, alternates }) = (view, &w.shape)
+        {
+            let points = corners.entry(view).or_default();
+            points.push(angle.vertex);
+            points.extend(alternates.iter().map(|a| a.vertex));
+        }
+    }
+    let local: BTreeMap<_, _> = corners
+        .iter()
+        .map(|(&view, points)| {
+            (
+                view,
+                super::pmi_dimensions::local_plane_spans(analysis, points),
+            )
+        })
+        .collect();
+    for (i, &(w, view)) in items.iter().enumerate() {
+        let (Some(view), Some(side), Shape::Linear { a, b, .. }) = (view, sides[i], &w.shape)
+        else {
+            continue;
+        };
+        if owner[i].is_some()
+            || !local
+                .get(view)
+                .is_some_and(|spans| w.measurements.iter().any(|m| spans.contains(&m.feature)))
+        {
+            continue;
+        }
+        let frame = &frames[view];
+        let (a, b) = (frame.page(*a), frame.page(*b));
+        let across = usize::from(matches!(side, Side::Above | Side::Below));
+        let cost = |side| {
+            let edge = lane_at(frame.outline(), side, 0).0;
+            (a[across] - edge).abs().max((b[across] - edge).abs())
+        };
+        let other = opposite(side);
+        if cost(other) + 1e-6 < cost(side) {
+            let own = strips
+                .get_mut(&(view, side))
+                .expect("a standalone span has a strip");
+            let index = own
+                .iter()
+                .position(|row| row.3 == i)
+                .expect("its strip entry");
+            let row = own.remove(index);
+            strips.entry((view, other)).or_default().push(row);
+            sides[i] = Some(other);
         }
     }
     let mut lane = vec![0usize; n];
@@ -5320,6 +5404,23 @@ fn collisions_impl(
 #[cfg(test)]
 mod tests {
     #[test]
+    fn inclined_spans_choose_the_nearer_parallel_support() {
+        let outline = [0., 0., 100., 100.];
+        assert_eq!(
+            aligned_strip([78., 70.], [85., 66.], outline, Side::Below),
+            Side::Above
+        );
+        assert_eq!(
+            aligned_strip([85., 66.], [78., 70.], outline, Side::Below),
+            Side::Above
+        );
+        assert_eq!(
+            aligned_strip([22., 30.], [15., 34.], outline, Side::Above),
+            Side::Below
+        );
+    }
+
+    #[test]
     fn crossing_kinds_and_dimension_strokes_follow_the_placed_structure() {
         let analysis: Analysis = serde_json::from_value(serde_json::json!({
             "schema": crate::model::ANALYSIS_SCHEMA,
@@ -5586,6 +5687,7 @@ mod tests {
             want("middle", 50., 1),
         ];
         let (sides, lane) = lanes(
+            &a,
             &frames,
             items.iter().map(|w| (w, Some("front"))),
             &[None; 5],
@@ -5704,6 +5806,7 @@ mod tests {
                 want(80., 82., "2"),
             ];
             let (_, lane) = lanes(
+                &a,
                 &frames,
                 items.iter().map(|w| (w, Some("front"))),
                 &[None; 5],
