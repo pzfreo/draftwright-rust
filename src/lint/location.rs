@@ -650,63 +650,45 @@ pub(crate) fn identify(a: &Analysis, mark: &Mark, spans: Vec<Edge>) -> Vec<Edge>
                                     .is_some_and(|p| (p - at).abs() < super::redundancy::TOL)
                         })
                         .collect();
-                    // A planar slot end may not be among the recogniser's
-                    // two side-wall faces. Its proven face witness must be at
-                    // the near-end station, inside those walls' common extent.
-                    let mut candidates = candidates;
-                    let slots: Vec<_> = a
-                        .features
-                        .iter()
-                        .filter(|f| {
-                            f.kind == "slot"
-                                && slot_end_witness(a, r, f, e.axis, at)
-                                && !candidates.iter().any(|c| c.id == f.id)
-                        })
-                        .collect();
-                    candidates.extend(slots);
                     if candidates.len() == 1 {
                         return Some(candidates[0].id.clone());
                     }
-                    r.face_groups
-                        .get(side)
-                        .and_then(|faces| {
-                            candidates
-                                .iter()
-                                .find(|f| faces.iter().any(|i| f.faces.contains(i)))
-                        })
-                        .map(|f| f.id.clone())
+                    if let Some(direct) = r.face_groups.get(side).and_then(|faces| {
+                        candidates
+                            .iter()
+                            .find(|f| faces.iter().any(|i| f.faces.contains(i)))
+                    }) {
+                        return Some(direct.id.clone());
+                    }
+                    // Prefer native face ownership. A planar end omitted from
+                    // the slot's side-wall support needs its own cap proof.
+                    let slots: Vec<_> = a
+                        .features
+                        .iter()
+                        .filter(|f| f.kind == "slot" && slot_end_witness(a, r, f, e.axis, at))
+                        .collect();
+                    (slots.len() == 1).then(|| slots[0].id.clone())
                 };
                 e.a_feature = feature(0, e.a);
                 e.b_feature = feature(1, e.b);
-                // A proven slot cap is both a support plane and that slot's
-                // locating end. Retain the physical plane edge for size-chain
-                // coverage as well as the slot's existing virtual identity.
-                if r.face_groups.iter().all(|group| {
-                    !group.is_empty()
-                        && group.iter().all(|&f| {
-                            a.face_attachments.get(f).is_some_and(|face| {
-                                face.surface.as_deref() == Some("plane")
-                                    && face.axis == Some(e.axis)
-                            })
-                        })
-                }) && [e.a_feature.as_deref(), e.b_feature.as_deref()]
-                    .iter()
-                    .enumerate()
-                    .any(|(side, id)| {
-                        id.and_then(|id| a.features.iter().find(|f| f.id == id))
-                            .is_some_and(|f| {
-                                f.kind == "slot"
-                                    && slot_end_witness(
-                                        a,
-                                        r,
-                                        f,
-                                        e.axis,
-                                        if side == 0 { e.a } else { e.b },
-                                    )
-                            })
-                    })
-                {
-                    out.push(span.clone());
+                // A cap's virtual slot identity adds evidence; it must not
+                // replace the physical plane used by other source locations.
+                // Retain the other endpoint's native identity, including bores.
+                let mut physical = e.clone();
+                for (node, at) in [
+                    (&mut physical.a_feature, e.a),
+                    (&mut physical.b_feature, e.b),
+                ] {
+                    if node
+                        .as_ref()
+                        .and_then(|id| a.features.iter().find(|f| f.id == *id))
+                        .is_some_and(|f| f.kind == "slot" && slot_end_witness(a, r, f, e.axis, at))
+                    {
+                        *node = None;
+                    }
+                }
+                if physical.a_feature != e.a_feature || physical.b_feature != e.b_feature {
+                    out.push(physical);
                 }
                 out.push(e);
             }
