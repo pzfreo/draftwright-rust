@@ -5092,11 +5092,11 @@
    },
    "record": {
     "kind": "diameter",
-    "label": "ø3"
+    "label": "⌀3"
    }
   },
   "verdict": "undetermined",
-  "evidence": "known_pmi.json (record, undetermined): #20632, a semantic ø3 dimension on supplemental geometry (a geometric_curve_set, no face of the part), whose only presentation is invisible (INVISIBILITY over its annotation occurrence). XCAF does not transfer it, so draftwright's census has no source for it. The port reads it as the file states it (applies to supplemental geometry (geometric_curve_set), not only the part's faces and edges); whether a drawing states it is lowering's decision. Re-checked with haecceity at quiddity-rust 45c4038 (stage 1b): unchanged, still read as a record with the supplemental-geometry blocker; whether a drawing states, reports or skips an invisible semantic dimension remains the maintainer question in docs/next-session.md. On the drawing: the port's is not drawn, refused (pmi_not_lowered); draftwright has no such record."
+  "evidence": "known_pmi.json (record, undetermined): #20632, a semantic ø3 dimension on supplemental geometry (a geometric_curve_set, no face of the part), whose only presentation is invisible (INVISIBILITY over its annotation occurrence). XCAF does not transfer it, so draftwright's census has no source for it. The port reads it as the file states it (applies to supplemental geometry (geometric_curve_set), not only the part's faces and edges); whether a drawing states it is lowering's decision. Re-checked with haecceity at quiddity-rust 45c4038 (stage 1b): unchanged, still read as a record with the supplemental-geometry blocker; whether a drawing states, reports or skips an invisible semantic dimension remains the maintainer question in docs/next-session.md. On the drawing: the port's is not drawn, refused (pmi_not_lowered); draftwright has no such record. Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
  },
  {
   "file": "nist_ftc_10_asme1_ap242-e2.stp",
@@ -5113,11 +5113,11 @@
    },
    "record": {
     "kind": "diameter",
-    "label": "ø3"
+    "label": "⌀3"
    }
   },
   "verdict": "undetermined",
-  "evidence": "known_pmi.json (record, undetermined): #20659, a semantic ø3 dimension on supplemental geometry (a geometric_curve_set, no face of the part), whose only presentation is invisible (INVISIBILITY over its annotation occurrence). XCAF does not transfer it, so draftwright's census has no source for it. The port reads it as the file states it (applies to supplemental geometry (geometric_curve_set), not only the part's faces and edges); whether a drawing states it is lowering's decision. Re-checked with haecceity at quiddity-rust 45c4038 (stage 1b): unchanged, still read as a record with the supplemental-geometry blocker; whether a drawing states, reports or skips an invisible semantic dimension remains the maintainer question in docs/next-session.md. On the drawing: the port's is not drawn, refused (pmi_not_lowered); draftwright has no such record."
+  "evidence": "known_pmi.json (record, undetermined): #20659, a semantic ø3 dimension on supplemental geometry (a geometric_curve_set, no face of the part), whose only presentation is invisible (INVISIBILITY over its annotation occurrence). XCAF does not transfer it, so draftwright's census has no source for it. The port reads it as the file states it (applies to supplemental geometry (geometric_curve_set), not only the part's faces and edges); whether a drawing states it is lowering's decision. Re-checked with haecceity at quiddity-rust 45c4038 (stage 1b): unchanged, still read as a record with the supplemental-geometry blocker; whether a drawing states, reports or skips an invisible semantic dimension remains the maintainer question in docs/next-session.md. On the drawing: the port's is not drawn, refused (pmi_not_lowered); draftwright has no such record. Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
  },
  {
   "file": "nist_ftc_10_asme1_ap242-e2.stp",
@@ -5134,11 +5134,11 @@
    },
    "record": {
     "kind": "diameter",
-    "label": "ø3"
+    "label": "⌀3"
    }
   },
   "verdict": "undetermined",
-  "evidence": "known_pmi.json (record, undetermined): #20686, a semantic ø3 dimension on supplemental geometry (a geometric_curve_set, no face of the part), whose only presentation is invisible (INVISIBILITY over its annotation occurrence). XCAF does not transfer it, so draftwright's census has no source for it. The port reads it as the file states it (applies to supplemental geometry (geometric_curve_set), not only the part's faces and edges); whether a drawing states it is lowering's decision. Re-checked with haecceity at quiddity-rust 45c4038 (stage 1b): unchanged, still read as a record with the supplemental-geometry blocker; whether a drawing states, reports or skips an invisible semantic dimension remains the maintainer question in docs/next-session.md. On the drawing: the port's is not drawn, refused (pmi_not_lowered); draftwright has no such record."
+  "evidence": "known_pmi.json (record, undetermined): #20686, a semantic ø3 dimension on supplemental geometry (a geometric_curve_set, no face of the part), whose only presentation is invisible (INVISIBILITY over its annotation occurrence). XCAF does not transfer it, so draftwright's census has no source for it. The port reads it as the file states it (applies to supplemental geometry (geometric_curve_set), not only the part's faces and edges); whether a drawing states it is lowering's decision. Re-checked with haecceity at quiddity-rust 45c4038 (stage 1b): unchanged, still read as a record with the supplemental-geometry blocker; whether a drawing states, reports or skips an invisible semantic dimension remains the maintainer question in docs/next-session.md. On the drawing: the port's is not drawn, refused (pmi_not_lowered); draftwright has no such record. Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
  },
  {
   "file": "nist_ftc_10_asme1_ap242-e2.stp",
