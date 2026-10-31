@@ -387,18 +387,23 @@ fn control_frame(glyph: &Glyph) -> (Laid, Vec<String>) {
     (laid, cells)
 }
 
-/// A datum's frame laid out about its centre.
+/// A datum's frame laid out about its centre: haecceity's shared datum feature symbol frame
+/// (#258), which states the letter without measuring it, so its geometry does not depend on the
+/// sheet's font.
 fn datum_frame(letter: &str) -> Laid {
-    let h = TEXT;
-    let corners = [[-h, -h], [h, -h], [h, h], [-h, h]];
-    let mut laid = Laid::default();
-    for i in 0..4 {
-        laid.strokes.push([corners[i], corners[(i + 1) % 4]]);
+    let c = haecceity::presentation::datum(letter);
+    let text = |t: haecceity::presentation::Text| GdtText {
+        text: t.text,
+        at: t.at,
+        size: t.size,
+    };
+    Laid {
+        strokes: c.strokes,
+        arcs: c.arcs,
+        letters: c.letters.into_iter().map(text).collect(),
+        runs: c.runs.into_iter().map(text).collect(),
+        size: c.size,
     }
-    laid.letters.push(text(letter, [0.0, 0.0], h));
-    laid.runs.push(text(letter, [0.0, 0.0], h));
-    laid.size = [H, H];
-    laid
 }
 
 /// A label's text laid out from its lower left corner, a text height tall.
