@@ -10120,7 +10120,7 @@
      "boxed": false,
      "kind": "dimension",
      "rides_on": "bore.diameter",
-     "text": "4× ⌀4.394 +0.127 -0.0254   THRU",
+     "text": "4× ⌀4.394 +0.127 -0.0254 THRU",
      "view": "plan"
     }
    ]
