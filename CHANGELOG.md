@@ -6,6 +6,11 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+## 0.2.6 (2026-10-31)
+
+Still on quiddity-rust **v0.2.6**. The PMI report now lowers each record to the item that draws
+it, so consumers no longer see drawn PMI as unresolved (#265).
+
 ### Fixed
 
 - For #265, the PMI report (`Engine::pmi`, the session's `pmi_report`) lowers each PMI record to
