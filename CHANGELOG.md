@@ -6,6 +6,12 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+## 0.2.7 (2026-10-31)
+
+Still on quiddity-rust **v0.2.6**. Planning a drawing with PMI takes about a third fewer
+instructions (#276), and drawings no longer leave empty rungs in dimension ladders, state an
+assembly's shared general note twice, or lose inspection balloons in large views (#277).
+
 ### Changed
 
 - Recovery tries the note form once per drawn callout, not once per owner: a thread several
