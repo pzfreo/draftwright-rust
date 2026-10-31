@@ -457,3 +457,56 @@ fn semantic_thread_nominal_disagreement_is_not_lowered() {
             .any(|r| r["kind"] == "internal_thread")
     );
 }
+
+/// #265: Specify 0.1.4's general-tolerance dimensions are drawn by the planners' items that
+/// convey them, or as planned dimensions; the PMI report lowers them to those items, never
+/// lists them unresolved (the editor reads `unresolved` as PMI the drawing cannot show).
+#[test]
+fn specify_general_dimensions_are_lowered_not_unresolved() {
+    use std::io::Read;
+    let mut bytes = Vec::new();
+    flate2::read::GzDecoder::new(
+        std::fs::File::open(
+            std::path::Path::new(env!("CARGO_MANIFEST_DIR"))
+                .join("tests/fixtures/samples/specify-0.1.4-plate.step.gz"),
+        )
+        .unwrap(),
+    )
+    .read_to_end(&mut bytes)
+    .unwrap();
+    let (part, analysis) =
+        model::analyse_native_step(std::path::Path::new("specify-0.1.4-plate.step"), &bytes)
+            .unwrap();
+    let s = Session::new(part, analysis, model::Spec::default()).unwrap();
+    let report = s.pmi_report();
+    let unresolved: Vec<_> = report["unresolved"]
+        .as_array()
+        .unwrap()
+        .iter()
+        .filter(|r| {
+            r["category"] == "dimension" || r["kind"] == "linear" || r["kind"] == "diameter"
+        })
+        .map(|r| format!("{} {}", r["label"], r["reason"]))
+        .collect();
+    assert!(
+        unresolved.is_empty(),
+        "general dimensions left unresolved: {unresolved:#?}"
+    );
+    let lowered = report["lowered"].as_array().unwrap();
+    // The plate's overall sizes go to the envelope items that convey them; the 8 to the step
+    // height that conveys it, itself left out because other stated dimensions determine it.
+    for size in ["120", "80", "12"] {
+        assert!(
+            lowered.iter().any(|r| r["label"] == size
+                && r["feature_id"]
+                    .as_str()
+                    .is_some_and(|f| f.starts_with("d:envelope/"))),
+            "{size} is lowered to its envelope dimension"
+        );
+    }
+    assert!(
+        lowered
+            .iter()
+            .any(|r| r["label"] == "8" && r["kind"] == "covered")
+    );
+}

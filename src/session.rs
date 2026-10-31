@@ -1130,16 +1130,27 @@ impl Session {
         if let Some(crate::pmi::Reading::Read(report)) = &effective.pmi {
             let identities = report.identities();
             for record in &report.records {
+                // A Specify general-tolerance dimension is drawn by the planners' item that
+                // conveys it, or as draftwright's own planned dimension, neither of which
+                // claims it (#265): either lowers it.
+                let general = crate::pmi::specify_general(report, record);
                 let ids: Vec<_> = self
                     .plan()
                     .dimensions
                     .iter()
                     .filter(|d| {
                         d.placed.is_some()
-                            && d.measurements.iter().any(|m| {
-                                identities
-                                    .id(&record.source_id)
-                                    .is_ok_and(|id| m.feature == id)
+                            && identities.id(&record.source_id).is_ok_and(|id| {
+                                d.measurements.iter().any(|m| {
+                                    m.feature == id
+                                        || general
+                                            && m.feature
+                                                == crate::dims::pmi_dimensions::general_feature(id)
+                                }) || general
+                                    && crate::dims::pmi_dimensions::conveys(
+                                        &d.basis,
+                                        &record.source_id,
+                                    )
                             })
                     })
                     .map(|d| {
@@ -1151,6 +1162,22 @@ impl Session {
                             .unwrap_or_else(|| d.kind.clone());
                         (d.id.clone(), d.label.clone(), kind)
                     })
+                    // A planners' item that conveys it but is itself left out because other
+                    // stated dimensions determine it still states that size on the sheet.
+                    .chain(
+                        self.plan()
+                            .omitted
+                            .iter()
+                            .filter(|o| {
+                                general
+                                    && matches!(o.state, crate::items::State::Covered { .. })
+                                    && crate::dims::pmi_dimensions::conveys(
+                                        &o.basis,
+                                        &record.source_id,
+                                    )
+                            })
+                            .map(|o| (o.id.clone(), o.label.clone(), "covered".to_string())),
+                    )
                     .chain(
                         self.plan()
                             .gdt
