@@ -715,12 +715,13 @@ impl Footprints {
 
     /// An interior witness leaves its own opening at the near rim, keeping the normal gap.
     pub(super) fn interior_witness(&self, line: &mut [P2; 2], owners: &[Measurement]) -> bool {
+        let slot_width = owners.iter().any(|m| m.parameter == "slot_width.length");
         let exit = self
             .features
             .iter()
             .filter(|f| self.owned(&f.id, owners))
             .flat_map(|f| match &f.shape {
-                Shape::Box(b) => clip_box(*line, *b, true).into_iter().collect(),
+                Shape::Box(b) if slot_width => clip_box(*line, *b, true).into_iter().collect(),
                 _ => f.shape.spans(*line),
             })
             .filter(|(a, _)| *a <= 1e-9)
@@ -735,7 +736,7 @@ impl Footprints {
             }
             let next = [line[0][0] + t * d[0], line[0][1] + t * d[1]];
             // Clipping an owned rim must not jump a foreign opening inside it.
-            if !self.crossed_extension([line[0], next], owners).is_empty() {
+            if slot_width && !self.crossed_extension([line[0], next], owners).is_empty() {
                 return false;
             }
             line[0] = next;
@@ -1399,7 +1400,7 @@ mod tests {
         };
         let owners = [Measurement {
             feature: "f:own".into(),
-            parameter: "width.length".into(),
+            parameter: "slot_width.length".into(),
             value: 4.,
         }];
         let f = footprints(15.);

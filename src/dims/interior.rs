@@ -1305,6 +1305,8 @@ pub(super) fn place(
         let frame = &frames[name];
         let f = cache.get(analysis, v);
         let centre_row = prefers_centre_row(frame, &items[i], v, prismatic);
+        let mut baseline_candidates = usize::MAX;
+        let slot_layout = super::placement::automatic_slot_layout(analysis);
         let candidates =
             match &items[i].shape {
                 Shape::Callout { .. } => {
@@ -1342,9 +1344,21 @@ pub(super) fn place(
                     let mut candidates = sides[i]
                         .map(|side| super::placement::interior_lanes(frame, &items[i], side))
                         .unwrap_or_default();
-                    for shape in super::slots::width_references(&items[i], analysis)
+                    // Preserve a proven original lane; the new local stations and
+                    // physical reference pairs are fallbacks for blocked routes.
+                    baseline_candidates = candidates.len().min(8);
+                    if !slot_layout {
+                        candidates.truncate(baseline_candidates);
+                    }
+                    for shape in slot_layout
+                        .then(|| super::slots::width_references(&items[i], analysis))
+                        .unwrap_or_default()
                         .into_iter()
-                        .chain(super::placement::pattern_references(&items[i], analysis))
+                        .chain(
+                            slot_layout
+                                .then(|| super::placement::pattern_references(&items[i], analysis))
+                                .unwrap_or_default(),
+                        )
                     {
                         let mut alternative = items[i].clone();
                         alternative.shape = shape;
@@ -1403,9 +1417,14 @@ pub(super) fn place(
                         }
                     })
         };
+        let baseline_clear = std::cell::Cell::new(false);
         let candidate = candidates
             .into_iter()
-            .filter_map(|mut p| {
+            .enumerate()
+            .filter_map(|(index, mut p)| {
+                if index >= baseline_candidates && baseline_clear.get() {
+                    return None;
+                }
                 if matches!(items[i].shape, Shape::Linear { .. })
                     && !p
                         .lines
@@ -1415,11 +1434,17 @@ pub(super) fn place(
                 {
                     return None;
                 }
-                Some(p)
+                Some((index >= baseline_candidates, p))
             })
-            .filter_map(|p| {
+            .filter_map(|(fallback, p)| {
                 let mut choices = vec![p.clone()];
-                if matches!(items[i].shape, Shape::Linear { .. }) && proof.blank(v, p.label_box) {
+                if slot_layout
+                    && items[i]
+                        .measurements
+                        .iter()
+                        .any(|m| m.parameter == "slot_width.length")
+                    && proof.blank(v, p.label_box)
+                {
                     // Keep compact witness gaps within two paper millimetres.
                     for extra in [0.25, 0.5, 1.] {
                         let mut q = p.clone();
@@ -1452,9 +1477,14 @@ pub(super) fn place(
                 }
                 // For a fixed physical route, use the smallest valid gap.
                 // Removing more witness ink must not improve its route score.
-                choices.into_iter().find(|p| clear(p))
+                choices.into_iter().find(|p| clear(p)).map(|p| {
+                    if !fallback {
+                        baseline_clear.set(true);
+                    }
+                    (fallback, p)
+                })
             })
-            .min_by(|a, b| {
+            .min_by(|(fallback_a, a), (fallback_b, b)| {
                 let length = |p: &Placed| {
                     p.lines
                         .iter()
@@ -1467,10 +1497,12 @@ pub(super) fn place(
                     centre_row
                         && (0.5 * (p.label_box[1] + p.label_box[3]) - v.at[1]).abs() >= super::TEXT
                 };
-                outside_row(a)
-                    .cmp(&outside_row(b))
+                fallback_a
+                    .cmp(fallback_b)
+                    .then_with(|| outside_row(a).cmp(&outside_row(b)))
                     .then_with(|| length(a).total_cmp(&length(b)))
-            });
+            })
+            .map(|(_, p)| p);
 
         if let Some(p) = candidate {
             for (j, position) in placed.iter_mut().enumerate() {

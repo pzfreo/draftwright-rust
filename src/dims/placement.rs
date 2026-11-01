@@ -541,6 +541,9 @@ fn plate_strip(frame: &Frame, view: &str, shape: &Shape, horizontal: bool) -> Si
 /// authored PMI and other nominal layouts keep their existing route policy.
 pub(super) fn automatic_slot_layout(analysis: &Analysis) -> bool {
     crate::nominal::geometry_eligible(analysis)
+        // Recess drawings already use the joint corridor solver; do not
+        // replace its coupled witness and callout policy with local retries.
+        && !analysis.features.iter().any(|f| f.kind == "section_recess")
         && analysis
             .features
             .iter()
@@ -551,7 +554,7 @@ pub(super) fn automatic_slot_layout(analysis: &Analysis) -> bool {
 /// the outline: [`super::turned`]'s chains on a part of several turned bodies, ARCH0020-2): the
 /// side of the view its witnesses leave the body on, so they never cross a sibling body.
 /// Gusset locations and slot lengths use the same outward-silhouette convention.
-fn body_strip(frame: &Frame, w: &Want, horizontal: bool) -> Option<Side> {
+fn body_strip(frame: &Frame, w: &Want, horizontal: bool, slot_layout: bool) -> Option<Side> {
     match &w.shape {
         Shape::Linear {
             a,
@@ -562,11 +565,12 @@ fn body_strip(frame: &Frame, w: &Want, horizontal: bool) -> Option<Side> {
             && w.measurements.iter().all(|m| {
                 matches!(
                     m.parameter.as_str(),
-                    "step.length"
-                        | "gusset_location.length"
-                        | "slot_length.length"
-                        | "slot_centres.length"
-                )
+                    "step.length" | "gusset_location.length"
+                ) || (slot_layout
+                    && matches!(
+                        m.parameter.as_str(),
+                        "slot_length.length" | "slot_centres.length"
+                    ))
             }) =>
         {
             Some(silhouette_gap(frame, *a, horizontal).0)
@@ -719,7 +723,9 @@ pub(super) fn lanes<'a>(
                         })
                     {
                         Side::Above
-                    } else if let Some(side) = body_strip(f, w, horizontal) {
+                    } else if let Some(side) =
+                        body_strip(f, w, horizontal, automatic_slot_layout(analysis))
+                    {
                         side
                     } else if w.measurements.iter().any(|m| {
                         m.feature.starts_with("notch:") && m.parameter.starts_with("location.")
@@ -1283,6 +1289,12 @@ pub(super) fn fall_through(
     // A slot's datum leg and its own length read as one end-to-end chain when
     // their complete ink is disjoint. Reserve that local corridor on every
     // drawing, rather than making it depend on the presence of recesses.
+    if automatic_slot_layout(analysis)
+        || items.iter().any(|w| {
+            w.measurements
+                .iter()
+                .any(|m| m.feature.starts_with("f:section_recess:"))
+        })
     {
         for i in 0..items.len() {
             let Some(feature) = items[i].id.strip_suffix("/location_slot.length") else {
@@ -1730,27 +1742,7 @@ pub(super) fn interior_lanes(frame: &Frame, w: &Want, side: Side) -> Vec<Placed>
     let mut candidates: Vec<_> = (1..=8)
         .filter_map(|lane| {
             let station = edge + inward * lane as f64 * lane_pitch();
-            // Free witnesses leave their feature toward this lane. Inside the view,
-            // that can be the opposite direction from the view's outer silhouette.
-            let out = match &w.shape {
-                Shape::Linear {
-                    a,
-                    b,
-                    a_edge: false,
-                    b_edge: false,
-                    ..
-                } => {
-                    let k = usize::from(matches!(side, Side::Above | Side::Below));
-                    let (a, b) = (frame.page(*a)[k], frame.page(*b)[k]);
-                    if (a - b).abs() < 1e-6 {
-                        (station - a).signum()
-                    } else {
-                        inward
-                    }
-                }
-                _ => inward,
-            };
-            place_linear_at(frame, &w.shape, &w.terms, side, (station, out))
+            place_linear_at(frame, &w.shape, &w.terms, side, (station, inward))
         })
         .collect();
     // The view's regular lane grid can miss the narrow clear band beside a
@@ -3141,7 +3133,10 @@ fn clear_linear_ordered(
         };
         // Recess drawings already have a guarded joint corridor solve. The
         // new ordinary-witness retry must not bypass that established policy.
-        let feature_conflict = !recess_context && feature_crossings(p) > 0;
+        let feature_conflict = automatic_slot_layout(analysis)
+            && !recess_context
+            && !semantic_pmi
+            && feature_crossings(p) > 0;
         let crossings = |c: &Placed| {
             let features = feature_crossings(c);
             let geometry = c

@@ -3555,7 +3555,9 @@ fn plan_inventory_ordered(
         .iter()
         .enumerate()
         .map(|(i, w)| {
-            if !matches!(w.shape, Shape::Linear { .. }) {
+            if !placement::automatic_slot_layout(analysis)
+                || !matches!(w.shape, Shape::Linear { .. })
+            {
                 return false;
             }
             let (Some(name), Some(p)) = (chosen[i], placed[i].as_ref()) else {
@@ -3636,7 +3638,10 @@ fn plan_inventory_ordered(
         BTreeSet::new()
     };
     for (i, w) in all.iter().enumerate() {
-        if matches!(w.shape, Shape::Callout { .. }) && placed[i].is_none() && intended[i].is_none()
+        if !early_interior.is_empty()
+            && matches!(w.shape, Shape::Callout { .. })
+            && placed[i].is_none()
+            && intended[i].is_none()
         {
             locked[i] = false;
             incumbents[i] = false;

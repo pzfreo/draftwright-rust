@@ -236,12 +236,13 @@ fn horizontal(view: &str) -> usize {
 }
 
 /// A linear size of *s* along *m*, its extension lines from the slot's edge facing their strip.
-fn size(s: &Slot, view: &str, m: usize, lo: f64, hi: f64, order: u8) -> Shape {
+fn size(s: &Slot, view: &str, m: usize, lo: f64, hi: f64, order: u8, physical_ends: bool) -> Shape {
     let (e, sign) = outward(view, m);
     // A full-round end reaches its length extremum on the centreline,
     // not at the rectangle's imaginary corner. Its size and end location
     // witness that physical point; the measured stations stay unchanged.
-    let witness = if m == s.long
+    let witness = if physical_ends
+        && m == s.long
         && s.end_radius
             .is_some_and(|r| (2. * r - s.width).abs() < 1e-6)
     {
@@ -452,6 +453,17 @@ pub(super) fn nearest_witness<'a>(
 fn wants(cx: &Context) -> (Vec<Want>, Vec<Problem>) {
     let analysis = cx.analysis;
     let [lo, _] = analysis.envelope;
+    let size = |s: &Slot, view: &str, m, lo, hi, order| {
+        size(
+            s,
+            view,
+            m,
+            lo,
+            hi,
+            order,
+            super::placement::automatic_slot_layout(analysis),
+        )
+    };
     let mut problems = Vec::new();
     let mut out = Vec::new();
     // Patterns first: each that holds together takes its members.
