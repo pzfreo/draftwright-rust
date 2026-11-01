@@ -1315,12 +1315,44 @@ impl PartReader<'_> {
             }
         };
         let own = own.map_or(&[][..], Vec::as_slice);
-        let root = self.property(own);
+        let definition_root = matches!(item, I::Thread(_) | I::Knurl(_) | I::SurfaceTexture(_));
+        let root = match item {
+            // The native manufacturing readers above use these definition roots, not a
+            // property on their supporting feature. Keep precisely that source identity.
+            I::Thread(_) | I::Knurl(_) => own.first().copied(),
+            I::SurfaceTexture(_) => self
+                .subject(own, &|n| n == "SURFACE_TEXTURE_REPRESENTATION")
+                .or_else(|| own.first().copied()),
+            _ => self.property(own),
+        };
         let mut ids: Vec<_> = records
             .iter()
-            .filter(|r| r.part == self.p && root.is_some_and(|root| r.instances.contains(&root)))
+            .filter(|r| {
+                r.part == self.p
+                    && root.is_some_and(|root| {
+                        if definition_root {
+                            r.part21_id == root
+                        } else {
+                            r.instances.contains(&root)
+                        }
+                    })
+            })
             .map(|r| r.source_id.clone())
             .collect();
+        // `keep` can retain the same definition as a refused source instead of a record.
+        // Match its own source root, never any face/support instance it happens to share.
+        if let Some(root) = root {
+            ids.extend(
+                sources
+                    .iter()
+                    .filter(|s| {
+                        s.id.split_once(":#")
+                            .and_then(|(_, id)| id.parse::<u64>().ok())
+                            == Some(root)
+                    })
+                    .map(|s| s.id.clone()),
+            );
+        }
         let census = format!("{kind}:{}:{index}", self.p);
         if sources.iter().any(|s| s.id == census) {
             ids.push(census);

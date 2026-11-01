@@ -573,6 +573,98 @@ fn graphical_links_use_part_qualified_semantic_ids() {
 }
 
 #[test]
+fn graphical_native_manufacturing_targets_use_their_lowered_definition_roots() {
+    for (file, target, kind) in [
+        (
+            "../turned_knurl/spindle_external_thread.step.gz",
+            hpmi::PresentedItem::Thread(0),
+            "external_thread",
+        ),
+        (
+            "../turned_knurl/spindle_turned_knurl.step.gz",
+            hpmi::PresentedItem::Knurl(0),
+            "knurl",
+        ),
+        (
+            "step/hw_every_kind.step.gz",
+            hpmi::PresentedItem::SurfaceTexture(0),
+            "surface_texture",
+        ),
+    ] {
+        let bytes = gunzip(&std::fs::read(fixtures().join(file)).unwrap());
+        let part = haecceity::read_step(&bytes).unwrap();
+        let defs = step::read_part_definitions(&bytes).unwrap();
+        let doc = p21::Document::parse(bytes).unwrap();
+        let mut read = hpmi::read(&doc, &defs).unwrap();
+        let target = if matches!(target, hpmi::PresentedItem::Thread(_)) {
+            hpmi::PresentedItem::Thread(
+                read.parts[0]
+                    .threads
+                    .iter()
+                    .position(|t| matches!(t.side, hpmi::ThreadSide::External) && t.form == "M")
+                    .expect("native metric external thread"),
+            )
+        } else {
+            target
+        };
+        let thread_feature = match &target {
+            hpmi::PresentedItem::Thread(i) => Some(read.parts[0].threads[*i].feature),
+            _ => None,
+        };
+        let base = pmi::report(&doc, &defs, &part, &read).unwrap();
+        let expected = base
+            .records
+            .iter()
+            .find(|r| r.part == 0 && r.kind == kind)
+            .unwrap();
+        read.callouts = vec![hpmi::GraphicalCallout {
+            id: 900000,
+            name: "Native manufacturing target".into(),
+            links: vec![hpmi::CalloutLink {
+                association: 900001,
+                definition: expected.part21_id,
+                entity: kind.into(),
+                targets: vec![hpmi::CalloutTarget {
+                    part: hpmi::PartId(0),
+                    item: target,
+                }],
+            }],
+        }];
+        let report = pmi::report(&doc, &defs, &part, &read).unwrap();
+        assert_eq!(
+            report.reader.callouts[0].links[0].targets[0]
+                .sources
+                .as_slice(),
+            std::slice::from_ref(&expected.source_id),
+            "{file}"
+        );
+        if let Some(feature) = thread_feature {
+            read.parts[0].features[feature.0] =
+                hpmi::Feature::Items(vec![hpmi::Anchor::Face(hpmi::FaceIndex(99_999))]);
+            let refused = pmi::report(&doc, &defs, &part, &read).unwrap();
+            assert!(
+                refused
+                    .records
+                    .iter()
+                    .all(|r| r.source_id != expected.source_id)
+            );
+            assert!(
+                refused
+                    .sources
+                    .iter()
+                    .any(|s| s.id == expected.source_id && s.outcome == Outcome::NotExtracted)
+            );
+            assert_eq!(
+                refused.reader.callouts[0].links[0].targets[0]
+                    .sources
+                    .as_slice(),
+                std::slice::from_ref(&expected.source_id)
+            );
+        }
+    }
+}
+
+#[test]
 fn a_face_the_drawing_does_not_have_is_not_read() {
     let (doc, defs, part, mut read) = reading(CTC01);
     let before = pmi::report(&doc, &defs, &part, &read).unwrap();

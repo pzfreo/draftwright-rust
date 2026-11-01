@@ -21,6 +21,8 @@ Now on quiddity-rust **v0.4.2**.
   coverage; triage does not introduce new name or face matching.
   Drawing-lint callout references remain evidence of the original semantic finding,
   rather than being counted as extra semantic sources.
+  Native thread, knurl and surface-texture links use the definition roots their lowerers
+  already use, including when extraction retained a refused source instead of a record.
 
 - Pin haecceity and quiddity v0.4.2 (recognition /6, fingerprints /3, PMI reader /13).
   Preserve non-fatal reader findings for repaired reversed limits/deviations, source
