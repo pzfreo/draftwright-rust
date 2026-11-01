@@ -70,7 +70,7 @@ fn leaders_across_their_own_view_are_reported() {
         let s = d.placed.as_ref().unwrap().lines[0];
         assert!((s[1][0] - s[0][0]).hypot(s[1][1] - s[0][1]) >= 15.0);
     }
-    assert!(found(&p, "leader_to_hidden_edge").is_empty());
+    assert!(found(&automatic, "leader_to_hidden_edge").is_empty());
 }
 
 #[test]

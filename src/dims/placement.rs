@@ -540,7 +540,8 @@ fn plate_strip(frame: &Frame, view: &str, shape: &Shape, horizontal: bool) -> Si
 /// Extra text clearance belongs to the new automatic slot-group layout;
 /// authored PMI and other nominal layouts keep their existing route policy.
 pub(super) fn automatic_slot_layout(analysis: &Analysis) -> bool {
-    crate::nominal::geometry_eligible(analysis)
+    !crate::nominal::comparison()
+        && crate::nominal::geometry_eligible(analysis)
         // Recess drawings already use the joint corridor solver; do not
         // replace its coupled witness and callout policy with local retries.
         && !analysis.features.iter().any(|f| f.kind == "section_recess")
