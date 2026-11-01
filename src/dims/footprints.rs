@@ -197,11 +197,21 @@ fn box_points(b: [P3; 2]) -> impl Iterator<Item = P3> {
 }
 
 fn clip(s: [P2; 2], b: [f64; 4]) -> Option<(f64, f64)> {
+    clip_box(s, b, false)
+}
+
+// A witness on its own box's boundary must still leave that rim. Foreign
+// feature-crossing queries retain the open-box predicate above.
+fn clip_box(s: [P2; 2], b: [f64; 4], closed: bool) -> Option<(f64, f64)> {
     let d = [s[1][0] - s[0][0], s[1][1] - s[0][1]];
     let (mut lo, mut hi) = (0.0_f64, 1.0_f64);
     for k in 0..2 {
         if d[k].abs() < 1e-12 {
-            if s[0][k] <= b[k] || s[0][k] >= b[k + 2] {
+            if if closed {
+                s[0][k] < b[k] || s[0][k] > b[k + 2]
+            } else {
+                s[0][k] <= b[k] || s[0][k] >= b[k + 2]
+            } {
                 return None;
             }
         } else {
@@ -703,7 +713,10 @@ impl Footprints {
             .features
             .iter()
             .filter(|f| self.owned(&f.id, owners))
-            .flat_map(|f| f.shape.spans(*line))
+            .flat_map(|f| match &f.shape {
+                Shape::Box(b) => clip_box(*line, *b, true).into_iter().collect(),
+                _ => f.shape.spans(*line),
+            })
             .filter(|(a, _)| *a <= 1e-9)
             .map(|(_, b)| b)
             .max_by(f64::total_cmp);
@@ -714,7 +727,12 @@ impl Footprints {
             if t >= 1.0 {
                 return false;
             }
-            line[0] = [line[0][0] + t * d[0], line[0][1] + t * d[1]];
+            let next = [line[0][0] + t * d[0], line[0][1] + t * d[1]];
+            // Clipping an owned rim must not jump a foreign opening inside it.
+            if !self.crossed_extension([line[0], next], owners).is_empty() {
+                return false;
+            }
+            line[0] = next;
         }
         true
     }
@@ -1344,5 +1362,46 @@ mod tests {
         assert_eq!(unowned[0], [1., 0.]);
         let mut short = [[1., 0.], [2., 0.]];
         assert!(!f.interior_witness(&mut short, &owners));
+    }
+    #[test]
+    fn an_owned_box_boundary_is_trimmed_without_jumping_a_foreign_opening() {
+        let footprints = |foreign_y| Footprints {
+            view: "v:plan".into(),
+            solids: vec![],
+            members: BTreeMap::new(),
+            counts: RefCell::default(),
+            index: OnceCell::new(),
+            extensions: RefCell::default(),
+            extension_counts: RefCell::default(),
+            extension_count_values: RefCell::default(),
+            features: vec![
+                Footprint {
+                    id: "f:own".into(),
+                    shape: Shape::Box([0., 0., 4., 10.]),
+                },
+                Footprint {
+                    id: "f:other".into(),
+                    shape: Shape::Circle([4., foreign_y], 1.),
+                },
+            ],
+        };
+        let owners = [Measurement {
+            feature: "f:own".into(),
+            parameter: "width.length".into(),
+            value: 4.,
+        }];
+        let f = footprints(15.);
+        let mut line = [[4., 1.], [4., 20.]];
+        assert!(f.interior_witness(&mut line, &owners));
+        assert_eq!(line[0], [4., 11.]);
+        assert_eq!(
+            f.crossed_extension(line, &owners),
+            BTreeSet::from(["f:other".into()])
+        );
+        let f = footprints(7.);
+        let original = [[4., 1.], [4., 20.]];
+        let mut line = original;
+        assert!(!f.interior_witness(&mut line, &owners));
+        assert_eq!(line, original);
     }
 }

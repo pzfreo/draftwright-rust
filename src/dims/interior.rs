@@ -1191,6 +1191,7 @@ pub(super) fn place(
     page: &Page,
     obstacles: &[PlannedDimension],
     cache: &super::footprints::Cache,
+    yield_callouts: bool,
 ) -> BTreeSet<String> {
     let mut moved = BTreeSet::new();
     // Extra recess footprints can force radius retries. Retain the established routes on
@@ -1251,6 +1252,14 @@ pub(super) fn place(
         .filter(|&i| matches!(items[i].shape, Shape::Linear { .. }))
         .chain((0..items.len()).filter(|&i| !matches!(items[i].shape, Shape::Linear { .. })))
         .collect();
+    let movable_callout = |j: usize| {
+        yield_callouts
+            && matches!(items[j].shape, Shape::Callout { .. })
+            && spec
+                .dimensions
+                .get(&items[j].id)
+                .is_none_or(|d| d.place.is_none())
+    };
     for i in order {
         // A plate thickness witnesses its two faces at the silhouette. An
         // interior lane can move the dimension line across the view while
@@ -1330,12 +1339,70 @@ pub(super) fn place(
                             j != i && p.as_ref().is_some_and(|p| text_conflict(old, p))
                         }) =>
                 {
-                    sides[i]
+                    let mut candidates = sides[i]
                         .map(|side| super::placement::interior_lanes(frame, &items[i], side))
-                        .unwrap_or_default()
+                        .unwrap_or_default();
+                    for shape in super::slots::width_references(&items[i], analysis)
+                        .into_iter()
+                        .chain(super::placement::pattern_references(&items[i], analysis))
+                    {
+                        let mut alternative = items[i].clone();
+                        alternative.shape = shape;
+                        for side in [
+                            super::placement::Side::Above,
+                            super::placement::Side::Below,
+                            super::placement::Side::Left,
+                            super::placement::Side::Right,
+                        ] {
+                            let Shape::Linear { axis, .. } = alternative.shape else {
+                                continue;
+                            };
+                            let horizontal = super::placement::across(frame, axis) == Some(true);
+                            if horizontal
+                                == matches!(
+                                    side,
+                                    super::placement::Side::Above | super::placement::Side::Below
+                                )
+                            {
+                                candidates.extend(super::placement::interior_lanes(
+                                    frame,
+                                    &alternative,
+                                    side,
+                                ));
+                            }
+                        }
+                    }
+                    candidates
                 }
                 _ => Vec::new(),
             };
+
+        let clear = |p: &Placed| {
+            proof.annotation_clear(v, p, matches!(items[i].shape, Shape::Callout { .. }))
+                && page.fits_interior(p, name)
+                && !placed.iter().enumerate().any(|(j, q)| {
+                    j != i && !movable_callout(j) && q.as_ref().is_some_and(|q| conflict(p, q))
+                })
+                && !obstacles
+                    .iter()
+                    .filter_map(|d| d.placed.as_ref())
+                    .any(|q| conflict(p, q))
+                && furniture_clear(p, &items[i])
+                && p.lines
+                    .iter()
+                    .take(if matches!(items[i].shape, Shape::Callout { .. }) {
+                        1
+                    } else {
+                        2
+                    })
+                    .all(|s| {
+                        if matches!(items[i].shape, Shape::Callout { .. }) {
+                            !f.crosses_feature(*s)
+                        } else {
+                            f.crossed_extension(*s, &items[i].measurements).is_empty()
+                        }
+                    })
+        };
         let candidate = candidates
             .into_iter()
             .filter_map(|mut p| {
@@ -1350,32 +1417,42 @@ pub(super) fn place(
                 }
                 Some(p)
             })
-            .filter(|p| {
-                proof.annotation_clear(v, p, matches!(items[i].shape, Shape::Callout { .. }))
-                    && page.fits_interior(p, name)
-                    && !placed
-                        .iter()
-                        .enumerate()
-                        .any(|(j, q)| j != i && q.as_ref().is_some_and(|q| conflict(p, q)))
-                    && !obstacles
-                        .iter()
-                        .filter_map(|d| d.placed.as_ref())
-                        .any(|q| conflict(p, q))
-                    && furniture_clear(p, &items[i])
-                    && p.lines
-                        .iter()
-                        .take(if matches!(items[i].shape, Shape::Callout { .. }) {
-                            1
-                        } else {
-                            2
-                        })
-                        .all(|s| {
-                            if matches!(items[i].shape, Shape::Callout { .. }) {
-                                !f.crosses_feature(*s)
-                            } else {
-                                f.crossed_extension(*s, &items[i].measurements).is_empty()
+            .filter_map(|p| {
+                let mut choices = vec![p.clone()];
+                if matches!(items[i].shape, Shape::Linear { .. }) && proof.blank(v, p.label_box) {
+                    // Keep compact witness gaps within two paper millimetres.
+                    for extra in [0.25, 0.5, 1.] {
+                        let mut q = p.clone();
+                        let mut clear = true;
+                        for line in q.lines.iter_mut().take(2) {
+                            let [a, b] = *line;
+                            let n = (b[0] - a[0]).hypot(b[1] - a[1]);
+                            if n <= extra + 1. {
+                                clear = false;
+                                break;
                             }
-                        })
+                            let next = [
+                                a[0] + extra * (b[0] - a[0]) / n,
+                                a[1] + extra * (b[1] - a[1]) / n,
+                            ];
+                            // Never skip an unrelated feature to manufacture clearance.
+                            if !f
+                                .crossed_extension([a, next], &items[i].measurements)
+                                .is_empty()
+                            {
+                                clear = false;
+                                break;
+                            }
+                            line[0] = next;
+                        }
+                        if clear {
+                            choices.push(q);
+                        }
+                    }
+                }
+                // For a fixed physical route, use the smallest valid gap.
+                // Removing more witness ink must not improve its route score.
+                choices.into_iter().find(|p| clear(p))
             })
             .min_by(|a, b| {
                 let length = |p: &Placed| {
@@ -1394,7 +1471,13 @@ pub(super) fn place(
                     .cmp(&outside_row(b))
                     .then_with(|| length(a).total_cmp(&length(b)))
             });
+
         if let Some(p) = candidate {
+            for (j, position) in placed.iter_mut().enumerate() {
+                if movable_callout(j) && position.as_ref().is_some_and(|q| conflict(&p, q)) {
+                    *position = None;
+                }
+            }
             placed[i] = Some(p);
             moved.insert(items[i].id.clone());
         }
@@ -1806,6 +1889,7 @@ mod tests {
             &page,
             &[],
             &super::super::footprints::Cache::default(),
+            false,
         );
         assert!(moved.contains("d:test/location.length.x"));
         let p = placed[0].as_ref().unwrap();

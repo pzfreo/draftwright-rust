@@ -238,7 +238,17 @@ fn horizontal(view: &str) -> usize {
 /// A linear size of *s* along *m*, its extension lines from the slot's edge facing their strip.
 fn size(s: &Slot, view: &str, m: usize, lo: f64, hi: f64, order: u8) -> Shape {
     let (e, sign) = outward(view, m);
-    let witness = s.edge(e, sign);
+    // A full-round end reaches its length extremum on the centreline,
+    // not at the rectangle's imaginary corner. Its size and end location
+    // witness that physical point; the measured stations stay unchanged.
+    let witness = if m == s.long
+        && s.end_radius
+            .is_some_and(|r| (2. * r - s.width).abs() < 1e-6)
+    {
+        s.centre
+    } else {
+        s.edge(e, sign)
+    };
     let point = |t: f64| {
         let mut p = s.at(0.0, 0.0);
         p[m] = t;
@@ -361,6 +371,41 @@ fn end_radius_want(
             ],
         },
     }
+}
+
+/// Other physical witness stations for a slot width. Both end references state
+/// the same straight-side separation; layout must prove the chosen ink clear.
+pub(super) fn width_references(w: &Want, analysis: &crate::model::Analysis) -> Vec<Shape> {
+    let [m] = w.measurements.as_slice() else {
+        return Vec::new();
+    };
+    if m.parameter != "slot_width.length" {
+        return Vec::new();
+    }
+    let frame = QFrame(crate::bridge::holes::frame(analysis));
+    let Some(s) = analysis
+        .features
+        .iter()
+        .find(|f| f.id == m.feature)
+        .and_then(|f| read(f, &frame).ok())
+    else {
+        return Vec::new();
+    };
+    let Shape::Linear { axis, order, .. } = w.shape else {
+        return Vec::new();
+    };
+    let inset = s.end_radius.unwrap_or(0.);
+    [s.ends[0] + inset, s.ends[1] - inset]
+        .into_iter()
+        .map(|end| Shape::Linear {
+            a: s.at(end, s.edge(s.wide, -1.)),
+            b: s.at(end, s.edge(s.wide, 1.)),
+            axis,
+            order,
+            a_edge: false,
+            b_edge: false,
+        })
+        .collect()
 }
 
 /// A slot location placed as *p* that also conveys coincident slots' locations (one span, one

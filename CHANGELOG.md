@@ -10,6 +10,16 @@ Now on quiddity-rust **v0.4.3**.
 
 ### Changed
 
+- Retry crossed linear extensions on alternate sides and physical references.
+  Slot groups reserve clear local lanes, keep the length and end location
+  together, and try opposite straight-wall width references. Full-round ends
+  are witnessed at their actual extrema on the slot centreline. Grid pitches
+  can use either claimed row/column, with their exact measured stations intact.
+  Interior witnesses leave their own rim even on a box boundary and cannot skip
+  a foreign opening. Compact local candidates retain full geometry checks;
+  small callout-text contacts get at most eight shoulder-only alternatives,
+  without changing the joint-search budget. Measurements and pins stay intact.
+
 - Pin haecceity and quiddity v0.4.3 (recognition /6, fingerprints /3, PMI reader /14).
   A constituent face aspect aliases its datum feature only when their complete face sets
   match; multi-face datum constituents retain their own feature and dimension references.

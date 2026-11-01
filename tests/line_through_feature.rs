@@ -279,3 +279,117 @@ fn underside_cavity_containment_is_not_a_crossing_and_extensions_are_report_only
         }
     }
 }
+
+#[test]
+fn mounting_plate_slot_dimensions_use_clear_local_witnesses_without_losing_locations() {
+    let path =
+        Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/samples/mounting-plate.step.gz");
+    let (_, a) = model::analyse_native(&path).unwrap();
+    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    assert_eq!(plan.sheet.size, "A4");
+    assert_eq!(plan.sheet.scale, "1:1");
+    let slot = a.features.iter().find(|f| f.kind == "slot").unwrap();
+    for (parameter, value) in [
+        ("slot_width.length", 8.),
+        ("slot_length.length", 30.),
+        ("location_slot.length", 20.),
+        ("location_slot_across.length", 82.),
+    ] {
+        assert!(
+            plan.dimensions.iter().any(|d| d.placed.is_some()
+                && d.measurements.iter().any(|m| m.feature == slot.id
+                    && m.parameter == parameter
+                    && (m.value - value).abs() < 1e-6)),
+            "lost {parameter}"
+        );
+    }
+    assert!(
+        plan.dimensions.iter().any(|d| d.placed.is_some()
+            && d.measurements
+                .iter()
+                .any(|m| m.parameter == "location.length.y" && (m.value - 35.).abs() < 1e-6)),
+        "the bore still has its 35 mm ordinate"
+    );
+    let length = plan
+        .dimensions
+        .iter()
+        .find(|d| {
+            d.measurements
+                .iter()
+                .any(|m| m.feature == slot.id && m.parameter == "slot_length.length")
+        })
+        .unwrap();
+    let view = plan.views.iter().find(|v| v.id == length.view).unwrap();
+    let centre = project(&plan, &a, &length.view, slot.fingerprint.position);
+    assert!(
+        length
+            .placed
+            .as_ref()
+            .unwrap()
+            .arrows
+            .iter()
+            .all(|tip| tip[0][0] > centre[0] + 4. * view.scale),
+        "length belongs beside the slot on the right"
+    );
+    let frame = draftwright::bridge::holes::frame(&a);
+    let holes: Vec<_> = a
+        .features
+        .iter()
+        .filter(|f| f.kind == "hole")
+        .map(|f| draftwright::bridge::holes::Hole::read(f, &frame).unwrap())
+        .collect();
+    for d in plan
+        .dimensions
+        .iter()
+        .filter(|d| d.kind == "linear" && d.measurements.iter().any(|m| m.feature == slot.id))
+    {
+        let p = d.placed.as_ref().unwrap();
+        for line in p.lines.iter().take(2) {
+            for hole in &holes {
+                let c = project(&plan, &a, &d.view, hole.at);
+                assert!(
+                    !circle_crossing(*line, c, hole.diameter * view.scale / 2.),
+                    "{} crosses a hole with {line:?}",
+                    d.id
+                );
+            }
+        }
+    }
+    // Independently catch the old bore ordinate through the slot's straight
+    // interior, rather than trusting a missing collision warning.
+    let slot_box = [
+        centre[0] - 4. * view.scale,
+        centre[1] - 11. * view.scale,
+        centre[0] + 4. * view.scale,
+        centre[1] + 11. * view.scale,
+    ];
+    for d in plan
+        .dimensions
+        .iter()
+        .filter(|d| d.kind == "linear" && d.measurements.iter().all(|m| m.feature != slot.id))
+    {
+        for [p, q] in d.placed.as_ref().unwrap().lines.iter().take(2) {
+            let through = if (p[1] - q[1]).abs() < 1e-6 {
+                p[1] > slot_box[1]
+                    && p[1] < slot_box[3]
+                    && p[0].max(q[0]) > slot_box[0]
+                    && p[0].min(q[0]) < slot_box[2]
+            } else {
+                false
+            };
+            assert!(!through, "{} crosses the slot with {p:?} -> {q:?}", d.id);
+        }
+    }
+    assert!(
+        plan.problems.iter().all(|p| !matches!(
+            p.code.as_str(),
+            "extension_through_feature"
+                | "label_crowded"
+                | "annotation_overlap"
+                | "annotation_ink_overlap"
+                | "annotation_leader_crossing"
+        )),
+        "{:?}",
+        plan.problems
+    );
+}

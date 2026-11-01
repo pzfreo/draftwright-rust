@@ -3496,6 +3496,13 @@ fn plan_inventory_ordered(
     // ordinary final collision/radius repair still handles new contacts. A pin
     // replay keeps them too: re-routing an unchanged callout there can take the
     // place another presentation needs (CTC-03's schedule origin mark).
+    for (i, w) in all.iter().enumerate() {
+        if intended[i].is_none()
+            && let (Some(view), Some(p)) = (chosen[i], placed[i].as_mut())
+        {
+            placement::nearest_pattern_witnesses(analysis, &frames[view], &w.measurements, p);
+        }
+    }
     let radius_incumbents = held.iter().any(|d| {
         d.placed.is_some()
             && d.measurements.iter().any(|m| {
@@ -3536,15 +3543,39 @@ fn plan_inventory_ordered(
             incumbents[i] = true;
         }
     }
-    if (recess_context
+    let repair_context = recess_context
         || nominal_seeded
         || spec
             .dimensions
             .values()
             .any(|d| d.tolerance.is_some() || d.text.is_some() || d.style.is_some())
-        || spec.features.values().any(|f| f.fit.is_some()))
-        && intended.iter().all(Option::is_none)
-    {
+        || spec.features.values().any(|f| f.fit.is_some());
+    let crossed: Vec<_> = all
+        .iter()
+        .enumerate()
+        .map(|(i, w)| {
+            if !matches!(w.shape, Shape::Linear { .. }) {
+                return false;
+            }
+            let (Some(name), Some(p)) = (chosen[i], placed[i].as_ref()) else {
+                return false;
+            };
+            let Some(view) = views.iter().find(|v| v.id.strip_prefix("v:") == Some(name)) else {
+                return false;
+            };
+            let footprints = cache.get(analysis, view);
+            let counter = footprints.extension_counter(&w.measurements);
+            p.lines.iter().take(2).any(|line| counter.count(*line) > 0)
+        })
+        .collect();
+    if (repair_context || crossed.iter().any(|c| *c)) && intended.iter().all(Option::is_none) {
+        // A physical witness retry must not replan otherwise clear dimensions.
+        // Existing edited/recess layouts retain their joint repair policy.
+        let repair_locked: Vec<_> = locked
+            .iter()
+            .zip(&crossed)
+            .map(|(locked, crossed)| *locked || (!repair_context && !crossed))
+            .collect();
         placement::clear_linear(
             analysis,
             cache,
@@ -3556,10 +3587,56 @@ fn plan_inventory_ordered(
             &mut lane,
             &mut placed,
             obstacles,
-            &locked,
+            &repair_locked,
             &page,
             stage != 3,
         );
+    }
+    let early_chosen: Vec<_> = all
+        .iter()
+        .enumerate()
+        .map(|(i, w)| {
+            if recess_context || !matches!(w.shape, Shape::Linear { .. }) {
+                return None;
+            }
+            let (Some(name), Some(p)) = (chosen[i], placed[i].as_ref()) else {
+                return None;
+            };
+            let v = views
+                .iter()
+                .find(|v| v.id.strip_prefix("v:") == Some(name))?;
+            let f = cache.get(analysis, v);
+            p.lines
+                .iter()
+                .take(2)
+                .any(|l| !f.crossed_extension(*l, &w.measurements).is_empty())
+                .then_some(name)
+        })
+        .collect();
+    let early_interior = if early_chosen.iter().any(Option::is_some) {
+        interior::place(
+            analysis,
+            spec,
+            views,
+            &frames,
+            &all,
+            &early_chosen,
+            &sides,
+            &mut placed,
+            &page,
+            obstacles,
+            cache,
+            true,
+        )
+    } else {
+        BTreeSet::new()
+    };
+    for (i, w) in all.iter().enumerate() {
+        if matches!(w.shape, Shape::Callout { .. }) && placed[i].is_none() && intended[i].is_none()
+        {
+            locked[i] = false;
+            incumbents[i] = false;
+        }
     }
     let shared_owner: Vec<_> = owner
         .iter()
@@ -3762,10 +3839,12 @@ fn plan_inventory_ordered(
             &page,
             obstacles,
             cache,
+            false,
         )
     } else {
         BTreeSet::new()
     };
+    interior.extend(early_interior);
     let restore = |placed: &mut [Option<Placed>],
                    sides: &mut [Option<placement::Side>],
                    lane: &mut [usize]| {
@@ -3913,6 +3992,7 @@ fn plan_inventory_ordered(
         &page,
         obstacles,
         cache,
+        false,
     ));
     let refined = leaders::refine(
         analysis,

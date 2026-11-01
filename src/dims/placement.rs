@@ -540,7 +540,7 @@ fn plate_strip(frame: &Frame, view: &str, shape: &Shape, horizontal: bool) -> Si
 /// The strip of a turned step length anchored on its own body's silhouette (both witnesses off
 /// the outline: [`super::turned`]'s chains on a part of several turned bodies, ARCH0020-2): the
 /// side of the view its witnesses leave the body on, so they never cross a sibling body.
-/// Gusset box locations use the same outward-silhouette convention. None for any other item.
+/// Gusset locations and slot lengths use the same outward-silhouette convention.
 fn body_strip(frame: &Frame, w: &Want, horizontal: bool) -> Option<Side> {
     match &w.shape {
         Shape::Linear {
@@ -552,7 +552,10 @@ fn body_strip(frame: &Frame, w: &Want, horizontal: bool) -> Option<Side> {
             && w.measurements.iter().all(|m| {
                 matches!(
                     m.parameter.as_str(),
-                    "step.length" | "gusset_location.length"
+                    "step.length"
+                        | "gusset_location.length"
+                        | "slot_length.length"
+                        | "slot_centres.length"
                 )
             }) =>
         {
@@ -662,12 +665,30 @@ pub(super) fn lanes<'a>(
 ) -> (Vec<Option<Side>>, Vec<usize>) {
     let items: Vec<_> = items.collect();
     let n = items.len();
+    let ordinary = !analysis
+        .features
+        .iter()
+        .any(|f| f.id.starts_with("f:section_recess:"));
+    let slot_views: std::collections::BTreeSet<_> = items
+        .iter()
+        .filter(|(w, _)| {
+            w.measurements.iter().any(|m| {
+                matches!(
+                    m.parameter.as_str(),
+                    "slot_width.length" | "slot_length.length" | "slot_centres.length"
+                )
+            })
+        })
+        .filter_map(|(_, view)| *view)
+        .collect();
+    let mut constrained = vec![false; n];
+    let mut footprints = BTreeMap::new();
     let mut strips: Strips = BTreeMap::new();
     let mut sides: Vec<Option<Side>> = vec![None; n];
     for (i, &(w, view)) in items.iter().enumerate() {
         let Some(view) = view else { continue };
         let f = &frames[view];
-        let (side, rank) = match &w.shape {
+        let (mut side, rank) = match &w.shape {
             Shape::Linear {
                 a, b, axis, order, ..
             } => {
@@ -724,6 +745,38 @@ pub(super) fn lanes<'a>(
             // An angle is placed about its vertex, in no strip ([`super::angular`]).
             Shape::Angular { .. } => continue,
         };
+        // A slot group must leave the other locations a clear escape. Reserve
+        // uniquely clear sides before flexible slot sizes spend their lanes.
+        // Recess layouts retain their guarded joint corridor policy.
+        if ordinary
+            && slot_views.contains(view)
+            && matches!(w.shape, Shape::Linear { order: 1, .. })
+            && !w.measurements.is_empty()
+        {
+            let footprint = footprints.entry(view).or_insert_with(|| {
+                let key = serde_json::to_vec(&(view, f.memo_geometry())).expect("frame serializes");
+                crate::planning::memo(analysis, "lane-location-footprints", key, || {
+                    std::rc::Rc::new(super::footprints::Footprints::new(analysis, f, view))
+                })
+            });
+            let counter = footprint.extension_counter(&w.measurements);
+            let hits = |side| {
+                place(f, w, side, 0).map(|p| {
+                    p.lines
+                        .iter()
+                        .take(2)
+                        .map(|l| counter.count(*l))
+                        .sum::<usize>()
+                })
+            };
+            let other = opposite(side);
+            if let (Some(home), Some(away)) = (hits(side), hits(other)) {
+                if away < home {
+                    side = other;
+                }
+                constrained[i] = home.min(away) == 0 && home != away;
+            }
+        }
         sides[i] = Some(side);
         if owner[i].is_none() {
             strips.entry((view, side)).or_default().push((
@@ -810,7 +863,7 @@ pub(super) fn lanes<'a>(
             } else {
                 0
             };
-            (outer, order, length, source, station, i)
+            (outer, !constrained[i], order, length, source, station, i)
         });
         let links: Vec<_> = list.iter().map(|(_, _, _, i)| items[*i].0).collect();
         for ((_, _, _, i), n) in list.iter().zip(chain_lanes(&frames[view], &links)) {
@@ -1217,13 +1270,9 @@ pub(super) fn fall_through(
         frames, items, views_of, owner, sides, lanes, &held, &stranded, &fits,
     );
     // A slot's datum leg and its own length read as one end-to-end chain when
-    // their complete ink is disjoint. Prefer that compact lane even when extra
-    // recess information has changed which strips overflow.
-    if items.iter().any(|w| {
-        w.measurements
-            .iter()
-            .any(|m| m.feature.starts_with("f:section_recess:"))
-    }) {
+    // their complete ink is disjoint. Reserve that local corridor on every
+    // drawing, rather than making it depend on the presence of recesses.
+    {
         for i in 0..items.len() {
             let Some(feature) = items[i].id.strip_suffix("/location_slot.length") else {
                 continue;
@@ -1287,6 +1336,7 @@ pub(super) fn fall_through(
             }
         }
     }
+
     share_lanes(owner, sides, lanes);
 }
 
@@ -1666,17 +1716,62 @@ pub(super) fn interior_lanes(frame: &Frame, w: &Want, side: Side) -> Vec<Placed>
         Side::Left => (o[0], 1.0),
         Side::Right => (o[2], -1.0),
     };
-    (1..=8)
+    let mut candidates: Vec<_> = (1..=8)
         .filter_map(|lane| {
-            place_linear_at(
-                frame,
-                &w.shape,
-                &w.terms,
-                side,
-                (edge + inward * lane as f64 * lane_pitch(), inward),
-            )
+            let station = edge + inward * lane as f64 * lane_pitch();
+            // Free witnesses leave their feature toward this lane. Inside the view,
+            // that can be the opposite direction from the view's outer silhouette.
+            let out = match &w.shape {
+                Shape::Linear {
+                    a,
+                    b,
+                    a_edge: false,
+                    b_edge: false,
+                    ..
+                } => {
+                    let k = usize::from(matches!(side, Side::Above | Side::Below));
+                    let (a, b) = (frame.page(*a)[k], frame.page(*b)[k]);
+                    if (a - b).abs() < 1e-6 {
+                        (station - a).signum()
+                    } else {
+                        inward
+                    }
+                }
+                _ => inward,
+            };
+            place_linear_at(frame, &w.shape, &w.terms, side, (station, out))
         })
-        .collect()
+        .collect();
+    // The view's regular lane grid can miss the narrow clear band beside a
+    // feature. Try a fixed number of compact offsets from its own witnesses.
+    if let Shape::Linear {
+        a,
+        b,
+        a_edge: false,
+        b_edge: false,
+        ..
+    } = w.shape
+    {
+        let k = usize::from(matches!(side, Side::Above | Side::Below));
+        let (a, b) = (frame.page(a)[k], frame.page(b)[k]);
+        if (a - b).abs() < 1e-6 {
+            let out = if matches!(side, Side::Above | Side::Right) {
+                1.
+            } else {
+                -1.
+            };
+            // Six one-millimetre offsets from one text height leave room
+            // for a label beside a curved end without enlarging the lane grid.
+            for gap in (0..6).map(|n| super::TEXT + f64::from(n)) {
+                if let Some(p) =
+                    place_linear_at(frame, &w.shape, &w.terms, side, (a + out * gap, out))
+                {
+                    candidates.push(p);
+                }
+            }
+        }
+    }
+    candidates
 }
 
 fn linear_pair_contact(a: &Placed, b: &Placed, allow_transverse: bool) -> bool {
@@ -1944,8 +2039,152 @@ fn linear_label_bounds(terms: &[String]) -> (P2, P2) {
     })
 }
 
-/// Shared spans and a straight row's constant coordinate can use the nearest
-/// claimed member. Only shorten perpendicular strokes; measured stations stay fixed.
+/// Actual axis pairs of a claimed grid pitch. Its two stations are fixed, but
+/// either physical row/column may support the witnesses on an interior lane.
+pub(super) fn pattern_references(w: &Want, analysis: &Analysis) -> Vec<Shape> {
+    let [m] = w.measurements.as_slice() else {
+        return Vec::new();
+    };
+    if !m.parameter.starts_with("grid_pitch.length.") {
+        return Vec::new();
+    }
+    let Shape::Linear {
+        a,
+        b,
+        axis,
+        a_edge: false,
+        b_edge: false,
+        order,
+    } = w.shape
+    else {
+        return Vec::new();
+    };
+    let Some(pattern) = analysis
+        .recognition
+        .as_ref()
+        .and_then(|r| r.patterns.iter().find(|p| p.id == m.feature))
+    else {
+        return Vec::new();
+    };
+    let frame = crate::bridge::holes::frame(analysis);
+    let points: Vec<_> = pattern
+        .members
+        .iter()
+        .filter_map(|id| {
+            let f = analysis.features.iter().find(|f| &f.id == id)?;
+            crate::bridge::holes::Hole::read(f, &frame)
+                .ok()
+                .map(|h| h.at)
+        })
+        .collect();
+    let mut pairs: Vec<(P3, P3)> = Vec::new();
+    for p in points.iter().filter(|p| (p[axis] - a[axis]).abs() < 1e-6) {
+        for q in points.iter().filter(|q| {
+            (q[axis] - b[axis]).abs() < 1e-6
+                && (0..3)
+                    .filter(|k| *k != axis)
+                    .all(|k| (p[k] - q[k]).abs() < 1e-6)
+        }) {
+            if !pairs.contains(&(*p, *q)) {
+                pairs.push((*p, *q));
+            }
+        }
+    }
+    pairs.sort_by(|(a, _), (b, _)| {
+        (0..3)
+            .map(|k| a[k].total_cmp(&b[k]))
+            .find(|o| !o.is_eq())
+            .unwrap_or(std::cmp::Ordering::Equal)
+    });
+    // The two boundary columns/rows suffice; an array cannot multiply retries.
+    if pairs.len() > 2 {
+        pairs = vec![pairs[0], pairs[pairs.len() - 1]];
+    }
+    pairs
+        .into_iter()
+        .map(|(a, b)| Shape::Linear {
+            a,
+            b,
+            axis,
+            order,
+            a_edge: false,
+            b_edge: false,
+        })
+        .collect()
+}
+
+/// A grid pitch may use either row of the same claimed pattern. Keep its exact
+/// two measured stations and select a nearer pair of actual member axes. Both
+/// starts must lie on the old strokes, so this only removes unnecessary ink.
+pub(super) fn nearest_pattern_witnesses(
+    analysis: &Analysis,
+    frame: &Frame,
+    measurements: &[super::Measurement],
+    p: &mut Placed,
+) {
+    let Some(m) = measurements.first() else {
+        return;
+    };
+    if !m.parameter.starts_with("grid_pitch.length.")
+        || !measurements.iter().all(|x| x == m)
+        || p.lines.len() < 3
+        || p.arrows.len() != 2
+    {
+        return;
+    }
+    let Some(pattern) = analysis
+        .recognition
+        .as_ref()
+        .and_then(|r| r.patterns.iter().find(|r| r.id == m.feature))
+    else {
+        return;
+    };
+    let qframe = crate::bridge::holes::frame(analysis);
+    let points: Vec<_> = pattern
+        .members
+        .iter()
+        .filter_map(|id| {
+            let f = analysis.features.iter().find(|f| &f.id == id)?;
+            crate::bridge::holes::Hole::read(f, &qframe)
+                .ok()
+                .map(|h| frame.page(h.at))
+        })
+        .collect();
+    let normal = usize::from(p.rotation.abs() < 1e-9);
+    let station = 1 - normal;
+    let line = p.arrows[0][0][normal];
+    let old = [p.lines[0][0], p.lines[1][0]];
+    let sign = (p.lines[0][1][normal] - old[0][normal]).signum();
+    let mut best = old;
+    let mut length = (old[0][normal] - line).abs() + (old[1][normal] - line).abs();
+    for a in points
+        .iter()
+        .filter(|a| (a[station] - old[0][station]).abs() < 1e-6)
+    {
+        for b in points.iter().filter(|b| {
+            (b[station] - old[1][station]).abs() < 1e-6 && (a[normal] - b[normal]).abs() < 1e-6
+        }) {
+            let mut ends = [*a, *b];
+            for e in &mut ends {
+                e[normal] += sign * GAP;
+            }
+            if (0..2).any(|i| {
+                ends[i][normal] < old[i][normal].min(line) - 1e-6
+                    || ends[i][normal] > old[i][normal].max(line) + 1e-6
+            }) {
+                continue;
+            }
+            let candidate = (ends[0][normal] - line).abs() + (ends[1][normal] - line).abs();
+            if candidate + 1e-6 < length {
+                best = ends;
+                length = candidate;
+            }
+        }
+    }
+    p.lines[0][0] = best[0];
+    p.lines[1][0] = best[1];
+}
+
 pub(crate) fn nearest_shared_witnesses(
     analysis: &crate::model::Analysis,
     spec: &crate::model::Spec,
@@ -1994,6 +2233,7 @@ pub(crate) fn nearest_shared_witnesses(
             continue;
         }
         let frame = Frame::new(analysis, v);
+        nearest_pattern_witnesses(analysis, &frame, &d.measurements, p);
         let line = p.arrows[0][0][normal];
         let sign = (p.lines[0][1][normal] - p.lines[0][0][normal]).signum();
         // A straight row's constant coordinate belongs to every member, unlike
@@ -2874,6 +3114,9 @@ fn clear_linear_ordered(
                 })
                 .sum::<usize>()
         };
+        // Recess drawings already have a guarded joint corridor solve. The
+        // new ordinary-witness retry must not bypass that established policy.
+        let feature_conflict = !recess_context && feature_crossings(p) > 0;
         let crossings = |c: &Placed| {
             let features = feature_crossings(c);
             let geometry = c
@@ -2894,7 +3137,7 @@ fn clear_linear_ordered(
                     hits
                 })
                 .sum::<usize>();
-            if recess_context {
+            if recess_context || feature_conflict {
                 (features, geometry)
             } else {
                 (0, features + geometry)
@@ -2922,8 +3165,9 @@ fn clear_linear_ordered(
                     .iter()
                     .any(|id| id.starts_with("f:section_recess:"))
             });
-        if (recess_context && !recess_corridor && !label_conflict)
-            || (!label_conflict && (!recess_corridor || before == (0, 0)))
+        if !feature_conflict
+            && ((recess_context && !recess_corridor && !label_conflict)
+                || (!label_conflict && (!recess_corridor || before == (0, 0))))
         {
             // A settled location's witness may still reach its station across
             // another feature inside the body. Without a corridor repair, begin it
@@ -2951,10 +3195,17 @@ fn clear_linear_ordered(
         let max_lane = (((paper[2] - paper[0]).max(paper[3] - paper[1]) / super::lane_pitch())
             .ceil() as usize)
             .max(16);
-        let choices: Vec<_> = if recess_context {
+        let choices: Vec<_> = if recess_context || feature_conflict {
             [side, opposite(side)]
                 .into_iter()
-                .flat_map(|side| (0..max_lane).map(move |lane| (side, lane)))
+                .flat_map(|side| {
+                    (0..if recess_context && recess_corridor {
+                        max_lane
+                    } else {
+                        8
+                    })
+                        .map(move |lane| (side, lane))
+                })
                 .collect()
         } else {
             (0..8).map(|lane| (opposite(side), lane)).collect()
@@ -3354,7 +3605,7 @@ fn clear_linear_ordered(
                     // Feature crossings precede dense model-edge crossings in
                     // the unchanged rank. With nonnegative remaining counts, an
                     // already losing feature tier needs no model measurement.
-                    if recess_context {
+                    if recess_context || feature_conflict {
                         let bound = (feature_crossings(stroke), 0);
                         if (bound > before && !(new_recess && label_conflict))
                             || (!label_conflict && bound >= before)
@@ -3389,7 +3640,7 @@ fn clear_linear_ordered(
                             super::label_lanes::off_span(q, std::iter::once(stroke))
                                 && !super::label_lanes::off_span(q, std::iter::once(p))
                         });
-                    if recess_context && needs_text {
+                    if (recess_context || feature_conflict) && needs_text {
                         choices.extend(super::label_lanes::centered_short(stroke));
                         choices.extend(
                             super::label_lanes::alternatives_placed(
@@ -3420,7 +3671,7 @@ fn clear_linear_ordered(
                         return None;
                     }
                     let mut repairs: Vec<(usize, Placed)> = Vec::new();
-                    if recess_context {
+                    if recess_context || feature_conflict {
                         // A new witness may pass between a short peer's arrow and its
                         // text. Re-seat that text at its other arrow in the same solve;
                         // the measured span and witness lane remain fixed.
@@ -4112,9 +4363,13 @@ fn settle_where(
         let clear = |c: &Placed| {
             let own: Vec<&[P2; 2]> = c.lines.iter().filter(|l| !p.lines.contains(l)).collect();
             others().all(|q| {
-                !q.lines.iter().any(|l| crosses(*l, c.label_box))
-                    && !boxes_overlap(c.label_box, q.label_box)
-                    && !own.iter().any(|l| crosses(**l, q.label_box))
+                !q.lines
+                    .iter()
+                    .any(|l| crosses(*l, super::contacts::clear_box(c.label_box)))
+                    && !boxes_overlap(c.label_box, super::contacts::clear_box(q.label_box))
+                    && !own
+                        .iter()
+                        .any(|l| crosses(**l, super::contacts::clear_box(q.label_box)))
             })
         };
         if clear(p) {
