@@ -6,9 +6,16 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
-Now on quiddity-rust **v0.4.2**.
+Now on quiddity-rust **v0.4.3**.
 
 ### Changed
+
+- Pin haecceity and quiddity v0.4.3 (recognition /6, fingerprints /3, PMI reader /14).
+  A constituent face aspect aliases its datum feature only when their complete face sets
+  match; multi-face datum constituents retain their own feature and dimension references.
+  The shared writer now bounds generated STEP strings and reports retained long strings,
+  and generated presentation keeps sizes and frames together with reserved label ink.
+  Draftwright continues to lay out drawings from semantic requirements.
 
 - Triage graphical PMI callouts by their part-qualified semantic links. Drawn semantic
   requirements need no presentation notice; refused requirements retain the callout ID and
