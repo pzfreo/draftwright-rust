@@ -1350,16 +1350,15 @@ pub(super) fn place(
                     if !slot_layout {
                         candidates.truncate(baseline_candidates);
                     }
-                    for shape in slot_layout
-                        .then(|| super::slots::width_references(&items[i], analysis))
-                        .unwrap_or_default()
-                        .into_iter()
-                        .chain(
-                            slot_layout
-                                .then(|| super::placement::pattern_references(&items[i], analysis))
-                                .unwrap_or_default(),
-                        )
-                    {
+                    let references: Vec<_> = if slot_layout {
+                        super::slots::width_references(&items[i], analysis)
+                            .into_iter()
+                            .chain(super::placement::pattern_references(&items[i], analysis))
+                            .collect()
+                    } else {
+                        Vec::new()
+                    };
+                    for shape in references {
                         let mut alternative = items[i].clone();
                         alternative.shape = shape;
                         for side in [
