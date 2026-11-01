@@ -149,8 +149,6 @@ pub struct GdtText {
 const H: f64 = 2.0 * TEXT;
 pub(super) const SHELF: f64 = 2.0;
 const PAD: f64 = 0.6 * TEXT;
-const ZONE_R: f64 = 0.42 * TEXT;
-const MATERIAL_R: f64 = 0.62 * TEXT;
 pub(super) const TRIANGLE: f64 = 1.4 * TEXT;
 const RING: f64 = 0.7 * ARROW;
 /// The clearance beyond the dimensions, and between tiers.
@@ -179,103 +177,9 @@ fn circle(c: P2, r: f64) -> [f64; 5] {
     [c[0], c[1], r, 0.0, 360.0]
 }
 
-/// The ISO 1101 symbol of draftwright's characteristic, as the text layer states it.
-fn symbol(characteristic: &str) -> &'static str {
-    match characteristic {
-        "straightness" => "⏤",
-        "flatness" => "⏥",
-        "circularity" => "○",
-        "cylindricity" => "⌭",
-        "profile_line" => "⌒",
-        "profile_surface" => "⌓",
-        "angularity" => "∠",
-        "perpendicularity" => "⟂",
-        "parallelism" => "∥",
-        "position" => "⌖",
-        "concentricity" | "coaxiality" => "◎",
-        "symmetry" => "⌯",
-        "circular_runout" => "↗",
-        _ => "⌰",
-    }
-}
-
-/// The characteristic's strokes about *c* (`_characteristic_edges`, s = 0.42 h). Coaxiality,
-/// which draftwright's frame does not know, is drawn as concentricity's symbol, which ISO 1101
-/// gives both.
-fn characteristic(name: &str, c: P2, laid: &mut Laid) {
-    let s = 0.42 * TEXT;
-    let p = |x: f64, y: f64| [c[0] + x * s, c[1] + y * s];
-    let mut st: Vec<[P2; 2]> = Vec::new();
-    let mut arcs: Vec<[f64; 5]> = Vec::new();
-    let barbs = |tip: P2, back: P2, size: f64| -> [[P2; 2]; 2] {
-        let a = (back[1] - tip[1]).atan2(back[0] - tip[0]);
-        [20f64, -20.0].map(|d| {
-            let t = a + d.to_radians();
-            [tip, [tip[0] + size * t.cos(), tip[1] + size * t.sin()]]
-        })
-    };
-    match name {
-        "straightness" => st.push([p(-1.0, 0.0), p(1.0, 0.0)]),
-        "flatness" => {
-            let q = [p(-1.0, -0.5), p(0.3, -0.5), p(1.0, 0.5), p(-0.3, 0.5)];
-            for i in 0..4 {
-                st.push([q[i], q[(i + 1) % 4]]);
-            }
-        }
-        "circularity" => arcs.push(circle(c, s)),
-        "cylindricity" => {
-            arcs.push(circle(c, 0.55 * s));
-            st.push([p(-1.0, -0.6), p(-0.55, 0.9)]);
-            st.push([p(0.55, -0.9), p(1.0, 0.6)]);
-        }
-        "profile_line" => arcs.push([c[0], c[1], s, 0.0, 180.0]),
-        "profile_surface" => {
-            arcs.push([c[0], c[1], s, 0.0, 180.0]);
-            st.push([p(-1.0, 0.0), p(1.0, 0.0)]);
-        }
-        "angularity" => {
-            st.push([p(-1.0, -1.0), p(1.0, 1.0)]);
-            st.push([p(-1.0, -1.0), p(1.0, -1.0)]);
-        }
-        "perpendicularity" => {
-            st.push([p(0.0, -1.0), p(0.0, 1.0)]);
-            st.push([p(-1.0, -1.0), p(1.0, -1.0)]);
-        }
-        "parallelism" => {
-            st.push([p(-0.7, -1.0), p(0.1, 1.0)]);
-            st.push([p(-0.1, -1.0), p(0.7, 1.0)]);
-        }
-        "position" => {
-            arcs.push(circle(c, 0.6 * s));
-            st.push([p(-1.0, 0.0), p(1.0, 0.0)]);
-            st.push([p(0.0, -1.0), p(0.0, 1.0)]);
-        }
-        "concentricity" | "coaxiality" => {
-            arcs.push(circle(c, s));
-            arcs.push(circle(c, 0.5 * s));
-        }
-        "symmetry" => {
-            st.push([p(0.0, -1.0), p(0.0, 1.0)]);
-            st.push([p(-0.7, 0.45), p(0.7, 0.45)]);
-            st.push([p(-0.7, -0.45), p(0.7, -0.45)]);
-        }
-        "circular_runout" => {
-            st.push([p(-1.0, -1.0), p(1.0, 1.0)]);
-            st.extend(barbs(p(1.0, 1.0), p(-1.0, -1.0), 0.5 * s));
-        }
-        _ => {
-            for dx in [-0.25, 0.35] {
-                let (a, b) = (p(-1.0 + dx, -1.0), p(0.4 + dx, 1.0));
-                st.push([a, b]);
-                st.extend(barbs(b, a, 0.45 * s));
-            }
-        }
-    }
-    laid.strokes.extend(st);
-    laid.arcs.extend(arcs);
-}
-
-/// The width of *s*'s ink at *size* in the labels' font.
+/// The width of *s*'s ink at *size* in the sheet's font (IBM Plex Sans Condensed): the width
+/// haecceity's shared notation measures cells with, so frames, labels and surface texture
+/// symbols are sized for the ink the sheet draws.
 fn width(s: &str, size: f64) -> f64 {
     let l = font().text(s, size);
     l.max[0] - l.min[0]
@@ -294,10 +198,11 @@ pub(super) fn with_count(p: &mut GdtPlaced, n: usize) {
     p.label_box[3] = b[3] + 2.0 * PAD + TEXT;
 }
 
-/// A feature control frame laid out from its lower left corner (`FeatureControlFrame`).
+/// A feature control frame laid out from its lower left corner (`FeatureControlFrame`):
+/// haecceity's shared ISO 1101 frame (#258), its cells measured in the sheet's font.
 fn control_frame(glyph: &Glyph) -> (Laid, Vec<String>) {
     let Glyph::ControlFrame {
-        characteristic: name,
+        characteristic,
         tolerance,
         zone,
         material,
@@ -308,90 +213,20 @@ fn control_frame(glyph: &Glyph) -> (Laid, Vec<String>) {
         // Invariant: This branch is reached only for a control-frame annotation.
         unreachable!("a control frame")
     };
-    let mut laid = Laid::default();
-    let cy = H / 2.0;
-    let spherical = *zone == Some("spherical_diameter");
-    let diameter = *zone == Some("diameter");
-    // `⌀` is drawn as a ring and a stroke; `S⌀` as the font's `Sø` before the value.
-    let ink = if spherical {
-        format!("Sø{tolerance}")
-    } else {
-        tolerance.clone()
-    };
-    let tw = width(&ink, TEXT);
-    let w_tol = PAD
-        + tw
-        + PAD
-        + if diameter { 2.0 * ZONE_R + PAD } else { 0.0 }
-        + if material.is_some() {
-            2.0 * MATERIAL_R + PAD
-        } else {
-            0.0
-        };
-    let mut xs = vec![0.0, H, H + w_tol];
-    for _ in datums {
-        // Invariant: xs starts with the left edge and grows once per frame cell.
-        xs.push(xs.last().expect("a cell") + H);
-    }
-    // Invariant: xs starts with the left edge and grows once per frame cell.
-    let w = *xs.last().expect("a cell");
-    let corners = [[0.0, 0.0], [w, 0.0], [w, H], [0.0, H]];
-    for i in 0..4 {
-        laid.strokes.push([corners[i], corners[(i + 1) % 4]]);
-    }
-    for x in &xs[1..xs.len() - 1] {
-        laid.strokes.push([[*x, 0.0], [*x, H]]);
-    }
-    characteristic(name, [H / 2.0, cy], &mut laid);
-    let mut cells = vec![symbol(name).to_string()];
-    laid.runs.push(text(symbol(name), [H / 2.0, cy], TEXT));
-    let mut x = H + PAD;
-    if diameter {
-        let c = [x + ZONE_R, cy];
-        laid.arcs.push(circle(c, ZONE_R));
-        laid.strokes.push([
-            [c[0] + 0.9 * ZONE_R, cy - 0.9 * ZONE_R],
-            [c[0] - 0.9 * ZONE_R, cy + 0.9 * ZONE_R],
-        ]);
-        x = c[0] + ZONE_R + PAD;
-    }
-    laid.letters.push(text(&ink, [x + tw / 2.0, cy], TEXT));
-    x += tw + PAD;
-    if let Some(m) = material {
-        let c = [x + MATERIAL_R, cy];
-        laid.arcs.push(circle(c, MATERIAL_R));
-        laid.letters.push(text(m, c, 0.8 * TEXT));
-    }
-    let run = format!(
-        "{}{tolerance}{}",
-        match zone {
-            Some("diameter") => "⌀",
-            Some(_) => "S⌀",
-            None => "",
-        },
-        match material {
-            Some("M") => "Ⓜ",
-            Some(_) => "Ⓛ",
-            None => "",
-        }
+    let c = haecceity::presentation::gdt::control_frame(
+        characteristic,
+        tolerance,
+        *zone,
+        *material,
+        datums,
+        &width,
     );
-    laid.runs.push(text(&run, [H + w_tol / 2.0, cy], TEXT));
-    cells.push(run);
-    for (i, d) in datums.iter().enumerate() {
-        let c = [xs[2 + i] + H / 2.0, cy];
-        laid.letters.push(text(d, c, TEXT));
-        laid.runs.push(text(d, c, TEXT));
-        cells.push(d.clone());
-    }
-    laid.size = [w, H];
-    (laid, cells)
+    let cells = c.cells.clone();
+    (laid(c), cells)
 }
 
-/// A datum's frame laid out about its centre: haecceity's shared datum feature symbol frame
-/// (#258), which states the letter without measuring it, so its geometry does not depend on the
-/// sheet's font.
-fn datum_frame(letter: &str) -> Laid {
-    let c = haecceity::presentation::datum(letter);
+/// A callout of haecceity's shared notation as this module lays it out.
+fn laid(c: haecceity::presentation::Callout) -> Laid {
     let text = |t: haecceity::presentation::Text| GdtText {
         text: t.text,
         at: t.at,
@@ -406,34 +241,39 @@ fn datum_frame(letter: &str) -> Laid {
     }
 }
 
-/// A label's text laid out from its lower left corner, a text height tall.
+/// A datum's frame laid out about its centre: haecceity's shared datum feature symbol frame
+/// (#258), which states the letter without measuring it, so its geometry does not depend on the
+/// sheet's font.
+fn datum_frame(letter: &str) -> Laid {
+    laid(haecceity::presentation::datum(letter))
+}
+
+/// A label's text laid out from its lower left corner, a text height tall per line: each line is
+/// haecceity's shared label (#258) measured in the sheet's font, its run set unpadded in the
+/// label's lines (the lanes and leaders that place a label are this module's).
 fn label(s: &str) -> Laid {
     let lines = crate::callouts::prose(s);
     let h = TEXT + (lines.len() - 1) as f64 * crate::callouts::line_spacing();
     let mut laid = Laid::default();
     let mut w: f64 = 0.5 * TEXT;
     for (i, line) in lines.iter().enumerate() {
-        let text_line = line;
-        let line_width = width(text_line, TEXT);
+        let shared = haecceity::presentation::label_with_width(line, &width);
+        let line_width = width(line, TEXT);
         w = w.max(line_width);
         let at = [
             line_width / 2.0,
             h - TEXT / 2.0 - i as f64 * crate::callouts::line_spacing(),
         ];
-        laid.letters.push(text(text_line, at, TEXT));
-        laid.runs.push(text(text_line, at, TEXT));
+        for run in shared.runs {
+            let t = text(&run.text, at, run.size);
+            laid.letters.push(t.clone());
+            laid.runs.push(t);
+        }
     }
     laid.size = [w, h];
     laid
 }
 
-/// A face's ISO 1302 surface texture symbol laid out from its lower left corner, which is the
-/// left end of the reference line it stands on (its leader's shelf): the short and long legs at
-/// 60° to a tip on that line (1.4 and 3 text heights tall, as the default finish beside the title
-/// block draws them, [`crate::title_block::default_finish`]), the material removal condition's
-/// mark ([`crate::title_block::removal_marks`]), the bar from the long leg's top, and the
-/// parameters under it, one per line (ISO 1302's positions a and b). The reference line itself
-/// is the leader's ([`candidate`]), as long as the glyph is wide.
 /// The least gap between a finish's leader or shelf and a dimension or extension line it runs
 /// alongside, mm: one text height.
 const FINISH_PARALLEL_GAP: f64 = TEXT;
@@ -463,45 +303,18 @@ const FINISH_MARGIN: f64 = 0.3 * TEXT;
 /// The radius of the dot a leader ends in on a face inside its outline (ISO 128-22).
 const DOT: f64 = 0.5;
 
-fn finish_symbol(lines: &[String], removal: &str) -> Laid {
-    let cot = 1.0 / 3f64.sqrt();
-    let gap = FINISH_MARGIN;
-    let short = 1.4 * TEXT;
-    let long = (3.0 * TEXT).max(lines.len() as f64 * (TEXT + gap));
-    let tip = [gap + short * cot, 0.0];
-    let at = |p: P2| [p[0] + tip[0], p[1] + tip[1]];
-    let long_top = at([long * cot, long]);
-    let tw = lines
-        .iter()
-        .map(|l| width(l, TEXT))
-        .fold(0.5 * TEXT, f64::max);
-    let left = long_top[0] + gap;
-    let end = left + tw + gap;
-    let mut laid = Laid {
-        strokes: vec![
-            [at([-short * cot, short]), tip],
-            [tip, long_top],
-            [long_top, [end, long]],
-        ],
-        ..Laid::default()
-    };
-    let (marks, circles) = crate::title_block::removal_marks(removal, short);
-    laid.strokes
-        .extend(marks.iter().map(|[a, b]| [at(*a), at(*b)]));
-    laid.arcs.extend(circles.iter().map(|c| {
-        let [x, y] = at([c[0], c[1]]);
-        [x, y, c[2], c[3], c[4]]
-    }));
-    for (i, l) in lines.iter().enumerate() {
-        let c = [
-            left + tw / 2.0,
-            long - gap - TEXT / 2.0 - i as f64 * (TEXT + gap),
-        ];
-        laid.letters.push(text(l, c, TEXT));
-        laid.runs.push(text(l, c, TEXT));
-    }
-    laid.size = [end, long];
-    laid
+/// A face's ISO 1302 surface texture symbol laid out from its lower left corner, which is the
+/// left end of the reference line it stands on (its leader's shelf), and its parameters, one per
+/// line: haecceity's shared symbol (#258), measured in the sheet's font. The short and long legs
+/// stand at 60° to a tip on that line (1.4 and 3 text heights tall, as the default finish beside
+/// the title block draws them, [`crate::title_block::default_finish`]), with the material removal
+/// condition's mark, the bar from the long leg's top, and the parameters under it (ISO 1302's
+/// positions a and b). The reference line itself is the leader's ([`candidate`]), as long as the
+/// glyph is wide.
+fn finish_symbol(texture: &haecceity::pmi::SurfaceTexture) -> (Laid, Vec<String>) {
+    let c = haecceity::presentation::notes::surface_texture_with_width(texture, &width);
+    let cells = c.cells.clone();
+    (laid(c), cells)
 }
 
 /// How an item hangs from its site: a feature control frame or label from its leader's shelf,
@@ -1203,7 +1016,7 @@ pub(crate) fn demand_with_spec(
             let size = match &item.glyph {
                 Glyph::Datum { .. } => [H, H],
                 Glyph::Label { text } => label(text).size,
-                Glyph::Finish { lines, removal, .. } => finish_symbol(lines, removal).size,
+                Glyph::Finish { texture, .. } => finish_symbol(texture).0.size,
                 g => control_frame(g).0.size,
             };
             let horizontal = outward(item.side)[0] == 0.0;
@@ -1601,7 +1414,7 @@ fn plan_search(
         let (laid, cells) = match &item.glyph {
             Glyph::Datum { letter, .. } => (datum_frame(letter), vec![letter.clone()]),
             Glyph::Label { text } => (label(text), vec![text.clone()]),
-            Glyph::Finish { lines, removal, .. } => (finish_symbol(lines, removal), lines.clone()),
+            Glyph::Finish { texture, .. } => finish_symbol(texture),
             g => control_frame(g),
         };
         let modifiers: Vec<String> = match &item.glyph {

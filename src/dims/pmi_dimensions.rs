@@ -306,7 +306,8 @@ fn decimal_sub(a: f64, b: f64) -> f64 {
     }
 }
 
-/// The record's label as callout terms: its words, a leading `ø` as the port's `⌀`.
+/// The record's label as callout terms: its words, a leading `ø` (draftwright's spelling, which
+/// [`crate::pmi`]'s labels no longer use) as the port's `⌀`.
 fn terms(label: &str) -> Vec<String> {
     label
         .split_whitespace()
@@ -473,10 +474,10 @@ fn step_length(wants: &[Want], stations: &[P3], k: usize, value: f64) -> Option<
     (found.len() == 1).then(|| found[0])
 }
 
-/// Whether a plain diameter's label is the size as a callout prints it: `ø6`, or `ø6 THRU`
-/// (draftwright's `_canonical_nominal_diameter_label`).
+/// Whether a plain diameter's label is the size as a callout prints it: `⌀6`, or `⌀6 THRU`
+/// (draftwright's `_canonical_nominal_diameter_label`, which spells it `ø6`).
 fn canonical(r: &Record, value: f64) -> bool {
-    let size = format!("ø{}", fmt(value));
+    let size = format!("⌀{}", fmt(value));
     let label = qualifier(r).map_or(r.label.as_str(), |q| {
         // Invariant: q was selected by checking this same label suffix.
         r.label.strip_suffix(q).unwrap().trim_end()
@@ -1658,7 +1659,7 @@ mod tests {
             fit: None,
         };
         shaft.print(&mut w).unwrap();
-        assert_eq!(w.terms, ["2×", "⌀35", "-0.009 -0.025", "THRU"]);
+        assert_eq!(w.terms, ["2×", "⌀35", "-0.009/-0.025", "THRU"]);
     }
 
     #[test]
@@ -1677,7 +1678,7 @@ mod tests {
             lower_bound: None,
             upper_bound: None,
             fit: Some(code.into()),
-            label: format!("ø{value} {code}"),
+            label: format!("⌀{value} {code}"),
             datum_refs: Vec::new(),
             gtol_modifiers: Vec::new(),
             basic: false,
@@ -1731,6 +1732,7 @@ mod tests {
     #[test]
     fn labels_read_as_callout_terms() {
         assert_eq!(terms("ø62 +0.03/0"), ["⌀62", "+0.03/0"]);
+        assert_eq!(terms("⌀62 +0.03/0"), ["⌀62", "+0.03/0"]);
         assert_eq!(terms("ø34.8 - ø35.2"), ["⌀34.8", "-", "⌀35.2"]);
         assert_eq!(terms("0.30 ±0.02 INCH"), ["0.30", "±0.02", "INCH"]);
         assert_eq!(terms("R12.7 ±0.508"), ["R12.7", "±0.508"]);

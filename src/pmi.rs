@@ -3911,14 +3911,23 @@ pub(crate) fn dominant(b: [f64; 6]) -> &'static str {
 /// The label draftwright writes for a dimension (`pmi._dimension_label`), from the values in mm
 /// (degrees) with draftwright's number formatting. draftwright prints a diameter, thickness or
 /// linear distance stated in a conversion-based unit in that unit (`0.25 ±0.01 INCH`); the port
-/// does not, as the sheet is in mm (#214). A deviation keeps its sign.
+/// does not, as the sheet is in mm (#214). A deviation keeps its sign. A diameter is `⌀` and a
+/// spherical one `S⌀` (ISO 129-1:2004 §7.2), as haecceity's shared notation states them (#258),
+/// where draftwright writes `ø` for both.
 fn dimension_label(r: &Record, d: &Dimension) -> String {
     let Some(value) = r.value else {
         return String::new();
     };
-    let prefix = match r.kind.as_str() {
-        "diameter" => "ø",
-        "radius" => "R",
+    let prefix = match (&d.kind, r.kind.as_str()) {
+        (
+            DimensionKind::Size {
+                kind: SizeKind::SphericalDiameter,
+                ..
+            },
+            _,
+        ) => "S⌀",
+        (_, "diameter") => "⌀",
+        (_, "radius") => "R",
         _ => "",
     };
     // The sheet is in mm (#214): a dimension authored in another unit prints its exact conversion

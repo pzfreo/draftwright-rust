@@ -117,9 +117,9 @@
     "port": "dimension:#1436",
     "field": "label",
     "python": "ø6 - ø0.012",
-    "rust": "ø6 -0.004/-0.012",
+    "rust": "⌀6 -0.004/-0.012",
     "verdict": "rust-correct",
-    "evidence": "OpenCascade misreads a dimension whose two deviations are both below nominal (a g6/f7 shaft): XCAF returns it as a range with the value garbled (quiddity-rust tests/fixtures/ap242/README.md, known_misreads, from specify-core writer.py), so draftwright's value is half the nominal plus the deviation and its 'limits' are the nominal and one deviation. The file states the nominal 6.0 with deviations -0.004/-0.012 (haecceity reads them as stated; ISO 286 class not stated); the port keeps both signs."
+    "evidence": "OpenCascade misreads a dimension whose two deviations are both below nominal (a g6/f7 shaft): XCAF returns it as a range with the value garbled (quiddity-rust tests/fixtures/ap242/README.md, known_misreads, from specify-core writer.py), so draftwright's value is half the nominal plus the deviation and its 'limits' are the nominal and one deviation. The file states the nominal 6.0 with deviations -0.004/-0.012 (haecceity reads them as stated; ISO 286 class not stated); the port keeps both signs. Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
   },
   {
     "file": "assembly_plate_pin.step.gz",
@@ -675,9 +675,9 @@
     "port": "dimension:#651",
     "field": "label",
     "python": "ø10 - ø0.028",
-    "rust": "ø10 -0.013/-0.028",
+    "rust": "⌀10 -0.013/-0.028",
     "verdict": "rust-correct",
-    "evidence": "The same instance, statement and cause as thumbwheel_thread_knurl.step's entry for dimension:0:1:4:1 (label) (this file is haecceity's U10 add onto specify-core's thumbwheel_thread_knurl file, which keeps the instance): OpenCascade misreads a dimension whose two deviations are both below nominal (a g6/f7 shaft): XCAF returns it as a range with the value garbled (quiddity-rust tests/fixtures/ap242/README.md, known_misreads, from specify-core writer.py), so draftwright's value is half the nominal plus the deviation and its 'limits' are the nominal and one deviation. The file states the nominal 10.0 with deviations -0.013/-0.028 (haecceity reads them as stated; ISO 286 class not stated); the port keeps both signs."
+    "evidence": "The same instance, statement and cause as thumbwheel_thread_knurl.step's entry for dimension:0:1:4:1 (label) (this file is haecceity's U10 add onto specify-core's thumbwheel_thread_knurl file, which keeps the instance): OpenCascade misreads a dimension whose two deviations are both below nominal (a g6/f7 shaft): XCAF returns it as a range with the value garbled (quiddity-rust tests/fixtures/ap242/README.md, known_misreads, from specify-core writer.py), so draftwright's value is half the nominal plus the deviation and its 'limits' are the nominal and one deviation. The file states the nominal 10.0 with deviations -0.013/-0.028 (haecceity reads them as stated; ISO 286 class not stated); the port keeps both signs. Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
   },
   {
     "file": "nist_ctc_01_asme1_ap242-e1.stp.gz",
@@ -2044,9 +2044,9 @@
     "port": "dimension:#15130",
     "python": "ø0.250 +0.003/0 INCH",
     "record": "dimension:0:1:4:85",
-    "rust": "ø6.35 +0.0762/0",
+    "rust": "⌀6.35 +0.0762/0",
     "verdict": "rust-correct",
-    "evidence": "draftwright states 'ø0.250 +0.003/0 INCH'; the port states 'ø6.35 +0.0762/0'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+    "evidence": "draftwright states 'ø0.250 +0.003/0 INCH'; the port states 'ø6.35 +0.0762/0'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
   },
   {
     "field": "label",
@@ -2064,9 +2064,9 @@
     "port": "dimension:#15238",
     "python": "ø0.250 +0.003/0 INCH",
     "record": "dimension:0:1:4:87",
-    "rust": "ø6.35 +0.0762/0",
+    "rust": "⌀6.35 +0.0762/0",
     "verdict": "rust-correct",
-    "evidence": "draftwright states 'ø0.250 +0.003/0 INCH'; the port states 'ø6.35 +0.0762/0'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+    "evidence": "draftwright states 'ø0.250 +0.003/0 INCH'; the port states 'ø6.35 +0.0762/0'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
   },
   {
     "field": "label",
@@ -2084,9 +2084,9 @@
     "port": "dimension:#15344",
     "python": "ø0.250 +0.003/0 INCH",
     "record": "dimension:0:1:4:89",
-    "rust": "ø6.35 +0.0762/0",
+    "rust": "⌀6.35 +0.0762/0",
     "verdict": "rust-correct",
-    "evidence": "draftwright states 'ø0.250 +0.003/0 INCH'; the port states 'ø6.35 +0.0762/0'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+    "evidence": "draftwright states 'ø0.250 +0.003/0 INCH'; the port states 'ø6.35 +0.0762/0'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
   },
   {
     "field": "label",
@@ -2094,9 +2094,9 @@
     "port": "dimension:#15389",
     "python": "ø0.250 +0.003/-0.001 INCH",
     "record": "dimension:0:1:4:90",
-    "rust": "ø6.35 +0.0762/-0.0254",
+    "rust": "⌀6.35 +0.0762/-0.0254",
     "verdict": "rust-correct",
-    "evidence": "draftwright states 'ø0.250 +0.003/-0.001 INCH'; the port states 'ø6.35 +0.0762/-0.0254'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+    "evidence": "draftwright states 'ø0.250 +0.003/-0.001 INCH'; the port states 'ø6.35 +0.0762/-0.0254'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
   },
   {
     "field": "label",
@@ -2124,9 +2124,9 @@
     "port": "dimension:#15607",
     "python": "ø0.875 ±0.02 INCH",
     "record": "dimension:0:1:4:93",
-    "rust": "ø22.225 ±0.508",
+    "rust": "⌀22.225 ±0.508",
     "verdict": "rust-correct",
-    "evidence": "draftwright states 'ø0.875 ±0.02 INCH'; the port states 'ø22.225 ±0.508'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+    "evidence": "draftwright states 'ø0.875 ±0.02 INCH'; the port states 'ø22.225 ±0.508'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
   },
   {
     "field": "label",
@@ -2134,9 +2134,9 @@
     "port": "dimension:#15653",
     "python": "ø0.875 ±0.01 INCH",
     "record": "dimension:0:1:4:94",
-    "rust": "ø22.225 ±0.254",
+    "rust": "⌀22.225 ±0.254",
     "verdict": "rust-correct",
-    "evidence": "draftwright states 'ø0.875 ±0.01 INCH'; the port states 'ø22.225 ±0.254'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+    "evidence": "draftwright states 'ø0.875 ±0.01 INCH'; the port states 'ø22.225 ±0.254'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
   },
   {
     "field": "label",
@@ -2144,9 +2144,9 @@
     "port": "dimension:#15699",
     "python": "ø0.173 +0.005/-0.001 INCH",
     "record": "dimension:0:1:4:95",
-    "rust": "ø4.3942 +0.127/-0.0254",
+    "rust": "⌀4.3942 +0.127/-0.0254",
     "verdict": "rust-correct",
-    "evidence": "draftwright states 'ø0.173 +0.005/-0.001 INCH'; the port states 'ø4.3942 +0.127/-0.0254'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+    "evidence": "draftwright states 'ø0.173 +0.005/-0.001 INCH'; the port states 'ø4.3942 +0.127/-0.0254'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
   },
   {
     "field": "label",
@@ -2154,9 +2154,9 @@
     "port": "dimension:#15745",
     "python": "ø0.594 +0.012/-0.002 INCH",
     "record": "dimension:0:1:4:96",
-    "rust": "ø15.0876 +0.3048/-0.0508",
+    "rust": "⌀15.0876 +0.3048/-0.0508",
     "verdict": "rust-correct",
-    "evidence": "draftwright states 'ø0.594 +0.012/-0.002 INCH'; the port states 'ø15.0876 +0.3048/-0.0508'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+    "evidence": "draftwright states 'ø0.594 +0.012/-0.002 INCH'; the port states 'ø15.0876 +0.3048/-0.0508'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
   },
   {
     "field": "label",
@@ -2164,9 +2164,9 @@
     "port": "dimension:#15791",
     "python": "ø0.281 +0.006/-0.001 INCH",
     "record": "dimension:0:1:4:97",
-    "rust": "ø7.1374 +0.1524/-0.0254",
+    "rust": "⌀7.1374 +0.1524/-0.0254",
     "verdict": "rust-correct",
-    "evidence": "draftwright states 'ø0.281 +0.006/-0.001 INCH'; the port states 'ø7.1374 +0.1524/-0.0254'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+    "evidence": "draftwright states 'ø0.281 +0.006/-0.001 INCH'; the port states 'ø7.1374 +0.1524/-0.0254'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
   },
   {
     "field": "label",
@@ -2174,9 +2174,9 @@
     "port": "dimension:#15883",
     "python": "ø0.438 ±0.01 INCH",
     "record": "dimension:0:1:4:98",
-    "rust": "ø11.1252 ±0.254",
+    "rust": "⌀11.1252 ±0.254",
     "verdict": "rust-correct",
-    "evidence": "draftwright states 'ø0.438 ±0.01 INCH'; the port states 'ø11.1252 ±0.254'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+    "evidence": "draftwright states 'ø0.438 ±0.01 INCH'; the port states 'ø11.1252 ±0.254'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
   },
   {
     "field": "label",
@@ -2194,9 +2194,9 @@
     "port": "dimension:#16004",
     "python": "ø0.594 +0.012/-0.002 INCH",
     "record": "dimension:0:1:4:100",
-    "rust": "ø15.0876 +0.3048/-0.0508",
+    "rust": "⌀15.0876 +0.3048/-0.0508",
     "verdict": "rust-correct",
-    "evidence": "draftwright states 'ø0.594 +0.012/-0.002 INCH'; the port states 'ø15.0876 +0.3048/-0.0508'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+    "evidence": "draftwright states 'ø0.594 +0.012/-0.002 INCH'; the port states 'ø15.0876 +0.3048/-0.0508'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
   },
   {
     "file": "nist_ftc_10_asme1_ap242-e2.stp.gz",
@@ -2221,10 +2221,10 @@
     "rust": {
       "category": "dimension",
       "kind": "diameter",
-      "label": "ø3"
+      "label": "⌀3"
     },
     "verdict": "undetermined",
-    "evidence": "#20632, a semantic ø3 dimension on supplemental geometry (a geometric_curve_set, no face of the part), whose only presentation is invisible (INVISIBILITY over its annotation occurrence). XCAF does not transfer it, so draftwright's census has no source for it. The port reads it as the file states it (applies to supplemental geometry (geometric_curve_set), not only the part's faces and edges); whether a drawing states it is lowering's decision. Re-checked with haecceity at quiddity-rust 45c4038 (stage 1b): unchanged, still read as a record with the supplemental-geometry blocker; whether a drawing states, reports or skips an invisible semantic dimension remains the maintainer question in docs/next-session.md."
+    "evidence": "#20632, a semantic ø3 dimension on supplemental geometry (a geometric_curve_set, no face of the part), whose only presentation is invisible (INVISIBILITY over its annotation occurrence). XCAF does not transfer it, so draftwright's census has no source for it. The port reads it as the file states it (applies to supplemental geometry (geometric_curve_set), not only the part's faces and edges); whether a drawing states it is lowering's decision. Re-checked with haecceity at quiddity-rust 45c4038 (stage 1b): unchanged, still read as a record with the supplemental-geometry blocker; whether a drawing states, reports or skips an invisible semantic dimension remains the maintainer question in docs/next-session.md. Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
   },
   {
     "file": "nist_ftc_10_asme1_ap242-e2.stp.gz",
@@ -2235,10 +2235,10 @@
     "rust": {
       "category": "dimension",
       "kind": "diameter",
-      "label": "ø3"
+      "label": "⌀3"
     },
     "verdict": "undetermined",
-    "evidence": "#20659, a semantic ø3 dimension on supplemental geometry (a geometric_curve_set, no face of the part), whose only presentation is invisible (INVISIBILITY over its annotation occurrence). XCAF does not transfer it, so draftwright's census has no source for it. The port reads it as the file states it (applies to supplemental geometry (geometric_curve_set), not only the part's faces and edges); whether a drawing states it is lowering's decision. Re-checked with haecceity at quiddity-rust 45c4038 (stage 1b): unchanged, still read as a record with the supplemental-geometry blocker; whether a drawing states, reports or skips an invisible semantic dimension remains the maintainer question in docs/next-session.md."
+    "evidence": "#20659, a semantic ø3 dimension on supplemental geometry (a geometric_curve_set, no face of the part), whose only presentation is invisible (INVISIBILITY over its annotation occurrence). XCAF does not transfer it, so draftwright's census has no source for it. The port reads it as the file states it (applies to supplemental geometry (geometric_curve_set), not only the part's faces and edges); whether a drawing states it is lowering's decision. Re-checked with haecceity at quiddity-rust 45c4038 (stage 1b): unchanged, still read as a record with the supplemental-geometry blocker; whether a drawing states, reports or skips an invisible semantic dimension remains the maintainer question in docs/next-session.md. Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
   },
   {
     "file": "nist_ftc_10_asme1_ap242-e2.stp.gz",
@@ -2249,10 +2249,10 @@
     "rust": {
       "category": "dimension",
       "kind": "diameter",
-      "label": "ø3"
+      "label": "⌀3"
     },
     "verdict": "undetermined",
-    "evidence": "#20686, a semantic ø3 dimension on supplemental geometry (a geometric_curve_set, no face of the part), whose only presentation is invisible (INVISIBILITY over its annotation occurrence). XCAF does not transfer it, so draftwright's census has no source for it. The port reads it as the file states it (applies to supplemental geometry (geometric_curve_set), not only the part's faces and edges); whether a drawing states it is lowering's decision. Re-checked with haecceity at quiddity-rust 45c4038 (stage 1b): unchanged, still read as a record with the supplemental-geometry blocker; whether a drawing states, reports or skips an invisible semantic dimension remains the maintainer question in docs/next-session.md."
+    "evidence": "#20686, a semantic ø3 dimension on supplemental geometry (a geometric_curve_set, no face of the part), whose only presentation is invisible (INVISIBILITY over its annotation occurrence). XCAF does not transfer it, so draftwright's census has no source for it. The port reads it as the file states it (applies to supplemental geometry (geometric_curve_set), not only the part's faces and edges); whether a drawing states it is lowering's decision. Re-checked with haecceity at quiddity-rust 45c4038 (stage 1b): unchanged, still read as a record with the supplemental-geometry blocker; whether a drawing states, reports or skips an invisible semantic dimension remains the maintainer question in docs/next-session.md. Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
   },
   {
     "file": "nist_ftc_10_asme1_ap242-e2.stp.gz",
@@ -3056,9 +3056,9 @@
     "port": "dimension:#9797",
     "python": "ø0.234 ±0.008 INCH",
     "record": "dimension:0:1:4:92",
-    "rust": "ø5.9436 ±0.2032",
+    "rust": "⌀5.9436 ±0.2032",
     "verdict": "rust-correct",
-    "evidence": "draftwright states 'ø0.234 ±0.008 INCH'; the port states 'ø5.9436 ±0.2032'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+    "evidence": "draftwright states 'ø0.234 ±0.008 INCH'; the port states 'ø5.9436 ±0.2032'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
   },
   {
     "field": "label",
@@ -3066,9 +3066,9 @@
     "port": "dimension:#9820",
     "python": "ø0.234 ±0.008 INCH",
     "record": "dimension:0:1:4:93",
-    "rust": "ø5.9436 ±0.2032",
+    "rust": "⌀5.9436 ±0.2032",
     "verdict": "rust-correct",
-    "evidence": "draftwright states 'ø0.234 ±0.008 INCH'; the port states 'ø5.9436 ±0.2032'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+    "evidence": "draftwright states 'ø0.234 ±0.008 INCH'; the port states 'ø5.9436 ±0.2032'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
   },
   {
     "field": "label",
@@ -3076,9 +3076,9 @@
     "port": "dimension:#9843",
     "python": "ø0.234 ±0.008 INCH",
     "record": "dimension:0:1:4:94",
-    "rust": "ø5.9436 ±0.2032",
+    "rust": "⌀5.9436 ±0.2032",
     "verdict": "rust-correct",
-    "evidence": "draftwright states 'ø0.234 ±0.008 INCH'; the port states 'ø5.9436 ±0.2032'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+    "evidence": "draftwright states 'ø0.234 ±0.008 INCH'; the port states 'ø5.9436 ±0.2032'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
   },
   {
     "field": "label",
@@ -3086,9 +3086,9 @@
     "port": "dimension:#9866",
     "python": "ø0.250 +0.003/0 INCH",
     "record": "dimension:0:1:4:95",
-    "rust": "ø6.35 +0.0762/0",
+    "rust": "⌀6.35 +0.0762/0",
     "verdict": "rust-correct",
-    "evidence": "draftwright states 'ø0.250 +0.003/0 INCH'; the port states 'ø6.35 +0.0762/0'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+    "evidence": "draftwright states 'ø0.250 +0.003/0 INCH'; the port states 'ø6.35 +0.0762/0'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
   },
   {
     "field": "label",
@@ -3096,9 +3096,9 @@
     "port": "dimension:#9889",
     "python": "ø0.250 +0.003/0 INCH",
     "record": "dimension:0:1:4:96",
-    "rust": "ø6.35 +0.0762/0",
+    "rust": "⌀6.35 +0.0762/0",
     "verdict": "rust-correct",
-    "evidence": "draftwright states 'ø0.250 +0.003/0 INCH'; the port states 'ø6.35 +0.0762/0'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+    "evidence": "draftwright states 'ø0.250 +0.003/0 INCH'; the port states 'ø6.35 +0.0762/0'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
   },
   {
     "field": "label",
@@ -3126,9 +3126,9 @@
     "port": "dimension:#10063",
     "python": "ø0.250 ±0.008 INCH",
     "record": "dimension:0:1:4:99",
-    "rust": "ø6.35 ±0.2032",
+    "rust": "⌀6.35 ±0.2032",
     "verdict": "rust-correct",
-    "evidence": "draftwright states 'ø0.250 ±0.008 INCH'; the port states 'ø6.35 ±0.2032'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+    "evidence": "draftwright states 'ø0.250 ±0.008 INCH'; the port states 'ø6.35 ±0.2032'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
   },
   {
     "field": "label",
@@ -3146,9 +3146,9 @@
     "port": "dimension:#10143",
     "python": "ø0.375 ±0.008 INCH",
     "record": "dimension:0:1:4:102",
-    "rust": "ø9.525 ±0.2032",
+    "rust": "⌀9.525 ±0.2032",
     "verdict": "rust-correct",
-    "evidence": "draftwright states 'ø0.375 ±0.008 INCH'; the port states 'ø9.525 ±0.2032'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+    "evidence": "draftwright states 'ø0.375 ±0.008 INCH'; the port states 'ø9.525 ±0.2032'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
   },
   {
     "field": "label",
@@ -3166,9 +3166,9 @@
     "port": "dimension:#10191",
     "python": "ø0.156 ±0.008 INCH",
     "record": "dimension:0:1:4:104",
-    "rust": "ø3.9624 ±0.2032",
+    "rust": "⌀3.9624 ±0.2032",
     "verdict": "rust-correct",
-    "evidence": "draftwright states 'ø0.156 ±0.008 INCH'; the port states 'ø3.9624 ±0.2032'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+    "evidence": "draftwright states 'ø0.156 ±0.008 INCH'; the port states 'ø3.9624 ±0.2032'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
   },
   {
     "field": "label",
@@ -3176,9 +3176,9 @@
     "port": "dimension:#10215",
     "python": "ø0.315 ±0.008 INCH",
     "record": "dimension:0:1:4:105",
-    "rust": "ø8.001 ±0.2032",
+    "rust": "⌀8.001 ±0.2032",
     "verdict": "rust-correct",
-    "evidence": "draftwright states 'ø0.315 ±0.008 INCH'; the port states 'ø8.001 ±0.2032'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+    "evidence": "draftwright states 'ø0.315 ±0.008 INCH'; the port states 'ø8.001 ±0.2032'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
   },
   {
     "field": "label",
@@ -3186,9 +3186,9 @@
     "port": "dimension:#10239",
     "python": "ø0.281 ±0.008 INCH",
     "record": "dimension:0:1:4:106",
-    "rust": "ø7.1374 ±0.2032",
+    "rust": "⌀7.1374 ±0.2032",
     "verdict": "rust-correct",
-    "evidence": "draftwright states 'ø0.281 ±0.008 INCH'; the port states 'ø7.1374 ±0.2032'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+    "evidence": "draftwright states 'ø0.281 ±0.008 INCH'; the port states 'ø7.1374 ±0.2032'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
   },
   {
     "field": "label",
@@ -3196,9 +3196,9 @@
     "port": "dimension:#10263",
     "python": "ø0.750 ±0.008 INCH",
     "record": "dimension:0:1:4:107",
-    "rust": "ø19.05 ±0.2032",
+    "rust": "⌀19.05 ±0.2032",
     "verdict": "rust-correct",
-    "evidence": "draftwright states 'ø0.750 ±0.008 INCH'; the port states 'ø19.05 ±0.2032'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+    "evidence": "draftwright states 'ø0.750 ±0.008 INCH'; the port states 'ø19.05 ±0.2032'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
   },
   {
     "field": "label",
@@ -3206,9 +3206,9 @@
     "port": "dimension:#10287",
     "python": "ø0.221 ±0.008 INCH",
     "record": "dimension:0:1:4:108",
-    "rust": "ø5.6134 ±0.2032",
+    "rust": "⌀5.6134 ±0.2032",
     "verdict": "rust-correct",
-    "evidence": "draftwright states 'ø0.221 ±0.008 INCH'; the port states 'ø5.6134 ±0.2032'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+    "evidence": "draftwright states 'ø0.221 ±0.008 INCH'; the port states 'ø5.6134 ±0.2032'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
   },
   {
     "field": "label",
@@ -3216,9 +3216,9 @@
     "port": "dimension:#10311",
     "python": "ø0.156 ±0.008 INCH",
     "record": "dimension:0:1:4:109",
-    "rust": "ø3.9624 ±0.2032",
+    "rust": "⌀3.9624 ±0.2032",
     "verdict": "rust-correct",
-    "evidence": "draftwright states 'ø0.156 ±0.008 INCH'; the port states 'ø3.9624 ±0.2032'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+    "evidence": "draftwright states 'ø0.156 ±0.008 INCH'; the port states 'ø3.9624 ±0.2032'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
   },
   {
     "field": "label",
@@ -4103,9 +4103,9 @@
     "port": "dimension:#6370",
     "field": "label",
     "python": "ø130 - ø0.039",
-    "rust": "ø130 -0.014/-0.039",
+    "rust": "⌀130 -0.014/-0.039",
     "verdict": "rust-correct",
-    "evidence": "OpenCascade misreads a dimension whose two deviations are both below nominal (a g6/f7 shaft): XCAF returns it as a range with the value garbled (quiddity-rust tests/fixtures/ap242/README.md, known_misreads, from specify-core writer.py), so draftwright's value is half the nominal plus the deviation and its 'limits' are the nominal and one deviation. The file states the nominal 130.0 with deviations -0.014/-0.039 (haecceity reads them as stated; ISO 286 class not stated); the port keeps both signs."
+    "evidence": "OpenCascade misreads a dimension whose two deviations are both below nominal (a g6/f7 shaft): XCAF returns it as a range with the value garbled (quiddity-rust tests/fixtures/ap242/README.md, known_misreads, from specify-core writer.py), so draftwright's value is half the nominal plus the deviation and its 'limits' are the nominal and one deviation. The file states the nominal 130.0 with deviations -0.014/-0.039 (haecceity reads them as stated; ISO 286 class not stated); the port keeps both signs. Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
   },
   {
     "file": "spool_fits.step.gz",
@@ -4163,9 +4163,9 @@
     "port": "dimension:#6380",
     "field": "label",
     "python": "ø130 - ø0.039",
-    "rust": "ø130 -0.014/-0.039",
+    "rust": "⌀130 -0.014/-0.039",
     "verdict": "rust-correct",
-    "evidence": "OpenCascade misreads a dimension whose two deviations are both below nominal (a g6/f7 shaft): XCAF returns it as a range with the value garbled (quiddity-rust tests/fixtures/ap242/README.md, known_misreads, from specify-core writer.py), so draftwright's value is half the nominal plus the deviation and its 'limits' are the nominal and one deviation. The file states the nominal 130.0 with deviations -0.014/-0.039 (haecceity reads them as stated; ISO 286 class not stated); the port keeps both signs."
+    "evidence": "OpenCascade misreads a dimension whose two deviations are both below nominal (a g6/f7 shaft): XCAF returns it as a range with the value garbled (quiddity-rust tests/fixtures/ap242/README.md, known_misreads, from specify-core writer.py), so draftwright's value is half the nominal plus the deviation and its 'limits' are the nominal and one deviation. The file states the nominal 130.0 with deviations -0.014/-0.039 (haecceity reads them as stated; ISO 286 class not stated); the port keeps both signs. Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
   },
   {
     "file": "spool_fits.step.gz",
@@ -4223,9 +4223,9 @@
     "port": "dimension:#6390",
     "field": "label",
     "python": "ø70 - ø0.06",
-    "rust": "ø70 -0.03/-0.06",
+    "rust": "⌀70 -0.03/-0.06",
     "verdict": "rust-correct",
-    "evidence": "OpenCascade misreads a dimension whose two deviations are both below nominal (a g6/f7 shaft): XCAF returns it as a range with the value garbled (quiddity-rust tests/fixtures/ap242/README.md, known_misreads, from specify-core writer.py), so draftwright's value is half the nominal plus the deviation and its 'limits' are the nominal and one deviation. The file states the nominal 70.0 with deviations -0.03/-0.06 (haecceity reads them as stated; ISO 286 class not stated); the port keeps both signs."
+    "evidence": "OpenCascade misreads a dimension whose two deviations are both below nominal (a g6/f7 shaft): XCAF returns it as a range with the value garbled (quiddity-rust tests/fixtures/ap242/README.md, known_misreads, from specify-core writer.py), so draftwright's value is half the nominal plus the deviation and its 'limits' are the nominal and one deviation. The file states the nominal 70.0 with deviations -0.03/-0.06 (haecceity reads them as stated; ISO 286 class not stated); the port keeps both signs. Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
   },
   {
     "file": "spool_fits.step.gz",
@@ -4283,9 +4283,9 @@
     "port": "dimension:#651",
     "field": "label",
     "python": "ø10 - ø0.028",
-    "rust": "ø10 -0.013/-0.028",
+    "rust": "⌀10 -0.013/-0.028",
     "verdict": "rust-correct",
-    "evidence": "OpenCascade misreads a dimension whose two deviations are both below nominal (a g6/f7 shaft): XCAF returns it as a range with the value garbled (quiddity-rust tests/fixtures/ap242/README.md, known_misreads, from specify-core writer.py), so draftwright's value is half the nominal plus the deviation and its 'limits' are the nominal and one deviation. The file states the nominal 10.0 with deviations -0.013/-0.028 (haecceity reads them as stated; ISO 286 class not stated); the port keeps both signs."
+    "evidence": "OpenCascade misreads a dimension whose two deviations are both below nominal (a g6/f7 shaft): XCAF returns it as a range with the value garbled (quiddity-rust tests/fixtures/ap242/README.md, known_misreads, from specify-core writer.py), so draftwright's value is half the nominal plus the deviation and its 'limits' are the nominal and one deviation. The file states the nominal 10.0 with deviations -0.013/-0.028 (haecceity reads them as stated; ISO 286 class not stated); the port keeps both signs. Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
   },
   {
     "file": "thumbwheel_thread_knurl.step.gz",
@@ -4517,9 +4517,9 @@
     "port": "dimension:#11201",
     "python": "ø31.8 ±0.2032",
     "record": "dimension:0:1:4:92",
-    "rust": "ø31.75 ±0.2032",
+    "rust": "S⌀31.75 ±0.2032",
     "verdict": "rust-correct",
-    "evidence": "Default nominal precision intentionally departs from Python: preserve the modelled hundredths/thousandths up to three places; tolerance text is unchanged (drawn-values-2026-10-18)."
+    "evidence": "Default nominal precision intentionally departs from Python: preserve the modelled hundredths/thousandths up to three places; tolerance text is unchanged (drawn-values-2026-10-18). Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø. The file states a spherical diameter (SizeKind::SphericalDiameter): the port's S⌀ says so, draftwright's ø does not."
   },
   {
     "field": "label",
@@ -4527,9 +4527,9 @@
     "port": "dimension:#8621",
     "python": "ø0.812 ±0.02 INCH",
     "record": "dimension:0:1:4:1",
-    "rust": "ø20.6502 ±0.508",
+    "rust": "⌀20.6502 ±0.508",
     "verdict": "rust-correct",
-    "evidence": "draftwright states 'ø0.812 ±0.02 INCH'; the port states 'ø20.6502 ±0.508'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+    "evidence": "draftwright states 'ø0.812 ±0.02 INCH'; the port states 'ø20.6502 ±0.508'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
   },
   {
     "field": "label",
@@ -4547,9 +4547,9 @@
     "port": "dimension:#8744",
     "python": "ø0.250 ±0.008 INCH",
     "record": "dimension:0:1:4:3",
-    "rust": "ø6.35 ±0.2032",
+    "rust": "⌀6.35 ±0.2032",
     "verdict": "rust-correct",
-    "evidence": "draftwright states 'ø0.250 ±0.008 INCH'; the port states 'ø6.35 ±0.2032'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+    "evidence": "draftwright states 'ø0.250 ±0.008 INCH'; the port states 'ø6.35 ±0.2032'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
   },
   {
     "field": "label",
@@ -4567,9 +4567,9 @@
     "port": "dimension:#8864",
     "python": "ø0.40 ±0.01 INCH",
     "record": "dimension:0:1:4:5",
-    "rust": "ø10.16 ±0.254",
+    "rust": "⌀10.16 ±0.254",
     "verdict": "rust-correct",
-    "evidence": "draftwright states 'ø0.40 ±0.01 INCH'; the port states 'ø10.16 ±0.254'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+    "evidence": "draftwright states 'ø0.40 ±0.01 INCH'; the port states 'ø10.16 ±0.254'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
   },
   {
     "field": "label",
@@ -4587,9 +4587,9 @@
     "port": "dimension:#8982",
     "python": "ø0.415 ±0.008 INCH",
     "record": "dimension:0:1:4:7",
-    "rust": "ø10.541 ±0.2032",
+    "rust": "⌀10.541 ±0.2032",
     "verdict": "rust-correct",
-    "evidence": "draftwright states 'ø0.415 ±0.008 INCH'; the port states 'ø10.541 ±0.2032'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+    "evidence": "draftwright states 'ø0.415 ±0.008 INCH'; the port states 'ø10.541 ±0.2032'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
   },
   {
     "field": "label",
@@ -4607,9 +4607,9 @@
     "port": "dimension:#9112",
     "python": "ø0.562 ±0.008 INCH",
     "record": "dimension:0:1:4:9",
-    "rust": "ø14.3002 ±0.2032",
+    "rust": "⌀14.3002 ±0.2032",
     "verdict": "rust-correct",
-    "evidence": "draftwright states 'ø0.562 ±0.008 INCH'; the port states 'ø14.3002 ±0.2032'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+    "evidence": "draftwright states 'ø0.562 ±0.008 INCH'; the port states 'ø14.3002 ±0.2032'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
   },
   {
     "field": "value",
@@ -4667,9 +4667,9 @@
     "port": "dimension:#11272",
     "python": "ø0.281 ±0.008 INCH",
     "record": "dimension:0:1:4:93",
-    "rust": "ø7.1374 ±0.2032",
+    "rust": "⌀7.1374 ±0.2032",
     "verdict": "rust-correct",
-    "evidence": "draftwright states 'ø0.281 ±0.008 INCH'; the port states 'ø7.1374 ±0.2032'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+    "evidence": "draftwright states 'ø0.281 ±0.008 INCH'; the port states 'ø7.1374 ±0.2032'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214). Labels state a diameter as ⌀ and a spherical one as S⌀ (ISO 129-1:2004 §7.2), as haecceity's shared notation does (#258); draftwright writes ø."
   },
   {
     "field": "fields",

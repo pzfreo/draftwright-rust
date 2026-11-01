@@ -524,7 +524,7 @@ fn specify_general_dimensions_in_a_hole_table_are_lowered_to_it() {
     assert!(unresolved.is_empty(), "left unresolved: {unresolved:#?}");
     let lowered = report["lowered"].as_array().unwrap();
     // Diameter sizes have no datum reference and keep #265's hole-table path.
-    for size in ["ø22", "ø6.6"] {
+    for size in ["⌀22", "⌀6.6"] {
         assert!(
             lowered.iter().any(|r| r["kind"] == "covered"
                 && r["feature_id"]

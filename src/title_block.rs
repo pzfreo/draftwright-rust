@@ -438,26 +438,6 @@ pub struct FinishPlaced {
     pub arcs: Vec<[f64; 5]>,
 }
 
-/// ISO 1302's mark of a material removal condition (ISO 10303-1110's term), about the symbol's
-/// tip at the origin, its short leg *short* tall: `material removal required` closes the short
-/// leg with a bar (the expanded symbol, a triangle); `no material removal` inscribes a circle
-/// in it; any other draws nothing (the basic symbol). The strokes and the circles.
-pub(crate) fn removal_marks(removal: &str, short: f64) -> (Vec<[P; 2]>, Vec<[f64; 5]>) {
-    let cot = 1.0 / 3f64.sqrt();
-    match removal {
-        "material removal required" => (
-            vec![[[-short * cot, short], [short * cot, short]]],
-            Vec::new(),
-        ),
-        // The incircle of the triangle the legs make at the short leg's height.
-        "no material removal" => (
-            Vec::new(),
-            vec![[0.0, 2.0 * short / 3.0, short / 3.0, 0.0, 360.0]],
-        ),
-        _ => (Vec::new(), Vec::new()),
-    }
-}
-
 /// The default surface finish *text* (`Ra 3.2`) as its symbol, at the left end of the band
 /// above the grid of *block*, as draftwright places it (`_add_default_surface_finish`: the
 /// scale note and the projection symbol take the band's right end). draftwright's glyph
@@ -476,7 +456,13 @@ pub fn default_finish(block: [f64; 4], text: &str, removal: &str) -> FinishPlace
     let at = [block[0] - short_top[0], top(block) + FURNITURE_GAP];
     let m = |p: P| [p[0] + at[0], p[1] + at[1]];
     let centre = m([left + w / 2.0, long - gap - TEXT / 2.0]);
-    let (marks, circles) = removal_marks(removal, short);
+    // ISO 1302's mark of the material removal condition (ISO 10303-1110's term), about the tip:
+    // haecceity's shared notation (#258); a term it does not know draws the basic symbol.
+    let (marks, circles) = haecceity::presentation::notes::removal_marks(
+        haecceity::pmi::MaterialRemoval::from_term(removal)
+            .unwrap_or(haecceity::pmi::MaterialRemoval::AnyProcessAllowed),
+        short,
+    );
     let mut strokes = vec![
         [m(short_top), m([0.0, 0.0])],
         [m([0.0, 0.0]), m(long_top)],

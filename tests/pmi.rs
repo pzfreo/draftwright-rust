@@ -356,11 +356,15 @@ fn compare(file: &str, py: &Value, part: &haecceity::Part, rust: &Report) -> (Ve
             }
             check(field, json!(p), json!(q), close(p, q));
         }
+        // draftwright spells a diameter `ø`; the port's labels state `⌀` (ISO 129-1:2004 §7.2),
+        // as haecceity's shared notation does (#258): the same statement.
         check(
             "label",
             rec["label"].clone(),
             json!(r.label),
-            rec["label"] == r.label.as_str(),
+            rec["label"]
+                .as_str()
+                .is_some_and(|p| p.replace('ø', "⌀") == r.label),
         );
         check(
             "datum_refs",

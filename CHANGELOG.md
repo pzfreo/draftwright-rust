@@ -6,6 +6,31 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+Now on quiddity-rust **v0.2.7**.
+
+### Changed
+
+- For #258, pin quiddity-rust and haecceity v0.2.7. Imported PMI deviation pairs now print on
+  one line as `+u/l` (ISO 129-1:2004 §6.2), haecceity's shared notation, instead of `+u -l`
+  (`⌀62 +0.03/0`); authored Spec tolerances keep their `+U -L` form. The quality parts'
+  drawings are byte-identical. On PMI parts the slash, whose ink stands taller than the digits,
+  moves some callouts: nist_ftc_07 wraps a callout after its size, nist_stc_09's two-hole
+  position frame stands over its holes' `2×` callout, string_post_tapped's `⌀1.7` callout goes
+  below the front view on a leader across the part, and nist_ctc_01's `⌀35` callouts go to the
+  right of their leaders.
+
+- For #258, feature control frames, labels, surface texture symbols and material removal marks
+  come from haecceity's shared notation, measured with the sheet's IBM Plex widths, and the fit
+  table's classes, grades and largest size are haecceity's. Draftwright's copies are deleted
+  (the frame symbol table, characteristic strokes and frame layout, the surface texture layout,
+  `title_block::removal_marks` and the fit class lists). Placement, label lanes, leaders and
+  drawn-precision rounding stay Draftwright's. Drawings are byte-identical.
+
+- For #258, an imported dimension's label states a diameter as `⌀` and a spherical one as `S⌀`
+  (ISO 129-1:2004 §7.2), as haecceity does, where it wrote `ø` for both. Drawings are
+  byte-identical (the sheet already drew `⌀`); the PMI and plan JSON labels and the problem
+  messages quoting them change.
+
 ## 0.2.7 (2026-10-31)
 
 Still on quiddity-rust **v0.2.6**. Planning a drawing with PMI takes about a third fewer
