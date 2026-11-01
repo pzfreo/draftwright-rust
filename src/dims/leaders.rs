@@ -5797,51 +5797,54 @@ fn inventory(
     // side of the part. Try four shoulder-only extensions of the shortest
     // geometric route on each text side. At most eight candidates are added;
     // attachment, shaft, search-node budget and every normal ink gate stay fixed.
-    let shoulders: Vec<_> = [false, true]
-        .into_iter()
-        .filter_map(|right| {
-            measured
-                .iter()
-                .filter(|c| (c.end[0] >= c.elbow[0]) == right && c.hard == 0)
-                .min_by_key(|c| c.score())
-                .cloned()
-        })
-        .collect();
-    for mut old in shoulders {
-        measure_fixed(&mut old, job, fixed);
-        old.measure_features(job);
-        if old.clearance == 0 || old.crossings > 0 || old.text > 0 || old.feature_crossings > 0 {
-            continue;
-        }
-        for extra in [0.5, 1., 1.5, 2.] {
-            let end = [
-                old.end[0]
-                    + if old.end[0] >= old.elbow[0] {
-                        extra
-                    } else {
-                        -extra
-                    },
-                old.end[1],
-            ];
-            let Some(c) = measure_at(
-                job,
-                old.tip,
-                old.elbow,
-                end,
-                old.end[0] >= old.elbow[0],
-                fixed,
-                page,
-            ) else {
-                continue;
-            };
-            if c.hard <= old.hard
-                && c.crossings <= old.crossings
-                && c.text <= old.text
-                && c.feature_crossings <= old.feature_crossings
-                && c.beside <= old.beside
-                && c.clearance < old.clearance
+    if job.footprints.automatic_slot_layout() {
+        let shoulders: Vec<_> = [false, true]
+            .into_iter()
+            .filter_map(|right| {
+                measured
+                    .iter()
+                    .filter(|c| (c.end[0] >= c.elbow[0]) == right && c.hard == 0)
+                    .min_by_key(|c| c.score())
+                    .cloned()
+            })
+            .collect();
+        for mut old in shoulders {
+            measure_fixed(&mut old, job, fixed);
+            old.measure_features(job);
+            if old.clearance == 0 || old.crossings > 0 || old.text > 0 || old.feature_crossings > 0
             {
-                measured.push(c);
+                continue;
+            }
+            for extra in [0.5, 1., 1.5, 2.] {
+                let end = [
+                    old.end[0]
+                        + if old.end[0] >= old.elbow[0] {
+                            extra
+                        } else {
+                            -extra
+                        },
+                    old.end[1],
+                ];
+                let Some(c) = measure_at(
+                    job,
+                    old.tip,
+                    old.elbow,
+                    end,
+                    old.end[0] >= old.elbow[0],
+                    fixed,
+                    page,
+                ) else {
+                    continue;
+                };
+                if c.hard <= old.hard
+                    && c.crossings <= old.crossings
+                    && c.text <= old.text
+                    && c.feature_crossings <= old.feature_crossings
+                    && c.beside <= old.beside
+                    && c.clearance < old.clearance
+                {
+                    measured.push(c);
+                }
             }
         }
     }
@@ -6228,9 +6231,16 @@ fn measure_fixed(c: &mut Candidate, job: &Job, fixed: &Fixed) {
         lb[2] + LABEL_PAD,
         lb[3] + LABEL_PAD,
     ];
-    // Plain labels keep the finished audit's text gap too. This changes
-    // scoring within the existing candidate set, not the search budget.
-    let stroke_box = grow(lb, job.stroke_pad.max(super::contacts::TEXT_CLEAR));
+    // New automatic slot groups keep the finished audit's text gap while
+    // other drawings retain their existing text-routing policy.
+    let stroke_pad = job
+        .stroke_pad
+        .max(if job.footprints.automatic_slot_layout() {
+            super::contacts::TEXT_CLEAR
+        } else {
+            0.
+        });
+    let stroke_box = grow(lb, stroke_pad);
     let near = grow(bounds, job.stroke_pad.max(LABEL_PAD));
     // The items whose lines the leader crosses, and those whose ink and the label's text meet
     // (a line through either label, or the labels together): each pair one problem, as the
@@ -6335,7 +6345,7 @@ fn measure_fixed(c: &mut Candidate, job: &Job, fixed: &Fixed) {
         if segment_near(*e, near) {
             if crosses(*e, lb) {
                 text.push(*i);
-            } else if crosses(*e, stroke_box) {
+            } else if stroke_pad > 0. && crosses(*e, stroke_box) {
                 clearance.push(*i);
             }
         }

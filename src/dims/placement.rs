@@ -537,6 +537,16 @@ fn plate_strip(frame: &Frame, view: &str, shape: &Shape, horizontal: bool) -> Si
     }
 }
 
+/// Extra text clearance belongs to the new automatic slot-group layout;
+/// authored PMI and other nominal layouts keep their existing route policy.
+pub(super) fn automatic_slot_layout(analysis: &Analysis) -> bool {
+    crate::nominal::geometry_eligible(analysis)
+        && analysis
+            .features
+            .iter()
+            .any(|f| matches!(f.kind.as_str(), "slot" | "slot_pattern"))
+}
+
 /// The strip of a turned step length anchored on its own body's silhouette (both witnesses off
 /// the outline: [`super::turned`]'s chains on a part of several turned bodies, ARCH0020-2): the
 /// side of the view its witnesses leave the body on, so they never cross a sibling body.
@@ -665,10 +675,11 @@ pub(super) fn lanes<'a>(
 ) -> (Vec<Option<Side>>, Vec<usize>) {
     let items: Vec<_> = items.collect();
     let n = items.len();
-    let ordinary = !analysis
-        .features
-        .iter()
-        .any(|f| f.id.starts_with("f:section_recess:"));
+    let ordinary = automatic_slot_layout(analysis)
+        && !analysis
+            .features
+            .iter()
+            .any(|f| f.id.starts_with("f:section_recess:"));
     let slot_views: std::collections::BTreeSet<_> = items
         .iter()
         .filter(|(w, _)| {
@@ -2233,7 +2244,9 @@ pub(crate) fn nearest_shared_witnesses(
             continue;
         }
         let frame = Frame::new(analysis, v);
-        nearest_pattern_witnesses(analysis, &frame, &d.measurements, p);
+        if automatic_slot_layout(analysis) {
+            nearest_pattern_witnesses(analysis, &frame, &d.measurements, p);
+        }
         let line = p.arrows[0][0][normal];
         let sign = (p.lines[0][1][normal] - p.lines[0][0][normal]).signum();
         // A straight row's constant coordinate belongs to every member, unlike
@@ -2435,7 +2448,13 @@ pub(super) fn settle(
     views: &[PlannedView],
 ) {
     let page = Page::new(analysis, sheet, views);
-    settle_where(items, &page, |_| true, |i, j| j != i);
+    settle_where(
+        items,
+        &page,
+        automatic_slot_layout(analysis),
+        |_| true,
+        |i, j| j != i,
+    );
 }
 
 pub(super) fn settle_fixed(
@@ -2454,7 +2473,13 @@ pub(super) fn settle_fixed(
     let mut all = items.to_vec();
     all.extend(obstacles.iter().map(|d| d.placed.clone()));
     let page = Page::new(analysis, sheet, views);
-    settle_where(&mut all, &page, |i| i < n && !fixed[i], |i, j| i != j);
+    settle_where(
+        &mut all,
+        &page,
+        automatic_slot_layout(analysis),
+        |i| i < n && !fixed[i],
+        |i, j| i != j,
+    );
     items.clone_from_slice(&all[..n]);
 }
 
@@ -3307,9 +3332,17 @@ fn clear_linear_ordered(
                     {
                         return Vec::new();
                     }
-                    let Some(c) = place(&frames[view], &items[i], target, lane) else {
+                    let Some(mut c) = place(&frames[view], &items[i], target, lane) else {
                         return Vec::new();
                     };
+                    if feature_conflict {
+                        nearest_pattern_witnesses(
+                            analysis,
+                            &frames[view],
+                            &items[i].measurements,
+                            &mut c,
+                        );
+                    }
                     let c = LinearStroke::new(&c);
                     let mut strokes = vec![c];
                     if recess_context
@@ -3607,6 +3640,13 @@ fn clear_linear_ordered(
                     // already losing feature tier needs no model measurement.
                     if recess_context || feature_conflict {
                         let bound = (feature_crossings(stroke), 0);
+                        // Ordinary crossing retries must remove a foreign-feature
+                        // contact. Fewer dense model edges alone must not replan a
+                        // clear label while retaining the very same obstruction.
+                        if feature_conflict && !label_conflict && bound.0 >= before.0 {
+                            return Vec::new();
+                        }
+
                         if (bound > before && !(new_recess && label_conflict))
                             || (!label_conflict && bound >= before)
                             || best_rank
@@ -4317,6 +4357,7 @@ pub(super) fn place_merged(
     lanes: &[usize],
     placed: &mut [Option<Placed>],
     page: &Page,
+    slot_layout: bool,
 ) {
     for i in 0..items.len() {
         if owner[i].is_some() && matches!(items[i].shape, Shape::Linear { .. }) {
@@ -4332,6 +4373,7 @@ pub(super) fn place_merged(
     settle_where(
         placed,
         page,
+        slot_layout,
         |i| owner[i].is_some() && matches!(items[i].shape, Shape::Linear { .. }),
         |i, j| j != i && (alone[i] || (owner[j].is_none() && Some(j) != owner[i])),
     );
@@ -4341,9 +4383,17 @@ pub(super) fn place_merged(
 fn settle_where(
     items: &mut [Option<Placed>],
     page: &Page,
+    slot_layout: bool,
     moves: impl Fn(usize) -> bool,
     sees: impl Fn(usize, usize) -> bool,
 ) {
+    let text_box = |b| {
+        if slot_layout {
+            super::contacts::clear_box(b)
+        } else {
+            b
+        }
+    };
     for i in 0..items.len() {
         if !moves(i) {
             continue;
@@ -4363,13 +4413,9 @@ fn settle_where(
         let clear = |c: &Placed| {
             let own: Vec<&[P2; 2]> = c.lines.iter().filter(|l| !p.lines.contains(l)).collect();
             others().all(|q| {
-                !q.lines
-                    .iter()
-                    .any(|l| crosses(*l, super::contacts::clear_box(c.label_box)))
-                    && !boxes_overlap(c.label_box, super::contacts::clear_box(q.label_box))
-                    && !own
-                        .iter()
-                        .any(|l| crosses(**l, super::contacts::clear_box(q.label_box)))
+                !q.lines.iter().any(|l| crosses(*l, text_box(c.label_box)))
+                    && !boxes_overlap(c.label_box, text_box(q.label_box))
+                    && !own.iter().any(|l| crosses(**l, text_box(q.label_box)))
             })
         };
         if clear(p) {

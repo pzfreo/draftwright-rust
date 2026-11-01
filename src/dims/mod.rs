@@ -3497,7 +3497,8 @@ fn plan_inventory_ordered(
     // replay keeps them too: re-routing an unchanged callout there can take the
     // place another presentation needs (CTC-03's schedule origin mark).
     for (i, w) in all.iter().enumerate() {
-        if intended[i].is_none()
+        if placement::automatic_slot_layout(analysis)
+            && intended[i].is_none()
             && let (Some(view), Some(p)) = (chosen[i], placed[i].as_mut())
         {
             placement::nearest_pattern_witnesses(analysis, &frames[view], &w.measurements, p);
@@ -3596,7 +3597,10 @@ fn plan_inventory_ordered(
         .iter()
         .enumerate()
         .map(|(i, w)| {
-            if recess_context || !matches!(w.shape, Shape::Linear { .. }) {
+            if !placement::automatic_slot_layout(analysis)
+                || recess_context
+                || !matches!(w.shape, Shape::Linear { .. })
+            {
                 return None;
             }
             let (Some(name), Some(p)) = (chosen[i], placed[i].as_ref()) else {
@@ -3939,6 +3943,7 @@ fn plan_inventory_ordered(
         &lane,
         &mut placed,
         &page,
+        placement::automatic_slot_layout(analysis),
     );
     // Explicit tolerances can revive local band lengths conveyed by a baseline. Settle
     // their combined ink once more: the outer overall witness must not run through a

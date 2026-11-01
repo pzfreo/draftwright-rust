@@ -30,6 +30,7 @@ struct Footprint {
 }
 
 pub(super) struct Footprints {
+    slot_layout: bool,
     features: Vec<Footprint>,
     solids: Vec<[f64; 4]>,
     view: String,
@@ -609,6 +610,7 @@ impl Footprints {
             }
         }
         Self {
+            slot_layout: super::placement::automatic_slot_layout(analysis),
             features,
             solids,
             view: format!("v:{view}"),
@@ -619,6 +621,10 @@ impl Footprints {
             extension_counts: RefCell::default(),
             extension_count_values: RefCell::default(),
         }
+    }
+
+    pub(super) fn automatic_slot_layout(&self) -> bool {
+        self.slot_layout
     }
 
     pub(super) fn crossed(&self, shaft: [P2; 2], _owners: &[Measurement]) -> BTreeSet<String> {
@@ -920,6 +926,7 @@ mod tests {
             shape: Shape::Circle(c, 1.0),
         };
         let f = Footprints {
+            slot_layout: false,
             view: "v:plan".into(),
             solids: vec![],
             members: BTreeMap::new(),
@@ -965,6 +972,7 @@ mod tests {
     #[test]
     fn a_pattern_exempts_its_attached_member_but_not_a_later_member_crossing() {
         let f = Footprints {
+            slot_layout: false,
             view: "v:plan".into(),
             solids: vec![],
             counts: RefCell::default(),
@@ -1168,6 +1176,7 @@ mod tests {
     #[test]
     fn ownership_count_cache_matches_uncached_crossings_and_deduplicates_features() {
         let f = Footprints {
+            slot_layout: false,
             features: vec![
                 Footprint {
                     id: "f:hole".into(),
@@ -1256,6 +1265,7 @@ mod tests {
             [0.0, 4.0],
         ];
         let f = Footprints {
+            slot_layout: false,
             features: vec![Footprint {
                 id: "f:cavity".into(),
                 shape: Shape::polygon(
@@ -1326,6 +1336,7 @@ mod tests {
     #[test]
     fn interior_witness_leaves_its_own_rim_without_skipping_an_unrelated_feature() {
         let f = Footprints {
+            slot_layout: false,
             view: "v:plan".into(),
             solids: vec![],
             members: BTreeMap::new(),
@@ -1366,6 +1377,7 @@ mod tests {
     #[test]
     fn an_owned_box_boundary_is_trimmed_without_jumping_a_foreign_opening() {
         let footprints = |foreign_y| Footprints {
+            slot_layout: false,
             view: "v:plan".into(),
             solids: vec![],
             members: BTreeMap::new(),
