@@ -1162,7 +1162,19 @@ fn retained_leader_crossings_have_no_clear_route(path: &Path) {
         .flat_map(|p| p.subjects.iter().map(String::as_str))
         .filter(|s| callouts.contains(s))
         .collect();
-    // The part keeps crossings (its strips are full), so the check is not vacuous.
+    // The local slot-group layout now clears cgb245's formerly retained
+    // crossings. Preserve that positive result and the actual radius callout.
+    if path.ends_with("cgb245.step") {
+        assert!(retained.is_empty(), "{retained:?}");
+        assert!(
+            plan.dimensions
+                .iter()
+                .any(|d| d.id == "d:f:slot:1/slot_end_radius.radius" && d.placed.is_some())
+        );
+        return;
+    }
+    // CTC-04 still keeps crossings (its strips are full), so the exhaustive
+    // clear-route audit below remains nonvacuous.
     assert!(
         !retained.is_empty(),
         "{} no longer keeps a crossing leader",
