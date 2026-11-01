@@ -35,7 +35,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use super::turned::Turned;
 use super::{Context, Measurement, P3, Problem, Shape, Want, end_on, fmt, tolerance, want_id};
-use crate::model::Spec;
+use crate::model::{Analysis, Spec};
 use crate::pmi::{Category, Identities, Reading, Record};
 use crate::pmi_lowering::Cylinder;
 
@@ -131,6 +131,46 @@ pub(super) fn feature(ids: &Identities, source: &str) -> String {
         // Invariant: The PMI reader assigns a semantic or presentation identity to every record.
         (None, None) => unreachable!("every record of the reading has an identity"),
     }
+}
+
+/// Plane spans touching a required profile corner may leave the nearer side of
+/// their proven faces, freeing the corner for its angle. Their datum is unchanged.
+pub(super) fn local_plane_spans(a: &Analysis, corners: &[P3]) -> BTreeSet<String> {
+    if corners.is_empty() {
+        return BTreeSet::new();
+    }
+    let Some(Reading::Read(report)) = &a.pmi else {
+        return BTreeSet::new();
+    };
+    let ids = report.identities();
+    report
+        .records
+        .iter()
+        .filter(|r| {
+            r.category == Category::Dimension
+                && matches!(r.kind.as_str(), "linear" | "thickness")
+                && r.face_groups.len() == 2
+                && r.face_groups.iter().all(|fs| {
+                    !fs.is_empty()
+                        && fs.iter().all(|&f| {
+                            a.face_attachments
+                                .get(f)
+                                .is_some_and(|f| f.surface.as_deref() == Some("plane"))
+                        })
+                })
+                && r.geometry
+                    .as_ref()
+                    .is_some_and(|g| g.axis.is_some() && g.reasons.is_empty())
+                && r.face_groups.iter().flatten().any(|&f| {
+                    a.face_attachments[f].bounds.is_some_and(|bounds| {
+                        corners.iter().any(|p| {
+                            (0..3).all(|k| p[k] >= bounds[k] - 1e-6 && p[k] <= bounds[k + 3] + 1e-6)
+                        })
+                    })
+                })
+        })
+        .map(|r| feature(&ids, &r.source_id))
+        .collect()
 }
 
 /// Whether a planned item is a basic PMI dimension: its label is then boxed.
@@ -240,7 +280,7 @@ pub(super) fn symbolic_bore(r: &Record) -> bool {
                 && !g.cylinders.is_empty()
                 && g.cylinders
                     .iter()
-                    .all(|c| c.internal != shaft && c.principal().is_some())
+                    .all(|c| c.internal != shaft && (!shaft || c.principal().is_some()))
         })
 }
 
@@ -358,6 +398,50 @@ fn hole_callout(
             .map(|(m, _)| m)
             .collect();
         if !members.is_empty() {
+            found.push((i, members));
+        }
+    }
+    (found.len() == 1).then(|| found.remove(0))
+}
+
+/// Inclined bores already have a callout to their elliptical rim. Match one by
+/// its native faces, full axis line and diameter, rather than treating its
+/// approximate end-on view as evidence of a principal cylinder direction.
+fn inclined_hole_callout(
+    a: &Analysis,
+    wants: &[Want],
+    r: &Record,
+    cylinders: &[Cylinder],
+    value: f64,
+) -> Option<(usize, BTreeSet<usize>)> {
+    let frame = crate::bridge::holes::frame(a);
+    let mut found = Vec::new();
+    for (i, w) in wants.iter().enumerate() {
+        let mut members = BTreeSet::new();
+        let mut faces: BTreeSet<usize> = BTreeSet::new();
+        for (m, (id, _, diameter)) in holes_of(w).iter().enumerate() {
+            let Some(f) = a.features.iter().find(|f| f.id == *id && f.kind == "hole") else {
+                continue;
+            };
+            if !f.faces.iter().any(|f| r.faces.contains(f)) || (diameter - value).abs() > 1e-4 {
+                continue;
+            }
+            let Ok(hole) = crate::bridge::holes::Hole::read(f, &frame) else {
+                continue;
+            };
+            let matches = cylinders.iter().any(|c| {
+                let dot: f64 = (0..3).map(|k| hole.direction[k] * c.direction[k]).sum();
+                let delta = [0, 1, 2].map(|k| hole.at[k] - c.origin[k]);
+                let along: f64 = (0..3).map(|k| delta[k] * c.direction[k]).sum();
+                (dot.abs() - 1.).abs() < 1e-9
+                    && (0..3).all(|k| (delta[k] - along * c.direction[k]).abs() < 0.01)
+            });
+            if matches {
+                members.insert(m);
+                faces.extend(&f.faces);
+            }
+        }
+        if !members.is_empty() && !r.faces.is_empty() && r.faces.iter().all(|f| faces.contains(f)) {
             found.push((i, members));
         }
     }
@@ -641,7 +725,7 @@ pub(super) fn lower(cx: &Context, wants: &mut [Want]) -> Lowered {
         .iter()
         .map(|r| {
             match (
-                outcome(&ids, r, wants, cx.turned.as_ref()),
+                outcome(cx.analysis, &ids, r, wants, cx.turned.as_ref()),
                 ids.id(&r.source_id),
             ) {
                 (o @ Outcome::Refused(_), _) | (o, Ok(_)) => o,
@@ -655,6 +739,10 @@ pub(super) fn lower(cx: &Context, wants: &mut [Want]) -> Lowered {
         for (j, r) in records.iter().enumerate() {
             if let Outcome::Standalone(own) = &outcomes[j]
                 && crate::pmi::specify_general(report, r)
+                && !crate::pmi::datum_referenced(r)
+                // Preserve the composite's explicit patch witnesses (cx/pmi-groups).
+                && !(r.face_groups.iter().any(|group| group.len() > 1)
+                    && r.geometry.as_ref().is_some_and(|g| !g.sites.is_empty()))
             {
                 outcomes[j] = match conveyed(cx.analysis, wants, r, own) {
                     Some((i, how)) => Outcome::Conveyed(i, how),
@@ -973,7 +1061,13 @@ fn refusal(r: &Record, code: &str, why: &str) -> Problem {
 
 /// One record's outcome against the planners' items (and the part's turning, when it is turned
 /// whole).
-fn outcome(ids: &Identities, r: &Record, wants: &[Want], turned: Option<&Turned>) -> Outcome {
+fn outcome(
+    a: &Analysis,
+    ids: &Identities,
+    r: &Record,
+    wants: &[Want],
+    turned: Option<&Turned>,
+) -> Outcome {
     let symbolic = symbolic_bore(r);
     if !r.blockers.is_empty() {
         return Outcome::Refused(not_lowered(r.blockers.join("; ")));
@@ -1068,22 +1162,26 @@ fn outcome(ids: &Identities, r: &Record, wants: &[Want], turned: Option<&Turned>
             Outcome::Standalone(linear(ids, r, g, k, value))
         }
         "diameter" => {
+            let internal = g.cylinders.iter().all(|c| c.internal);
+            let owner = if internal {
+                match k {
+                    Some(k) => hole_callout(wants, &g.cylinders, k, value),
+                    None => inclined_hole_callout(a, wants, r, &g.cylinders, value),
+                }
+            } else {
+                None
+            };
+            if !r.basic
+                && let Some((i, members)) = owner
+                && (band.is_some() || canonical(r, value))
+            {
+                return Outcome::Hole(i, members, band);
+            }
             let Some(k) = k else {
                 return Outcome::Refused(not_ported(
-                    "its cylinder's axis is not along x, y or z; the port draws a diameter where its cylinder is seen end-on",
+                    "its cylinder's axis is not along x, y or z and no recognised bore callout proves its faces and full axis",
                 ));
             };
-            let internal = g.cylinders.iter().all(|c| c.internal);
-            if !r.basic
-                && internal
-                && let Some((i, members)) = hole_callout(wants, &g.cylinders, k, value)
-            {
-                // A plain diameter is stated by the callout only in words the callout can
-                // head (draftwright's `_nominal_label_for_owner`).
-                if band.is_some() || canonical(r, value) {
-                    return Outcome::Hole(i, members, band);
-                }
-            }
             if symbolic && internal {
                 return Outcome::Refused(not_lowered(
                     "a symbolic fit requires a uniquely matched recognised bore callout",
@@ -1242,7 +1340,9 @@ fn linear(ids: &Identities, r: &Record, g: &crate::pmi::Geometry, k: usize, valu
     let (mut a, mut e) = (at, at);
     a[k] = lo;
     e[k] = hi;
-    if !g.targets.is_empty() {
+    // Explicit face sites can carry proven witnesses away from the
+    // composite's box midpoint. Preserve them through projection into the drawing.
+    if !g.targets.is_empty() || !g.sites.is_empty() {
         a = s[0];
         e = s[1];
     }

@@ -1565,13 +1565,24 @@ fn linear_geometry(part: &Part, r: &Record, value: f64, g: &mut Geometry) {
     };
     match proof {
         Planar::Not => {
-            if r.kind == "linear"
+            if faces_only && let Some(points) = oblique_plane_witness(part, groups) {
+                stations = points;
+                g.sites = points.to_vec();
+            } else if r.kind == "linear"
                 && faces_only
                 && let Some(bore) = plane_to_bore(part, groups, boxes)
             {
                 stations = bore.0;
                 plane_axis = Some(bore.1);
                 g.view = Some(bore.2.into());
+            } else if r.kind == "linear"
+                && faces_only
+                && let Some(witness) = projected_plane_to_bore(part, groups, boxes)
+            {
+                stations = witness.stations;
+                plane_axis = witness.axis;
+                g.view = Some(witness.view.into());
+                g.sites = stations.to_vec();
             } else if r.kind == "linear" && faces_only && mixed(part, groups) {
                 g.reasons.extend(
                     stations_proof(stations, value, None)
@@ -1600,6 +1611,12 @@ fn linear_geometry(part: &Part, r: &Record, value: f64, g: &mut Geometry) {
                     s[i] = c;
                 }
             }
+        }
+        Planar::Projected(k, view, witness) => {
+            plane_axis = Some(k);
+            g.view = Some(view.into());
+            stations = witness;
+            g.sites = witness.to_vec();
         }
     }
     let (points, axis, reasons) = stations_proof(stations, value, plane_axis);
@@ -1759,11 +1776,14 @@ enum Planar {
     /// Not every face is a principal plane, thin along its normal, one station per group, one
     /// normal for both.
     Not,
-    /// Parallel planes along x with no witness both share.
+    /// Parallel planes with no proven witness in a principal view.
     Unwitnessed,
     /// Parallel planes: their normal, when a view's witness proves it; the one view that does,
     /// when only one does; the witness coordinates the stations take.
     Axis(Option<usize>, Option<&'static str>, Vec<(usize, f64)>),
+    /// Points on the trimmed patches sharing a transverse coordinate in this view.
+    /// Their hidden coordinates may differ; the measured span is the planes' separation.
+    Projected(usize, &'static str, [[f64; 3]; 2]),
 }
 
 fn planar(part: &Part, groups: &[Vec<usize>], boxes: &[Vec<[f64; 6]>]) -> Planar {
@@ -1809,16 +1829,77 @@ fn planar(part: &Part, groups: &[Vec<usize>], boxes: &[Vec<[f64; 6]>]) -> Planar
         0 if midpoint(2) => Planar::Axis(Some(0), None, Vec::new()),
         0 => match common_x_witness(part, groups, boxes) {
             Some((y, z)) => Planar::Axis(Some(0), Some("plan"), vec![(1, y), (2, z)]),
-            None => Planar::Unwitnessed,
+            None => projected_planar_witness(part, groups, boxes, k),
         },
-        2 => Planar::Axis(midpoint(0).then_some(2), None, Vec::new()),
+        2 if midpoint(0) => Planar::Axis(Some(2), None, Vec::new()),
+        2 => projected_planar_witness(part, groups, boxes, k),
         _ => match (midpoint(2), midpoint(0)) {
             (true, true) => Planar::Axis(Some(1), None, Vec::new()),
             (true, false) => Planar::Axis(Some(1), Some("side"), Vec::new()),
             (false, true) => Planar::Axis(Some(1), Some("plan"), Vec::new()),
-            (false, false) => Planar::Axis(None, None, Vec::new()),
+            (false, false) => projected_planar_witness(part, groups, boxes, k),
         },
     }
+}
+
+/// A composite's bounding-box midpoint can lie between its patches. Search face pairs in
+/// each edge-on view instead: both attachment points must lie on a trimmed face and share
+/// the displayed transverse coordinate. A common 3D normal ray is unnecessary when the
+/// faces overlap in projection (for example, a split datum beside a recessed end face).
+/// This search never uses the nominal; `stations_proof` still checks the plane separation.
+fn projected_planar_witness(
+    part: &Part,
+    groups: &[Vec<usize>],
+    boxes: &[Vec<[f64; 6]>],
+    k: usize,
+) -> Planar {
+    let views = match k {
+        0 => [("front", 2, 1), ("plan", 1, 2)],
+        1 => [("side", 2, 0), ("plan", 0, 2)],
+        _ => [("front", 0, 1), ("side", 1, 0)],
+    };
+    let fractions = [0.5, 0.1, 0.2, 0.3, 0.4, 0.6, 0.7, 0.8, 0.9];
+    for (view, across, hidden) in views {
+        let mut candidates = Vec::new();
+        for (&a, ba) in groups[0].iter().zip(&boxes[0]) {
+            for (&b, bb) in groups[1].iter().zip(&boxes[1]) {
+                let lo = ba[across].max(bb[across]);
+                let hi = ba[across + 3].min(bb[across + 3]);
+                if hi >= lo {
+                    candidates.push((lo, hi, a, b, ba, bb));
+                }
+            }
+        }
+        // Use a patch near the normal dimension strip, rather than the first face's
+        // ordinal: vertical front/side dimensions run on the right, horizontal plan
+        // dimensions above, and the others below or left (dims::placement::strip).
+        // This keeps extensions short and leaves paper for hole marks and frames.
+        let high = k == 2 || (k == 0 && view == "plan");
+        candidates.sort_by(|a, b| {
+            let order = (a.0 + a.1).total_cmp(&(b.0 + b.1));
+            (if high { order.reverse() } else { order })
+                .then(a.2.cmp(&b.2))
+                .then(a.3.cmp(&b.3))
+        });
+        for (lo, hi, a, b, ba, bb) in candidates {
+            for fraction in fractions {
+                let transverse = lo + fraction * (hi - lo);
+                let point = |face, bounds: &[f64; 6]| {
+                    fractions.iter().find_map(|t| {
+                        let mut p = [0.0; 3];
+                        p[k] = 0.5 * (bounds[k] + bounds[k + 3]);
+                        p[across] = transverse;
+                        p[hidden] = bounds[hidden] + t * (bounds[hidden + 3] - bounds[hidden]);
+                        on_face(part, face, p).then_some(p)
+                    })
+                };
+                if let (Some(p), Some(q)) = (point(a, ba), point(b, bb)) {
+                    return Planar::Projected(k, view, [p, q]);
+                }
+            }
+        }
+    }
+    Planar::Unwitnessed
 }
 
 /// A point inside both trimmed x faces (draftwright's `_common_x_face_witness`): the largest
@@ -1867,18 +1948,173 @@ fn common_x_witness(
 
 /// Whether the two groups are one plane and one cylinder (draftwright's `_is_mixed_planar_bore`).
 fn mixed(part: &Part, groups: &[Vec<usize>]) -> bool {
-    if groups.iter().any(|g| g.len() != 1) {
-        return false;
-    }
-    let kinds: Vec<u8> = groups
-        .iter()
-        .map(|g| match part.faces[g[0]].surface {
-            Surface::Plane { .. } => 1,
-            Surface::Cylinder { .. } => 2,
-            _ => 0,
-        })
-        .collect();
+    let kind = |group: &[usize]| {
+        if !group.is_empty()
+            && group
+                .iter()
+                .all(|&f| matches!(part.faces[f].surface, Surface::Plane { .. }))
+        {
+            1
+        } else if !group.is_empty()
+            && group
+                .iter()
+                .all(|&f| matches!(part.faces[f].surface, Surface::Cylinder { .. }))
+        {
+            2
+        } else {
+            0
+        }
+    };
+    let kinds: Vec<_> = groups.iter().map(|g| kind(g)).collect();
     kinds == [1, 2] || kinds == [2, 1]
+}
+
+/// Parallel tilted planes measure along their common normal, never between box centres.
+/// Require an actual normal ray joining two trimmed patches, independent of the nominal.
+fn oblique_plane_witness(part: &Part, groups: &[Vec<usize>]) -> Option<[[f64; 3]; 2]> {
+    let Surface::Plane { frame } = &part.faces[*groups.first()?.first()?].surface else {
+        return None;
+    };
+    let n = frame.z;
+    if exact_axis(n).is_some() || projection_view(n).is_none() {
+        return None;
+    }
+    let mut levels = Vec::new();
+    for group in groups {
+        let mut level = None;
+        for &f in group {
+            let Surface::Plane { frame } = &part.faces[f].surface else {
+                return None;
+            };
+            let dot: f64 = (0..3).map(|i| n[i] * frame.z[i]).sum();
+            if (dot.abs() - 1.).abs() > 1e-9 {
+                return None;
+            }
+            let at: f64 = (0..3).map(|i| n[i] * frame.origin[i]).sum();
+            if level.is_some_and(|v: f64| (v - at).abs() > 1e-6) {
+                return None;
+            }
+            level = Some(at);
+        }
+        levels.push(level?);
+    }
+    for &f in &groups[0] {
+        let (u0, u1, v0, v1) = part.uv_bounds(f)?;
+        for t in [0.5, 0.1, 0.3, 0.7, 0.9] {
+            for v in [0.5, 0.1, 0.3, 0.7, 0.9] {
+                let p = part.faces[f]
+                    .surface
+                    .value(u0 + t * (u1 - u0), v0 + v * (v1 - v0));
+                let q = [0, 1, 2].map(|i| p[i] + n[i] * (levels[1] - levels[0]));
+                if on_face(part, f, p) && groups[1].iter().any(|&g| on_face(part, g, q)) {
+                    return Some([p, q]);
+                }
+            }
+        }
+    }
+    None
+}
+
+/// A bore's axis is a line, not its bounding-box centre. First try a real normal
+/// ray onto the datum patch. If the patches miss in depth, prove independent face
+/// witnesses sharing their transverse coordinate in a principal projection.
+struct LinearWitness {
+    stations: [[f64; 3]; 2],
+    axis: Option<usize>,
+    view: &'static str,
+}
+
+fn projected_plane_to_bore(
+    part: &Part,
+    groups: &[Vec<usize>],
+    boxes: &[Vec<[f64; 6]>],
+) -> Option<LinearWitness> {
+    if !mixed(part, groups) {
+        return None;
+    }
+    let pi = usize::from(!matches!(
+        part.faces[groups[0][0]].surface,
+        Surface::Plane { .. }
+    ));
+    let bi = 1 - pi;
+    let Surface::Plane { frame: plane } = &part.faces[groups[pi][0]].surface else {
+        return None;
+    };
+    let n = plane.z;
+    let level: f64 = (0..3).map(|i| n[i] * plane.origin[i]).sum();
+    for &f in &groups[pi] {
+        let Surface::Plane { frame } = &part.faces[f].surface else {
+            return None;
+        };
+        if ((0..3).map(|i| frame.z[i] * n[i]).sum::<f64>().abs() - 1.).abs() > 1e-9
+            || ((0..3).map(|i| frame.origin[i] * n[i]).sum::<f64>() - level).abs() > 1e-6
+        {
+            return None;
+        }
+    }
+    let cylinders = groups[bi]
+        .iter()
+        .map(|&f| cylinder(part, f))
+        .collect::<Result<Vec<_>, _>>()
+        .ok()?;
+    let first = cylinders.first()?;
+    if (0..3).map(|i| n[i] * first.direction[i]).sum::<f64>().abs() > 1e-9 {
+        return None;
+    }
+    if cylinders.iter().any(|c| {
+        (0..3).any(|i| {
+            (c.origin[i] - first.origin[i]).abs() > 1e-6
+                || (c.direction[i] - first.direction[i]).abs() > 1e-9
+        })
+    }) {
+        return None;
+    }
+    let pair = |p, q| if pi == 0 { [p, q] } else { [q, p] };
+    let k = exact_axis(n);
+    let view = match k {
+        Some(k) => first
+            .principal()
+            .filter(|&axis| axis != k)
+            .map(|axis| ["side", "front", "plan"][axis])
+            .unwrap_or(if k == 1 { "side" } else { "front" }),
+        None => projection_view(n)?,
+    };
+    for c in &cylinders {
+        for t in [0.5, 0.1, 0.3, 0.7, 0.9] {
+            let along = c.interval[0] + t * (c.interval[1] - c.interval[0]);
+            let q = [0, 1, 2].map(|i| c.origin[i] + along * c.direction[i]);
+            let offset = level - (0..3).map(|i| q[i] * n[i]).sum::<f64>();
+            let p = [0, 1, 2].map(|i| q[i] + offset * n[i]);
+            if groups[pi].iter().any(|&f| on_face(part, f, p)) {
+                return Some(LinearWitness {
+                    stations: pair(p, q),
+                    axis: k,
+                    view,
+                });
+            }
+            if let Some(k) = k {
+                for (view, hidden) in [("front", 1), ("side", 0), ("plan", 2)] {
+                    if hidden == k {
+                        continue;
+                    }
+                    for (&f, bounds) in groups[pi].iter().zip(&boxes[pi]) {
+                        for t in [0.5, 0.1, 0.3, 0.7, 0.9] {
+                            let mut p = p;
+                            p[hidden] = bounds[hidden] + t * (bounds[hidden + 3] - bounds[hidden]);
+                            if on_face(part, f, p) {
+                                return Some(LinearWitness {
+                                    stations: pair(p, q),
+                                    axis: Some(k),
+                                    view,
+                                });
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    None
 }
 
 /// A location from a principal plane to a principal bore's axis across it (draftwright's
@@ -1893,7 +2129,7 @@ fn plane_to_bore(
     groups: &[Vec<usize>],
     boxes: &[Vec<[f64; 6]>],
 ) -> Option<([[f64; 3]; 2], usize, &'static str)> {
-    if !mixed(part, groups) {
+    if !mixed(part, groups) || groups.iter().any(|g| g.len() != 1) {
         return None;
     }
     let plane_i = usize::from(!matches!(

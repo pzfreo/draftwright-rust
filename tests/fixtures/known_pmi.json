@@ -4670,5 +4670,1205 @@
     "rust": "ø7.1374 ±0.2032",
     "verdict": "rust-correct",
     "evidence": "draftwright states 'ø0.281 ±0.008 INCH'; the port states 'ø7.1374 ±0.2032'. The port's sheet is in mm: inch-authored PMI prints its exact conversion at its authored precision, never in inches or with the writer's float noise, and a zero deviation is written 0 (ISO 129-1) (#214)."
+  },
+  {
+    "field": "fields",
+    "file": "assembly_plate_pin.step.gz",
+    "port": "dimension:#1299",
+    "python": [],
+    "record": "dimension:0:1:4:1",
+    "rust": [
+      [
+        "reference datum",
+        "B"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "assembly_plate_pin.step.gz",
+    "port": "dimension:#1307",
+    "python": [],
+    "record": "dimension:0:1:4:2",
+    "rust": [
+      [
+        "reference datum",
+        "C"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "assembly_plate_pin.step.gz",
+    "port": "dimension:#1342",
+    "python": [],
+    "record": "dimension:0:1:4:4",
+    "rust": [
+      [
+        "reference datum",
+        "B"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "assembly_plate_pin.step.gz",
+    "port": "dimension:#1350",
+    "python": [],
+    "record": "dimension:0:1:4:5",
+    "rust": [
+      [
+        "reference datum",
+        "C"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "assembly_plate_pin.step.gz",
+    "port": "dimension:#1358",
+    "python": [],
+    "record": "dimension:0:1:4:6",
+    "rust": [
+      [
+        "reference datum",
+        "B"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "assembly_plate_pin.step.gz",
+    "port": "dimension:#1366",
+    "python": [],
+    "record": "dimension:0:1:4:7",
+    "rust": [
+      [
+        "reference datum",
+        "C"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "assembly_plate_pin.step.gz",
+    "port": "dimension:#1374",
+    "python": [],
+    "record": "dimension:0:1:4:8",
+    "rust": [
+      [
+        "reference datum",
+        "B"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "assembly_plate_pin.step.gz",
+    "port": "dimension:#1382",
+    "python": [],
+    "record": "dimension:0:1:4:9",
+    "rust": [
+      [
+        "reference datum",
+        "C"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "assembly_plate_pin.step.gz",
+    "port": "dimension:#1390",
+    "python": [],
+    "record": "dimension:0:1:4:10",
+    "rust": [
+      [
+        "reference datum",
+        "B"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "assembly_plate_pin.step.gz",
+    "port": "dimension:#1398",
+    "python": [],
+    "record": "dimension:0:1:4:11",
+    "rust": [
+      [
+        "reference datum",
+        "C"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "assembly_plate_pin.step.gz",
+    "port": "dimension:#1406",
+    "python": [],
+    "record": "dimension:0:1:4:12",
+    "rust": [
+      [
+        "reference datum",
+        "B"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "assembly_plate_pin.step.gz",
+    "port": "dimension:#1414",
+    "python": [],
+    "record": "dimension:0:1:4:13",
+    "rust": [
+      [
+        "reference datum",
+        "C"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "assembly_plate_pin.step.gz",
+    "port": "dimension:#1422",
+    "python": [],
+    "record": "dimension:0:1:4:14",
+    "rust": [
+      [
+        "reference datum",
+        "B"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "assembly_plate_pin.step.gz",
+    "port": "dimension:#1430",
+    "python": [],
+    "record": "dimension:0:1:4:15",
+    "rust": [
+      [
+        "reference datum",
+        "C"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "bracket_positions.step.gz",
+    "port": "dimension:#31335",
+    "python": [],
+    "record": "dimension:0:1:4:2",
+    "rust": [
+      [
+        "reference datum",
+        "A"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "bracket_positions.step.gz",
+    "port": "dimension:#31343",
+    "python": [],
+    "record": "dimension:0:1:4:3",
+    "rust": [
+      [
+        "reference datum",
+        "C"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "bracket_positions.step.gz",
+    "port": "dimension:#31351",
+    "python": [],
+    "record": "dimension:0:1:4:4",
+    "rust": [
+      [
+        "reference datum",
+        "A"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "bracket_positions.step.gz",
+    "port": "dimension:#31359",
+    "python": [],
+    "record": "dimension:0:1:4:5",
+    "rust": [
+      [
+        "reference datum",
+        "C"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "bracket_positions.step.gz",
+    "port": "dimension:#31367",
+    "python": [],
+    "record": "dimension:0:1:4:6",
+    "rust": [
+      [
+        "reference datum",
+        "A"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "bracket_positions.step.gz",
+    "port": "dimension:#31375",
+    "python": [],
+    "record": "dimension:0:1:4:7",
+    "rust": [
+      [
+        "reference datum",
+        "C"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "bracket_positions.step.gz",
+    "port": "dimension:#31401",
+    "python": [],
+    "record": "dimension:0:1:4:9",
+    "rust": [
+      [
+        "reference datum",
+        "A"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "bracket_positions.step.gz",
+    "port": "dimension:#31409",
+    "python": [],
+    "record": "dimension:0:1:4:10",
+    "rust": [
+      [
+        "reference datum",
+        "C"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "bracket_positions.step.gz",
+    "port": "dimension:#31417",
+    "python": [],
+    "record": "dimension:0:1:4:11",
+    "rust": [
+      [
+        "reference datum",
+        "A"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "bracket_positions.step.gz",
+    "port": "dimension:#31425",
+    "python": [],
+    "record": "dimension:0:1:4:12",
+    "rust": [
+      [
+        "reference datum",
+        "C"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "bracket_positions.step.gz",
+    "port": "dimension:#31433",
+    "python": [],
+    "record": "dimension:0:1:4:13",
+    "rust": [
+      [
+        "reference datum",
+        "A"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "bracket_positions.step.gz",
+    "port": "dimension:#31441",
+    "python": [],
+    "record": "dimension:0:1:4:14",
+    "rust": [
+      [
+        "reference datum",
+        "C"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "hw_assembly_plate_pin_intent.step.gz",
+    "port": "dimension:#1350",
+    "python": [],
+    "record": "dimension:0:1:4:1",
+    "rust": [
+      [
+        "reference datum",
+        "B"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "hw_assembly_plate_pin_intent.step.gz",
+    "port": "dimension:#1355",
+    "python": [],
+    "record": "dimension:0:1:4:2",
+    "rust": [
+      [
+        "reference datum",
+        "C"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "hw_assembly_plate_pin_intent.step.gz",
+    "port": "dimension:#1366",
+    "python": [],
+    "record": "dimension:0:1:4:4",
+    "rust": [
+      [
+        "reference datum",
+        "B"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "hw_assembly_plate_pin_intent.step.gz",
+    "port": "dimension:#1371",
+    "python": [],
+    "record": "dimension:0:1:4:5",
+    "rust": [
+      [
+        "reference datum",
+        "C"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "hw_assembly_plate_pin_intent.step.gz",
+    "port": "dimension:#1376",
+    "python": [],
+    "record": "dimension:0:1:4:6",
+    "rust": [
+      [
+        "reference datum",
+        "B"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "hw_assembly_plate_pin_intent.step.gz",
+    "port": "dimension:#1381",
+    "python": [],
+    "record": "dimension:0:1:4:7",
+    "rust": [
+      [
+        "reference datum",
+        "C"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "hw_assembly_plate_pin_intent.step.gz",
+    "port": "dimension:#1386",
+    "python": [],
+    "record": "dimension:0:1:4:8",
+    "rust": [
+      [
+        "reference datum",
+        "B"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "hw_assembly_plate_pin_intent.step.gz",
+    "port": "dimension:#1391",
+    "python": [],
+    "record": "dimension:0:1:4:9",
+    "rust": [
+      [
+        "reference datum",
+        "C"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "hw_assembly_plate_pin_intent.step.gz",
+    "port": "dimension:#1396",
+    "python": [],
+    "record": "dimension:0:1:4:10",
+    "rust": [
+      [
+        "reference datum",
+        "B"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "hw_assembly_plate_pin_intent.step.gz",
+    "port": "dimension:#1401",
+    "python": [],
+    "record": "dimension:0:1:4:11",
+    "rust": [
+      [
+        "reference datum",
+        "C"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "hw_assembly_plate_pin_intent.step.gz",
+    "port": "dimension:#1406",
+    "python": [],
+    "record": "dimension:0:1:4:12",
+    "rust": [
+      [
+        "reference datum",
+        "B"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "hw_assembly_plate_pin_intent.step.gz",
+    "port": "dimension:#1411",
+    "python": [],
+    "record": "dimension:0:1:4:13",
+    "rust": [
+      [
+        "reference datum",
+        "C"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "hw_assembly_plate_pin_intent.step.gz",
+    "port": "dimension:#1416",
+    "python": [],
+    "record": "dimension:0:1:4:14",
+    "rust": [
+      [
+        "reference datum",
+        "B"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "hw_assembly_plate_pin_intent.step.gz",
+    "port": "dimension:#1421",
+    "python": [],
+    "record": "dimension:0:1:4:15",
+    "rust": [
+      [
+        "reference datum",
+        "C"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "hw_every_kind.step.gz",
+    "port": "dimension:#6629",
+    "python": [],
+    "record": "dimension:0:1:4:5",
+    "rust": [
+      [
+        "reference datum",
+        "A"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "hw_spool_fits_intent.step.gz",
+    "port": "dimension:#6386",
+    "python": [],
+    "record": "dimension:0:1:4:1",
+    "rust": [
+      [
+        "reference datum",
+        "B"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "hw_string_post_tapped_intent.step.gz",
+    "port": "dimension:#3111",
+    "python": [],
+    "record": "dimension:0:1:4:1",
+    "rust": [
+      [
+        "reference datum",
+        "A"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "hw_string_post_tapped_intent.step.gz",
+    "port": "dimension:#3122",
+    "python": [],
+    "record": "dimension:0:1:4:3",
+    "rust": [
+      [
+        "reference datum",
+        "A"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "nist_ctc_01_asme1_ap242-e1.stp.gz",
+    "port": "dimension:#120",
+    "python": [],
+    "record": "dimension:0:1:4:21",
+    "rust": [
+      [
+        "reference datum",
+        "B"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "nist_ctc_01_asme1_ap242-e1.stp.gz",
+    "port": "dimension:#121",
+    "python": [],
+    "record": "dimension:0:1:4:22",
+    "rust": [
+      [
+        "reference datum",
+        "C"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "nist_ctc_01_asme1_ap242-e1.stp.gz",
+    "port": "dimension:#126",
+    "python": [],
+    "record": "dimension:0:1:4:27",
+    "rust": [
+      [
+        "reference datum",
+        "B"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "nist_ctc_01_asme1_ap242-e1.stp.gz",
+    "port": "dimension:#127",
+    "python": [],
+    "record": "dimension:0:1:4:28",
+    "rust": [
+      [
+        "reference datum",
+        "C"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "nist_ctc_01_merge.step.gz",
+    "port": "dimension:#120",
+    "python": [],
+    "record": "dimension:0:1:4:21",
+    "rust": [
+      [
+        "reference datum",
+        "B"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "nist_ctc_01_merge.step.gz",
+    "port": "dimension:#121",
+    "python": [],
+    "record": "dimension:0:1:4:22",
+    "rust": [
+      [
+        "reference datum",
+        "C"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "nist_ctc_01_merge.step.gz",
+    "port": "dimension:#126",
+    "python": [],
+    "record": "dimension:0:1:4:27",
+    "rust": [
+      [
+        "reference datum",
+        "B"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "nist_ctc_01_merge.step.gz",
+    "port": "dimension:#127",
+    "python": [],
+    "record": "dimension:0:1:4:28",
+    "rust": [
+      [
+        "reference datum",
+        "C"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "nist_ctc_02_asme1_ap242-e2.stp.gz",
+    "port": "dimension:#405",
+    "python": [],
+    "record": "dimension:0:1:4:112",
+    "rust": [
+      [
+        "reference datum",
+        "E"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "nist_ctc_02_asme1_ap242-e2.stp.gz",
+    "port": "dimension:#406",
+    "python": [],
+    "record": "dimension:0:1:4:113",
+    "rust": [
+      [
+        "reference datum",
+        "F"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "nist_ctc_02_asme1_ap242-e2.stp.gz",
+    "port": "dimension:#407",
+    "python": [],
+    "record": "dimension:0:1:4:114",
+    "rust": [
+      [
+        "reference datum",
+        "H"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "nist_ctc_02_asme1_ap242-e2.stp.gz",
+    "port": "dimension:#408",
+    "python": [],
+    "record": "dimension:0:1:4:115",
+    "rust": [
+      [
+        "reference datum",
+        "J"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "nist_ftc_07_asme1_ap242-e2.stp.gz",
+    "port": "dimension:#15130",
+    "python": [],
+    "record": "dimension:0:1:4:85",
+    "rust": [
+      [
+        "reference datum",
+        "B"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "nist_ftc_07_asme1_ap242-e2.stp.gz",
+    "port": "dimension:#15238",
+    "python": [],
+    "record": "dimension:0:1:4:87",
+    "rust": [
+      [
+        "reference datum",
+        "C"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "nist_ftc_07_asme1_ap242-e2.stp.gz",
+    "port": "dimension:#15466",
+    "python": [],
+    "record": "dimension:0:1:4:91",
+    "rust": [
+      [
+        "reference datum",
+        "D"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "nist_ftc_07_asme1_ap242-e2.stp.gz",
+    "port": "dimension:#15939",
+    "python": [],
+    "record": "dimension:0:1:4:99",
+    "rust": [
+      [
+        "reference datum",
+        "D"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "nist_ftc_10_asme1_ap242-e2.stp.gz",
+    "port": "dimension:#19787",
+    "python": [],
+    "record": "dimension:0:1:4:113",
+    "rust": [
+      [
+        "reference datum",
+        "B"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "nist_ftc_10_asme1_ap242-e2.stp.gz",
+    "port": "dimension:#19817",
+    "python": [],
+    "record": "dimension:0:1:4:114",
+    "rust": [
+      [
+        "reference datum",
+        "C"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "nist_ftc_10_asme1_ap242-e2.stp.gz",
+    "port": "dimension:#20119",
+    "python": [],
+    "record": "dimension:0:1:4:123",
+    "rust": [
+      [
+        "reference datum",
+        "E"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "nist_ftc_10_asme1_ap242-e2.stp.gz",
+    "port": "dimension:#20148",
+    "python": [],
+    "record": "dimension:0:1:4:124",
+    "rust": [
+      [
+        "reference datum",
+        "F"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "nist_ftc_10_asme1_ap242-e2.stp.gz",
+    "port": "dimension:#20177",
+    "python": [],
+    "record": "dimension:0:1:4:125",
+    "rust": [
+      [
+        "reference datum",
+        "G"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "nist_stc_06_asme1_ap242-e3.stp.gz",
+    "port": "dimension:#11272",
+    "python": [],
+    "record": "dimension:0:1:4:93",
+    "rust": [
+      [
+        "reference datum",
+        "F"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "nist_stc_09_asme1_ap242-e4.stp.gz",
+    "port": "dimension:#9797",
+    "python": [],
+    "record": "dimension:0:1:4:92",
+    "rust": [
+      [
+        "reference datum",
+        "B"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "nist_stc_09_asme1_ap242-e4.stp.gz",
+    "port": "dimension:#9820",
+    "python": [],
+    "record": "dimension:0:1:4:93",
+    "rust": [
+      [
+        "reference datum",
+        "C"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "nist_stc_09_asme1_ap242-e4.stp.gz",
+    "port": "dimension:#10063",
+    "python": [],
+    "record": "dimension:0:1:4:99",
+    "rust": [
+      [
+        "reference datum",
+        "F"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "nist_stc_09_asme1_ap242-e4.stp.gz",
+    "port": "dimension:#10143",
+    "python": [],
+    "record": "dimension:0:1:4:102",
+    "rust": [
+      [
+        "reference datum",
+        "G"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "nist_stc_09_asme1_ap242-e4.stp.gz",
+    "port": "dimension:#10263",
+    "python": [],
+    "record": "dimension:0:1:4:107",
+    "rust": [
+      [
+        "reference datum",
+        "D"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "nist_stc_09_asme1_ap242-e4.stp.gz",
+    "port": "dimension:#10287",
+    "python": [],
+    "record": "dimension:0:1:4:108",
+    "rust": [
+      [
+        "reference datum",
+        "E"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "nist_stc_10_asme1_ap242-e2.stp.gz",
+    "port": "dimension:#297",
+    "python": [],
+    "record": "dimension:0:1:4:91",
+    "rust": [
+      [
+        "reference datum",
+        "C"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "nist_stc_10_asme1_ap242-e2.stp.gz",
+    "port": "dimension:#298",
+    "python": [],
+    "record": "dimension:0:1:4:92",
+    "rust": [
+      [
+        "reference datum",
+        "B"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "nist_stc_10_asme1_ap242-e2.stp.gz",
+    "port": "dimension:#305",
+    "python": [],
+    "record": "dimension:0:1:4:99",
+    "rust": [
+      [
+        "reference datum",
+        "F"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "nist_stc_10_asme1_ap242-e2.stp.gz",
+    "port": "dimension:#306",
+    "python": [],
+    "record": "dimension:0:1:4:100",
+    "rust": [
+      [
+        "reference datum",
+        "E"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "nist_stc_10_asme1_ap242-e2.stp.gz",
+    "port": "dimension:#309",
+    "python": [],
+    "record": "dimension:0:1:4:103",
+    "rust": [
+      [
+        "reference datum",
+        "G"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "spool_fits.step.gz",
+    "port": "dimension:#6333",
+    "python": [],
+    "record": "dimension:0:1:4:1",
+    "rust": [
+      [
+        "reference datum",
+        "B"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "string_post_tapped.step.gz",
+    "port": "dimension:#3097",
+    "python": [],
+    "record": "dimension:0:1:4:1",
+    "rust": [
+      [
+        "reference datum",
+        "A"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
+  },
+  {
+    "field": "fields",
+    "file": "string_post_tapped.step.gz",
+    "port": "dimension:#3115",
+    "python": [],
+    "record": "dimension:0:1:4:3",
+    "rust": [
+      [
+        "reference datum",
+        "A"
+      ]
+    ],
+    "verdict": "rust-correct",
+    "evidence": "cx/pmi-groups preserves the dimension endpoint datum feature, including its composite face support, as reference datum metadata. The Python capture omits this relationship. It is required to keep datum-referenced general-tolerance dimensions authored; geometric lowering still proves the stations and nominal independently."
   }
 ]

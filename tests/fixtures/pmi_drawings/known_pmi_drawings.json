@@ -432,9 +432,9 @@
   "port": null,
   "field": "drawing",
   "python": "ValueError: project_to_viewport returned empty geometry for view 'plan' (camera (-0.20598045072850368, 1.2878802308874988, 245.83221857376392)) — check the camera position and look_at.",
-  "rust": "20 records drawn",
+  "rust": "25 records drawn",
   "verdict": "rust-correct",
-  "evidence": "known_pmi_dimensions.json (drawing, rust-correct): draftwright cannot draw this part at all (its plan-view projection raises, as known_pmi_lowering.json records for the same file); the port draws it, lowers its PMI dimensions, and carries its drawing-wide requirements (general tolerance ISO 2768-m in the title block, the Ra 3.2 default finish beside it, the edge-condition note), so 20 records are drawn."
+  "evidence": "known_pmi_dimensions.json (drawing, rust-correct): draftwright cannot draw this part at all (its plan-view projection raises, as known_pmi_lowering.json records for the same file); the port draws it, lowers its PMI dimensions, and carries its drawing-wide requirements (general tolerance ISO 2768-m in the title block, the Ra 3.2 default finish beside it, the edge-condition note), so 20 records are drawn. cx/pmi-groups proves the five additional plane-to-bore normal distances: the nominal check remains strict, their actual face/axis witnesses are retained, and all five dimensions now draw (25 source records in total)."
  },
  {
   "file": "hw_assembly_plate_pin_intent.step",
@@ -4966,12 +4966,12 @@
      "kind": "datum_ref",
      "rides_on": null,
      "text": "E",
-     "view": "front"
+     "view": "side"
     }
    ]
   },
   "verdict": "rust-correct",
-  "evidence": "Python drops datum E for lack of legible room (plan_incomplete, pmi_dropped). Rust retains E on the front view after quiddity-rust#127 adds radius callouts and changes the available strips; the datum remains attached to its cylindrical feature, with all source faces and the datum letter preserved. This is an information gain, not parity: the Python drawing has no E. An explicit annotation view/side can retain the original lowered surface attachment."
+  "evidence": "Python drops E for lack of room. Rust retains its cylindrical-feature attachment in side after the two proven front-view coplanar spans occupy the annotation lanes (cx/pmi-groups). Moving E leaves those dimensions and hole-frame attachments readable; all source faces and the letter are preserved. The side-view routing introduces one centreline run, retained for attachment rather than moving the symbol off its feature."
  },
  {
   "file": "nist_ftc_10_asme1_ap242-e2.stp",
@@ -8002,12 +8002,12 @@
      "kind": "datum_ref",
      "rides_on": null,
      "text": "C",
-     "view": "front"
+     "view": "side"
     }
    ]
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright's drawing: not drawn, refused (pmi_not_extracted, pmi_not_lowered); the port's: 'C' (datum ref, front view). As known_pmi_lowering.json (lowered, rust-correct): draftwright leaves it raw because it cannot find the datum's faces (\"datum feature #114 has no representation items; referenced geometry is unavailable; datum reference surface is unavailable\"; known_pmi.json lists the faces draftwright cannot find as rust-correct); the port resolves the faces, proves the attachment and draws the symbol. Since 2026-10-29 the port draws it in the front view, which sees its hole's bore end-on, standing on that hole's ⌀0.5 A B position frame, which takes a leader to the hole (a datum feature symbol attached to its feature's control frame, ASME Y14.5, ISO 5459)."
+  "evidence": "The port resolves datum C (#114) to its own y-axis cylinder, face 25, which the Python reader could not find. After cx/pmi-groups rim routing (2026-10-31), no clear supported front-frame stack is available, so C retains its lowered edge-on surface attachment in the side view. Its letter and source face are unchanged. tests/hole_marks.rs proves that its triangle tip projects from one of face 25's native surface sites; it does not borrow another feature's frame. This is a view-only placement change, with no suppressed finding."
  },
  {
   "file": "nist_stc_10_asme1_ap242-e2.stp",
@@ -8054,12 +8054,12 @@
      "kind": "datum_ref",
      "rides_on": null,
      "text": "E",
-     "view": "side"
+     "view": "front"
     }
    ]
   },
   "verdict": "rust-correct",
-  "evidence": "draftwright's drawing: not drawn, refused (pmi_not_extracted, pmi_not_lowered); the port's: 'E' (datum ref, side view). As known_pmi_lowering.json (lowered, rust-correct): draftwright leaves it raw because it cannot find the datum's faces (\"datum feature #119 has no representation items; referenced geometry is unavailable; datum reference surface is unavailable\"; known_pmi.json lists the faces draftwright cannot find as rust-correct); the port resolves the faces, proves the attachment and draws the symbol."
+  "evidence": "The port resolves datum E (#119) to its own y-axis bore, face 87, which the Python reader could not find. After cx/pmi-groups rim routing (2026-10-31), it has a clear attachment to the control frame of that same bore in the front view, which sees it end-on. Its letter and source face are unchanged. tests/hole_marks.rs proves that the triangle stands at the required gap on a frame with exactly E's face support in that view. This is a proven attachment/view change, not a changed reference or dimension."
  },
  {
   "file": "nist_stc_10_asme1_ap242-e2.stp",
@@ -9998,5 +9998,190 @@
   },
   "verdict": "rust-correct",
   "evidence": "The native drawing attaches datum C (datum:#8442, faces 24/25) to its hole control frame in the front view, which sees the y-axis bore end-on. Its basis names that attachment and the same two source faces. Python places C edge-on in the side view. Both retain the datum letter; the native attachment identifies the controlled hole when its surface is hidden. quiddity-rust#127 changes the radius inventory and available strips. An explicit view or side at annotations/pmi:datum.datum:f24,25:t=C/place keeps the surface attachment."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:120",
+  "port": "dimension:#19998",
+  "field": "drawing",
+  "python": {
+   "codes": [
+    "authored_dim_source_unresolved",
+    "pmi_not_extracted"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": null,
+     "text": "10 ±0.2",
+     "view": "front"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "The composite target's four Z planes are at 27.5 mm and its source plane at 37.5 mm, exactly the authored 10 mm apart. The old combined-box centres describe an oblique relationship and are not the measured plane separation. Coplanar-group lowering proves attachment points on the trimmed reference faces, checks the unchanged nominal-span tolerance and draws the source's 10 ±0.2 dimension in front. known_pmi_dimensions.json records the same corrected outcome; the spindle regression separately proves that inconsistent nominals are still refused. Reviewer decision: now proven: coplanar composite measured as one plane (cx/pmi-groups)."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:134",
+  "port": "dimension:#20584",
+  "field": "drawing",
+  "python": {
+   "codes": [
+    "authored_dim_source_unresolved",
+    "pmi_not_extracted"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": null,
+     "text": "10 ±0.2",
+     "view": "front"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "The composite target's four Z planes are at -27.5 mm and its source plane at -37.5 mm, exactly the authored 10 mm apart. The old combined-box centres describe an oblique relationship and are not the measured plane separation. Coplanar-group lowering proves attachment points on the trimmed reference faces, checks the unchanged nominal-span tolerance and draws the source's 10 ±0.2 dimension in front. known_pmi_dimensions.json records the same corrected outcome; the spindle regression separately proves that inconsistent nominals are still refused. Reviewer decision: now proven: coplanar composite measured as one plane (cx/pmi-groups)."
+ },
+ {
+  "file": "string_post_tapped.step",
+  "record": "dimension:0:1:4:3",
+  "port": "dimension:#3115",
+  "field": "drawing",
+  "python": {
+   "codes": [
+    "authored_dim_source_unresolved",
+    "pmi_not_extracted"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": true,
+     "kind": "dimension",
+     "rides_on": "linear.basic",
+     "text": "1.2",
+     "view": "plan"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "cx/pmi-groups proves the basic 1.2 mm location along X from the plane at -1.2 to the bore axis at 0. A trimmed projected face witness replaces the erroneous 3D box-centre distance. The existing basic 1.2 dimension on the coincident projected station states both sources without duplicate ink; the unchanged nominal check passes."
+ },
+ {
+  "file": "hw_string_post_tapped_intent.step",
+  "record": "dimension:0:1:4:3",
+  "port": "dimension:#3122",
+  "field": "drawing",
+  "python": {
+   "codes": [
+    "authored_dim_source_unresolved",
+    "pmi_not_extracted"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": true,
+     "kind": "dimension",
+     "rides_on": "linear.basic",
+     "text": "1.2",
+     "view": "plan"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "cx/pmi-groups proves the basic 1.2 mm location along X from the plane at -1.2 to the bore axis at 0. A trimmed projected face witness replaces the erroneous 3D box-centre distance. The existing basic 1.2 dimension on the coincident projected station states both sources without duplicate ink; the unchanged nominal check passes."
+ },
+ {
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:95",
+  "port": "dimension:#15699",
+  "field": "drawing",
+  "python": {
+   "codes": [
+    "authored_dim_source_unresolved"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "dimension",
+     "rides_on": "bore.diameter",
+     "text": "4× ⌀4.394 +0.127 -0.0254 THRU",
+     "view": "plan"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "cx/pmi-groups proves the four inclined bore owners by all eight native faces, their full 3D axis lines (Y=sin(1 degree), Z=cos(1 degree)), and the exact 4.3942 mm diameter. The existing nearly end-on rim callout now states the source +0.127/-0.0254 mm band. The old principal-axis restriction discarded this valid requirement. Geometry and nominal checks remain strict; this is the same full-axis ownership proof used for the new-writer H11 hole."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:6",
+  "port": "datum:#18109",
+  "field": "drawing",
+  "python": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "datum_ref",
+     "rides_on": null,
+     "text": "B",
+     "view": "side"
+    }
+   ]
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "datum_ref",
+     "rides_on": null,
+     "text": "B",
+     "view": "front"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "2026-10-31 cx/pmi-groups: datum B (#18109) retains faces 163/164 and their common y-axis cylinder. The recovered 10 mm spans and rim routing leave a clear attachment on its own perpendicularity frame (#18546, the same faces) in the front view, which sees the bore end-on; the old side-view surface attachment sees it edge-on. The new attachment identifies the same hole where its surface is hidden. This is a proven view-only placement difference, not a changed datum or dimension. tests/hole_marks.rs checks the shared faces, source frame and triangle support. No crossing limit or refusal expectation changes."
+ },
+ {
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "record": "datum:0:1:4:5",
+  "port": "datum:#117",
+  "field": "drawing",
+  "python": {
+   "codes": [
+    "pmi_not_extracted",
+    "pmi_not_lowered"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "drawn": [
+    {
+     "boxed": false,
+     "kind": "datum_ref",
+     "rides_on": null,
+     "text": "J",
+     "view": "front"
+    }
+   ]
+  },
+  "verdict": "rust-correct",
+  "evidence": "2026-10-31 cx/pmi-groups: J is the median plane of the 15 ±0.2 feature of size between opposite x-normal faces 39/43. The new rim routes leave a clear place for its symbol on that authored size dimension in the front view, in line with the dimension line and replacing one arrowhead. It does not designate either face as the datum. tests/hole_marks.rs independently checks the source faces, 15 mm witness span, dimension terms, triangle support and absence of the old refusal; explicitly omitting J still reports its missing reference. The nine-datum separation test retains its collision guards."
  }
 ]

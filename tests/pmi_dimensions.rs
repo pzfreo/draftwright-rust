@@ -1136,6 +1136,121 @@ fn what_the_faces_do_not_prove_is_reported_not_guessed() {
 }
 
 #[test]
+fn coplanar_composites_measure_the_plane_and_attach_to_its_patches() {
+    let raw = std::fs::read(fixtures().join("spindle-coplanar-groups.step.gz")).unwrap();
+    let (part, a) = analysed("spindle-coplanar-groups.step", &gunzip(&raw));
+    let plan = cache::default_plan(&a, false);
+    for (id, value, axis, view, groups) in [
+        (1397, 4.9, "Z", "v:front", vec![vec![1049], vec![734, 914]]),
+        (1413, 5.0, "X", "v:plan", vec![vec![939, 1074], vec![1198]]),
+    ] {
+        let r = records(&a).iter().find(|r| r.part21_id == id).unwrap();
+        assert_eq!(r.value, Some(value));
+        // The datum's non-face member must not enter either reference group.
+        assert_eq!(
+            r.face_groups.iter().map(Vec::len).collect::<Vec<_>>(),
+            groups.iter().map(Vec::len).collect::<Vec<_>>()
+        );
+        assert_eq!(
+            r.face_ids.iter().copied().collect::<BTreeSet<_>>(),
+            groups.into_iter().flatten().collect()
+        );
+        let g = r.geometry.as_ref().unwrap();
+        assert!(g.reasons.is_empty(), "{}: {:?}", r.source_id, g.reasons);
+        assert_eq!(g.axis.as_deref(), Some(axis));
+        for (faces, &p) in r.face_groups.iter().zip(&g.stations) {
+            assert!(
+                faces.iter().any(|&f| {
+                    let s = &part.faces[f].surface;
+                    let Some((u, v)) = s.parameters(p, None) else {
+                        return false;
+                    };
+                    let q = s.value(u, v);
+                    (0..3).all(|k| (p[k] - q[k]).abs() < 1e-6)
+                        && part.domain(f).is_some_and(|d| d.contains(u, v))
+                }),
+                "{}: {p:?} is not on its reference patches",
+                r.source_id
+            );
+        }
+        let d = stating(&plan, &a, r).expect("PMI must be claimed by a dimension");
+        assert!(d.placed.is_some(), "{d:?}");
+        assert_eq!(d.value, value);
+        assert_eq!(d.label, value.to_string());
+        assert_eq!(d.view, view);
+        let camera = plan.views.iter().find(|v| v.id == d.view).unwrap();
+        let projection =
+            draftwright::haecceity::hlr::View::new(camera.direction, camera.up).unwrap();
+        let centre = projection.map([0, 1, 2].map(|k| 0.5 * (a.envelope[0][k] + a.envelope[1][k])));
+        let ink = d.placed.as_ref().unwrap();
+        for &station in &g.stations {
+            let projected = projection.map(station);
+            let page = [0, 1].map(|k| camera.at[k] + camera.scale * (projected[k] - centre[k]));
+            // Each extension starts one paper mm away from its proven attachment.
+            assert!(
+                ink.lines[..2].iter().any(|line| ((line[0][0] - page[0])
+                    .hypot(line[0][1] - page[1])
+                    - 1.0)
+                    .abs()
+                    < 1e-6),
+                "{}: extensions miss the face witness at {page:?}: {:?}",
+                d.id,
+                ink.lines
+            );
+        }
+        assert!(
+            !plan
+                .problems
+                .iter()
+                .any(|p| REFUSALS.contains(&p.code.as_str()) && p.refs.contains(&r.source_id)),
+            "{:?}",
+            plan.problems
+        );
+        // The engine's same span must yield to PMI, even if its label is identical.
+        assert_eq!(
+            plan.dimensions
+                .iter()
+                .filter(|other| other.placed.is_some() && other.label == d.label)
+                .count(),
+            1
+        );
+    }
+}
+
+#[test]
+fn coplanar_composites_still_refuse_an_inconsistent_nominal() {
+    let raw = std::fs::read(fixtures().join("spindle-coplanar-groups.step.gz")).unwrap();
+    let (part, mut a) = analysed_uncached("spindle-coplanar-groups.step", &gunzip(&raw));
+    let Some(Reading::Read(report)) = &mut a.pmi else {
+        panic!("PMI")
+    };
+    for r in report
+        .records
+        .iter_mut()
+        .filter(|r| [1397, 1413].contains(&r.part21_id))
+    {
+        r.value = r.value.map(|v| v + 1.0);
+        r.geometry = Some(draftwright::pmi_lowering::dimension_geometry(&part, r));
+        assert!(
+            r.geometry
+                .as_ref()
+                .unwrap()
+                .reasons
+                .iter()
+                .any(|s| s.contains("differs from nominal"))
+        );
+    }
+    let plan = cache::default_plan(&a, false);
+    for id in [1397, 1413] {
+        let r = records(&a).iter().find(|r| r.part21_id == id).unwrap();
+        assert!(stating(&plan, &a, r).is_none());
+        assert!(plan.problems.iter().any(|p| p.code == "pmi_not_lowered"
+            && p.refs.contains(&r.source_id)
+            && p.message.contains("differs from nominal")));
+    }
+}
+
+#[test]
 fn an_external_diameter_annotates_the_turned_size_with_its_signs() {
     // spool_fits' two ø130 flanges (a shaft band wholly below its nominal) and its ø70 step.
     let (_, _, plan) = planned("spool_fits");
@@ -1699,11 +1814,20 @@ fn derived_requirements_preserve_tolerance_bands_on_owned_and_standalone_dimensi
 /// draftwright's own. Strict mode still draws them as the file's PMI,
 /// and Specify's characteristic-number history is bookkeeping.
 #[test]
-fn specify_general_dimensions_are_drawn_as_planned() {
+fn no_datum_specify_general_dimensions_are_drawn_as_planned() {
     let bytes = gunzip(
         &std::fs::read(root().join("tests/fixtures/samples/specify-0.1.4-plate.step.gz")).unwrap(),
     );
-    let (part, a) = analysed("specify-0.1.4-plate.step", &bytes);
+    let (part, mut a) = analysed("specify-0.1.4-plate.step", &bytes);
+    // Exercise #265 independently of the newly retained datum-reference policy.
+    // Only the intent metadata changes; the native geometry and other PMI stay.
+    // The actual datum-owned plate is asserted separately below, and the new
+    // writer's truly no-datum dimension is checked without modifying its reading.
+    if let Some(Reading::Read(report)) = &mut a.pmi {
+        for r in &mut report.records {
+            r.fields.retain(|(key, _)| key != "reference datum");
+        }
+    }
     let Some(Reading::Read(report)) = &a.pmi else {
         panic!("PMI read")
     };
@@ -1863,5 +1987,338 @@ fn specify_general_dimensions_are_drawn_as_planned() {
                 .any(|d| d.measurements.iter().any(|m| m.feature == id)),
             "strict mode draws {s}"
         );
+    }
+}
+
+/// These ten old-writer general locations all reference A/B/C. The datum rule
+/// intentionally supersedes the former all-general #265 expectation for this part.
+#[test]
+fn specify_plate_general_locations_keep_their_datums() {
+    let bytes = gunzip(
+        &std::fs::read(root().join("tests/fixtures/samples/specify-0.1.4-plate.step.gz")).unwrap(),
+    );
+    let (_, a) = analysed("specify-0.1.4-plate.step", &bytes);
+    let general: Vec<_> = records(&a)
+        .iter()
+        .filter(|r| {
+            r.category == Category::Dimension
+                && !r.basic
+                && r.upper_tol.is_none()
+                && r.lower_bound.is_none()
+                && r.fit.is_none()
+        })
+        .collect();
+    assert_eq!(general.len(), 10);
+    let plan = cache::default_plan(&a, true);
+    assert_eq!(
+        plan.sheet.size, "A2",
+        "the authored datum baseline flood is retained"
+    );
+    assert_eq!(plan.sheet.scale, "1:1");
+    assert_eq!(
+        plan.dimensions
+            .iter()
+            .filter(|d| d.placed.is_some())
+            .count(),
+        24
+    );
+    for r in general {
+        assert!(r.fields.iter().any(|(key, _)| key == "reference datum"));
+        let d = stating(&plan, &a, r).unwrap();
+        assert!(d.placed.is_some(), "{d:?}");
+        assert_eq!(Some(d.value), r.value);
+    }
+    assert!(!plan.problems.iter().any(|p| p.code == "pmi_not_extracted"));
+}
+
+#[test]
+fn datum_general_dimensions_keep_their_authored_baselines_and_characteristics() {
+    let bytes = gunzip(&std::fs::read(fixtures().join("spindle-coplanar-groups.step.gz")).unwrap());
+    let (_, a) = analysed("spindle-coplanar-groups.step", &bytes);
+    let plan = cache::default_plan(&a, true);
+    for (id, value) in [(1405, 33.6), (1409, 27.2)] {
+        let r = records(&a).iter().find(|r| r.part21_id == id).unwrap();
+        assert!(r.fields.contains(&(
+            "reference datum".into(),
+            draftwright::pmi::Field::Text("B".into())
+        )));
+        assert_eq!(r.face_groups[0], vec![7, 11]);
+        let g = r.geometry.as_ref().unwrap();
+        assert_eq!(g.axis.as_deref(), Some("X"));
+        assert!((g.stations[0][0] - 0.).abs() < 1e-6);
+        assert!((g.stations[1][0] - value).abs() < 1e-6);
+        let d = stating(&plan, &a, r).unwrap();
+        assert_eq!(d.value, value);
+        assert!(d.placed.is_some(), "{d:?}");
+        assert!(d.id.starts_with("d:pmi:"));
+        let c = plan
+            .characteristics
+            .iter()
+            .find(|c| c.source == r.source_id)
+            .unwrap();
+        assert_eq!(c.drawn_item.as_deref(), Some(d.id.as_str()));
+        if id == 1409 {
+            assert_eq!(c.number, "8");
+        }
+    }
+    assert!(
+        !plan
+            .dimensions
+            .iter()
+            .any(|d| d.placed.is_some() && d.id == "d:f:plate:1/thickness.length")
+    );
+    assert!(
+        !plan
+            .dimensions
+            .iter()
+            .any(|d| d.placed.is_some() && d.id == "d:f:slot:1/location_slot.length")
+    );
+    assert!(
+        !plan
+            .dimensions
+            .iter()
+            .any(|d| d.placed.is_some() && d.id == "d:f:slot:1/slot_length.length")
+    );
+    assert!(
+        !plan.problems.iter().any(|p| p.code == "feature_not_located"
+            && p.subjects.iter().any(|s| s == "f:slot:1")
+            && p.message.contains(" on x:")),
+        "the authored baseline locates the slot end: {:?}",
+        plan.problems
+    );
+    // Every numbered source is carried by ink stating its own quantity, never an
+    // unrelated engine envelope reached through a coverage chain.
+    for c in &plan.characteristics {
+        let r = records(&a)
+            .iter()
+            .find(|r| r.source_id == c.source)
+            .unwrap();
+        let item = c
+            .drawn_item
+            .as_ref()
+            .expect("every spindle characteristic draws");
+        if r.category == Category::Dimension {
+            let d = plan.dimensions.iter().find(|d| &d.id == item).unwrap();
+            assert!((d.value - r.value.unwrap()).abs() < 1e-6, "{c:?}: {d:?}");
+        } else if r.category == Category::Datum || r.category == Category::GeometricTolerance {
+            assert!(
+                plan.gdt
+                    .iter()
+                    .any(|g| &g.id == item && g.source == r.source_id),
+                "{c:?}"
+            );
+        } else {
+            assert!(
+                plan.requirements
+                    .iter()
+                    .any(|g| &g.id == item && g.source == r.source_id)
+                    || plan
+                        .dimensions
+                        .iter()
+                        .any(|d| &d.id == item && d.basis.contains(&r.source_id)),
+                "{c:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn specify_origin_is_dimension_owned_and_controls_general_replanning() {
+    let bytes =
+        gunzip(&std::fs::read(fixtures().join("specify-main-GRM-02_shaft.step.gz")).unwrap());
+    let (_, a) = analysed("specify-main-GRM-02_shaft.step", &bytes);
+    let Some(Reading::Read(report)) = &a.pmi else {
+        panic!("PMI")
+    };
+    assert!(
+        !report
+            .sources
+            .iter()
+            .any(|s| s.reason.contains("specify pmi origin")
+                && s.outcome == draftwright::pmi::Outcome::NotExtracted)
+    );
+    let plan = cache::default_plan(&a, true);
+    for (id, value) in [(1274, 33.6), (1281, 27.2)] {
+        let r = report.records.iter().find(|r| r.part21_id == id).unwrap();
+        assert!(r.fields.contains(&(
+            "specify origin".into(),
+            draftwright::pmi::Field::Text("general_tolerance".into())
+        )));
+        assert!(r.fields.contains(&(
+            "reference datum".into(),
+            draftwright::pmi::Field::Text("B".into())
+        )));
+        let d = stating(&plan, &a, r).unwrap();
+        assert_eq!(d.value, value);
+        assert!(d.placed.is_some());
+    }
+    // Same no-datum nominal, only its explicitly stored origin differs.
+    let r = report.records.iter().find(|r| r.part21_id == 1256).unwrap();
+    assert!(!r.fields.iter().any(|(k, _)| k == "reference datum"));
+    let mut requirement = a.clone();
+    if let Some(Reading::Read(report)) = &mut requirement.pmi {
+        let r = report
+            .records
+            .iter_mut()
+            .find(|r| r.part21_id == 1256)
+            .unwrap();
+        r.fields.retain(|(k, _)| k != "specify origin");
+        r.fields.push((
+            "specify origin".into(),
+            draftwright::pmi::Field::Text("requirement".into()),
+        ));
+    }
+    let authored = cache::default_plan(&requirement, true);
+    let rr = records(&requirement)
+        .iter()
+        .find(|r| r.part21_id == 1256)
+        .unwrap();
+    assert!(stating(&authored, &requirement, rr).is_some_and(|d| d.placed.is_some()));
+    assert!(
+        stating(&plan, &a, r).is_none(),
+        "a no-datum general dimension keeps #265"
+    );
+}
+
+#[test]
+fn specify_main_plane_and_axis_locations_use_geometric_directions() {
+    for (name, ids) in [
+        ("angle-bracket", vec![753, 774]),
+        (
+            "nema-17-bracket",
+            vec![
+                3431, 3445, 3459, 3473, 3533, 3539, 3545, 3551, 3563, 3573, 3579, 3583,
+            ],
+        ),
+        ("sk08", vec![1691, 1705, 1804]),
+    ] {
+        let bytes = gunzip(
+            &std::fs::read(fixtures().join(format!("specify-main-{name}.step.gz"))).unwrap(),
+        );
+        let (part, a) = analysed(&format!("specify-main-{name}.step"), &bytes);
+        for id in ids {
+            let r = records(&a).iter().find(|r| r.part21_id == id).unwrap();
+            let g = r.geometry.as_ref().unwrap();
+            assert!(
+                g.reasons.is_empty(),
+                "{name} {}: {:?}",
+                r.source_id,
+                g.reasons
+            );
+            let mut wrong = r.clone();
+            wrong.value = r.value.map(|v| v + 1.);
+            let bad = draftwright::pmi_lowering::dimension_geometry(&part, &wrong);
+            assert!(
+                bad.reasons
+                    .iter()
+                    .any(|s| s.contains("differs from nominal")),
+                "{name}: {bad:?}"
+            );
+        }
+    }
+}
+
+#[test]
+fn an_inclined_bore_keeps_its_h11_fit_on_its_proven_callout() {
+    let bytes =
+        gunzip(&std::fs::read(fixtures().join("specify-main-angle-bracket.step.gz")).unwrap());
+    let (_, a) = analysed("specify-main-angle-bracket.step", &bytes);
+    let r = records(&a).iter().find(|r| r.part21_id == 745).unwrap();
+    assert_eq!(r.fit.as_deref(), Some("H11"));
+    assert!(r.blockers.is_empty(), "{:?}", r.blockers);
+    assert!(
+        r.geometry
+            .as_ref()
+            .unwrap()
+            .cylinders
+            .iter()
+            .all(|c| c.principal().is_none())
+    );
+    let plan = cache::default_plan(&a, true);
+    let d = stating(&plan, &a, r).unwrap();
+    assert_eq!(d.id, "d:f:hole:2/bore.diameter");
+    assert!(d.placed.is_some());
+    assert_eq!(d.value, 10.);
+    assert!(d.label.contains("H11"), "{d:?}");
+    assert!(
+        !plan
+            .problems
+            .iter()
+            .any(|p| p.code == "pmi_not_lowered" && p.refs.contains(&r.source_id))
+    );
+    assert_eq!(
+        plan.dimensions
+            .iter()
+            .filter(|d| d.placed.is_some()
+                && d.measurements
+                    .iter()
+                    .any(|m| m.feature == "f:hole:2" && m.parameter == "bore.diameter"))
+            .count(),
+        1
+    );
+}
+
+#[test]
+fn recovered_thicknesses_leave_the_bend_angle_defined() {
+    let bytes =
+        gunzip(&std::fs::read(fixtures().join("specify-main-angle-bracket.step.gz")).unwrap());
+    let (_, a) = analysed("specify-main-angle-bracket.step", &bytes);
+    let plan = cache::default_plan(&a, true);
+    assert!(
+        plan.dimensions
+            .iter()
+            .any(|d| d.kind == "angular" && (d.value - 120.).abs() < 1e-6 && d.placed.is_some())
+    );
+    assert!(
+        !plan
+            .problems
+            .iter()
+            .any(|p| p.code == "angular_dimension_dropped")
+    );
+    for id in [770, 774] {
+        let r = records(&a).iter().find(|r| r.part21_id == id).unwrap();
+        let c = plan
+            .characteristics
+            .iter()
+            .find(|c| c.source == r.source_id)
+            .unwrap();
+        let d = plan
+            .dimensions
+            .iter()
+            .find(|d| Some(&d.id) == c.drawn_item.as_ref())
+            .unwrap();
+        assert_eq!(d.value, 8.);
+        let p = d.placed.as_ref().expect("both authored thicknesses draw");
+        // Local witnesses stay near their arm instead of traversing the bend and
+        // crossing the opposite overall dimension (over 40 mm in the regression).
+        for [a, b] in p.lines[..2].iter().filter(|_| id == 774) {
+            assert!((a[0] - b[0]).hypot(a[1] - b[1]) < 25., "{d:?}");
+        }
+    }
+}
+
+#[test]
+fn authored_slot_ends_preserve_existing_engine_location_proofs() {
+    for (file, lost) in [
+        (
+            "nist_ctc_01_asme1_ap242-e1.stp",
+            vec!["f:slot:1", "f:slot:2"],
+        ),
+        ("nist_ctc_01_merge.step", vec!["f:slot:1", "f:slot:2"]),
+        ("nist_stc_09_asme1_ap242-e4.stp", vec!["f:slot:3"]),
+    ] {
+        let bytes =
+            gunzip(&std::fs::read(fixtures().join("step").join(format!("{file}.gz"))).unwrap());
+        let (_, a) = analysed(file, &bytes);
+        let plan = cache::default_plan(&a, true);
+        for id in lost {
+            assert!(
+                !plan.problems.iter().any(|p| p.code == "feature_not_located"
+                    && p.subjects.iter().any(|s| s == id)
+                    && p.message.contains(" on x:")),
+                "{file}: {id} lost its longitudinal locator: {:?}",
+                plan.problems
+            );
+        }
     }
 }

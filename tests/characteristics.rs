@@ -542,24 +542,20 @@ fn specify_plate_draws_every_number_on_its_requirement() {
             .count(),
         2
     );
-    // Main's inspection-sheet baseline: rings and newly read shared threads must
-    // not cost paper or exchange the established hole schedule for long leaders. With covered
-    // PMI spans no longer leaving empty rungs, the plate is drawn full size on the same paper,
-    // its 2× position frame's leader crossing the ladder above the plan view once more.
-    assert_eq!(p.sheet.size, "A3");
-    assert_eq!(p.sheet.scale, "1:1");
-    assert!(
-        !p.problems
-            .iter()
-            .any(|p| p.code == "sheet_preference_exceeded")
-    );
-    for (code, maximum) in [
-        ("annotation_leader_crossing", 2),
-        ("extension_through_feature", 8),
+    // Retaining the ten authored datum baselines intentionally changes the
+    // former #265 paper/layout baseline. Inspection rings must still cost no
+    // extra paper or layout findings compared with the same authored drawing.
+    assert_eq!(p.sheet.size, off.sheet.size);
+    assert_eq!(p.sheet.scale, off.sheet.scale);
+    for code in [
+        "sheet_preference_exceeded",
+        "annotation_leader_crossing",
+        "extension_through_feature",
     ] {
         assert!(
-            p.problems.iter().filter(|p| p.code == code).count() <= maximum,
-            "{code}: {:?}",
+            p.problems.iter().filter(|p| p.code == code).count()
+                <= off.problems.iter().filter(|p| p.code == code).count(),
+            "inspection rings added {code}: {:?}",
             p.problems
         );
     }

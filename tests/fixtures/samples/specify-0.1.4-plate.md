@@ -9,10 +9,11 @@ Uncompressed SHA-256: 76169350ee7f22bc368c6394896b94e92924635fc0b4b51e9db8099146
 
 Specify 0.1.4 writes the ten sizes and plane levels the general tolerance covers as their own
 nominal-only dimensions (`specify-core:written:v1`, no tolerance), and a part-level
-`specify characteristic numbers` attribute set holding its numbering history. The regression
-(`tests/pmi_dimensions.rs`) checks that those dimensions are drawn as draftwright plans that
-geometry, not on top of it, that one with no planned equivalent is planned as draftwright's own, that strict mode still draws them as the file's PMI, and that the
-history set is bookkeeping.
+`specify characteristic numbers` attribute set holding its numbering history. The original #265 regression replanned all ten. They all reference datum A, B or C;
+the maintainer's 2026-10-31 decision now retains their authored PMI baselines. The
+regressions in `tests/pmi_dimensions.rs` check those sources, keep the no-datum #265
+policy independently, and retain the history set as bookkeeping. Keeping these ten
+references intentionally costs paper; they must not be restated to recover the old sheet.
 
 It is kept in `samples/`, outside the single-sheet byte guard's `parts/` and `pmi/step/`.
 
@@ -21,6 +22,6 @@ draftwright-editor's WASM build (`writePmi(acceptDefaults(answers))`), with the 
 editor's Plate sample starts with: `{"part.locating": "± dimensions",
 "hole.function:holes:13.25": "general", "hole.function:hole_patterns.rectangle:6.12.15.24":
 "general"}`. Locating by ± makes Specify write the holes' sizes and locations as general
-dimensions too, and the drawing states them in its hole table. The regression
-(`tests/editor_session.rs`) checks that the PMI report lowers each to the item that draws it,
-the hole table included.
+dimensions too. The no-datum sizes remain in the hole table; datum-referenced
+locations now keep their own PMI dimensions. The regression in
+`tests/editor_session.rs` checks that the report names each actual drawing item.

@@ -1837,7 +1837,12 @@ fn lanes_uncached(
             w.terms.clone_from(&printed.terms);
         }
     }
-    let (sides, lane) = placement::lanes(&frames, wants.iter().zip(chosen.iter().copied()), &owner);
+    let (sides, lane) = placement::lanes(
+        analysis,
+        &frames,
+        wants.iter().zip(chosen.iter().copied()),
+        &owner,
+    );
     let mut bands = placement::band_lanes(
         chosen
             .iter()
@@ -2118,7 +2123,12 @@ pub(crate) fn reserve_linear_intent(
     plates::prefer_readable(analysis, &mut wants, &frames, Some(spec));
     let (chosen, _) = route(&mut wants, &frames, analysis);
     let owner = placement::owners(analysis, spec, &wants, &chosen);
-    let (sides, lane) = placement::lanes(&frames, wants.iter().zip(chosen.iter().copied()), &owner);
+    let (sides, lane) = placement::lanes(
+        analysis,
+        &frames,
+        wants.iter().zip(chosen.iter().copied()),
+        &owner,
+    );
     // Predict the same line-sharing reflow used by placement, before the
     // bands are composed. Scaling preserves shared stations and lane offsets.
     let mut occupied: BTreeMap<&str, Vec<Vec<[P2; 2]>>> = BTreeMap::new();
@@ -3161,8 +3171,12 @@ fn plan_inventory_ordered(
             w
         })
         .collect();
-    let (mut sides, mut lane) =
-        placement::lanes(&frames, all.iter().zip(chosen.iter().copied()), &owner);
+    let (mut sides, mut lane) = placement::lanes(
+        analysis,
+        &frames,
+        all.iter().zip(chosen.iter().copied()),
+        &owner,
+    );
     for (i, w) in all.iter().enumerate() {
         if matches!(w.shape, Shape::Angular { .. })
             && spec

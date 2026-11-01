@@ -23,9 +23,9 @@
   "port": null,
   "field": "drawing",
   "python": "ValueError: project_to_viewport returned empty geometry for view 'plan' (camera (-0.20598045072850368, 1.2878802308874988, 245.83221857376392)) — check the camera position and look_at.",
-  "rust": "9 dimensions drawn",
+  "rust": "14 dimensions drawn",
   "verdict": "rust-correct",
-  "evidence": "draftwright cannot draw this part at all (its plan-view projection raises, as known_pmi_lowering.json records for the same file); the port draws it and lowers its PMI dimensions."
+  "evidence": "draftwright cannot draw this part at all (its plan-view projection raises, as known_pmi_lowering.json records for the same file); the port draws it and lowers its PMI dimensions. cx/pmi-groups now proves five additional plane-to-bore locations along the plane normals, with real face/axis witnesses and the unchanged nominal check; 14 source dimensions are drawn."
  },
  {
   "file": "hw_assembly_plate_pin_intent.step",
@@ -1582,5 +1582,99 @@
   "rust": "8× ⌀2.5 ±0.15 THRU",
   "verdict": "rust-correct",
   "evidence": "draftwright prints the grid's arrangement after its callout; ISO 129 has no notation for it and the grid's pitches already show it, so the port prints none (#225). Size, tolerance and count are the same."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:120",
+  "port": "dimension:#19998",
+  "field": "outcome",
+  "python": {
+   "detail": [
+    "authored_dim_source_unresolved",
+    "pmi_not_extracted"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "detail": "10 ±0.2",
+   "outcome": "standalone"
+  },
+  "verdict": "rust-correct",
+  "evidence": "The source face (index 189) is a Z plane at 37.5 mm; the composite target's four faces (134, 139, 144, 149) are coplanar at 27.5 mm. Their plane separation is exactly the authored 10 mm. The old combined-box midpoint makes an oblique delta (-4, 8, -10) and falsely refuses it. The coplanar-group witness search proves points on both trimmed faces sharing a transverse coordinate in the front view, preserves those attachments, and checks the unchanged nominal-span tolerance before drawing 10 ±0.2. This is the same measurement defect covered by the spindle composite regression, whose inconsistent nominals remain refused."
+ },
+ {
+  "file": "nist_ftc_10_asme1_ap242-e2.stp",
+  "record": "dimension:0:1:4:134",
+  "port": "dimension:#20584",
+  "field": "outcome",
+  "python": {
+   "detail": [
+    "authored_dim_source_unresolved",
+    "pmi_not_extracted"
+   ],
+   "outcome": "refused"
+  },
+  "rust": {
+   "detail": "10 ±0.2",
+   "outcome": "standalone"
+  },
+  "verdict": "rust-correct",
+  "evidence": "The source face (index 234) is a Z plane at -37.5 mm; the composite target's four faces (100, 103, 106, 109) are coplanar at -27.5 mm. Their plane separation is exactly the authored 10 mm. The old combined-box midpoint makes an oblique delta (-19, 8, 10) and falsely refuses it. The coplanar-group witness search proves points on both trimmed faces sharing a transverse coordinate in the front view, preserves those attachments, and checks the unchanged nominal-span tolerance before drawing 10 ±0.2. This is the same measurement defect covered by the spindle composite regression, whose inconsistent nominals remain refused."
+ },
+ {
+  "field": "outcome",
+  "file": "hw_string_post_tapped_intent.step",
+  "port": "dimension:#3122",
+  "python": {
+   "detail": [
+    "authored_dim_source_unresolved",
+    "pmi_not_extracted"
+   ],
+   "outcome": "refused"
+  },
+  "record": "dimension:0:1:4:3",
+  "rust": {
+   "detail": "1.2",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "cx/pmi-groups proves the authored basic 1.2 mm plane-to-bore axis location along X, from the plane at -1.2 to the axis at 0, with a trimmed face witness in plan. The old box centres included an unrelated Z offset. The unchanged nominal check passes; the existing basic 1.2 on the same projected axis station now states both sources without duplicate ink."
+ },
+ {
+  "field": "outcome",
+  "file": "string_post_tapped.step",
+  "port": "dimension:#3115",
+  "python": {
+   "detail": [
+    "authored_dim_source_unresolved",
+    "pmi_not_extracted"
+   ],
+   "outcome": "refused"
+  },
+  "record": "dimension:0:1:4:3",
+  "rust": {
+   "detail": "1.2",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "cx/pmi-groups proves the authored basic 1.2 mm plane-to-bore axis location along X, from the plane at -1.2 to the axis at 0, with a trimmed face witness in plan. The old box centres included an unrelated Z offset. The unchanged nominal check passes; the existing basic 1.2 on the same projected axis station now states both sources without duplicate ink."
+ },
+ {
+  "field": "outcome",
+  "file": "nist_ftc_07_asme1_ap242-e2.stp",
+  "port": "dimension:#15699",
+  "python": {
+   "detail": [
+    "authored_dim_source_unresolved"
+   ],
+   "outcome": "refused"
+  },
+  "record": "dimension:0:1:4:95",
+  "rust": {
+   "detail": "4× ⌀4.394 +0.127 -0.0254\nTHRU",
+   "outcome": "absorbed"
+  },
+  "verdict": "rust-correct",
+  "evidence": "cx/pmi-groups proves the four inclined bore owners by all eight native faces, their full 3D axis lines (Y=sin(1 degree), Z=cos(1 degree)), and the exact 4.3942 mm diameter. The existing nearly end-on rim callout now states the source +0.127/-0.0254 mm band. The old principal-axis restriction discarded this valid requirement. Geometry and nominal checks remain strict; this is the same full-axis ownership proof used for the new-writer H11 hole."
  }
 ]

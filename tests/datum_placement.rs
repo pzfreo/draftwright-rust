@@ -417,7 +417,8 @@ fn ftc10_coincident_projected_datums_do_not_touch() {
 
 #[test]
 fn stc10_coincident_projected_datums_do_not_touch() {
-    let plan = dense_datums_are_separate("nist_stc_10_asme1_ap242-e2.stp.gz", 8);
+    // The 15 ±0.2 width now carries its median-plane datum J as well.
+    let plan = dense_datums_are_separate("nist_stc_10_asme1_ap242-e2.stp.gz", 9);
     let frame = "pmi:geometric_tolerance.profile_surface:f65:ref=A,B,C";
     assert!(plan.gdt.iter().any(|g| g.id == frame && g.placed.is_some()));
     assert!(

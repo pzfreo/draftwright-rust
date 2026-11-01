@@ -244,12 +244,26 @@ pub(crate) fn attach(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
             // A mark in the end-on view orders the holes a leader tries.
             let near = marks.first().filter(|m| m.view == view.id);
             let count = named.len();
+            let prefix = format!("ink:{}:", view.id);
+            let centres: Vec<_> = view
+                .line_work
+                .iter()
+                .flat_map(|w| {
+                    let own = w.kind == "cross"
+                        && w.id
+                            .strip_prefix(&prefix)
+                            .is_some_and(|id| named.contains(id));
+                    crate::centrelines::segments(w)
+                        .into_iter()
+                        .map(move |s| (s, own))
+                })
+                .collect();
             let leader = Leader {
                 view,
                 rims: &rims,
                 others: &others,
                 count,
-                own: &named,
+                centres: &centres,
                 own_arm: false,
             };
             for (mark, hidden, relaxed, fine, own_arm) in steps {
@@ -260,19 +274,26 @@ pub(crate) fn attach(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
                     .and_then(|m| plan.views.iter().find(|v| v.id == m.view))
                     .unwrap_or(view);
                 let taken = tips(plan, &view.id, &g.id);
-                let candidates = match (frame, mark) {
-                    (true, Some(mark)) => frame_candidates(plan, &stacks, g, mark),
-                    // Its own leader first, ending on one of its rims instead.
-                    (true, None) => retargeted(analysis, &leader, g, hidden, &taken)
-                        .into_iter()
-                        .filter(|_| misleading && !fine)
-                        .chain(leader_candidates(
-                            analysis, &leader, g, near, hidden, fine, &taken,
-                        ))
-                        .collect(),
-                    (false, Some(mark)) => datum_candidates(g, mark),
-                    (false, None) => Vec::new(),
-                };
+                let candidates: Box<dyn Iterator<Item = (&'static str, gdt::GdtPlaced)> + '_> =
+                    match (frame, mark) {
+                        (true, Some(mark)) => {
+                            Box::new(frame_candidates(plan, &stacks, g, mark).into_iter())
+                        }
+                        // Its own leader first, ending on one of its rims instead.
+                        (true, None) => Box::new(
+                            (if misleading && !fine {
+                                retargeted(analysis, &leader, g, hidden, &taken)
+                            } else {
+                                Vec::new()
+                            })
+                            .into_iter()
+                            .chain(leader_candidates(
+                                analysis, &leader, g, near, hidden, fine, &taken,
+                            )),
+                        ),
+                        (false, Some(mark)) => Box::new(datum_candidates(g, mark).into_iter()),
+                        (false, None) => Box::new(std::iter::empty()),
+                    };
                 // The mark, and the frames stacked on it, may touch it.
                 let mut attached: BTreeSet<String> = BTreeSet::new();
                 if let Some(mark) = mark {
@@ -516,7 +537,8 @@ struct Leader<'a> {
     rims: &'a [Rim],
     others: &'a [Other],
     count: usize,
-    own: &'a BTreeSet<&'a str>,
+    /// Centreline segments and whether each is one of the controlled holes' own arms.
+    centres: &'a [([P2; 2], bool)],
     /// Last resort for a hole frame: only the controlled circle's own short arm.
     own_arm: bool,
 }
@@ -644,21 +666,16 @@ fn rim_seen(analysis: &Analysis, view: &crate::model::PlannedView, rim: &Rim, u:
 /// rim, so that the two read as one line ([`crate::centrelines::runs_beside`], as the leader
 /// router avoids).
 fn along_centre(leader: &Leader, centre: P2, radius: f64, s: [P2; 2]) -> bool {
-    leader.view.line_work.iter().any(|w| {
-        crate::centrelines::segments(w).into_iter().any(|c| {
-            let own_arm = leader.own_arm
-                && w.kind == "cross"
-                && w.id
-                    .strip_prefix(&format!("ink:{}:", leader.view.id))
-                    .is_some_and(|id| leader.own.contains(id))
-                && (0..2).all(|k| (0.5 * (c[0][k] + c[1][k]) - centre[k]).abs() < 1e-6)
-                && c.iter().all(|p| {
-                    (p[0] - centre[0]).hypot(p[1] - centre[1])
-                        <= radius + crate::centrelines::overrun(radius) + 1e-6
-                });
-            (!own_arm && crate::centrelines::runs_beside(s, c))
-                || super::contacts::along_centreline(s, c)
-        })
+    leader.centres.iter().any(|&(c, own)| {
+        let own_arm = leader.own_arm
+            && own
+            && (0..2).all(|k| (0.5 * (c[0][k] + c[1][k]) - centre[k]).abs() < 1e-6)
+            && c.iter().all(|p| {
+                (p[0] - centre[0]).hypot(p[1] - centre[1])
+                    <= radius + crate::centrelines::overrun(radius) + 1e-6
+            });
+        (!own_arm && crate::centrelines::runs_beside(s, c))
+            || super::contacts::along_centreline(s, c)
     })
 }
 
@@ -679,17 +696,17 @@ fn through_others(others: &[Other], c: P2, r: f64, s: [P2; 2]) -> bool {
 /// leader (ASME Y14.2, ISO 128-22: a leader ends on a visible outline, not on dashed
 /// line-work), or with *hidden* only those it draws hidden. No leader runs along a centre line
 /// or through another hole.
-fn leader_candidates(
-    analysis: &Analysis,
-    leader: &Leader,
-    g: &gdt::PlannedGdt,
+fn leader_candidates<'a>(
+    analysis: &'a Analysis,
+    leader: &'a Leader<'_>,
+    g: &'a gdt::PlannedGdt,
     mark: Option<&Mark>,
     hidden: bool,
     fine: bool,
-    taken: &[P2],
-) -> Vec<(&'static str, gdt::GdtPlaced)> {
+    taken: &'a [P2],
+) -> Box<dyn Iterator<Item = (&'static str, gdt::GdtPlaced)> + 'a> {
     let Some(old) = g.placed.as_ref() else {
-        return Vec::new();
+        return Box::new(std::iter::empty());
     };
     let view = leader.view;
     let frame = placement::Frame::new(analysis, view);
@@ -709,9 +726,18 @@ fn leader_candidates(
         old.label_box[2] - old.label_box[0],
         old.label_box[3] - old.label_box[1],
     ];
-    let mut out = Vec::new();
-    for reach in REACH {
-        for rim in &circles {
+    let mut reaches: Vec<_> = REACH.into_iter().map(|r| (r, false)).collect();
+    if fine {
+        // Try narrow gaps between coarse samples only after ordinary routes fail.
+        reaches.extend(REACH.windows(2).map(|w| (0.5 * (w[0] + w[1]), true)));
+        reaches.sort_by(|a, b| a.0.total_cmp(&b.0));
+    }
+    // Build only the next reach's routes. A successful ordinary route never
+    // allocates the remaining reaches or the more elaborate rim rails.
+    let direct_circles = circles.clone();
+    let direct = reaches.into_iter().flat_map(move |(reach, intermediate)| {
+        let mut out = Vec::new();
+        for rim in &direct_circles {
             let (c, r) = (rim.c, rim.r);
             // Only after the ordinary eight directions fail, try the intermediate rays.
             // A shallow diagonal can clear a centre mark while keeping a frame beside its
@@ -719,7 +745,7 @@ fn leader_candidates(
             let divisions = if fine { 32 } else { 8 };
             let step = std::f64::consts::FRAC_PI_4 / if fine { 4.0 } else { 1.0 };
             let mut directions: Vec<P2> = (0..divisions)
-                .filter(|i| !fine || i % 4 != 0)
+                .filter(|i| !fine || intermediate || i % 4 != 0)
                 .map(|i| {
                     let a = f64::from(i) * step;
                     [a.cos(), a.sin()]
@@ -771,8 +797,86 @@ fn leader_candidates(
                 }
             }
         }
-    }
-    out
+        out
+    });
+    // Bound the additional corridor search independently of machine speed.
+    // Ordinary radial routes keep their complete, established search order.
+    const RAILS_PER_REACH: usize = 1024;
+    // Radial exit, then a rail around the view's witness/frame corridor.
+    // Existing direct routes remain first and every leg keeps their checks.
+    let rails = [4.0, 8.0, 15.0, 27.0]
+        .into_iter()
+        .filter(move |_| fine)
+        .flat_map(move |reach| {
+            let mut out = Vec::new();
+            for rim in &circles {
+                let (c, r) = (rim.c, rim.r);
+                for i in 0..32 {
+                    let angle = f64::from(i) * std::f64::consts::TAU / 32.0;
+                    let u = [angle.cos(), angle.sin()];
+                    let tip = [c[0] + r * u[0], c[1] + r * u[1]];
+                    let elbow = [c[0] + (r + reach) * u[0], c[1] + (r + reach) * u[1]];
+                    if !on_rim(rim, tip)
+                        || crowded(tip, taken)
+                        || rim_seen(analysis, view, rim, u) == hidden
+                        || through_others(leader.others, c, r, [tip, elbow])
+                        || along_centre(leader, c, r, [tip, elbow])
+                    {
+                        continue;
+                    }
+                    for x in [
+                        elbow[0],
+                        o[0] - super::GAP - gdt::SHELF,
+                        o[2] + super::GAP + gdt::SHELF,
+                    ] {
+                        let rail = [x, elbow[1]];
+                        let mut path = vec![[tip, elbow]];
+                        if (x - elbow[0]).abs() > 1e-6 {
+                            if through_others(leader.others, c, r, [elbow, rail])
+                                || along_centre(leader, c, r, [elbow, rail])
+                            {
+                                continue;
+                            }
+                            path.push([elbow, rail]);
+                        }
+                        for gap in [3.0, 11.0, 27.0] {
+                            for y in [o[3] + gap + 0.5 * size[1], o[1] - gap - 0.5 * size[1]] {
+                                let bend = [x, y];
+                                if (rail[1] - y).abs() < 2.0
+                                    || through_others(leader.others, c, r, [rail, bend])
+                                    || along_centre(leader, c, r, [rail, bend])
+                                {
+                                    continue;
+                                }
+                                for dir in [1.0, -1.0] {
+                                    let end = [x + dir * gdt::SHELF, y];
+                                    if through_others(leader.others, c, r, [bend, end])
+                                        || along_centre(leader, c, r, [bend, end])
+                                    {
+                                        continue;
+                                    }
+                                    let x0 = if dir > 0.0 { end[0] } else { end[0] - size[0] };
+                                    let mut next = beneath(old, [x0, y + 0.5 * size[1]]);
+                                    next.tip = tip;
+                                    next.lines = path.clone();
+                                    next.lines.extend([[rail, bend], [bend, end]]);
+                                    next.arrows = vec![placement::arrow(tip, elbow)];
+                                    if leader.count > 1 {
+                                        gdt::with_count(&mut next, leader.count);
+                                    }
+                                    out.push((LEADER, next));
+                                    if out.len() == RAILS_PER_REACH {
+                                        return out;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            out
+        });
+    Box::new(direct.chain(rails))
 }
 
 /// Whether some planar face of the part lies nearer the viewer of *camera* than point *end*,
@@ -1007,7 +1111,7 @@ pub(super) fn settle(
     plan: &Plan,
     gi: usize,
     view: &crate::model::PlannedView,
-    candidates: Vec<(&'static str, gdt::GdtPlaced)>,
+    candidates: impl IntoIterator<Item = (&'static str, gdt::GdtPlaced)>,
     attached: &BTreeSet<String>,
     proofs: (
         &BTreeMap<String, std::rc::Rc<super::interior::Proof>>,
@@ -1062,23 +1166,44 @@ pub(super) fn settle(
         .position(|d| d.id == *id)
         // Invariant: a placed glyph has a proxy, appended above.
         .expect("the glyph's proxy");
-    let peers: Vec<PlannedDimension> = all
+    let mut peers: Vec<PlannedDimension> = all
         .iter()
         .enumerate()
         .filter(|(j, q)| *j != i && on_sheet(&q.view))
         .map(|(_, q)| q.clone())
-        .chain(
-            callout_routes::furniture(plan)
-                .into_iter()
-                .filter(|q| !q.id.starts_with(&own_triangle) && on_sheet(&q.view)),
-        )
         .collect();
-    let before = placement::collisions_for(analysis, &all, sheet, &plan.views, cache, id);
+    let annotation_peers = peers.len();
+    peers.extend(
+        callout_routes::furniture(plan)
+            .into_iter()
+            .filter(|q| !q.id.starts_with(&own_triangle) && on_sheet(&q.view)),
+    );
+    let geometry = placement::CollisionGeometry::new(analysis, &all, sheet, &plan.views, cache);
+    let before = geometry.for_item(analysis, &all, sheet, &plan.views, id);
     let old = plan.gdt[gi]
         .placed
         .as_ref()
         .filter(|_| plan.gdt[gi].view == view.id);
     let mut chosen = None;
+    let mut best_crossings = [usize::MAX; 2];
+    let crossing_peers: Vec<_> = peers[..annotation_peers]
+        .iter()
+        .filter(|q| {
+            q.id != *id
+                && plan
+                    .views
+                    .iter()
+                    .find(|v| v.id == q.view)
+                    .map_or(sheet.number == 1, |v| v.sheet == sheet.number)
+        })
+        .collect();
+    let old_crossings = before
+        .iter()
+        .filter(|p| p.code == "annotation_leader_crossing")
+        .count();
+    // Only the view and placed ink vary between trials. Keep the proxy's text,
+    // metadata and allocated line buffers instead of cloning the entire glyph.
+    all[i].view.clone_from(&view.id);
     for (side, next) in candidates {
         // An unchanged frame retains its old paper; only its new leader is checked against
         // the existing findings below. A repair must not increase any of their counts.
@@ -1086,11 +1211,42 @@ pub(super) fn settle(
         if !held && !clear(&next, attached, &peers, &outlines, &paper) {
             continue;
         }
-        let mut trial = plan.gdt[gi].clone();
-        trial.view.clone_from(&view.id);
-        trial.placed = Some(next.clone());
-        all[i] = gdt::proxy(&trial).expect("just placed");
-        let problems = placement::collisions_for(analysis, &all, sheet, &plan.views, cache, id);
+        let ink = all[i].placed.as_mut().expect("the glyph's placed proxy");
+        ink.lines.clone_from(&next.lines);
+        ink.arrows.clone_from(&next.arrows);
+        ink.label_box = next.label_box;
+        ink.label_at = [next.label_box[0], next.label_box[1]];
+        // A strict route permits no crossing; repairs may retain the old count. Reject
+        // proven failures before preparing a complete diagnostic report.
+        let allowed = if relaxed || held { old_crossings } else { 0 };
+        let crossings = placement::route_crossings(
+            &all[i],
+            &crossing_peers,
+            [best_crossings[0], best_crossings[1], allowed],
+        );
+        if crossings[2] > allowed
+            || (chosen.is_some()
+                && (crossings[..2] == best_crossings
+                    || (0..2).any(|k| crossings[k] > best_crossings[k])))
+        {
+            continue;
+        }
+        let problems = geometry.for_item(analysis, &all, sheet, &plan.views, id);
+        let crossings = ["leader", "arrow"].map(|kind| {
+            problems
+                .iter()
+                .filter(|p| {
+                    p.code == "annotation_leader_crossing"
+                        && p.crossing_kinds.iter().any(|k| k == kind)
+                })
+                .count()
+        });
+        // Keep the first valid route as a fallback. Prefer a later route only
+        // to avoid a crossed arrowhead without increasing leader crossings.
+        // Once the arrowheads are clear, retain the first valid route.
+        let improves =
+            crossings != best_crossings && (0..2).all(|k| crossings[k] <= best_crossings[k]);
+
         // A leader to the hole may pass through material as often as the leader it replaces
         // did: the frame then says which hole it controls at no new cost. *relaxed*, it may
         // cross other leaders as often too.
@@ -1113,8 +1269,14 @@ pub(super) fn settle(
         };
         let problems = tolerated(&problems);
         if problems.is_empty() {
-            chosen = Some((side, next, None));
-            break;
+            if improves {
+                chosen = Some((side, next, None));
+                best_crossings = crossings;
+            }
+            if best_crossings[1] == 0 {
+                break;
+            }
+            continue;
         }
         // Past its view's reserved area alone: that area grows to hold it where the
         // sheet has vacant paper, and nothing else may change.
@@ -1129,13 +1291,14 @@ pub(super) fn settle(
                 .position(|v| v.id == view.id)
                 .expect("its view");
             views[vi].area = area;
-            if tolerated(&placement::collisions_for(
-                analysis, &all, sheet, &views, cache, id,
-            ))
-            .is_empty()
-            {
-                chosen = Some((side, next, Some((vi, area))));
-                break;
+            if tolerated(&geometry.for_item(analysis, &all, sheet, &views, id)).is_empty() {
+                if improves {
+                    chosen = Some((side, next, Some((vi, area))));
+                    best_crossings = crossings;
+                }
+                if best_crossings[1] == 0 {
+                    break;
+                }
             }
         }
     }
@@ -1691,6 +1854,61 @@ fn clear(
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    #[test]
+    fn a_clear_route_does_not_request_later_candidates() {
+        let analysis: Analysis = serde_json::from_value(serde_json::json!({
+            "schema": crate::model::ANALYSIS_SCHEMA,
+            "binding":{"source_sha256":"", "part":"plate", "face_count":0, "loader":"test"},
+            "envelope":[[0,0,0],[100,60,10]], "iso_bounds":[0,0,100,60]
+        }))
+        .unwrap();
+        let mut plan = crate::model::plan(&analysis, &Spec::default()).unwrap();
+        plan.dimensions.clear();
+        plan.views.truncate(1);
+        let h = plan.sheet.page[1];
+        plan.views[0].area = [5., 5., plan.sheet.page[0] - 5., h - 5.];
+        let next: gdt::GdtPlaced = serde_json::from_value(serde_json::json!({
+            "tip":[20,h-25.], "label_box":[20,h-25.,30,h-19.],
+            "lines":[], "arrows":[], "strokes":[], "arcs":[],
+            "fills":[], "letters":[], "runs":[]
+        }))
+        .unwrap();
+        plan.gdt.push(gdt::PlannedGdt {
+            from_spec: vec![],
+            id: "pmi:frame".into(),
+            kind: "control_frame".into(),
+            view: plan.views[0].id.clone(),
+            side: LEADER.into(),
+            source: "frame".into(),
+            faces: vec![],
+            cells: vec!["0.1".into()],
+            modifiers: vec![],
+            label: "0.1".into(),
+            default: true,
+            basis: String::new(),
+            state: crate::items::State::Shown,
+            placed: Some(next.clone()),
+        });
+        let candidates = std::iter::once((LEADER, next.clone())).chain(std::iter::from_fn(|| {
+            panic!("a clear route must stop generation of later candidates")
+        }));
+        let found = settle(
+            &analysis,
+            &plan,
+            0,
+            &plan.views[0],
+            candidates,
+            &BTreeSet::new(),
+            (&BTreeMap::new(), &BTreeMap::new()),
+            &super::super::footprints::Cache::default(),
+            false,
+        )
+        .unwrap();
+        assert_eq!(found.1, next);
+    }
+
     #[test]
     fn only_a_leading_count_counts() {
         assert!(super::counted("4× ⌀7 THRU"));

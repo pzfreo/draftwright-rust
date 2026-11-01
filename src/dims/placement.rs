@@ -394,6 +394,30 @@ fn callout_strip(view: &str) -> Side {
     }
 }
 
+/// An inclined span belongs beside its witnesses, rather than beyond the remote end of
+/// the whole part. Choose the nearer parallel support of the view's outline; keep the
+/// usual strip when both are equally near. Explicit placement still overrides this.
+fn aligned_strip(a: P2, b: P2, outline: [f64; 4], preferred: Side) -> Side {
+    let mut n = [a[1] - b[1], b[0] - a[0]];
+    let outward = match preferred {
+        Side::Above => [0.0, 1.0],
+        Side::Below => [0.0, -1.0],
+        Side::Left => [-1.0, 0.0],
+        Side::Right => [1.0, 0.0],
+    };
+    if n[0] * outward[0] + n[1] * outward[1] < 0.0 {
+        n = n.map(|v| -v);
+    }
+    let distance = (0..2)
+        .map(|k| n[k] * (a[k] + b[k] - outline[k] - outline[k + 2]))
+        .sum::<f64>();
+    if distance < -1e-6 {
+        opposite(preferred)
+    } else {
+        preferred
+    }
+}
+
 /// The page position of lane *lane* in strip *side*, and the outward sign.
 fn lane_at(o: [f64; 4], side: Side, lane: usize) -> (f64, f64) {
     let d = first_line() + lane as f64 * lane_pitch();
@@ -631,6 +655,7 @@ pub(super) fn owners(
 /// (ARCH0009-5), then callouts by their tips, right to left. An item merged away ([`owners`])
 /// takes its survivor's lane number and, when parallel, its strip.
 pub(super) fn lanes<'a>(
+    analysis: &Analysis,
     frames: &BTreeMap<&str, Frame>,
     items: impl ExactSizeIterator<Item = (&'a Want, Option<&'static str>)>,
     owner: &[Option<usize>],
@@ -682,7 +707,12 @@ pub(super) fn lanes<'a>(
             Shape::Aligned { a, b } => {
                 let (a, b) = (f.page(*a), f.page(*b));
                 (
-                    strip(view, (b[0] - a[0]).abs() >= (b[1] - a[1]).abs()),
+                    aligned_strip(
+                        a,
+                        b,
+                        f.outline(),
+                        strip(view, (b[0] - a[0]).abs() >= (b[1] - a[1]).abs()),
+                    ),
                     (1, key((b[0] - a[0]).hypot(b[1] - a[1]))),
                 )
             }
@@ -708,9 +738,80 @@ pub(super) fn lanes<'a>(
             ));
         }
     }
+    // Keep a plane span off the required profile corner it touches. Other source
+    // dimensions keep their established strips, including datum baseline ladders.
+    let mut corners: BTreeMap<&str, Vec<P3>> = BTreeMap::new();
+    for &(w, view) in &items {
+        if super::profile_angles::is_profile_angle(w)
+            && let (Some(view), Shape::Angular { angle, alternates }) = (view, &w.shape)
+        {
+            let points = corners.entry(view).or_default();
+            points.push(angle.vertex);
+            points.extend(alternates.iter().map(|a| a.vertex));
+        }
+    }
+    let local: BTreeMap<_, _> = corners
+        .iter()
+        .map(|(&view, points)| {
+            (
+                view,
+                super::pmi_dimensions::local_plane_spans(analysis, points),
+            )
+        })
+        .collect();
+    for (i, &(w, view)) in items.iter().enumerate() {
+        let (Some(view), Some(side), Shape::Linear { a, b, .. }) = (view, sides[i], &w.shape)
+        else {
+            continue;
+        };
+        if owner[i].is_some()
+            || !local
+                .get(view)
+                .is_some_and(|spans| w.measurements.iter().any(|m| spans.contains(&m.feature)))
+        {
+            continue;
+        }
+        let frame = &frames[view];
+        let (a, b) = (frame.page(*a), frame.page(*b));
+        let across = usize::from(matches!(side, Side::Above | Side::Below));
+        let cost = |side| {
+            let edge = lane_at(frame.outline(), side, 0).0;
+            (a[across] - edge).abs().max((b[across] - edge).abs())
+        };
+        let other = opposite(side);
+        if cost(other) + 1e-6 < cost(side) {
+            let own = strips
+                .get_mut(&(view, side))
+                .expect("a standalone span has a strip");
+            let index = own
+                .iter()
+                .position(|row| row.3 == i)
+                .expect("its strip entry");
+            let row = own.remove(index);
+            strips.entry((view, other)).or_default().push(row);
+            sides[i] = Some(other);
+        }
+    }
     let mut lane = vec![0usize; n];
     for ((view, _), list) in &mut strips {
-        list.sort();
+        // Equal independent PMI spans follow their stations, not STEP entity
+        // order. In particular, the upper short span takes the outer lane: its
+        // outside label then leaves the above-view control-frame strip clear.
+        // Preserve category, length and the established automatic-item order.
+        list.sort_by_key(|&(outer, order, length, i)| {
+            let w = items[i].0;
+            let source = w.id.starts_with("d:pmi:");
+            let station = if source
+                && let Shape::Linear { a, b, axis, .. } = w.shape
+                && let Some(horizontal) = across(&frames[view], axis)
+            {
+                let along = usize::from(!horizontal);
+                key(frames[view].page(a)[along].min(frames[view].page(b)[along]))
+            } else {
+                0
+            };
+            (outer, order, length, source, station, i)
+        });
         let links: Vec<_> = list.iter().map(|(_, _, _, i)| items[*i].0).collect();
         for ((_, _, _, i), n) in list.iter().zip(chain_lanes(&frames[view], &links)) {
             lane[*i] = n;
@@ -4932,6 +5033,45 @@ pub(super) fn collisions_for(
     collisions_impl(analysis, dims, sheet, views, cache, Some(id))
 }
 
+/// Ordered leader, arrow and total crossing counts for a rim route. Peers must be on
+/// the same sheet. This is a cheap rejection test, not admission: a surviving
+/// route still takes the complete collision check before it can be drawn.
+/// Stop once any limit is exceeded; otherwise all three returned counts are exact.
+pub(super) fn route_crossings(
+    d: &PlannedDimension,
+    peers: &[&PlannedDimension],
+    limits: [usize; 3],
+) -> [usize; 3] {
+    let Some(p) = d.placed.as_ref() else {
+        return [0; 3];
+    };
+    let mut counts = [0; 3];
+    for q in peers.iter().filter(|q| q.id != d.id) {
+        let Some(r) = q.placed.as_ref() else {
+            continue;
+        };
+        for (a, pa, b, pb) in [(d, p, *q, r), (*q, r, d, p)] {
+            if a.kind != "callout" {
+                continue;
+            }
+            let meets = |lines: &[[P2; 2]]| {
+                pa.lines
+                    .iter()
+                    .any(|s| lines.iter().any(|t| super::leaders::lines_meet(*s, *t)))
+            };
+            let lines = meets(&pb.lines);
+            let arrows = meets(&pb.arrows);
+            counts[0] += usize::from(b.kind == "callout" && lines);
+            counts[1] += usize::from(arrows);
+            counts[2] += usize::from(lines || arrows);
+            if (0..3).any(|k| counts[k] > limits[k]) {
+                return counts;
+            }
+        }
+    }
+    counts
+}
+
 /// `place_linear_at` and `aligned_at_offset` reserve index 2 for the dimension
 /// stroke. Any appended strokes are clipped extension continuations.
 fn crossing_kind(kind: &str, index: usize) -> &'static str {
@@ -4951,27 +5091,82 @@ fn collisions_impl(
     cache: &super::footprints::Cache,
     only: Option<&str>,
 ) -> Vec<Problem> {
+    let geometry = CollisionGeometry::new(analysis, dims, sheet, views, cache);
+    collisions_prepared(analysis, dims, sheet, views, &geometry, only)
+}
+
+/// Immutable projection evidence shared by route trials. Only annotation ink and
+/// reserved view areas may change while it is reused; paper and view frames stay fixed.
+pub(super) struct CollisionGeometry<'a> {
+    interior_proofs: BTreeMap<String, std::rc::Rc<super::interior::Proof>>,
+    datum_proofs: BTreeMap<String, std::rc::Rc<super::interior::Proof>>,
+    outlines: Vec<(&'a str, [f64; 4])>,
+    footprints: BTreeMap<&'a str, std::rc::Rc<super::footprints::Footprints>>,
+}
+
+impl<'a> CollisionGeometry<'a> {
+    pub(super) fn new(
+        analysis: &Analysis,
+        dims: &[PlannedDimension],
+        sheet: &PlannedSheet,
+        views: &'a [PlannedView],
+        cache: &super::footprints::Cache,
+    ) -> Self {
+        let interior_proofs = super::interior::proofs(analysis, views);
+        let datum_proofs = if dims.iter().any(|d| d.id.starts_with("pmi:datum.")) {
+            super::interior::exterior_proofs(analysis, views)
+        } else {
+            BTreeMap::new()
+        };
+        let outlines: Vec<_> = outlines(analysis, views)
+            .into_iter()
+            .filter(|(id, _)| views.iter().any(|v| v.id == *id && v.sheet == sheet.number))
+            .collect();
+        let footprints: BTreeMap<_, _> = views
+            .iter()
+            .filter_map(|v| {
+                let name = v.id.strip_prefix("v:")?;
+                super::NAMES
+                    .contains(&name)
+                    .then(|| (v.id.as_str(), cache.get(analysis, v)))
+            })
+            .collect();
+        Self {
+            interior_proofs,
+            datum_proofs,
+            outlines,
+            footprints,
+        }
+    }
+
+    pub(super) fn for_item(
+        &self,
+        analysis: &Analysis,
+        dims: &[PlannedDimension],
+        sheet: &PlannedSheet,
+        views: &[PlannedView],
+        id: &str,
+    ) -> Vec<Problem> {
+        collisions_prepared(analysis, dims, sheet, views, self, Some(id))
+    }
+}
+
+fn collisions_prepared(
+    analysis: &Analysis,
+    dims: &[PlannedDimension],
+    sheet: &PlannedSheet,
+    views: &[PlannedView],
+    geometry: &CollisionGeometry<'_>,
+    only: Option<&str>,
+) -> Vec<Problem> {
     let mut problems = Vec::new();
     let drawable = drawable(sheet);
-    let interior_proofs = super::interior::proofs(analysis, views);
-    let datum_proofs = if dims.iter().any(|d| d.id.starts_with("pmi:datum.")) {
-        super::interior::exterior_proofs(analysis, views)
-    } else {
-        BTreeMap::new()
-    };
-    let outlines: Vec<_> = outlines(analysis, views)
-        .into_iter()
-        .filter(|(id, _)| views.iter().any(|v| v.id == *id && v.sheet == sheet.number))
-        .collect();
-    let footprints: BTreeMap<_, _> = views
-        .iter()
-        .filter_map(|v| {
-            let name = v.id.strip_prefix("v:")?;
-            super::NAMES
-                .contains(&name)
-                .then(|| (v.id.as_str(), cache.get(analysis, v)))
-        })
-        .collect();
+    let CollisionGeometry {
+        interior_proofs,
+        datum_proofs,
+        outlines,
+        footprints,
+    } = geometry;
     let placed: Vec<(&PlannedDimension, &Placed)> = dims
         .iter()
         .filter(|d| {
@@ -5126,7 +5321,7 @@ fn collisions_impl(
                 ),
             );
         }
-        for (view, b) in &outlines {
+        for (view, b) in outlines {
             if boxes_overlap(lb, *b)
                 && !(*view == d.view
                     && views.iter().find(|v| v.id == d.view).is_some_and(|v| {
@@ -5320,6 +5515,108 @@ fn collisions_impl(
 #[cfg(test)]
 mod tests {
     #[test]
+    fn inclined_spans_choose_the_nearer_parallel_support() {
+        let outline = [0., 0., 100., 100.];
+        assert_eq!(
+            aligned_strip([78., 70.], [85., 66.], outline, Side::Below),
+            Side::Above
+        );
+        assert_eq!(
+            aligned_strip([85., 66.], [78., 70.], outline, Side::Below),
+            Side::Above
+        );
+        assert_eq!(
+            aligned_strip([22., 30.], [15., 34.], outline, Side::Above),
+            Side::Below
+        );
+    }
+
+    #[test]
+    fn equal_source_spans_follow_geometry_in_either_entity_order() {
+        let a: Analysis = serde_json::from_value(serde_json::json!({
+            "schema": crate::model::ANALYSIS_SCHEMA,
+            "binding":{"source_sha256":"", "part":"plate", "face_count":0, "loader":"test"},
+            "envelope":[[0,0,0],[100,60,100]], "iso_bounds":[0,0,100,100]
+        }))
+        .unwrap();
+        let frames = BTreeMap::from([(
+            "front",
+            Frame::looking(&a, [0., -1., 0.], [0., 0., 1.], [0., 0.], 1.),
+        )]);
+        let want = |id: &str, lo| Want {
+            id: format!("d:pmi:{id}"),
+            views: vec!["front"],
+            value: 10.,
+            terms: vec!["10".into(), "±0.2".into()],
+            measurements: vec![],
+            basis: String::new(),
+            turning: None,
+            shape: Shape::Linear {
+                a: [50., 0., lo],
+                b: [50., 0., lo + 10.],
+                axis: 2,
+                a_edge: false,
+                b_edge: false,
+                order: 1,
+            },
+        };
+        for items in [
+            [want("upper", 70.), want("lower", 20.)],
+            [want("lower", 20.), want("upper", 70.)],
+        ] {
+            let (_, lanes) = lanes(
+                &a,
+                &frames,
+                items.iter().map(|w| (w, Some("front"))),
+                &[None; 2],
+            );
+            for (w, lane) in items.iter().zip(lanes) {
+                assert_eq!(lane, usize::from(w.id.ends_with("upper")), "{}", w.id);
+            }
+        }
+    }
+
+    #[test]
+    fn reused_route_geometry_rechecks_moved_ink_and_grown_areas() {
+        let analysis: Analysis = serde_json::from_value(serde_json::json!({
+            "schema": crate::model::ANALYSIS_SCHEMA,
+            "binding":{"source_sha256":"", "part":"plate", "face_count":0, "loader":"test"},
+            "envelope":[[0,0,0],[100,60,10]], "iso_bounds":[0,0,100,60]
+        }))
+        .unwrap();
+        let plan = crate::model::plan(&analysis, &crate::model::Spec::default()).unwrap();
+        let cache = super::super::footprints::Cache::default();
+        let geometry = CollisionGeometry::new(
+            &analysis,
+            &plan.dimensions,
+            &plan.sheet,
+            &plan.views,
+            &cache,
+        );
+        let mut dims = plan.dimensions.clone();
+        let id = dims[0].id.clone();
+        for dx in [0., 15.] {
+            let p = dims[0].placed.as_mut().unwrap();
+            p.label_box[2] += dx;
+            for pad in [-5., 5.] {
+                let mut views = plan.views.clone();
+                let v = views.iter_mut().find(|v| v.id == dims[0].view).unwrap();
+                let b = super::super::ink_box(&dims[0]).unwrap();
+                v.area = [b[0] - pad, b[1] - pad, b[2] + pad, b[3] + pad];
+                let fresh = collisions_for(&analysis, &dims, &plan.sheet, &views, &cache, &id);
+                assert_eq!(
+                    geometry.for_item(&analysis, &dims, &plan.sheet, &views, &id),
+                    fresh
+                );
+                assert_eq!(
+                    fresh.iter().any(|p| p.code == "annotation_outside_area"),
+                    pad < 0.
+                );
+            }
+        }
+    }
+
+    #[test]
     fn crossing_kinds_and_dimension_strokes_follow_the_placed_structure() {
         let analysis: Analysis = serde_json::from_value(serde_json::json!({
             "schema": crate::model::ANALYSIS_SCHEMA,
@@ -5390,6 +5687,47 @@ mod tests {
         );
         peer.placed.as_mut().unwrap().lines = vec![far; 3];
         assert_eq!(kinds(&leader, &peer).crossing_kinds, ["arrow"]);
+
+        // The rim-search rejection must count both ordered pairs, all shaft
+        // legs and arrow-only contacts exactly as the complete checker does.
+        for ak in ["callout", "linear", "angular"] {
+            for bk in ["callout", "linear", "angular"] {
+                for shift in [0., 20., 50.] {
+                    let mut a = leader.clone();
+                    a.kind = ak.into();
+                    a.placed.as_mut().unwrap().arrows = vec![horizontal];
+                    let mut b = peer.clone();
+                    b.kind = bk.into();
+                    let stroke = vertical.map(|p| [p[0] + shift, p[1]]);
+                    b.placed.as_mut().unwrap().lines = vec![stroke; 4];
+                    b.placed.as_mut().unwrap().arrows = vec![stroke];
+                    let problems = collisions(&analysis, &[a.clone(), b.clone()], &plan.sheet, &[]);
+                    let expected = ["leader", "arrow", "total"].map(|kind| {
+                        problems
+                            .iter()
+                            .filter(|p| {
+                                p.code == "annotation_leader_crossing"
+                                    && (kind == "total"
+                                        || p.crossing_kinds.iter().any(|k| k == kind))
+                            })
+                            .count()
+                    });
+                    for d in [&a, &b] {
+                        assert_eq!(route_crossings(d, &[&a, &b], [usize::MAX; 3]), expected);
+                        for limit in 0..=2 {
+                            let counts = route_crossings(d, &[&a, &b], [limit; 3]);
+                            assert_eq!(
+                                counts.iter().any(|&n| n > limit),
+                                expected.iter().any(|&n| n > limit)
+                            );
+                            if counts.iter().all(|&n| n <= limit) {
+                                assert_eq!(counts, expected);
+                            }
+                        }
+                    }
+                }
+            }
+        }
 
         // The leader through a label is distinct from a linear line or a flare-only hit.
         peer.placed.as_mut().unwrap().label_box = [45., 79., 55., 81.];
@@ -5586,6 +5924,7 @@ mod tests {
             want("middle", 50., 1),
         ];
         let (sides, lane) = lanes(
+            &a,
             &frames,
             items.iter().map(|w| (w, Some("front"))),
             &[None; 5],
@@ -5704,6 +6043,7 @@ mod tests {
                 want(80., 82., "2"),
             ];
             let (_, lane) = lanes(
+                &a,
                 &frames,
                 items.iter().map(|w| (w, Some("front"))),
                 &[None; 5],

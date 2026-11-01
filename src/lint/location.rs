@@ -490,6 +490,79 @@ fn pitch_states(a: &Analysis, p: &crate::bridge::HolePattern, k: usize, text: &s
             .all(|q| ((q[1] - q[0]) - (xs[1] - xs[0])).abs() < super::redundancy::TOL)
 }
 
+fn slot_end_witness(
+    a: &Analysis,
+    r: &crate::pmi::Record,
+    f: &crate::bridge::Feature,
+    k: usize,
+    at: f64,
+) -> bool {
+    let Some(span) = super::redundancy::span(a, &f.id, "location_slot.length") else {
+        return false;
+    };
+    if span.axis != k || (span.hi - at).abs() > EPS || f.faces.len() < 2 {
+        return false;
+    }
+    // Drawing may sort the ends. Recover the authored group by station.
+    let Some((side, _)) = r.geometry.as_ref().and_then(|g| {
+        g.stations
+            .iter()
+            .enumerate()
+            .find(|(_, p)| (p[k] - at).abs() <= EPS)
+    }) else {
+        return false;
+    };
+    let Some(group) = r.face_groups.get(side).filter(|g| !g.is_empty()) else {
+        return false;
+    };
+    if !group.iter().all(|&i| {
+        a.face_attachments
+            .get(i)
+            .is_some_and(|face| face.surface.as_deref() == Some("plane") && face.axis == Some(k))
+    }) {
+        return false;
+    }
+    let mut bounds = [f64::INFINITY; 6];
+    bounds[3..].fill(f64::NEG_INFINITY);
+    let mut common = [[f64::NEG_INFINITY; 3], [f64::INFINITY; 3]];
+    for &i in &f.faces {
+        let Some(wall) = a.face_attachments.get(i) else {
+            return false;
+        };
+        let Some(wb) = wall.bounds else {
+            return false;
+        };
+        if wall.surface.as_deref() != Some("plane")
+            || wall.axis.is_none_or(|axis| axis == k)
+            || (wb[k] - at).abs().min((wb[k + 3] - at).abs()) > EPS
+        {
+            return false;
+        }
+        for j in 0..3 {
+            bounds[j] = bounds[j].min(wb[j]);
+            bounds[j + 3] = bounds[j + 3].max(wb[j + 3]);
+            if j != k && Some(j) != wall.axis {
+                common[0][j] = common[0][j].max(wb[j]);
+                common[1][j] = common[1][j].min(wb[j + 3]);
+            }
+        }
+    }
+    // Use an actual trimmed-face site, not a potentially hollow box centre.
+    group
+        .iter()
+        .filter_map(|&i| a.face_attachments.get(i))
+        .flat_map(|face| &face.sites)
+        .any(|p| {
+            (p[k] - at).abs() <= EPS
+                && (0..3).all(|j| {
+                    bounds[j] - EPS <= p[j]
+                        && p[j] <= bounds[j + 3] + EPS
+                        && common[0][j] - EPS <= p[j]
+                        && p[j] <= common[1][j] + EPS
+                })
+        })
+}
+
 pub(crate) fn identify(a: &Analysis, mark: &Mark, spans: Vec<Edge>) -> Vec<Edge> {
     if spans.is_empty() {
         return Vec::new();
@@ -580,17 +653,43 @@ pub(crate) fn identify(a: &Analysis, mark: &Mark, spans: Vec<Edge>) -> Vec<Edge>
                     if candidates.len() == 1 {
                         return Some(candidates[0].id.clone());
                     }
-                    r.face_groups
-                        .get(side)
-                        .and_then(|faces| {
-                            candidates
-                                .iter()
-                                .find(|f| faces.iter().any(|i| f.faces.contains(i)))
-                        })
-                        .map(|f| f.id.clone())
+                    if let Some(direct) = r.face_groups.get(side).and_then(|faces| {
+                        candidates
+                            .iter()
+                            .find(|f| faces.iter().any(|i| f.faces.contains(i)))
+                    }) {
+                        return Some(direct.id.clone());
+                    }
+                    // Prefer native face ownership. A planar end omitted from
+                    // the slot's side-wall support needs its own cap proof.
+                    let slots: Vec<_> = a
+                        .features
+                        .iter()
+                        .filter(|f| f.kind == "slot" && slot_end_witness(a, r, f, e.axis, at))
+                        .collect();
+                    (slots.len() == 1).then(|| slots[0].id.clone())
                 };
                 e.a_feature = feature(0, e.a);
                 e.b_feature = feature(1, e.b);
+                // A cap's virtual slot identity adds evidence; it must not
+                // replace the physical plane used by other source locations.
+                // Retain the other endpoint's native identity, including bores.
+                let mut physical = e.clone();
+                for (node, at) in [
+                    (&mut physical.a_feature, e.a),
+                    (&mut physical.b_feature, e.b),
+                ] {
+                    if node
+                        .as_ref()
+                        .and_then(|id| a.features.iter().find(|f| f.id == *id))
+                        .is_some_and(|f| f.kind == "slot" && slot_end_witness(a, r, f, e.axis, at))
+                    {
+                        *node = None;
+                    }
+                }
+                if physical.a_feature != e.a_feature || physical.b_feature != e.b_feature {
+                    out.push(physical);
+                }
                 out.push(e);
             }
             continue;

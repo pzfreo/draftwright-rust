@@ -444,51 +444,6 @@
   "evidence": "#495 is the structured statement of the requirement the port reads as manufacturing_requirement:#475 (among its instances); draftwright's typed feature carries it as a second source ID and its lint reports each ID. Both lower it to the same owner, turned step f:turned_step:2 (ø6.25) (lower_ap242_manufacturing_requirements: its one cylinder, of the stated size, within the step's span), and both plan the manufacturing requirements table (two requirements, the knurl's suffix 56 characters) with draftwright's rows; but draftwright's renderer draws no diameter for that step (its overall diameter prints no thread, its step diameters are not drawn), so its own lint finds the requirement not drawn, while the port's callout d:f:turned_step:2/step.diameter reads 'ø6.2 SEE MFG 2' and its table MFG 2 'ø6.25 MAX AFTER KNURL; STRAIGHT KNURL P1; CUT/FORMED PERMITTED'. The port states the requirement where draftwright's drawing loses it (stream d-pmi-thread-knurl-owner-callouts). draftwright: \"AP242 source manufacturing_requirement:#495 reached typed drafting IR but produced no annotation\""
  },
  {
-  "code": "pmi_not_lowered",
-  "file": "bracket_positions.step",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#31343",
-  "verdict": "rust-correct",
-  "evidence": "draftwright cannot draw this part (its projection raises, so its lint has nothing to report). The port refuses the dimension with draftwright's own lowering check (_proved_planar_linear: the reference faces' relationship does not lie in a principal projection plane, so no view shows the length true), as tests/pmi_dimensions.rs compares that check with draftwright on the files it can draw. port: \"linear reference relationship does not lie in a principal projection plane (delta=(130.831, -42.4557, 25) mm); plane-to-bore location has no proven face-supported axis witness\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "bracket_positions.step",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#31359",
-  "verdict": "rust-correct",
-  "evidence": "draftwright cannot draw this part (its projection raises, so its lint has nothing to report). The port refuses the dimension with draftwright's own lowering check (_proved_planar_linear: the reference faces' relationship does not lie in a principal projection plane, so no view shows the length true), as tests/pmi_dimensions.rs compares that check with draftwright on the files it can draw. port: \"linear reference relationship does not lie in a principal projection plane (delta=(91.4312, -23.9439, 25) mm); plane-to-bore location has no proven face-supported axis witness\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "bracket_positions.step",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#31375",
-  "verdict": "rust-correct",
-  "evidence": "draftwright cannot draw this part (its projection raises, so its lint has nothing to report). The port refuses the dimension with draftwright's own lowering check (_proved_planar_linear: the reference faces' relationship does not lie in a principal projection plane, so no view shows the length true), as tests/pmi_dimensions.rs compares that check with draftwright on the files it can draw. port: \"linear reference relationship does not lie in a principal projection plane (delta=(53.5814, -42.4557, 25) mm); plane-to-bore location has no proven face-supported axis witness\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "bracket_positions.step",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#31401",
-  "verdict": "rust-correct",
-  "evidence": "draftwright cannot draw this part (its projection raises, so its lint has nothing to report). The port refuses the dimension with draftwright's own lowering check (_proved_planar_linear: the reference faces' relationship does not lie in a principal projection plane, so no view shows the length true), as tests/pmi_dimensions.rs compares that check with draftwright on the files it can draw. port: \"linear reference relationship does not lie in a principal projection plane (delta=(-78.0894, 74.9427, -21.25) mm); plane-to-bore location has no proven face-supported axis witness\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "bracket_positions.step",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#31417",
-  "verdict": "rust-correct",
-  "evidence": "draftwright cannot draw this part (its projection raises, so its lint has nothing to report). The port refuses the dimension with draftwright's own lowering check (_proved_planar_linear: the reference faces' relationship does not lie in a principal projection plane, so no view shows the length true), as tests/pmi_dimensions.rs compares that check with draftwright on the files it can draw. port: \"linear reference relationship does not lie in a principal projection plane (delta=(-78.0894, 39.9688, -21.25) mm); plane-to-bore location has no proven face-supported axis witness\""
- },
- {
   "code": "pmi_not_extracted",
   "file": "hw_assembly_plate_pin_intent.step",
   "python": {
@@ -1022,17 +977,8 @@
   },
   "rust": null,
   "source": "dimension:#3122",
-  "verdict": "equivalent",
-  "evidence": "The same statement and cause as string_post_tapped.step's dimension:#3115 (specify-core's): Both leave the dimension off the drawing for the same reason, found at a different stage: draftwright checks the faces when it extracts the record (pmi_not_extracted), the port reads the record and its lowering makes the same check (dimension_geometry, as draftwright's _proved_planar_linear and _cylindrical_references), so it is pmi_not_lowered. Reason: 'linear reference-station span 7.54603 mm differs from nominal 1.2 mm; plane-to-bore location has no proven face-supported axis witness'. draftwright: \"linear reference-station span 7.54603 mm differs from nominal 1.2 mm; plane-to-bore location has no proven face-supported axis witness\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "hw_string_post_tapped_intent.step",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#3122",
-  "verdict": "equivalent",
-  "evidence": "The same statement and cause as string_post_tapped.step's dimension:#3115 (specify-core's): Both leave the dimension off the drawing for the same reason, found at a different stage: draftwright checks the faces when it extracts the record (pmi_not_extracted), the port reads the record and its lowering makes the same check (dimension_geometry, as draftwright's _proved_planar_linear and _cylindrical_references), so it is pmi_not_lowered. Reason: 'linear reference-station span 7.54603 mm differs from nominal 1.2 mm; plane-to-bore location has no proven face-supported axis witness'. port: \"linear reference-station span 7.54603 mm differs from nominal 1.2 mm; plane-to-bore location has no proven face-supported axis witness\""
+  "verdict": "rust-correct",
+  "evidence": "cx/pmi-groups now proves the 1.2 mm location along X from the reference plane at -1.2 to the bore axis at 0, with trimmed face witnesses in projection and the unchanged nominal check. Python still refuses the old 3D box-centre distance. The existing basic 1.2 dimension states the coincident projected station without duplicate ink."
  },
  {
   "code": "pmi_not_lowered",
@@ -3673,15 +3619,6 @@
   "file": "nist_ftc_07_asme1_ap242-e2.stp",
   "python": null,
   "rust": "error",
-  "source": "dimension:#15699",
-  "verdict": "undetermined",
-  "evidence": "Neither drawing states it: draftwright refuses it (authored_dim_source_unresolved: 'authored dimension 'ø0.173 +0.005/-0.001 INCH' is not drawn because its source data is unresolved: standalone diameter fallback references …') and so does the port's drawing. draftwright's lint is silent because its build already reported the omission (authored_dim_source_unresolved, one of pmi_coverage.py's _EXPLAINED_OMISSION_CODES); the port's lint cannot read the plan's problems (R1), so the omission is reported by the plan and again here. Whether lint should skip an omission the build explained is a recorded maintainer question (docs/next-session.md, PMI stage 3). port: \"its axis is not along x, y or z; the port draws a diameter or radius seen end-on\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_ftc_07_asme1_ap242-e2.stp",
-  "python": null,
-  "rust": "error",
   "source": "dimension:#16188",
   "verdict": "rust-correct",
   "evidence": "As known_pmi_dimensions.json's 'outcome' difference for dimension:0:1:4:101 (port dimension:#16188): draftwright draws the radius from the centroid of the referenced faces' boxes along their box's longest extent (_bore_info's ref_bbox fallback), which for a group of fillet faces on different axes is no point of the arc; the port refuses: PMI dimension dimension:#16188 (R0.3048 - R0.5588) is not drawn: one radius reference face is not cylindrical; radius references do not share one cylinder axis direction. port: \"one radius reference face is not cylindrical; radius references do not share one cylinder axis direction\""
@@ -4513,15 +4450,6 @@
   "file": "nist_ftc_10_asme1_ap242-e2.stp",
   "python": null,
   "rust": "error",
-  "source": "dimension:#19998",
-  "verdict": "equivalent",
-  "evidence": "Both leave the dimension off the drawing for the same reason, found at a different stage: draftwright checks the faces when it extracts the record (pmi_not_extracted), the port reads the record and its lowering makes the same check (dimension_geometry, as draftwright's _proved_planar_linear and _cylindrical_references), so it is pmi_not_lowered. Reason: 'linear reference relationship does not lie in a principal projection plane (delta=(-4, 8, -10) mm)'. port: \"linear reference relationship does not lie in a principal projection plane (delta=(-4, 8, -10) mm)\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_ftc_10_asme1_ap242-e2.stp",
-  "python": null,
-  "rust": "error",
   "source": "dimension:#20047",
   "verdict": "equivalent",
   "evidence": "Both leave the dimension off the drawing for the same reason, found at a different stage: draftwright checks the faces when it extracts the record (pmi_not_extracted), the port reads the record and its lowering makes the same check (dimension_geometry, as draftwright's _proved_planar_linear and _cylindrical_references), so it is pmi_not_lowered. Reason: 'diameter references mix internal and external cylindrical faces'. port: \"diameter references mix internal and external cylindrical faces\""
@@ -4579,15 +4507,6 @@
   "source": "dimension:#20491",
   "verdict": "equivalent",
   "evidence": "Both leave the dimension off the drawing for the same reason, found at a different stage: draftwright checks the faces when it extracts the record (pmi_not_extracted), the port reads the record and its lowering makes the same check (dimension_geometry, as draftwright's _proved_planar_linear and _cylindrical_references), so it is pmi_not_lowered. Reason: 'linear reference relationship does not lie in a principal projection plane (delta=(-27.5, -0.499998, 23.5) mm)'. port: \"linear reference relationship does not lie in a principal projection plane (delta=(-27.5, -0.499998, 23.5) mm)\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "nist_ftc_10_asme1_ap242-e2.stp",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#20584",
-  "verdict": "equivalent",
-  "evidence": "Both leave the dimension off the drawing for the same reason, found at a different stage: draftwright checks the faces when it extracts the record (pmi_not_extracted), the port reads the record and its lowering makes the same check (dimension_geometry, as draftwright's _proved_planar_linear and _cylindrical_references), so it is pmi_not_lowered. Reason: 'linear reference relationship does not lie in a principal projection plane (delta=(-19, 8, 10) mm)'. port: \"linear reference relationship does not lie in a principal projection plane (delta=(-19, 8, 10) mm)\""
  },
  {
   "code": "pmi_not_lowered",
@@ -12707,17 +12626,8 @@
   },
   "rust": null,
   "source": "dimension:#3115",
-  "verdict": "equivalent",
-  "evidence": "Both leave the dimension off the drawing for the same reason, found at a different stage: draftwright checks the faces when it extracts the record (pmi_not_extracted), the port reads the record and its lowering makes the same check (dimension_geometry, as draftwright's _proved_planar_linear and _cylindrical_references), so it is pmi_not_lowered. Reason: 'linear reference-station span 7.54603 mm differs from nominal 1.2 mm; plane-to-bore location has no proven face-supported axis witness'. draftwright: \"linear reference-station span 7.54603 mm differs from nominal 1.2 mm; plane-to-bore location has no proven face-supported axis witness\""
- },
- {
-  "code": "pmi_not_lowered",
-  "file": "string_post_tapped.step",
-  "python": null,
-  "rust": "error",
-  "source": "dimension:#3115",
-  "verdict": "equivalent",
-  "evidence": "Both leave the dimension off the drawing for the same reason, found at a different stage: draftwright checks the faces when it extracts the record (pmi_not_extracted), the port reads the record and its lowering makes the same check (dimension_geometry, as draftwright's _proved_planar_linear and _cylindrical_references), so it is pmi_not_lowered. Reason: 'linear reference-station span 7.54603 mm differs from nominal 1.2 mm; plane-to-bore location has no proven face-supported axis witness'. port: \"linear reference-station span 7.54603 mm differs from nominal 1.2 mm; plane-to-bore location has no proven face-supported axis witness\""
+  "verdict": "rust-correct",
+  "evidence": "cx/pmi-groups now proves the 1.2 mm location along X from the reference plane at -1.2 to the bore axis at 0, with trimmed face witnesses in projection and the unchanged nominal check. Python still refuses the old 3D box-centre distance. The existing basic 1.2 dimension states the coincident projected station without duplicate ink."
  },
  {
   "code": "pmi_not_extracted",
@@ -12748,5 +12658,17 @@
   "source": "manufacturing_requirement:#1543",
   "verdict": "rust-correct",
   "evidence": "S5 reads semantic metric thread #1543 and its paired attribute into one requirement, preserving both sets of provenance (tests/editor_session.rs). This historical haecceity writer states full thread depth, which the native manufacturing vocabulary does not accept as minimum full thread; the record is therefore reported as not lowered rather than silently reinterpreted. Python leaves the semantic thread as an unprojected source and has no corresponding lint finding. The exclusive drawn-or-reported gate remains enabled."
+ },
+ {
+  "code": "pmi_not_lowered",
+  "file": "nist_stc_10_asme1_ap242-e2.stp",
+  "python": {
+   "id": "datum:0:1:4:5",
+   "severity": "error"
+  },
+  "rust": null,
+  "source": "datum:#117",
+  "verdict": "rust-correct",
+  "evidence": "2026-10-31 cx/pmi-groups: datum J is the median plane of the authored 15 ±0.2 width between opposite x-normal faces 39/43. The dimension joins exactly those faces and its projected witness span is 15 mm. Recovered rim routes leave room for the symbol on that size dimension, in line with its dimension line, replacing one arrowhead. J is therefore drawn and the symmetry frame citing it reads in full; the old non-coplanar-face refusal is no longer appropriate. tests/hole_marks.rs proves the face pair, size, witness span and symbol support, and deliberately omits J to retain the missing-reference warning assertion. No geometry check or gate limit is relaxed."
  }
 ]

@@ -48,3 +48,50 @@ Regenerate with
   `~/repos/draftwright/.venv/bin/python tools/capture_pmi_dimensions.py <draftwright>/src`.
 
 `GRM-03_thumbwheel_drive_screw_AP242_PMI.step.gz`: unchanged user-supplied GRM-03 from quiddity-rust commit `6ab5f29df418a06ee26e86ce1f7b010b653e1ade`, `tests/fixtures/ap242/derived/`; decompressed SHA-256 `4b6462b9cc9f0d419250933bd77fb305f9cfebb7ec2b3f377008732876010a21`. Used for derived geometry regression, rather than Python comparison captures.
+
+`spindle-coplanar-groups.step.gz`: gzip (`mtime=0`) of the supplied specify-core AP242
+`input-19-spindle.step`, decompressed SHA-256
+`944681ac51ef0a2a51760c085c2252f7310cd2cd74bbdade0c2e4046de232d2d` (23 KB compressed).
+Used directly by the coplanar composite dimension regressions in `tests/pmi_dimensions.rs`;
+retains the source's datum composite, non-face datum member and semantic face links.
+Graphic presentation is deliberately unread. No Python comparison capture is needed.
+
+The `specify-main-{GRM-02_shaft,angle-bracket,nema-17-bracket,sk08}.step.gz`
+regressions are unmodified STEP files from Specify main d9f895e (2026-10-31,
+quiddity v0.2.8, Solid Edge compatible semantic writer), supplied for cx/pmi-groups.
+They exercise dimension-owned origin UDAs, split datums, coplanar composites,
+and plane/bore witnesses. Compressed with gzip mtime=0; kept outside `step/`
+because they have structural assertions rather than Python reference captures.
+
+## Specify main fixture geometry attribution
+
+These models were supplied through
+[pzfreo/dw-examples](https://github.com/pzfreo/dw-examples/tree/525e3f5cfd11ed55165fe5c290d139548a62f534)
+(`525e3f5cfd11ed55165fe5c290d139548a62f534`). The upstream geometry licences below
+continue to apply to these fixtures; they are not relicensed by this repository.
+For each of the four files, the modification is: **PMI added by specify-core main
+`d9f895e`, 2026-10-31**. The supplied STEP files are otherwise unchanged here;
+gzip packaging uses `mtime=0`.
+
+- `specify-main-angle-bracket.step.gz`: geometry from text-to-cad,
+  [`models/examples/src/angle_bracket.py`](https://github.com/amywork777/text-to-cad-upstream/blob/85d8fdbfb467ebd7e22994fe8bcd86afa6626ed3/models/examples/src/angle_bracket.py),
+  commit `85d8fdbfb467ebd7e22994fe8bcd86afa6626ed3` of
+  `amywork777/text-to-cad-upstream` (the branch for `earthtojake/text-to-cad#674`).
+  Exported unchanged to STEP with build123d 0.13.0 by dw-examples.
+  **Copyright (c) 2026 Thompson Labs LLC**; MIT licence, with its required notice
+  in [licenses/LICENSE-text-to-cad-MIT](licenses/LICENSE-text-to-cad-MIT).
+- `specify-main-nema-17-bracket.step.gz`: geometry from build123d,
+  [`docs/topology_selection/examples/nema-17-bracket.step`](https://github.com/gumyr/build123d/blob/742a3dccb372a39d50cb231de481f3add34efcd9/docs/topology_selection/examples/nema-17-bracket.step),
+  commit `742a3dccb372a39d50cb231de481f3add34efcd9`.
+  **Copyright the build123d contributors**; Apache License 2.0, reproduced in
+  [licenses/LICENSE-build123d-Apache-2.0](licenses/LICENSE-build123d-Apache-2.0).
+- `specify-main-sk08.step.gz`: geometry by **hasecilu**, from the FreeCAD parts library,
+  [`Mechanical Parts/Mountings/SK08/SK08-SK08.step`](https://github.com/FreeCAD/FreeCAD-library/blob/f5ca01cdcaa2f69b9295a6382719c2d90628780c/Mechanical%20Parts/Mountings/SK08/SK08-SK08.step),
+  commit `f5ca01cdcaa2f69b9295a6382719c2d90628780c` (added in `b342740f9b`).
+  Copyright remains with hasecilu. Shared under **CC-BY-3.0 Unported**, reproduced in
+  [licenses/LICENSE-FreeCAD-library-CC-BY-3.0.txt](licenses/LICENSE-FreeCAD-library-CC-BY-3.0.txt).
+  Changes from that upstream geometry: **PMI added by specify-core main `d9f895e`,
+  2026-10-31**; dw-examples renamed the file to `sk08.step`, and this repository
+  packages the supplied modified STEP as gzip.
+- `specify-main-GRM-02_shaft.step.gz`: **Paul Fremantle's (the maintainer's) own
+  geometry**, with the Specify PMI modification stated above.

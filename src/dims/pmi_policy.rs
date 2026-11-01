@@ -503,6 +503,40 @@ fn cover_uncached(
                     }))
                 .then_some(j)
             });
+        // An authored datum baseline controls both ends of a local engine size.
+        // Retaining that size would close a tolerance chain (for example the end
+        // thickness beside two baseline locations). Require a connected path of
+        // actual source spans, rather than two independently rooted stations.
+        let same_span = owner.is_some();
+        let owner = owner.or_else(|| {
+            let ws = spans(a, w);
+            if ws.len() != 1 {
+                return None;
+            }
+            let span = &ws[0];
+            if span.a_feature.is_some() || span.b_feature.is_some() {
+                return None;
+            }
+            let path =
+                location::route(&edges, &[span.a], span.axis, span.b, None, &BTreeSet::new())?;
+            let Some(Reading::Read(report)) = &a.pmi else {
+                return None;
+            };
+            let ids = report.identities();
+            path.into_iter().find_map(|e| {
+                let j = kept.iter().position(|(p, ..)| p.id == edges[e].owner)?;
+                report
+                    .records
+                    .iter()
+                    .any(|r| {
+                        crate::pmi::datum_referenced(r)
+                            && ids.id(&r.source_id).ok().is_some_and(|id| {
+                                kept[j].0.measurements.iter().any(|m| m.feature == id)
+                            })
+                    })
+                    .then_some(j)
+            })
+        });
         if let Some(j) = owner {
             let by = kept[j].0.id.clone();
             let claims = kept[i]
@@ -517,7 +551,11 @@ fn cover_uncached(
             omitted.push(Omitted {
                 id: kept[i].0.id.clone(),
                 label: crate::callouts::label(&kept[i].0.terms),
-                basis: format!("conveyed by {by}: the part's PMI states this feature's size"),
+                basis: if same_span {
+                    format!("conveyed by {by}: the part's PMI states this feature's size")
+                } else {
+                    format!("conveyed by {by}: authored datum baselines control both support planes; this local engine size would close a tolerance chain")
+                },
                 state: State::Covered { by },
             });
             kept[j].0.measurements.extend(claims);
