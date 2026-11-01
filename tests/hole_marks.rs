@@ -998,3 +998,57 @@ fn axis_repairs_keep_stc10s_eight_hole_frame_on_its_own_rim() {
         "the eight-hole frame must keep identifying one of its own surfaces"
     );
 }
+
+/// A size/depth label and its hole's position frame are one callout even when
+/// tolerance notation makes the size label taller than its original lane.
+#[test]
+fn a_hole_position_frame_stays_with_its_taller_size_label() {
+    let a = nist("string_post_tapped.step.gz");
+    let plan = model::plan_recovered(&a, &Spec::default()).unwrap();
+    let size = plan
+        .dimensions
+        .iter()
+        .find(|d| d.view == "v:front" && d.kind == "callout" && d.label.starts_with("⌀1.7"))
+        .expect("the cross-hole size and depth");
+    let frame = plan
+        .gdt
+        .iter()
+        .find(|g| g.view == size.view && g.kind == "control_frame" && g.faces == [5])
+        .expect("the cross-hole position frame");
+    let label = size.placed.as_ref().unwrap();
+    let position = frame.placed.as_ref().unwrap();
+    assert!(
+        position.lines.is_empty() && position.arrows.is_empty(),
+        "one shared leader"
+    );
+    assert!(
+        position.label_box[0] < label.label_box[2] && position.label_box[2] > label.label_box[0]
+    );
+    let gap = (position.label_box[1] - label.label_box[3])
+        .abs()
+        .min((label.label_box[1] - position.label_box[3]).abs());
+    assert!(
+        gap <= 0.5 + 1e-6,
+        "the frame is stacked against its label: {gap}"
+    );
+    assert_eq!(label.arrows.len(), 1);
+    let view = plan.views.iter().find(|v| v.id == size.view).unwrap();
+    // This front view projects x and z. The leader leaves the upper half of
+    // the hole toward the nearby top outline; it cannot traverse the part to
+    // a shelf beneath the view, or cross its opposite outline.
+    let height = (a.envelope[1][2] - a.envelope[0][2]) * view.scale;
+    let top = view.at[1] + 0.5 * height;
+    assert!(label.label_box[1].min(position.label_box[1]) > top);
+    assert!(label.lines.last().unwrap()[1][1] > top);
+    let tip = label.lines[0][0];
+    assert!(label.lines.iter().flatten().all(|p| p[1] >= tip[1] - 1e-6));
+    let length: f64 = label
+        .lines
+        .iter()
+        .map(|[a, b]| (b[0] - a[0]).hypot(b[1] - a[1]))
+        .sum();
+    assert!(
+        length < 0.5 * height,
+        "a local leader, not a route across the view: {length}"
+    );
+}
