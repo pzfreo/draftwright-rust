@@ -1481,6 +1481,17 @@ fn the_reader_refuses_what_it_does_not_know() {
         edit(&mut d);
         native::read(&part, &d).unwrap_err()
     };
+    let e = refused(&|d| d.complete = Some(false));
+    assert!(e.contains("recognition is incomplete"), "{e}");
+    let e = refused(&|d| {
+        d.failures.push(quiddity::features::FamilyFailure {
+            family: "holes".into(),
+            stage: "recognition".into(),
+            message: Some("injected failure".into()),
+            blocked_by: Vec::new(),
+        });
+    });
+    assert!(e.contains("holes") && e.contains("injected failure"), "{e}");
     let e = refused(&|d| d.schema_version = "quiddity-rust/recognition/1".into());
     assert!(e.contains("\"quiddity-rust/recognition/1\", not"), "{e}");
     // A record measured from its own origin is not in the file's coordinates.

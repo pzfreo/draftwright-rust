@@ -206,6 +206,7 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `plate_requirement_unverifiable` | incomplete | The drawing does not prove this required feature parameter. |
 | `pmi_datum_suppressed` | advisory | The datum was deliberately suppressed by policy. |
 | `pmi_dimensions_not_ported` | incomplete | The source dimension has no implemented drawing grammar. |
+| `pmi_graphical_not_drawn` | incomplete | A graphical source annotation has no resolved semantic PMI coverage. |
 | `pmi_ignored` | advisory | The selected dimension-source policy ignores this PMI. |
 | `pmi_not_drawn` | incomplete | The planned PMI annotation is absent from the sheet. |
 | `pmi_not_extracted` | incomplete | A source PMI record was not extracted into a drawable requirement. |
@@ -213,6 +214,7 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `pmi_not_read` | incomplete | The PMI reading cannot supply the required annotation. |
 | `pmi_not_rendered` | incomplete | The rendered drawing does not state the source PMI requirement. |
 | `pmi_presentation_not_read` | incomplete | The source presentation PMI is not available as drawing information. |
+| `pmi_read_nonconformance` | advisory | A source PMI nonconformance was read through an explicit interpretation. |
 | `pmi_source_site_mismatch` | incomplete | The drawn evidence does not correctly state the required source information. |
 | `pmi_source_text_mismatch` | incomplete | The drawn evidence does not correctly state the required source information. |
 | `pmi_source_unknown` | incomplete | The claimed PMI provenance cannot be found in the source document. |

@@ -526,6 +526,145 @@ fn reading(
 const CTC01: &str = "nist_ctc_01_asme1_ap242-e1.stp.gz";
 
 #[test]
+fn graphical_links_use_part_qualified_semantic_ids() {
+    let (doc, defs, part, mut read) = reading("assembly_plate_pin.step.gz");
+    assert!(read.parts.len() >= 2);
+    for p in 0..2 {
+        assert!(!read.parts[p].dimensions.is_empty());
+    }
+    read.callouts = (0..2)
+        .map(|p| hpmi::GraphicalCallout {
+            id: 900000 + p as u64,
+            name: "same decoded text".into(),
+            links: vec![hpmi::CalloutLink {
+                association: 900100 + p as u64,
+                definition: 900200 + p as u64,
+                entity: "dimensional_size".into(),
+                targets: vec![hpmi::CalloutTarget {
+                    part: hpmi::PartId(p),
+                    item: hpmi::PresentedItem::Dimension(hpmi::DimensionId(0)),
+                }],
+            }],
+        })
+        .collect();
+    let report = pmi::report(&doc, &defs, &part, &read).unwrap();
+    assert_eq!(report.reader.callouts.len(), 2);
+    let targets: Vec<_> = report
+        .reader
+        .callouts
+        .iter()
+        .map(|c| &c.links[0].targets[0])
+        .collect();
+    assert_ne!(targets[0].sources, targets[1].sources);
+    for (p, target) in targets.iter().enumerate() {
+        assert_eq!(target.part, p);
+        assert_eq!(target.sources.len(), 1);
+        assert!(
+            report
+                .records
+                .iter()
+                .any(|r| r.part == p && r.source_id == target.sources[0])
+        );
+    }
+    let plate = haecceity::step::read_part(doc.bytes(), &defs[0]).unwrap();
+    let chosen = pmi::report_part(&doc, &defs, &plate, &read, Some(0)).unwrap();
+    assert_eq!(chosen.reader.callouts.len(), 1);
+    assert_eq!(chosen.reader.callouts[0].id, 900000);
+}
+
+#[test]
+fn graphical_native_manufacturing_targets_use_their_lowered_definition_roots() {
+    for (file, target, kind) in [
+        (
+            "../turned_knurl/spindle_external_thread.step.gz",
+            hpmi::PresentedItem::Thread(0),
+            "external_thread",
+        ),
+        (
+            "../turned_knurl/spindle_turned_knurl.step.gz",
+            hpmi::PresentedItem::Knurl(0),
+            "knurl",
+        ),
+        (
+            "step/hw_every_kind.step.gz",
+            hpmi::PresentedItem::SurfaceTexture(0),
+            "surface_texture",
+        ),
+    ] {
+        let bytes = gunzip(&std::fs::read(fixtures().join(file)).unwrap());
+        let part = haecceity::read_step(&bytes).unwrap();
+        let defs = step::read_part_definitions(&bytes).unwrap();
+        let doc = p21::Document::parse(bytes).unwrap();
+        let mut read = hpmi::read(&doc, &defs).unwrap();
+        let target = if matches!(target, hpmi::PresentedItem::Thread(_)) {
+            hpmi::PresentedItem::Thread(
+                read.parts[0]
+                    .threads
+                    .iter()
+                    .position(|t| matches!(t.side, hpmi::ThreadSide::External) && t.form == "M")
+                    .expect("native metric external thread"),
+            )
+        } else {
+            target
+        };
+        let thread_feature = match &target {
+            hpmi::PresentedItem::Thread(i) => Some(read.parts[0].threads[*i].feature),
+            _ => None,
+        };
+        let base = pmi::report(&doc, &defs, &part, &read).unwrap();
+        let expected = base
+            .records
+            .iter()
+            .find(|r| r.part == 0 && r.kind == kind)
+            .unwrap();
+        read.callouts = vec![hpmi::GraphicalCallout {
+            id: 900000,
+            name: "Native manufacturing target".into(),
+            links: vec![hpmi::CalloutLink {
+                association: 900001,
+                definition: expected.part21_id,
+                entity: kind.into(),
+                targets: vec![hpmi::CalloutTarget {
+                    part: hpmi::PartId(0),
+                    item: target,
+                }],
+            }],
+        }];
+        let report = pmi::report(&doc, &defs, &part, &read).unwrap();
+        assert_eq!(
+            report.reader.callouts[0].links[0].targets[0]
+                .sources
+                .as_slice(),
+            std::slice::from_ref(&expected.source_id),
+            "{file}"
+        );
+        if let Some(feature) = thread_feature {
+            read.parts[0].features[feature.0] =
+                hpmi::Feature::Items(vec![hpmi::Anchor::Face(hpmi::FaceIndex(99_999))]);
+            let refused = pmi::report(&doc, &defs, &part, &read).unwrap();
+            assert!(
+                refused
+                    .records
+                    .iter()
+                    .all(|r| r.source_id != expected.source_id)
+            );
+            assert!(
+                refused
+                    .sources
+                    .iter()
+                    .any(|s| s.id == expected.source_id && s.outcome == Outcome::NotExtracted)
+            );
+            assert_eq!(
+                refused.reader.callouts[0].links[0].targets[0]
+                    .sources
+                    .as_slice(),
+                std::slice::from_ref(&expected.source_id)
+            );
+        }
+    }
+}
+
+#[test]
 fn a_face_the_drawing_does_not_have_is_not_read() {
     let (doc, defs, part, mut read) = reading(CTC01);
     let before = pmi::report(&doc, &defs, &part, &read).unwrap();
@@ -885,7 +1024,7 @@ fn every_item_and_finding_is_accounted_for_and_the_output_is_deterministic() {
                 }
             }
         }
-        // Every finding is a blocker on a record or a source of its own.
+        // Every finding remains a blocker, a source refusal or a visible reader interpretation.
         for f in &read.findings {
             let blocker = format!("haecceity {} on #{}", f.kind.as_str(), f.ids[0]);
             let attached = r
@@ -896,7 +1035,13 @@ fn every_item_and_finding_is_accounted_for_and_the_output_is_deterministic() {
                 .sources
                 .iter()
                 .any(|s| s.id == format!("finding:#{}", f.ids[0]) && s.reason.ends_with(&f.detail));
-            assert!(attached || own, "{name}: finding {f:?} lost");
+            let interpreted = r.reader.problems.iter().any(|p| {
+                p.code == "pmi_read_nonconformance"
+                    && p.severity == "warning"
+                    && p.refs == f.ids.iter().map(|id| format!("#{id}")).collect::<Vec<_>>()
+                    && p.message.contains(&f.detail)
+            });
+            assert!(attached || own || interpreted, "{name}: finding {f:?} lost");
         }
         // Every record is a source with its outcome.
         for x in &r.records {

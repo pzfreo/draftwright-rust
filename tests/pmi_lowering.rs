@@ -1142,17 +1142,241 @@ fn geometry_only_nist_corpus_parts_have_no_pmi_presentation() {
 }
 
 #[test]
-fn nist_graphic_pmi_still_reports_its_count() {
+fn reversed_deviations_are_repaired_visibly_but_equal_bounds_still_refused() {
+    let (file, bytes) = fixture("string_post_tapped");
+    let source = String::from_utf8(bytes).unwrap();
+    let reversed = source.replace(
+        "TOLERANCE_VALUE(#3105,#3104)",
+        "TOLERANCE_VALUE(#3104,#3105)",
+    );
+    assert_ne!(source, reversed);
+    let (_, a) = analysed_uncached(&file, reversed.as_bytes());
+    let r = records(&a).iter().find(|r| r.part21_id == 3103).unwrap();
+    assert_eq!((r.lower_tol, r.upper_tol), (Some(0.0), Some(0.06)));
+    assert!(r.blockers.is_empty(), "{:?}", r.blockers);
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let problems = &plan.problems;
+    assert!(
+        problems
+            .iter()
+            .any(|p| p.code == "pmi_read_nonconformance" && p.message.contains("swapped"))
+    );
+    assert!(
+        !problems
+            .iter()
+            .any(|p| p.code == "pmi_not_lowered" && p.refs.contains(&r.source_id))
+    );
+    let Some(Reading::Read(report)) = &a.pmi else {
+        unreachable!()
+    };
+    let ids = report.identities();
+    let item = ids.id(&r.source_id).unwrap();
+    assert!(
+        plan.dimensions
+            .iter()
+            .any(|d| d.placed.is_some() && d.measurements.iter().any(|m| m.feature == item))
+    );
+
+    // Equal bounds are invalid, not a reversible ordering that can be repaired.
+    let equal = source.replace(
+        "TOLERANCE_VALUE(#3105,#3104)",
+        "TOLERANCE_VALUE(#3105,#3105)",
+    );
+    let (_, invalid) = analysed_uncached(&file, equal.as_bytes());
+    assert!(records(&invalid).iter().all(|r| r.part21_id != 3103));
+    let plan = model::plan(&invalid, &Spec::default()).unwrap();
+    let problems = &plan.problems;
+    assert!(
+        problems
+            .iter()
+            .any(|p| p.code == "pmi_not_extracted" && p.refs.iter().any(|r| r == "finding:#3106"))
+    );
+}
+
+#[test]
+fn graphical_callouts_follow_drawn_or_refused_semantics_without_duplicate_findings() {
+    use draftwright::graphical_pmi::{Callout, Link, Target};
+    let (file, bytes) = fixture("string_post_tapped");
+    let (part, mut a) = analysed_uncached(&file, &bytes);
+    let Some(Reading::Read(report)) = &mut a.pmi else {
+        unreachable!()
+    };
+    let dimension = report
+        .records
+        .iter()
+        .find(|r| r.part21_id == 3103)
+        .unwrap()
+        .source_id
+        .clone();
+    let frame = report
+        .records
+        .iter_mut()
+        .find(|r| r.category == Category::GeometricTolerance)
+        .unwrap();
+    frame.blockers.push("unsupported test requirement".into());
+    let refused = frame.source_id.clone();
+    let link = |sources: Vec<String>| Link {
+        sources: vec![],
+        association: 900010,
+        definition: 900011,
+        entity: "dimensional_size".into(),
+        targets: vec![Target {
+            part: 0,
+            item: "Dimension(DimensionId(0))".into(),
+            sources,
+        }],
+    };
+    let decoded = "⌀12 ±0.1";
+    report.reader.callouts = vec![
+        Callout {
+            legacy_sources: vec![],
+            id: 900001,
+            name: decoded.into(),
+            links: vec![],
+        },
+        Callout {
+            legacy_sources: vec![],
+            id: 900002,
+            name: "unresolved callout".into(),
+            links: vec![Link {
+                sources: vec![],
+                association: 900020,
+                definition: 900021,
+                entity: "shape_aspect".into(),
+                targets: vec![],
+            }],
+        },
+        Callout {
+            legacy_sources: vec![],
+            id: 900003,
+            name: decoded.into(),
+            links: vec![link(vec![dimension])],
+        },
+        Callout {
+            legacy_sources: vec![],
+            id: 900004,
+            name: "⌖ ⌀0.1 Ⓜ A".into(),
+            links: vec![link(vec![refused.clone()]), link(vec![refused.clone()])],
+        },
+        Callout {
+            legacy_sources: vec![],
+            id: 900005,
+            name: "linked only to a support face".into(),
+            links: vec![Link {
+                association: 900050,
+                definition: 900051,
+                entity: "shape_aspect".into(),
+                sources: vec![],
+                targets: vec![Target {
+                    part: 0,
+                    item: "Feature(FeatureId(0))".into(),
+                    sources: vec![],
+                }],
+            }],
+        },
+        Callout {
+            legacy_sources: vec![],
+            id: 900006,
+            name: "reader-refused definition".into(),
+            links: vec![Link {
+                association: 900060,
+                definition: 900061,
+                entity: "position_tolerance".into(),
+                sources: vec![refused.clone()],
+                targets: vec![],
+            }],
+        },
+    ];
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let graphical: Vec<_> = plan
+        .problems
+        .iter()
+        .filter(|p| p.code == "pmi_graphical_not_drawn")
+        .collect();
+    assert_eq!(graphical.len(), 3);
+    assert!(graphical.iter().all(|p| p.severity == "warning"
+        && p.labels().impact == draftwright::finding::Impact::Incomplete
+        && p.labels().group == "pmi_graphical_not_drawn:graphical_callout"));
+    assert!(graphical.iter().any(|p| p.message.contains(decoded)));
+    assert!(
+        !plan
+            .problems
+            .iter()
+            .any(|p| p.refs.contains(&"graphical_callout:#900003".into()))
+    );
+    let refused_problem = plan
+        .problems
+        .iter()
+        .find(|p| p.code == "pmi_not_lowered" && p.refs.contains(&refused))
+        .unwrap();
+    assert_eq!(
+        refused_problem
+            .refs
+            .iter()
+            .filter(|r| *r == "graphical_callout:#900004")
+            .count(),
+        1
+    );
+    assert!(refused_problem.message.contains("⌖ ⌀0.1 Ⓜ A"));
+    assert!(
+        refused_problem
+            .refs
+            .contains(&"graphical_callout:#900006".into())
+    );
+    assert!(
+        !plan
+            .problems
+            .iter()
+            .any(|p| p.code == "pmi_presentation_not_read")
+    );
+
+    let font =
+        draftwright::text::Font::open(&root().join("fonts").join(draftwright::dims::FONT)).unwrap();
+    let drawing = model::render(&part, &a, &plan, &font).unwrap();
+    let lint = draftwright::lint::lint(&a, &drawing);
+    let semantic = lint
+        .iter()
+        .find(|i| i.code == "pmi_not_lowered" && i.sources.contains(&refused))
+        .unwrap();
+    assert!(
+        semantic
+            .evidence
+            .as_ref()
+            .unwrap()
+            .contains("graphical_callout:#900004;")
+    );
+    assert_eq!(semantic.sources, [refused]);
+    assert!(semantic.message.contains("⌖ ⌀0.1 Ⓜ A"));
+    assert!(lint.iter().all(|i| i.code != "pmi_graphical_not_drawn"));
+}
+
+#[test]
+fn older_graphic_readings_retain_the_presentation_count_fallback() {
     for (stem, count) in [
         ("nist_ctc_01_asme1_ap242-e1", 71),
         ("nist_ftc_10_asme1_ap242-e2", 279),
     ] {
         let (file, bytes) = fixture(stem);
-        let (_, a) = analysed(&file, &bytes);
+        let (_, mut a) = analysed(&file, &bytes);
         let Some(Reading::Read(report)) = &a.pmi else {
             panic!("{stem}: PMI read")
         };
         assert_eq!(report.accounting.presentation, count, "{stem}");
+        assert!(
+            !report.reader.callouts.is_empty(),
+            "{stem}: current reader inventories callouts"
+        );
+        let (_, problems) = lower(&a, &|_| true);
+        assert!(
+            problems
+                .iter()
+                .all(|p| p.code != "pmi_presentation_not_read")
+        );
+        // A persisted pre-v0.4.2 Analysis has no inventory. Its legacy notice remains honest.
+        let Some(Reading::Read(report)) = &mut a.pmi else {
+            unreachable!()
+        };
+        report.reader.callouts.clear();
         let (_, problems) = lower(&a, &|_| true);
         let presentation: Vec<_> = problems
             .iter()
@@ -1162,7 +1386,7 @@ fn nist_graphic_pmi_still_reports_its_count() {
         assert_eq!(
             presentation[0].message,
             format!(
-                "The STEP file carries {count} instance(s) of PMI presentation (graphic annotation); presentation is counted, not read or drawn: only semantic PMI is."
+                "The STEP reading has no callout inventory (the fallback for older reads). Its {count} instance(s) of PMI presentation (graphic annotation) are counted, not read or drawn; only semantic PMI can be checked."
             )
         );
         assert!(presentation[0].subjects.is_empty());

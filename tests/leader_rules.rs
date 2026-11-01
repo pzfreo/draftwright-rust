@@ -1505,22 +1505,29 @@ fn flat_cut_bands_chamfers_and_fillets_lead_to_their_own_faces() {
             "nist/nist_ftc_10_asme1_rb.stp",
             &["d:f:fillet:21/fillet.radius"][..],
         ),
-        (
-            "cadgenbench_inputs/cgb202.step.gz",
-            &[
-                // The fillets on faces 1436 and 2104 (f:fillet:217 and :286 on alpha.8,
-                // 203 and 270 on quiddity-rust 0.1.1). quiddity-rust 0.2.0's fillet/blend
-                // reading numbered them 200 and 277; quiddity-rust 0.2.2's #120 fillets 201 and
-                // 305, each its group's representative (14× R1, 67× R2).
-                // v0.2.3 (#127) inserts concave fillets: the same faces are now 513 and 706.
-                "d:f:fillet:513/fillet.radius",
-                "d:f:fillet:706/fillet.radius",
-            ][..],
-        ),
+        ("cadgenbench_inputs/cgb202.step.gz", &[][..]),
     ] {
         let Some((a, plan, drawing)) = native_drawing(file, false) else {
             continue;
         };
+        if file.contains("cgb202") {
+            // The same physical fillets as before. v0.4.2 merges interrupted torus
+            // groups and renumbers run-local IDs; member faces remain source evidence.
+            for face in [1436, 2104] {
+                let f = a
+                    .features
+                    .iter()
+                    .find(|f| f.kind == "fillet" && f.faces.contains(&face))
+                    .unwrap_or_else(|| panic!("{file}: fillet face {face} retained"));
+                assert!(
+                    plan.dimensions.iter().any(|d| d.placed.is_some()
+                        && d.measurements
+                            .iter()
+                            .any(|m| m.feature == f.id && m.parameter == "fillet.radius")),
+                    "{file}: face {face} has a drawn radius claim"
+                );
+            }
+        }
         for id in checks {
             assert!(
                 plan.dimensions

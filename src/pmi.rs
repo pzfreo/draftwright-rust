@@ -54,7 +54,8 @@
 //!   features the port does not read as records, material,
 //!   standards, datum targets, tolerance relations); and every record whose face or edge does
 //!   not resolve to the drawing's part, which is never guessed. Presentation is counted
-//!   ([`Accounting`]), as draftwright's `presentation_only` dimensions are, not read.
+//!   ([`Accounting`]); decoded callout names and semantic links are retained for triage by
+//!   [`crate::graphical_pmi`]. Graphical strokes are not interpreted as requirements.
 //!
 //! - [`Material`] is draftwright's `MaterialFact`: each part's stated material, for the coverage
 //!   lint's title-block check; it stays a source not projected too, as no record holds it.
@@ -80,6 +81,8 @@ use haecceity::step::{PartDefinition, read_part_definitions};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+pub mod graphical;
+
 pub const PMI_SCHEMA: &str = "draftwright.pmi/1";
 
 /// draftwright's source categories (`PmiSourceCategory`), and `other` for what haecceity reads
@@ -96,7 +99,7 @@ pub enum Category {
 }
 
 /// draftwright's extraction outcomes (`PmiExtractionOutcome`), less `presentation_only`:
-/// presentation is counted, not inventoried ([`Accounting::presentation`]).
+/// graphic presentation does not become a semantic record ([`ReaderEvidence::callouts`]).
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
 pub enum Outcome {
@@ -281,6 +284,9 @@ pub struct Report {
     /// The material each part states (draftwright's `material_facts`), in part order.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub materials: Vec<Material>,
+    /// Reader evidence is indirect to keep the frequent `Reading` enum compact.
+    #[serde(flatten)]
+    pub reader: Box<ReaderEvidence>,
     /// The part drawn, when the drawing is of one part of several read alone
     /// ([`report_part`]): the records, sources and materials are then that part's only.
     /// Absent when the whole file is drawn.
@@ -292,6 +298,20 @@ pub struct Report {
     /// reports them ([`crate::pmi_lowering::lower`]).
     #[serde(skip)]
     pub spec_problems: Vec<crate::model::Problem>,
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct ReaderEvidence {
+    /// Non-fatal interpretations remain visible without refusing a repaired requirement.
+    #[serde(
+        default,
+        rename = "reader_problems",
+        skip_serializing_if = "Vec::is_empty"
+    )]
+    pub problems: Vec<crate::model::Problem>,
+    /// Decoded annotations and part-qualified links. Absent in older saved readings.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub callouts: Vec<graphical::Callout>,
 }
 
 /// A part's material as the file states it (CAx-IF's 'material name' property: draftwright's
@@ -709,6 +729,7 @@ pub fn report_part(
     let drawn = |p: usize| chosen.is_none_or(|k| k == p);
     let mut records = Vec::new();
     let mut sources = Vec::new();
+    let mut legacy_presentations: BTreeMap<u64, BTreeSet<String>> = BTreeMap::new();
     for (p, (pmi, prov)) in read.parts.iter().zip(&read.provenance.parts).enumerate() {
         if !drawn(p) {
             continue;
@@ -723,11 +744,35 @@ pub fn report_part(
             drawing: &drawing,
             numbers: characteristic_numbers(doc, pmi, prov),
         };
-        r.read(&mut records, &mut sources);
+        r.read(&mut records, &mut sources, &mut legacy_presentations);
     }
     let mut attached = vec![false; read.findings.len()];
+    let reader_problems = read
+        .findings
+        .iter()
+        .filter(|f| f.part.is_none_or(|p| drawn(p.0)) && repaired_read(f))
+        .map(|f| crate::model::Problem {
+            id: format!(
+                "p:pmi_read_nonconformance:{}:{}",
+                f.ids.first().unwrap_or(&0),
+                f.detail
+            ),
+            code: "pmi_read_nonconformance".into(),
+            severity: "warning".into(),
+            message: format!(
+                "The STEP reader interpreted a nonconforming PMI statement: {}.",
+                f.detail
+            ),
+            refs: f.ids.iter().map(|id| format!("#{id}")).collect(),
+            ..Default::default()
+        })
+        .collect();
     for record in &mut records {
         for (i, f) in read.findings.iter().enumerate() {
+            if repaired_read(f) {
+                attached[i] = true;
+                continue;
+            }
             let on = f.part == Some(pmi::PartId(record.part))
                 && f.ids
                     .first()
@@ -761,6 +806,9 @@ pub fn report_part(
     for (f, _) in read.findings.iter().zip(&attached).filter(|(_, a)| !**a) {
         // A finding on another part than the one drawn is that part's.
         if f.part.is_some_and(|p| !drawn(p.0)) {
+            continue;
+        }
+        if repaired_read(f) {
             continue;
         }
         let subject = f.ids.first().copied().unwrap_or(0);
@@ -861,6 +909,76 @@ pub fn report_part(
         })
         .collect();
     let a = &read.accounting;
+    let readers: Vec<_> = read
+        .parts
+        .iter()
+        .zip(&read.provenance.parts)
+        .enumerate()
+        .map(|(p, (pmi, prov))| PartReader {
+            doc,
+            p,
+            pmi,
+            prov,
+            identifiers: &read.identifiers.parts[p],
+            def: &defs[p],
+            drawing: &drawing,
+            numbers: characteristic_numbers(doc, pmi, prov),
+        })
+        .collect();
+    let callouts = read
+        .callouts
+        .iter()
+        .filter_map(|c| {
+            // A callout linked only to other assembly parts is not this part's annotation.
+            let targets = c.links.iter().flat_map(|l| &l.targets).collect::<Vec<_>>();
+            if !targets.is_empty() && targets.iter().all(|t| !drawn(t.part.0)) {
+                return None;
+            }
+            Some(graphical::Callout {
+                id: c.id,
+                name: c.name.clone(),
+                legacy_sources: legacy_presentations
+                    .get(&c.id)
+                    .map(|s| s.iter().cloned().collect())
+                    .unwrap_or_default(),
+                links: c
+                    .links
+                    .iter()
+                    .map(|l| graphical::Link {
+                        association: l.association,
+                        definition: l.definition,
+                        entity: l.entity.clone(),
+                        sources: record_sources
+                            .iter()
+                            .filter(|s| {
+                                s.outcome == Outcome::NotExtracted
+                                    && s.instances.first() == Some(&l.definition)
+                            })
+                            .map(|s| s.id.clone())
+                            .collect(),
+                        targets: l
+                            .targets
+                            .iter()
+                            .filter(|t| drawn(t.part.0))
+                            .map(|t| {
+                                let p = t.part.0;
+                                graphical::Target {
+                                    part: p,
+                                    item: format!("{:?}", t.item),
+                                    sources: readers[p].presented_sources(
+                                        &t.item,
+                                        l.definition,
+                                        &records,
+                                        &record_sources,
+                                    ),
+                                }
+                            })
+                            .collect(),
+                    })
+                    .collect(),
+            })
+        })
+        .collect();
     Ok(Report {
         schema: PMI_SCHEMA.into(),
         parts: defs.iter().map(|d| d.name.clone()).collect(),
@@ -875,8 +993,25 @@ pub fn report_part(
             validation: a.validation,
         },
         materials,
+        reader: Box::new(ReaderEvidence {
+            problems: reader_problems,
+            callouts,
+        }),
         spec_problems: Vec::new(),
     })
+}
+
+/// v0.4.2 returns usable semantic values for these explicitly repaired forms. Other
+/// nonconformances still block lowering; equal/invalid bounds are not repairs.
+fn repaired_read(f: &pmi::Finding) -> bool {
+    f.kind == pmi::FindingKind::Nonconformance
+        && (matches!(f.detail.as_str(),
+            "plus/minus deviations were stated reversed; upper and lower bounds swapped (tolerance_value WR1)"
+            | "dimension limits were stated reversed; upper and lower limits swapped"
+            | "runout_zone_definition without an orientation angle on a non-runout tolerance; read the explicitly stated zone form without a runout angle")
+            || ((f.detail.starts_with("duplicate source identifier ")
+                || f.detail.starts_with("empty source identifier "))
+                && f.detail.ends_with("retained as identifier metadata, with content-derived JSON ids for empty or repeated item ids")))
 }
 
 /// The drawing's part, indexed by the file instances its faces and edges were read from.
@@ -987,6 +1122,7 @@ struct Structured {
 /// What a requirement in words is presented on (draftwright's `read_manufacturing_requirements`):
 /// the shape aspects of the part's draughting callouts named like it, and their items.
 struct Presentation {
+    callouts: Vec<u64>,
     items: BTreeSet<u64>,
     /// A thread's callouts have several supports: draftwright keeps none of them.
     ambiguous: bool,
@@ -1126,7 +1262,114 @@ struct PartReader<'a> {
 }
 
 impl PartReader<'_> {
-    fn read(&self, records: &mut Vec<Record>, sources: &mut Vec<Source>) {
+    /// Resolve the reader's typed, part-local IDs through the same roots as semantic lowering.
+    /// Face/support overlap and the graphical annotation's wording are not identity evidence.
+    fn presented_sources(
+        &self,
+        item: &pmi::PresentedItem,
+        definition: u64,
+        records: &[Record],
+        sources: &[Source],
+    ) -> Vec<String> {
+        use pmi::PresentedItem as I;
+        let (kind, index, own) = match item {
+            I::Dimension(id) => return vec![self.dimension(*id).source_id],
+            I::Tolerance(id) => return vec![self.tolerance(id.0).source_id],
+            I::Datum(id) => return vec![self.datum(*id).source_id],
+            I::Feature(id) => {
+                let mut ids: Vec<_> = self
+                    .pmi
+                    .datums
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, d)| d.feature() == Some(*id))
+                    .map(|(i, _)| self.datum(DatumId(i)).source_id)
+                    .collect();
+                ids.extend(
+                    records
+                        .iter()
+                        .filter(|r| {
+                            r.part == self.p
+                                && (matches!(r.kind.as_str(), "common_label" | "surface_label")
+                                    || r.category == Category::ManufacturingRequirement)
+                                && (r.part21_id == definition
+                                    || ref_of(self.doc, r.part21_id, "PROPERTY_DEFINITION", 2)
+                                        == Some(definition))
+                        })
+                        .map(|r| r.source_id.clone()),
+                );
+                ids.sort();
+                ids.dedup();
+                return ids;
+            }
+            I::Note(i) => ("note", *i, self.prov.notes.get(*i)),
+            I::Attribute(i) => ("attribute_set", *i, self.prov.attributes.get(*i)),
+            I::SurfaceTexture(i) => ("surface_texture", *i, self.prov.surface_textures.get(*i)),
+            I::General(i) => ("general_tolerance", *i, self.prov.general.get(*i)),
+            I::Thread(i) => ("thread", *i, self.prov.threads.get(*i)),
+            I::Knurl(i) => ("knurl", *i, self.prov.knurls.get(*i)),
+            I::DatumTarget(i) => ("datum_target", i.0, self.prov.datum_targets.get(i.0)),
+            I::Material => {
+                return vec![self.property(&self.prov.material).map_or_else(
+                    || format!("material:{}:0", self.p),
+                    |id| format!("material:#{id}"),
+                )];
+            }
+        };
+        let own = own.map_or(&[][..], Vec::as_slice);
+        let definition_root = matches!(item, I::Thread(_) | I::Knurl(_) | I::SurfaceTexture(_));
+        let root = match item {
+            // The native manufacturing readers above use these definition roots, not a
+            // property on their supporting feature. Keep precisely that source identity.
+            I::Thread(_) | I::Knurl(_) => own.first().copied(),
+            I::SurfaceTexture(_) => self
+                .subject(own, &|n| n == "SURFACE_TEXTURE_REPRESENTATION")
+                .or_else(|| own.first().copied()),
+            _ => self.property(own),
+        };
+        let mut ids: Vec<_> = records
+            .iter()
+            .filter(|r| {
+                r.part == self.p
+                    && root.is_some_and(|root| {
+                        if definition_root {
+                            r.part21_id == root
+                        } else {
+                            r.instances.contains(&root)
+                        }
+                    })
+            })
+            .map(|r| r.source_id.clone())
+            .collect();
+        // `keep` can retain the same definition as a refused source instead of a record.
+        // Match its own source root, never any face/support instance it happens to share.
+        if let Some(root) = root {
+            ids.extend(
+                sources
+                    .iter()
+                    .filter(|s| {
+                        s.id.split_once(":#")
+                            .and_then(|(_, id)| id.parse::<u64>().ok())
+                            == Some(root)
+                    })
+                    .map(|s| s.id.clone()),
+            );
+        }
+        let census = format!("{kind}:{}:{index}", self.p);
+        if sources.iter().any(|s| s.id == census) {
+            ids.push(census);
+        }
+        ids.sort();
+        ids.dedup();
+        ids
+    }
+
+    fn read(
+        &self,
+        records: &mut Vec<Record>,
+        sources: &mut Vec<Source>,
+        legacy: &mut BTreeMap<u64, BTreeSet<String>>,
+    ) {
         for d in 0..self.pmi.dimensions.len() {
             self.keep(self.dimension(DimensionId(d)), records, sources);
         }
@@ -1157,7 +1400,7 @@ impl PartReader<'_> {
             self.keep(r, records, sources);
         }
         // Structured requirements first: their attribute sets are not labels.
-        for r in self.requirements(sources, &mut used) {
+        for r in self.requirements(sources, &mut used, legacy) {
             self.keep(r, records, sources);
         }
         for r in self.labels(sources, &mut used) {
@@ -2504,6 +2747,7 @@ impl PartReader<'_> {
             ));
         }
         Presentation {
+            callouts: matched,
             items,
             ambiguous,
             reasons,
@@ -2552,7 +2796,12 @@ impl PartReader<'_> {
     /// takes the general tolerance class when it is the only one left. A structured statement
     /// left unpaired is a record of its own, labelled as draftwright labels it (its kind, or its
     /// tolerance class). draftwright matches callouts across the file, the port within the part.
-    fn requirements(&self, sources: &mut Vec<Source>, used: &mut Used) -> Vec<Record> {
+    fn requirements(
+        &self,
+        sources: &mut Vec<Source>,
+        used: &mut Used,
+        legacy: &mut BTreeMap<u64, BTreeSet<String>>,
+    ) -> Vec<Record> {
         let pmi = self.pmi;
         let doc = self.doc;
         let structured: Vec<Structured> = (0..pmi.attributes.len())
@@ -2610,6 +2859,14 @@ impl PartReader<'_> {
                 });
                 continue;
             };
+            // Retain the association the existing legacy requirement reader just used.
+            // Triage must neither repeat nor broaden its name-based correspondence.
+            for c in &shown.callouts {
+                legacy
+                    .entry(*c)
+                    .or_default()
+                    .insert(format!("manufacturing_requirement:#{pdef}"));
+            }
             if note.text.is_empty()
                 && crate::pmi_lowering::part_note_kind(&note.kind.to_lowercase()).is_none()
             {

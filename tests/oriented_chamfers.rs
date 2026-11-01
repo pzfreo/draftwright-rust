@@ -676,7 +676,7 @@ fn source_pmi_owns_a_notch_angle_at_another_normal_section_without_duplicate_ink
 }
 
 #[test]
-fn an_existing_physical_bevel_leg_owns_the_same_notch_depth_once() {
+fn an_unproved_bevel_corner_cannot_replace_the_proven_notch_depth() {
     let (part, a) =
         model::analyse_native(&corpus::dir().unwrap().join("mfcadpp/10020.step")).unwrap();
     let p = model::plan_recovered(&a, &Spec::default()).unwrap();
@@ -689,19 +689,32 @@ fn an_existing_physical_bevel_leg_owns_the_same_notch_depth_once() {
                 .any(|m| m.parameter == "notch_depth.length")
         })
         .unwrap();
-    assert_eq!(depth.id, "d:f:chamfer:1/chamfer.length");
-    assert_eq!(depth.label, "10.62 × 10.61°");
+    // v0.4.2 withholds this virtual corner: the existing bevel claim does not prove
+    // the depth's witness stations. Keep the independently measured depth explicit.
+    assert!(a.features.iter().any(|f| {
+        f.id == "f:chamfer:1"
+            && f.parameters
+                .get("corner")
+                .is_some_and(serde_json::Value::is_null)
+    }));
+    assert!(depth.id.contains("/notch_depth.length."));
+    assert_eq!(depth.label, "10.620");
+    assert!(depth.placed.is_some());
     assert!(
         p.dimensions
             .iter()
-            .all(|d| !d.id.contains("/notch_depth.length.")),
-        "the already stated physical first leg does not get another depth dimension"
+            .filter(|d| d.id == "d:f:chamfer:1/chamfer.length")
+            .all(|d| !d
+                .measurements
+                .iter()
+                .any(|m| m.parameter == "notch_depth.length")),
+        "an unproved virtual corner cannot claim the physical notch span"
     );
     assert!(
-        p.omitted
+        !p.omitted
             .iter()
             .any(|d| d.id.contains("/notch_depth.length.")
-                && matches!(&d.state, State::Covered { by } if by == &depth.id))
+                && matches!(&d.state, State::Covered { by } if by == "d:f:chamfer:1/chamfer.length"))
     );
     let drawing = model::render(
         &part,
@@ -725,14 +738,14 @@ fn an_existing_physical_bevel_leg_owns_the_same_notch_depth_once() {
     );
     let q = model::plan_recovered(
         &a,
-        &parse(json!({"dimensions":{(depth.id.clone()):{"omit":true}}})),
+        &parse(json!({"dimensions":{"d:f:chamfer:1/chamfer.length":{"omit":true}}})),
     )
     .unwrap();
     assert!(
         q.dimensions
             .iter()
             .any(|d| d.id.contains("/notch_depth.length.")),
-        "with the original callout hidden the explicit notch depth returns"
+        "hiding the bevel keeps the independently proved notch depth"
     );
 }
 

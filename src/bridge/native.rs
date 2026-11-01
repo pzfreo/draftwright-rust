@@ -698,6 +698,12 @@ pub fn recognise(part: &Part) -> Result<Native, String> {
 
 /// Reads the families of [`READ`] from *doc*, Rust quiddity's recognition of *part*.
 pub fn read(part: &Part, doc: &RecognitionDocument) -> Result<Native, String> {
+    if doc.complete == Some(false) || !doc.failures.is_empty() {
+        return Err(format!(
+            "quiddity's recognition is incomplete; failed or blocked families: {:?}",
+            doc.failures
+        ));
+    }
     let doc = &in_file_axes(doc);
     if !SCHEMA_VERSIONS.contains(&doc.schema_version.as_str()) {
         return Err(format!(

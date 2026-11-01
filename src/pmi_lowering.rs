@@ -49,7 +49,8 @@
 //! form and the material condition are drawn, as in draftwright), an attachment its faces do
 //! not prove, or a thread or knurl no one feature owns (`pmi_not_lowered`); a source the reading
 //! did not read (`pmi_not_extracted`); a file whose PMI could not be read (`pmi_not_read`);
-//! presentation, which is counted, not read (`pmi_presentation_not_read`). Toleranced and basic
+//! graphical callouts are triaged against their semantic carriers ([`crate::graphical_pmi`]),
+//! with `pmi_presentation_not_read` only a fallback for readings without an inventory. Toleranced and basic
 //! dimensions are lowered with the other dimensions ([`crate::dims`]' PMI dimensions, stage 2b),
 //! from where their faces put them ([`dimension_geometry`], here).
 //!
@@ -190,6 +191,7 @@ fn lower_uncached(
     // The Spec's datums and controls merged into the reading: what overriding met
     // ([`crate::spec_gdt`]).
     problems.extend(report.spec_problems.iter().cloned());
+    problems.extend(report.reader.problems.iter().cloned());
     for s in report
         .sources
         .iter()
@@ -211,13 +213,13 @@ fn lower_uncached(
             ..Default::default()
         });
     }
-    if report.accounting.presentation > 0 {
+    if report.reader.callouts.is_empty() && report.accounting.presentation > 0 {
         problems.push(Problem {
             id: "p:pmi_presentation_not_read:part".into(),
             code: "pmi_presentation_not_read".into(),
             severity: "info".into(),
             message: format!(
-                "The STEP file carries {} instance(s) of PMI presentation (graphic annotation); presentation is counted, not read or drawn: only semantic PMI is.",
+                "The STEP reading has no callout inventory (the fallback for older reads). Its {} instance(s) of PMI presentation (graphic annotation) are counted, not read or drawn; only semantic PMI can be checked.",
                 report.accounting.presentation
             ),
             subjects: Vec::new(),
@@ -1315,16 +1317,17 @@ fn surface_finish(r: &Record, centre: [f64; 3]) -> Result<Lowered, Vec<String>> 
             }
             crate::pmi::Field::Length(mm) => {
                 // Stated in µm to three significant figures, as the record's label states it;
-                // the value is held in mm, which haecceity states in µm without rounding.
+                // the stored value is mm. The shared formatter now retains the supplied unit,
+                // so give it explicit micrometres for ISO 1302's implicit roughness unit.
                 let um: f64 = crate::pmi::fmt_g3(mm * 1000.0)
                     .parse()
                     .unwrap_or(mm * 1000.0);
-                if let Ok(value) = Decimal::parse(&(um / 1000.0).to_string()) {
+                if let Ok(value) = Decimal::parse(&um.to_string()) {
                     texture.parameters.push(SurfaceTextureParameter {
                         characteristic: name.clone(),
                         value: Length {
                             value,
-                            unit: LengthUnit::Millimetre,
+                            unit: LengthUnit::Micrometre,
                         },
                     });
                 }

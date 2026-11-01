@@ -210,6 +210,7 @@ catalogue! {
     "plate_requirement_unverifiable" => Incomplete, Requirement, "The drawing does not prove this required feature parameter.";
     "pmi_datum_suppressed" => Advisory, Code, "The datum was deliberately suppressed by policy.";
     "pmi_dimensions_not_ported" => Incomplete, Code, "The source dimension has no implemented drawing grammar.";
+    "pmi_graphical_not_drawn" => Incomplete, Source, "A graphical source annotation has no resolved semantic PMI coverage.";
     "pmi_ignored" => Advisory, Code, "The selected dimension-source policy ignores this PMI.";
     "pmi_not_drawn" => Incomplete, Source, "The planned PMI annotation is absent from the sheet.";
     "pmi_not_extracted" => Incomplete, Source, "A source PMI record was not extracted into a drawable requirement.";
@@ -217,6 +218,7 @@ catalogue! {
     "pmi_not_read" => Incomplete, Code, "The PMI reading cannot supply the required annotation.";
     "pmi_not_rendered" => Incomplete, Source, "The rendered drawing does not state the source PMI requirement.";
     "pmi_presentation_not_read" => Incomplete, Code, "The source presentation PMI is not available as drawing information.";
+    "pmi_read_nonconformance" => Advisory, Source, "A source PMI nonconformance was read through an explicit interpretation.";
     "pmi_source_site_mismatch" => Incomplete, Source, "The drawn evidence does not correctly state the required source information.";
     "pmi_source_text_mismatch" => Incomplete, Source, "The drawn evidence does not correctly state the required source information.";
     "pmi_source_unknown" => Incomplete, Source, "The claimed PMI provenance cannot be found in the source document.";

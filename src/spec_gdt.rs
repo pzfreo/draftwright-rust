@@ -782,6 +782,7 @@ fn empty_report(analysis: &Analysis) -> Report {
         materials: Vec::new(),
         drawn: None,
         spec_problems: Vec::new(),
+        reader: Box::default(),
     }
 }
 

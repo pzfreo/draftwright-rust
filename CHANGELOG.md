@@ -6,9 +6,38 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
-Now on quiddity-rust **v0.2.7**.
+Now on quiddity-rust **v0.4.2**.
 
 ### Changed
+
+- Triage graphical PMI callouts by their part-qualified semantic links. Drawn semantic
+  requirements need no presentation notice; refused requirements retain the callout ID and
+  decoded name on their existing findings. An annotation with no resolved requirement gets
+  one incomplete warning, including when its links identify only supporting geometry.
+  Exact reader-refused definitions reuse their existing source findings. Older saved readings
+  without a callout inventory retain an explicit presentation-count fallback. Triage runs
+  after layout selection and does not change the drawing or its paper/scale policy.
+  Existing legacy manufacturing associations and #265 engine carriers retain semantic
+  coverage; triage does not introduce new name or face matching.
+  Drawing-lint callout references remain evidence of the original semantic finding,
+  rather than being counted as extra semantic sources.
+  Native thread, knurl and surface-texture links use the definition roots their lowerers
+  already use, including when extraction retained a refused source instead of a record.
+
+- Pin haecceity and quiddity v0.4.2 (recognition /6, fingerprints /3, PMI reader /13).
+  Preserve non-fatal reader findings for repaired reversed limits/deviations, source
+  identifiers and orientation-independent zones without refusing their valid semantic
+  requirements. An incomplete recognition document is explicitly refused, rather than
+  silently treating a failed family as absent. Datum-feature child aspects use their
+  owning datum feature as supplied by the reader.
+  The recognition audit adds eight reviewed `corner: null` differences for CTC-01,
+  FTC-06 and m11512: v0.4.2 refuses virtual corners whose published wedge is unproved;
+  their defining faces and measured legs/angles remain intact.
+  Face-finish adapters now supply explicit micrometres to the shared ISO 1302 formatter,
+  preserving `Ra 0.8` when the renderer retains input units. A withheld virtual corner
+  no longer covers an independently proved notch depth; that depth remains explicit.
+  Interrupted torus groups change radius counts and run-local IDs; route audits retain
+  their physical defining faces instead of pinning the provider's occurrence numbers.
 
 - For #258, pin quiddity-rust and haecceity v0.2.7. Imported PMI deviation pairs now print on
   one line as `+u/l` (ISO 129-1:2004 §6.2), haecceity's shared notation, instead of `+u -l`
