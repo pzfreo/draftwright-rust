@@ -40,9 +40,25 @@ fn leaders_across_their_own_view_are_reported() {
     // split from the callout, so the first keeps the radius leader this test reads (the split
     // one is dimensioned by its end centres, with no radius).
     corpus::split_slot(&mut analysis, "f:slot:2");
-    let p = model::plan_recovered(&analysis, &Spec::default()).unwrap();
-    // The slot-end 2× R3 leader runs from the slot near the plan's foot up across the view to
-    // a label above and beside it.
+    let automatic = model::plan_recovered(&analysis, &Spec::default()).unwrap();
+    // Local slot witnesses now let the automatic callout stay beside its slot.
+    // Keep testing the diagnostic with a deliberately authored long route.
+    assert!(found(&automatic, "leader_across_view").is_empty());
+    assert!(
+        automatic
+            .dimensions
+            .iter()
+            .any(|d| d.id == "d:f:slot:1/slot_end_radius.radius" && d.placed.is_some())
+    );
+    let spec = model::edit(
+        &Spec::default(),
+        &serde_json::json!([{
+            "op":"set", "path":"dimensions/d:f:slot:1~1slot_end_radius.radius/place",
+            "value":{"view":"plan", "side":"above", "lane":0, "along":"middle", "pinned":true}
+        }]),
+    )
+    .unwrap();
+    let p = model::plan_recovered(&analysis, &spec).unwrap();
     let mut across = found(&p, "leader_across_view");
     across.sort();
     assert_eq!(across, [["d:f:slot:1/slot_end_radius.radius", "v:plan"]]);

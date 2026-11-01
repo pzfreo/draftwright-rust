@@ -715,7 +715,8 @@ impl Footprints {
 
     /// An interior witness leaves its own opening at the near rim, keeping the normal gap.
     pub(super) fn interior_witness(&self, line: &mut [P2; 2], owners: &[Measurement]) -> bool {
-        let slot_width = owners.iter().any(|m| m.parameter == "slot_width.length");
+        let slot_width =
+            self.slot_layout && owners.iter().any(|m| m.parameter == "slot_width.length");
         let exit = self
             .features
             .iter()
@@ -1378,7 +1379,7 @@ mod tests {
     #[test]
     fn an_owned_box_boundary_is_trimmed_without_jumping_a_foreign_opening() {
         let footprints = |foreign_y| Footprints {
-            slot_layout: false,
+            slot_layout: true,
             view: "v:plan".into(),
             solids: vec![],
             members: BTreeMap::new(),

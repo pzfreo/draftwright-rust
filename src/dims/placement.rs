@@ -3219,12 +3219,7 @@ fn clear_linear_ordered(
             [side, opposite(side)]
                 .into_iter()
                 .flat_map(|side| {
-                    (0..if recess_context && recess_corridor {
-                        max_lane
-                    } else {
-                        8
-                    })
-                        .map(move |lane| (side, lane))
+                    (0..if recess_context { max_lane } else { 8 }).map(move |lane| (side, lane))
                 })
                 .collect()
         } else {
