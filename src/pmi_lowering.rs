@@ -1317,16 +1317,17 @@ fn surface_finish(r: &Record, centre: [f64; 3]) -> Result<Lowered, Vec<String>> 
             }
             crate::pmi::Field::Length(mm) => {
                 // Stated in µm to three significant figures, as the record's label states it;
-                // the value is held in mm, which haecceity states in µm without rounding.
+                // the stored value is mm. The shared formatter now retains the supplied unit,
+                // so give it explicit micrometres for ISO 1302's implicit roughness unit.
                 let um: f64 = crate::pmi::fmt_g3(mm * 1000.0)
                     .parse()
                     .unwrap_or(mm * 1000.0);
-                if let Ok(value) = Decimal::parse(&(um / 1000.0).to_string()) {
+                if let Ok(value) = Decimal::parse(&um.to_string()) {
                     texture.parameters.push(SurfaceTextureParameter {
                         characteristic: name.clone(),
                         value: Length {
                             value,
-                            unit: LengthUnit::Millimetre,
+                            unit: LengthUnit::Micrometre,
                         },
                     });
                 }

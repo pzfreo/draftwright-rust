@@ -33,6 +33,9 @@ Now on quiddity-rust **v0.4.2**.
   The recognition audit adds eight reviewed `corner: null` differences for CTC-01,
   FTC-06 and m11512: v0.4.2 refuses virtual corners whose published wedge is unproved;
   their defining faces and measured legs/angles remain intact.
+  Face-finish adapters now supply explicit micrometres to the shared ISO 1302 formatter,
+  preserving `Ra 0.8` when the renderer retains input units. A withheld virtual corner
+  no longer covers an independently proved notch depth; that depth remains explicit.
 
 - For #258, pin quiddity-rust and haecceity v0.2.7. Imported PMI deviation pairs now print on
   one line as `+u/l` (ISO 129-1:2004 §6.2), haecceity's shared notation, instead of `+u -l`
