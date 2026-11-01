@@ -1229,11 +1229,13 @@ fn graphical_callouts_follow_drawn_or_refused_semantics_without_duplicate_findin
     let decoded = "⌀12 ±0.1";
     report.reader.callouts = vec![
         Callout {
+            legacy_sources: vec![],
             id: 900001,
             name: decoded.into(),
             links: vec![],
         },
         Callout {
+            legacy_sources: vec![],
             id: 900002,
             name: "unresolved callout".into(),
             links: vec![Link {
@@ -1245,16 +1247,19 @@ fn graphical_callouts_follow_drawn_or_refused_semantics_without_duplicate_findin
             }],
         },
         Callout {
+            legacy_sources: vec![],
             id: 900003,
             name: decoded.into(),
             links: vec![link(vec![dimension])],
         },
         Callout {
+            legacy_sources: vec![],
             id: 900004,
             name: "⌖ ⌀0.1 Ⓜ A".into(),
             links: vec![link(vec![refused.clone()]), link(vec![refused.clone()])],
         },
         Callout {
+            legacy_sources: vec![],
             id: 900005,
             name: "linked only to a support face".into(),
             links: vec![Link {
@@ -1270,6 +1275,7 @@ fn graphical_callouts_follow_drawn_or_refused_semantics_without_duplicate_findin
             }],
         },
         Callout {
+            legacy_sources: vec![],
             id: 900006,
             name: "reader-refused definition".into(),
             links: vec![Link {

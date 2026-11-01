@@ -727,6 +727,7 @@ pub fn report_part(
     let drawn = |p: usize| chosen.is_none_or(|k| k == p);
     let mut records = Vec::new();
     let mut sources = Vec::new();
+    let mut legacy_presentations: BTreeMap<u64, BTreeSet<String>> = BTreeMap::new();
     for (p, (pmi, prov)) in read.parts.iter().zip(&read.provenance.parts).enumerate() {
         if !drawn(p) {
             continue;
@@ -741,7 +742,7 @@ pub fn report_part(
             drawing: &drawing,
             numbers: characteristic_numbers(doc, pmi, prov),
         };
-        r.read(&mut records, &mut sources);
+        r.read(&mut records, &mut sources, &mut legacy_presentations);
     }
     let mut attached = vec![false; read.findings.len()];
     let reader_problems = read
@@ -934,6 +935,10 @@ pub fn report_part(
             Some(crate::graphical_pmi::Callout {
                 id: c.id,
                 name: c.name.clone(),
+                legacy_sources: legacy_presentations
+                    .get(&c.id)
+                    .map(|s| s.iter().cloned().collect())
+                    .unwrap_or_default(),
                 links: c
                     .links
                     .iter()
@@ -1115,6 +1120,7 @@ struct Structured {
 /// What a requirement in words is presented on (draftwright's `read_manufacturing_requirements`):
 /// the shape aspects of the part's draughting callouts named like it, and their items.
 struct Presentation {
+    callouts: Vec<u64>,
     items: BTreeSet<u64>,
     /// A thread's callouts have several supports: draftwright keeps none of them.
     ambiguous: bool,
@@ -1324,7 +1330,12 @@ impl PartReader<'_> {
         ids
     }
 
-    fn read(&self, records: &mut Vec<Record>, sources: &mut Vec<Source>) {
+    fn read(
+        &self,
+        records: &mut Vec<Record>,
+        sources: &mut Vec<Source>,
+        legacy: &mut BTreeMap<u64, BTreeSet<String>>,
+    ) {
         for d in 0..self.pmi.dimensions.len() {
             self.keep(self.dimension(DimensionId(d)), records, sources);
         }
@@ -1355,7 +1366,7 @@ impl PartReader<'_> {
             self.keep(r, records, sources);
         }
         // Structured requirements first: their attribute sets are not labels.
-        for r in self.requirements(sources, &mut used) {
+        for r in self.requirements(sources, &mut used, legacy) {
             self.keep(r, records, sources);
         }
         for r in self.labels(sources, &mut used) {
@@ -2702,6 +2713,7 @@ impl PartReader<'_> {
             ));
         }
         Presentation {
+            callouts: matched,
             items,
             ambiguous,
             reasons,
@@ -2750,7 +2762,12 @@ impl PartReader<'_> {
     /// takes the general tolerance class when it is the only one left. A structured statement
     /// left unpaired is a record of its own, labelled as draftwright labels it (its kind, or its
     /// tolerance class). draftwright matches callouts across the file, the port within the part.
-    fn requirements(&self, sources: &mut Vec<Source>, used: &mut Used) -> Vec<Record> {
+    fn requirements(
+        &self,
+        sources: &mut Vec<Source>,
+        used: &mut Used,
+        legacy: &mut BTreeMap<u64, BTreeSet<String>>,
+    ) -> Vec<Record> {
         let pmi = self.pmi;
         let doc = self.doc;
         let structured: Vec<Structured> = (0..pmi.attributes.len())
@@ -2808,6 +2825,14 @@ impl PartReader<'_> {
                 });
                 continue;
             };
+            // Retain the association the existing legacy requirement reader just used.
+            // Triage must neither repeat nor broaden its name-based correspondence.
+            for c in &shown.callouts {
+                legacy
+                    .entry(*c)
+                    .or_default()
+                    .insert(format!("manufacturing_requirement:#{pdef}"));
+            }
             if note.text.is_empty()
                 && crate::pmi_lowering::part_note_kind(&note.kind.to_lowercase()).is_none()
             {

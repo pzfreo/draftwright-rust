@@ -17,6 +17,8 @@ Now on quiddity-rust **v0.4.2**.
   Exact reader-refused definitions reuse their existing source findings. Older saved readings
   without a callout inventory retain an explicit presentation-count fallback. Triage runs
   after layout selection and does not change the drawing or its paper/scale policy.
+  Existing legacy manufacturing associations and #265 engine carriers retain semantic
+  coverage; triage does not introduce new name or face matching.
 
 - Pin haecceity and quiddity v0.4.2 (recognition /6, fingerprints /3, PMI reader /13).
   Preserve non-fatal reader findings for repaired reversed limits/deviations, source
