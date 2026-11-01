@@ -62,6 +62,7 @@ const GAP: f64 = 0.5;
 
 /// A hole's mark in its end-on view: its text box, where its leader starts (on the hole), its
 /// item ID and what the basis calls it.
+#[derive(Clone)]
 struct Mark {
     id: String,
     /// The view it stands in.
@@ -339,12 +340,66 @@ pub(crate) fn attach(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
                     break;
                 }
             }
+            // A taller size label may have been routed away from the frame's corridor.
+            // Before giving each its own leader, search nearby paper for the complete unit.
+            let moved_mark = if settled.is_none() && marks_only && !cylinder {
+                marks
+                    .first()
+                    .filter(|m| !m.tag && !stacks.contains_key(&m.id))
+                    .and_then(|mark| {
+                        joint_mark(
+                            analysis,
+                            spec,
+                            plan,
+                            gi,
+                            &leader,
+                            mark,
+                            (&exterior, &interior),
+                            &cache,
+                        )
+                    })
+            } else {
+                None
+            };
+            if let Some((_, side, next, area, before)) = &moved_mark {
+                settled = Some((
+                    marks.first(),
+                    false,
+                    false,
+                    view,
+                    (*side, next.clone(), *area, before.clone()),
+                ));
+            }
             let Some((mark, hidden, own_arm, view, (side, next, area, before))) = settled else {
                 continue;
             };
             let view = view.id.clone();
             let id = g.id.clone();
             rechecked_codes.extend(before.into_iter().map(|p| p.code));
+            if let Some((next, _, _, _, _)) = moved_mark {
+                let mark = mark.expect("a joint placement has a size carrier");
+                let d = plan
+                    .dimensions
+                    .iter_mut()
+                    .find(|d| d.id == mark.id)
+                    .expect("size carrier");
+                d.placed = Some(next.clone());
+                d.region = None;
+                d.basis = d.basis.replace(super::interior::BASIS, "");
+                changed.insert(d.id.clone());
+                let v = plan
+                    .views
+                    .iter()
+                    .find(|v| v.id == view)
+                    .expect("carrier view");
+                plan.callout_tips.insert(
+                    d.id.clone(),
+                    (
+                        view.clone(),
+                        [next.lines[0][0][0] - v.at[0], next.lines[0][0][1] - v.at[1]],
+                    ),
+                );
+            }
             let g = &mut plan.gdt[gi];
             g.view.clone_from(&view);
             g.side = side.into();
@@ -415,6 +470,153 @@ pub(crate) fn attach(analysis: &Analysis, spec: &Spec, plan: &mut Plan) {
     let mut all = plan.dimensions.clone();
     all.extend(plan.gdt.iter().filter_map(gdt::proxy));
     callout_routes::refresh(analysis, plan, &all, &cache, &changed, &rechecked_codes);
+}
+
+/// Keep an owned size/depth callout and its frame together when the settled carrier
+/// has no room for the frame. The radial route belongs to the size label; the frame
+/// has no second leader. Nearby radial routes are bounded and tried lazily.
+#[allow(clippy::too_many_arguments, clippy::type_complexity)]
+fn joint_mark(
+    analysis: &Analysis,
+    spec: &Spec,
+    plan: &Plan,
+    gi: usize,
+    leader: &Leader<'_>,
+    mark: &Mark,
+    proofs: (
+        &BTreeMap<String, std::rc::Rc<super::interior::Proof>>,
+        &BTreeMap<String, std::rc::Rc<super::interior::Proof>>,
+    ),
+    cache: &super::footprints::Cache,
+) -> Option<(
+    super::Placed,
+    &'static str,
+    gdt::GdtPlaced,
+    Option<(usize, [f64; 4])>,
+    Vec<crate::model::Problem>,
+)> {
+    if spec
+        .dimensions
+        .get(&mark.id)
+        .is_some_and(|d| d.place.is_some())
+    {
+        return None;
+    }
+    let di = plan.dimensions.iter().position(|d| d.id == mark.id)?;
+    let d = &plan.dimensions[di];
+    let old = d.placed.as_ref()?;
+    let g = &plan.gdt[gi];
+    let view = plan.views.iter().find(|v| v.id == mark.view)?;
+    let sheet = std::iter::once(&plan.sheet)
+        .chain(&plan.sheets)
+        .find(|s| s.number == view.sheet)?;
+    let mut carrier = g.clone();
+    carrier.placed.as_mut()?.label_box = old.label_box;
+    let mut taken = tips(plan, &view.id, &g.id);
+    // The size carrier is moving with this frame, so its old arrow is not a peer.
+    if let Some(shaft) = old.lines.first() {
+        taken.retain(|tip| (tip[0] - shaft[0][0]).hypot(tip[1] - shaft[0][1]) > 1e-6);
+    }
+    let mut all = plan.dimensions.clone();
+    all.extend(plan.gdt.iter().filter_map(gdt::proxy));
+    let fi = all.iter().position(|q| q.id == g.id)?;
+    let geometry = placement::CollisionGeometry::new(analysis, &all, sheet, &plan.views, cache);
+    let mut before = geometry.for_item(analysis, &all, sheet, &plan.views, &g.id);
+    before.extend(geometry.for_item(analysis, &all, sheet, &plan.views, &d.id));
+    all[fi].view.clone_from(&view.id);
+    all[di].region = None;
+    let peers: Vec<_> = all
+        .iter()
+        .filter(|q| q.id != g.id && q.id != d.id)
+        .filter(|q| {
+            plan.views
+                .iter()
+                .find(|v| v.id == q.view)
+                .is_none_or(|v| v.sheet == sheet.number)
+        })
+        .chain(callout_routes::furniture(plan).iter())
+        .cloned()
+        .collect();
+    let outlines: Vec<_> = plan
+        .views
+        .iter()
+        .filter(|v| v.sheet == sheet.number)
+        .map(|v| {
+            (
+                v.id == view.id,
+                placement::Frame::new(analysis, v).outline(),
+            )
+        })
+        .collect();
+    let paper = |b| {
+        proofs
+            .0
+            .get(&view.id)
+            .is_some_and(|p| p.exterior_clear(view, b, &[], &[]))
+            || proofs.1.get(&view.id).is_some_and(|p| p.blank(view, b))
+    };
+    let attached = BTreeSet::new();
+    // A carrier already states the count; a frame attached to it must not repeat it.
+    let leader = Leader {
+        count: 1,
+        ..*leader
+    };
+    for (_, route) in
+        leader_candidates(analysis, &leader, &carrier, Some(mark), false, true, &taken).take(512)
+    {
+        let delta = [
+            route.label_box[0] - old.label_box[0],
+            route.label_box[1] - old.label_box[1],
+        ];
+        let mut size = old.clone();
+        size.label_box = route.label_box;
+        size.label_at = [old.label_at[0] + delta[0], old.label_at[1] + delta[1]];
+        size.lines = route.lines.clone();
+        size.arrows = route.arrows.clone();
+        // Callout shelves stop a millimetre short of their text.
+        let last = size.lines.last_mut()?;
+        last[1][0] += if last[1][0] >= last[0][0] { -1.0 } else { 1.0 };
+        let next_mark = Mark {
+            label_box: size.label_box,
+            ..mark.clone()
+        };
+        all[di].placed = Some(size.clone());
+        if !clear(&route, &attached, &peers, &outlines, &paper) {
+            continue;
+        }
+        for (side, next) in frame_candidates(plan, &BTreeMap::new(), g, &next_mark) {
+            if !clear(&next, &attached, &peers, &outlines, &paper) {
+                continue;
+            }
+            let proxy = all[fi].placed.as_mut()?;
+            proxy.label_box = next.label_box;
+            proxy.label_at = [next.label_box[0], next.label_box[1]];
+            proxy.lines.clear();
+            proxy.arrows.clear();
+            let ink = super::ink_box(&all[di])?;
+            let frame_ink = super::ink_box(&all[fi])?;
+            let union = [
+                ink[0].min(frame_ink[0]),
+                ink[1].min(frame_ink[1]),
+                ink[2].max(frame_ink[2]),
+                ink[3].max(frame_ink[3]),
+            ];
+            let Some(area) = grown(view, union, sheet, &plan.views, &peers) else {
+                continue;
+            };
+            let mut views = plan.views.clone();
+            let vi = views.iter().position(|v| v.id == view.id)?;
+            views[vi].area = area;
+            let problems: Vec<_> = [&d.id, &g.id]
+                .into_iter()
+                .flat_map(|id| geometry.for_item(analysis, &all, sheet, &views, id))
+                .collect();
+            if problems.is_empty() {
+                return Some((size, side, next, Some((vi, area)), before));
+            }
+        }
+    }
+    None
 }
 
 /// What a datum symbol standing on its hole's frame calls that frame.
