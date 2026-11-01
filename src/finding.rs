@@ -210,6 +210,7 @@ catalogue! {
     "plate_requirement_unverifiable" => Incomplete, Requirement, "The drawing does not prove this required feature parameter.";
     "pmi_datum_suppressed" => Advisory, Code, "The datum was deliberately suppressed by policy.";
     "pmi_dimensions_not_ported" => Incomplete, Code, "The source dimension has no implemented drawing grammar.";
+    "pmi_graphical_not_drawn" => Incomplete, Source, "A graphical source annotation has no resolved semantic PMI coverage.";
     "pmi_ignored" => Advisory, Code, "The selected dimension-source policy ignores this PMI.";
     "pmi_not_drawn" => Incomplete, Source, "The planned PMI annotation is absent from the sheet.";
     "pmi_not_extracted" => Incomplete, Source, "A source PMI record was not extracted into a drawable requirement.";

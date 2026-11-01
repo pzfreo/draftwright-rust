@@ -4246,7 +4246,10 @@ pub fn plan_recovered(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid>
         || {
             let plan = plan_recovered_once(analysis, spec)?;
             let plan = balloon_fallback(analysis, spec, plan)?;
-            manufacturing_fallback(analysis, spec, plan, |s| plan_recovered_once(analysis, s))
+            let mut plan =
+                manufacturing_fallback(analysis, spec, plan, |s| plan_recovered_once(analysis, s))?;
+            crate::graphical_pmi::apply(analysis, &mut plan);
+            Ok(plan)
         },
     )
 }
@@ -5207,7 +5210,10 @@ pub fn plan(analysis: &Analysis, spec: &Spec) -> Result<Plan, Invalid> {
         spec.sheet.frame_gutter.unwrap_or(layout::FRAME_GUTTER),
         || {
             let plan = plan_once(analysis, spec)?;
-            manufacturing_fallback(analysis, spec, plan, |s| plan_once(analysis, s))
+            let mut plan =
+                manufacturing_fallback(analysis, spec, plan, |s| plan_once(analysis, s))?;
+            crate::graphical_pmi::apply(analysis, &mut plan);
+            Ok(plan)
         },
     )
 }

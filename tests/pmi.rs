@@ -526,6 +526,53 @@ fn reading(
 const CTC01: &str = "nist_ctc_01_asme1_ap242-e1.stp.gz";
 
 #[test]
+fn graphical_links_use_part_qualified_semantic_ids() {
+    let (doc, defs, part, mut read) = reading("assembly_plate_pin.step.gz");
+    assert!(read.parts.len() >= 2);
+    for p in 0..2 {
+        assert!(!read.parts[p].dimensions.is_empty());
+    }
+    read.callouts = (0..2)
+        .map(|p| hpmi::GraphicalCallout {
+            id: 900000 + p as u64,
+            name: "same decoded text".into(),
+            links: vec![hpmi::CalloutLink {
+                association: 900100 + p as u64,
+                definition: 900200 + p as u64,
+                entity: "dimensional_size".into(),
+                targets: vec![hpmi::CalloutTarget {
+                    part: hpmi::PartId(p),
+                    item: hpmi::PresentedItem::Dimension(hpmi::DimensionId(0)),
+                }],
+            }],
+        })
+        .collect();
+    let report = pmi::report(&doc, &defs, &part, &read).unwrap();
+    assert_eq!(report.reader.callouts.len(), 2);
+    let targets: Vec<_> = report
+        .reader
+        .callouts
+        .iter()
+        .map(|c| &c.links[0].targets[0])
+        .collect();
+    assert_ne!(targets[0].sources, targets[1].sources);
+    for (p, target) in targets.iter().enumerate() {
+        assert_eq!(target.part, p);
+        assert_eq!(target.sources.len(), 1);
+        assert!(
+            report
+                .records
+                .iter()
+                .any(|r| r.part == p && r.source_id == target.sources[0])
+        );
+    }
+    let plate = haecceity::step::read_part(doc.bytes(), &defs[0]).unwrap();
+    let chosen = pmi::report_part(&doc, &defs, &plate, &read, Some(0)).unwrap();
+    assert_eq!(chosen.reader.callouts.len(), 1);
+    assert_eq!(chosen.reader.callouts[0].id, 900000);
+}
+
+#[test]
 fn a_face_the_drawing_does_not_have_is_not_read() {
     let (doc, defs, part, mut read) = reading(CTC01);
     let before = pmi::report(&doc, &defs, &part, &read).unwrap();

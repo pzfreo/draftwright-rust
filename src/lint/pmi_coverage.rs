@@ -394,6 +394,7 @@ pub fn coverage(analysis: &Analysis, marks: &[Mark]) -> Vec<LintIssue> {
             ),
         ));
     }
+    crate::graphical_pmi::attach_to_lint(report, &on_sheet, &mut out);
     out
 }
 

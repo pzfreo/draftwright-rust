@@ -206,6 +206,7 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `plate_requirement_unverifiable` | incomplete | The drawing does not prove this required feature parameter. |
 | `pmi_datum_suppressed` | advisory | The datum was deliberately suppressed by policy. |
 | `pmi_dimensions_not_ported` | incomplete | The source dimension has no implemented drawing grammar. |
+| `pmi_graphical_not_drawn` | incomplete | A graphical source annotation has no resolved semantic PMI coverage. |
 | `pmi_ignored` | advisory | The selected dimension-source policy ignores this PMI. |
 | `pmi_not_drawn` | incomplete | The planned PMI annotation is absent from the sheet. |
 | `pmi_not_extracted` | incomplete | A source PMI record was not extracted into a drawable requirement. |

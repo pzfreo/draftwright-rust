@@ -10,6 +10,14 @@ Now on quiddity-rust **v0.4.2**.
 
 ### Changed
 
+- Triage graphical PMI callouts by their part-qualified semantic links. Drawn semantic
+  requirements need no presentation notice; refused requirements retain the callout ID and
+  decoded name on their existing findings. An annotation with no resolved requirement gets
+  one incomplete warning, including when its links identify only supporting geometry.
+  Exact reader-refused definitions reuse their existing source findings. Older saved readings
+  without a callout inventory retain an explicit presentation-count fallback. Triage runs
+  after layout selection and does not change the drawing or its paper/scale policy.
+
 - Pin haecceity and quiddity v0.4.2 (recognition /6, fingerprints /3, PMI reader /13).
   Preserve non-fatal reader findings for repaired reversed limits/deviations, source
   identifiers and orientation-independent zones without refusing their valid semantic
