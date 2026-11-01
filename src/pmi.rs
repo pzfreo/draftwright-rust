@@ -281,6 +281,10 @@ pub struct Report {
     /// The material each part states (draftwright's `material_facts`), in part order.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub materials: Vec<Material>,
+    /// Non-fatal interpretations made by the STEP reader. These remain visible without
+    /// turning a repaired, geometrically checked requirement into a lowering refusal.
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub reader_problems: Vec<crate::model::Problem>,
     /// The part drawn, when the drawing is of one part of several read alone
     /// ([`report_part`]): the records, sources and materials are then that part's only.
     /// Absent when the whole file is drawn.
@@ -726,8 +730,32 @@ pub fn report_part(
         r.read(&mut records, &mut sources);
     }
     let mut attached = vec![false; read.findings.len()];
+    let reader_problems = read
+        .findings
+        .iter()
+        .filter(|f| f.part.is_none_or(|p| drawn(p.0)) && repaired_read(f))
+        .map(|f| crate::model::Problem {
+            id: format!(
+                "p:pmi_read_nonconformance:{}:{}",
+                f.ids.first().unwrap_or(&0),
+                f.detail
+            ),
+            code: "pmi_read_nonconformance".into(),
+            severity: "warning".into(),
+            message: format!(
+                "The STEP reader interpreted a nonconforming PMI statement: {}.",
+                f.detail
+            ),
+            refs: f.ids.iter().map(|id| format!("#{id}")).collect(),
+            ..Default::default()
+        })
+        .collect();
     for record in &mut records {
         for (i, f) in read.findings.iter().enumerate() {
+            if repaired_read(f) {
+                attached[i] = true;
+                continue;
+            }
             let on = f.part == Some(pmi::PartId(record.part))
                 && f.ids
                     .first()
@@ -761,6 +789,9 @@ pub fn report_part(
     for (f, _) in read.findings.iter().zip(&attached).filter(|(_, a)| !**a) {
         // A finding on another part than the one drawn is that part's.
         if f.part.is_some_and(|p| !drawn(p.0)) {
+            continue;
+        }
+        if repaired_read(f) {
             continue;
         }
         let subject = f.ids.first().copied().unwrap_or(0);
@@ -875,8 +906,22 @@ pub fn report_part(
             validation: a.validation,
         },
         materials,
+        reader_problems,
         spec_problems: Vec::new(),
     })
+}
+
+/// v0.4.2 returns usable semantic values for these explicitly repaired forms. Other
+/// nonconformances still block lowering; equal/invalid bounds are not repairs.
+fn repaired_read(f: &pmi::Finding) -> bool {
+    f.kind == pmi::FindingKind::Nonconformance
+        && (matches!(f.detail.as_str(),
+            "plus/minus deviations were stated reversed; upper and lower bounds swapped (tolerance_value WR1)"
+            | "dimension limits were stated reversed; upper and lower limits swapped"
+            | "runout_zone_definition without an orientation angle on a non-runout tolerance; read the explicitly stated zone form without a runout angle")
+            || ((f.detail.starts_with("duplicate source identifier ")
+                || f.detail.starts_with("empty source identifier "))
+                && f.detail.ends_with("retained as identifier metadata, with content-derived JSON ids for empty or repeated item ids")))
 }
 
 /// The drawing's part, indexed by the file instances its faces and edges were read from.

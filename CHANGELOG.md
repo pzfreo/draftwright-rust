@@ -6,9 +6,16 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
-Now on quiddity-rust **v0.2.7**.
+Now on quiddity-rust **v0.4.2**.
 
 ### Changed
+
+- Pin haecceity and quiddity v0.4.2 (recognition /6, fingerprints /3, PMI reader /13).
+  Preserve non-fatal reader findings for repaired reversed limits/deviations, source
+  identifiers and orientation-independent zones without refusing their valid semantic
+  requirements. An incomplete recognition document is explicitly refused, rather than
+  silently treating a failed family as absent. Datum-feature child aspects use their
+  owning datum feature as supplied by the reader.
 
 - For #258, pin quiddity-rust and haecceity v0.2.7. Imported PMI deviation pairs now print on
   one line as `+u/l` (ISO 129-1:2004 §6.2), haecceity's shared notation, instead of `+u -l`

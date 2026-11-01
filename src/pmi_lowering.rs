@@ -190,6 +190,7 @@ fn lower_uncached(
     // The Spec's datums and controls merged into the reading: what overriding met
     // ([`crate::spec_gdt`]).
     problems.extend(report.spec_problems.iter().cloned());
+    problems.extend(report.reader_problems.iter().cloned());
     for s in report
         .sources
         .iter()

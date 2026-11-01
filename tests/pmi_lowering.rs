@@ -1142,6 +1142,58 @@ fn geometry_only_nist_corpus_parts_have_no_pmi_presentation() {
 }
 
 #[test]
+fn reversed_deviations_are_repaired_visibly_but_equal_bounds_still_refused() {
+    let (file, bytes) = fixture("string_post_tapped");
+    let source = String::from_utf8(bytes).unwrap();
+    let reversed = source.replace(
+        "TOLERANCE_VALUE(#3105,#3104)",
+        "TOLERANCE_VALUE(#3104,#3105)",
+    );
+    assert_ne!(source, reversed);
+    let (_, a) = analysed_uncached(&file, reversed.as_bytes());
+    let r = records(&a).iter().find(|r| r.part21_id == 3103).unwrap();
+    assert_eq!((r.lower_tol, r.upper_tol), (Some(0.0), Some(0.06)));
+    assert!(r.blockers.is_empty(), "{:?}", r.blockers);
+    let plan = model::plan(&a, &Spec::default()).unwrap();
+    let problems = &plan.problems;
+    assert!(
+        problems
+            .iter()
+            .any(|p| p.code == "pmi_read_nonconformance" && p.message.contains("swapped"))
+    );
+    assert!(
+        !problems
+            .iter()
+            .any(|p| p.code == "pmi_not_lowered" && p.refs.contains(&r.source_id))
+    );
+    let Some(Reading::Read(report)) = &a.pmi else {
+        unreachable!()
+    };
+    let ids = report.identities();
+    let item = ids.id(&r.source_id).unwrap();
+    assert!(
+        plan.dimensions
+            .iter()
+            .any(|d| d.placed.is_some() && d.measurements.iter().any(|m| m.feature == item))
+    );
+
+    // Equal bounds are invalid, not a reversible ordering that can be repaired.
+    let equal = source.replace(
+        "TOLERANCE_VALUE(#3105,#3104)",
+        "TOLERANCE_VALUE(#3105,#3105)",
+    );
+    let (_, invalid) = analysed_uncached(&file, equal.as_bytes());
+    assert!(records(&invalid).iter().all(|r| r.part21_id != 3103));
+    let plan = model::plan(&invalid, &Spec::default()).unwrap();
+    let problems = &plan.problems;
+    assert!(
+        problems
+            .iter()
+            .any(|p| p.code == "pmi_not_extracted" && p.refs.iter().any(|r| r == "finding:#3106"))
+    );
+}
+
+#[test]
 fn nist_graphic_pmi_still_reports_its_count() {
     for (stem, count) in [
         ("nist_ctc_01_asme1_ap242-e1", 71),

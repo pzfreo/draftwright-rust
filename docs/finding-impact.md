@@ -213,6 +213,7 @@ requirement-family codes and refuses an unclassified or undocumented emitted cod
 | `pmi_not_read` | incomplete | The PMI reading cannot supply the required annotation. |
 | `pmi_not_rendered` | incomplete | The rendered drawing does not state the source PMI requirement. |
 | `pmi_presentation_not_read` | incomplete | The source presentation PMI is not available as drawing information. |
+| `pmi_read_nonconformance` | advisory | A source PMI nonconformance was read through an explicit interpretation. |
 | `pmi_source_site_mismatch` | incomplete | The drawn evidence does not correctly state the required source information. |
 | `pmi_source_text_mismatch` | incomplete | The drawn evidence does not correctly state the required source information. |
 | `pmi_source_unknown` | incomplete | The claimed PMI provenance cannot be found in the source document. |

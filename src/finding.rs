@@ -217,6 +217,7 @@ catalogue! {
     "pmi_not_read" => Incomplete, Code, "The PMI reading cannot supply the required annotation.";
     "pmi_not_rendered" => Incomplete, Source, "The rendered drawing does not state the source PMI requirement.";
     "pmi_presentation_not_read" => Incomplete, Code, "The source presentation PMI is not available as drawing information.";
+    "pmi_read_nonconformance" => Advisory, Source, "A source PMI nonconformance was read through an explicit interpretation.";
     "pmi_source_site_mismatch" => Incomplete, Source, "The drawn evidence does not correctly state the required source information.";
     "pmi_source_text_mismatch" => Incomplete, Source, "The drawn evidence does not correctly state the required source information.";
     "pmi_source_unknown" => Incomplete, Source, "The claimed PMI provenance cannot be found in the source document.";
