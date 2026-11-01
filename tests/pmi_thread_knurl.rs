@@ -255,11 +255,15 @@ fn a_requirement_no_one_feature_owns_is_reported_with_draftwrights_reason() {
     let (plan, lint) = lint_of(&b);
     let why = refused(&plan, source).unwrap();
     assert!(
-        why.ends_with(
+        why.split(" Graphical callout").next().unwrap().ends_with(
             "is not drawn: unmatched manufacturing requirement: no canonical feature matches source topology."
         ),
         "{why}"
     );
+    assert!(why.contains("Graphical callout #697 (\"Internal thread requirement\")"));
+    assert!(plan.problems.iter().any(|p| p.code == "pmi_not_lowered"
+        && p.refs.contains(&source.to_string())
+        && p.refs.contains(&"graphical_callout:#697".into())));
     assert!(claimed(&plan, &b, source).is_empty());
     assert!(lint.iter().any(|i| i.code == "pmi_not_lowered"
         && i.sources == [source]
@@ -301,7 +305,10 @@ fn a_requirement_no_one_feature_owns_is_reported_with_draftwrights_reason() {
     let plan = model::plan(&b, &Spec::default()).unwrap();
     let why = refused(&plan, "manufacturing_requirement:#722").unwrap();
     assert!(
-        why.ends_with("manufacturing requirement text disagrees with source cylinder."),
+        why.split(" Graphical callout")
+            .next()
+            .unwrap()
+            .ends_with("manufacturing requirement text disagrees with source cylinder."),
         "{why}"
     );
     // Words and fields that disagree.
@@ -311,7 +318,10 @@ fn a_requirement_no_one_feature_owns_is_reported_with_draftwrights_reason() {
     let plan = model::plan(&b, &Spec::default()).unwrap();
     let why = refused(&plan, "manufacturing_requirement:#722").unwrap();
     assert!(
-        why.ends_with("structured knurl values disagree with prose."),
+        why.split(" Graphical callout")
+            .next()
+            .unwrap()
+            .ends_with("structured knurl values disagree with prose."),
         "{why}"
     );
     // Words outside draftwright's grammar, paired with a structured statement.
@@ -321,7 +331,10 @@ fn a_requirement_no_one_feature_owns_is_reported_with_draftwrights_reason() {
     let plan = model::plan(&b, &Spec::default()).unwrap();
     let why = refused(&plan, "manufacturing_requirement:#749").unwrap();
     assert!(
-        why.ends_with("structured thread cannot reconcile with prose."),
+        why.split(" Graphical callout")
+            .next()
+            .unwrap()
+            .ends_with("structured thread cannot reconcile with prose."),
         "{why}"
     );
     assert!(records(&a).iter().any(|r| r.source_id == source));
@@ -370,7 +383,10 @@ fn a_turned_knurl_with_no_tooth_count_is_not_lowered() {
     let source = "manufacturing_requirement:#925";
     let why = refused(&plan, source).unwrap();
     assert!(
-        why.ends_with("turned knurl has no tooth count to confirm its pitch."),
+        why.split(" Graphical callout")
+            .next()
+            .unwrap()
+            .ends_with("turned knurl has no tooth count to confirm its pitch."),
         "{why}"
     );
 }
@@ -426,7 +442,10 @@ fn a_turned_knurl_whose_pitch_and_teeth_disagree_is_not_lowered() {
     let source = "manufacturing_requirement:#925";
     let why = refused(&plan, source).unwrap();
     assert!(
-        why.ends_with("turned knurl pitch 1 and tooth count 60 disagree: π·24/1 is 75.4 teeth."),
+        why.split(" Graphical callout")
+            .next()
+            .unwrap()
+            .ends_with("turned knurl pitch 1 and tooth count 60 disagree: π·24/1 is 75.4 teeth."),
         "{why}"
     );
     assert!(

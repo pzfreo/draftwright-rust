@@ -81,6 +81,8 @@ use haecceity::step::{PartDefinition, read_part_definitions};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 
+pub mod graphical;
+
 pub const PMI_SCHEMA: &str = "draftwright.pmi/1";
 
 /// draftwright's source categories (`PmiSourceCategory`), and `other` for what haecceity reads
@@ -309,7 +311,7 @@ pub struct ReaderEvidence {
     pub problems: Vec<crate::model::Problem>,
     /// Decoded annotations and part-qualified links. Absent in older saved readings.
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
-    pub callouts: Vec<crate::graphical_pmi::Callout>,
+    pub callouts: Vec<graphical::Callout>,
 }
 
 /// A part's material as the file states it (CAx-IF's 'material name' property: draftwright's
@@ -932,7 +934,7 @@ pub fn report_part(
             if !targets.is_empty() && targets.iter().all(|t| !drawn(t.part.0)) {
                 return None;
             }
-            Some(crate::graphical_pmi::Callout {
+            Some(graphical::Callout {
                 id: c.id,
                 name: c.name.clone(),
                 legacy_sources: legacy_presentations
@@ -942,7 +944,7 @@ pub fn report_part(
                 links: c
                     .links
                     .iter()
-                    .map(|l| crate::graphical_pmi::Link {
+                    .map(|l| graphical::Link {
                         association: l.association,
                         definition: l.definition,
                         entity: l.entity.clone(),
@@ -960,7 +962,7 @@ pub fn report_part(
                             .filter(|t| drawn(t.part.0))
                             .map(|t| {
                                 let p = t.part.0;
-                                crate::graphical_pmi::Target {
+                                graphical::Target {
                                     part: p,
                                     item: format!("{:?}", t.item),
                                     sources: readers[p].presented_sources(
