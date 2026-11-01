@@ -243,7 +243,20 @@ pub(crate) fn attach_to_lint(
         let missing: BTreeSet<_> = c.sources().difference(on_sheet).copied().collect();
         for i in issues.iter_mut() {
             if i.sources.iter().any(|s| missing.contains(s.as_str())) {
-                attach(c, &mut i.sources, &mut i.message);
+                // `sources` names semantic requirements: a graphical annotation is evidence
+                // about one, not an additional requirement to count in coverage audits.
+                let marker = c.reference();
+                let evidence = i.evidence.get_or_insert_with(String::new);
+                if !evidence
+                    .lines()
+                    .any(|line| line.starts_with(&format!("{marker};")))
+                {
+                    if !evidence.is_empty() {
+                        evidence.push('\n');
+                    }
+                    evidence.push_str(&format!("{marker}; {}.", c.description()));
+                    i.message.push_str(&format!(" {}.", c.description()));
+                }
             }
         }
     }

@@ -932,7 +932,7 @@ fn every_item_and_finding_is_accounted_for_and_the_output_is_deterministic() {
                 }
             }
         }
-        // Every finding is a blocker on a record or a source of its own.
+        // Every finding remains a blocker, a source refusal or a visible reader interpretation.
         for f in &read.findings {
             let blocker = format!("haecceity {} on #{}", f.kind.as_str(), f.ids[0]);
             let attached = r
@@ -943,7 +943,13 @@ fn every_item_and_finding_is_accounted_for_and_the_output_is_deterministic() {
                 .sources
                 .iter()
                 .any(|s| s.id == format!("finding:#{}", f.ids[0]) && s.reason.ends_with(&f.detail));
-            assert!(attached || own, "{name}: finding {f:?} lost");
+            let interpreted = r.reader.problems.iter().any(|p| {
+                p.code == "pmi_read_nonconformance"
+                    && p.severity == "warning"
+                    && p.refs == f.ids.iter().map(|id| format!("#{id}")).collect::<Vec<_>>()
+                    && p.message.contains(&f.detail)
+            });
+            assert!(attached || own || interpreted, "{name}: finding {f:?} lost");
         }
         // Every record is a source with its outcome.
         for x in &r.records {

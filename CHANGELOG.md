@@ -19,6 +19,8 @@ Now on quiddity-rust **v0.4.2**.
   after layout selection and does not change the drawing or its paper/scale policy.
   Existing legacy manufacturing associations and #265 engine carriers retain semantic
   coverage; triage does not introduce new name or face matching.
+  Drawing-lint callout references remain evidence of the original semantic finding,
+  rather than being counted as extra semantic sources.
 
 - Pin haecceity and quiddity v0.4.2 (recognition /6, fingerprints /3, PMI reader /13).
   Preserve non-fatal reader findings for repaired reversed limits/deviations, source
@@ -26,6 +28,9 @@ Now on quiddity-rust **v0.4.2**.
   requirements. An incomplete recognition document is explicitly refused, rather than
   silently treating a failed family as absent. Datum-feature child aspects use their
   owning datum feature as supplied by the reader.
+  The recognition audit adds eight reviewed `corner: null` differences for CTC-01,
+  FTC-06 and m11512: v0.4.2 refuses virtual corners whose published wedge is unproved;
+  their defining faces and measured legs/angles remain intact.
 
 - For #258, pin quiddity-rust and haecceity v0.2.7. Imported PMI deviation pairs now print on
   one line as `+u/l` (ISO 129-1:2004 §6.2), haecceity's shared notation, instead of `+u -l`

@@ -13058,5 +13058,85 @@
     "rust": "[0.0,0.452785,-0.89162]",
     "verdict": "equivalent",
     "evidence": "quiddity-rust 0.2.0 (#92) publishes an oriented slot as a slot: an origin, unit width, long and depth axes, and its extents as distances from the origin along them (lo/hi, w_center, d_lo/d_hi), with its passage `source` only where the oriented recogniser proved one; draftwright draws it from those fields (dims/oriented_slots.rs `passage`), and its width and long directions are the same lines as Python's to recognition precision."
+  },
+  {
+    "set": "corpus",
+    "part": "ctc01",
+    "subject": "f:chamfer:2",
+    "field": "parameters.corner",
+    "python": "[-49.999621,0.000317,50.000471]",
+    "rust": "null",
+    "verdict": "rust-correct",
+    "evidence": "quiddity-rust v0.4.2 (#160, features/bevel.rs proved_published_corner) withholds a virtual corner unless its published coordinates, legs and angle describe a consistent wedge with no material interior. The retained 5 x 5 mm chamfer legs imply 5.088 and 4.912 mm from the old rounded at/corner pair, differing by 0.088 mm, beyond the approximately 0.004 mm published-coordinate allowance. Defining faces and measured feature sizes remain unchanged. Null records the missing proof rather than inventing a corner; this is the documented v0.4.2 upgrade contract."
+  },
+  {
+    "set": "corpus",
+    "part": "ctc01",
+    "subject": "f:chamfer:3",
+    "field": "parameters.corner",
+    "python": "[50.000379,0.000317,50.000471]",
+    "rust": "null",
+    "verdict": "rust-correct",
+    "evidence": "quiddity-rust v0.4.2 (#160, features/bevel.rs proved_published_corner) withholds a virtual corner unless its published coordinates, legs and angle describe a consistent wedge with no material interior. The retained 5 x 5 mm chamfer legs imply 5.088 and 4.912 mm from the old rounded at/corner pair, differing by 0.088 mm, beyond the approximately 0.004 mm published-coordinate allowance. Defining faces and measured feature sizes remain unchanged. Null records the missing proof rather than inventing a corner; this is the documented v0.4.2 upgrade contract."
+  },
+  {
+    "set": "corpus",
+    "part": "ftc06",
+    "subject": "f:chamfer:1",
+    "field": "parameters.corner",
+    "python": "[0.000084,97.789838,-133.350073]",
+    "rust": "null",
+    "verdict": "rust-correct",
+    "evidence": "quiddity-rust v0.4.2 (#160, features/bevel.rs proved_published_corner) withholds a virtual corner unless its published coordinates, legs and angle describe a consistent wedge with no material interior. The retained 101.6 and 50.8 mm legs imply 101.768 and 50.716 mm from the old rounded at/corner pair, differing by 0.168 and 0.084 mm, beyond the approximately 0.004 mm published-coordinate allowance. Defining faces and measured feature sizes remain unchanged. Null records the missing proof rather than inventing a corner; this is the documented v0.4.2 upgrade contract."
+  },
+  {
+    "set": "sheets",
+    "part": "ctc01",
+    "subject": "f:chamfer:2",
+    "field": "parameters.corner",
+    "python": "[-49.999621,0.000317,50.000471]",
+    "rust": "null",
+    "verdict": "rust-correct",
+    "evidence": "quiddity-rust v0.4.2 (#160, features/bevel.rs proved_published_corner) withholds a virtual corner unless its published coordinates, legs and angle describe a consistent wedge with no material interior. The retained 5 x 5 mm chamfer legs imply 5.088 and 4.912 mm from the old rounded at/corner pair, differing by 0.088 mm, beyond the approximately 0.004 mm published-coordinate allowance. Defining faces and measured feature sizes remain unchanged. Null records the missing proof rather than inventing a corner; this is the documented v0.4.2 upgrade contract."
+  },
+  {
+    "set": "sheets",
+    "part": "ctc01",
+    "subject": "f:chamfer:3",
+    "field": "parameters.corner",
+    "python": "[50.000379,0.000317,50.000471]",
+    "rust": "null",
+    "verdict": "rust-correct",
+    "evidence": "quiddity-rust v0.4.2 (#160, features/bevel.rs proved_published_corner) withholds a virtual corner unless its published coordinates, legs and angle describe a consistent wedge with no material interior. The retained 5 x 5 mm chamfer legs imply 5.088 and 4.912 mm from the old rounded at/corner pair, differing by 0.088 mm, beyond the approximately 0.004 mm published-coordinate allowance. Defining faces and measured feature sizes remain unchanged. Null records the missing proof rather than inventing a corner; this is the documented v0.4.2 upgrade contract."
+  },
+  {
+    "set": "sheets",
+    "part": "ftc06",
+    "subject": "f:chamfer:1",
+    "field": "parameters.corner",
+    "python": "[0.000084,97.789838,-133.350073]",
+    "rust": "null",
+    "verdict": "rust-correct",
+    "evidence": "quiddity-rust v0.4.2 (#160, features/bevel.rs proved_published_corner) withholds a virtual corner unless its published coordinates, legs and angle describe a consistent wedge with no material interior. The retained 101.6 and 50.8 mm legs imply 101.768 and 50.716 mm from the old rounded at/corner pair, differing by 0.168 and 0.084 mm, beyond the approximately 0.004 mm published-coordinate allowance. Defining faces and measured feature sizes remain unchanged. Null records the missing proof rather than inventing a corner; this is the documented v0.4.2 upgrade contract."
+  },
+  {
+    "set": "dims",
+    "part": "m11512",
+    "subject": "f:angled_step:1",
+    "field": "parameters.corner",
+    "python": "[25.468852,7.1536,8.095891]",
+    "rust": "null",
+    "verdict": "rust-correct",
+    "evidence": "quiddity-rust v0.4.2 (#160, features/bevel.rs proved_published_corner) withholds a virtual corner unless its published coordinates, legs and angle describe a consistent wedge with no material interior. The chamfer retains face 2 and its 3.598 mm legs; the old rounded at/corner pair implies 3.652 and 3.544 mm (0.054 mm discrepancy). The angled step retains faces 16 and 32, 6.121/2.685 mm legs and 23.68 degrees, but its optional corner also fails the published-wedge proof. Defining faces and measured feature sizes remain unchanged. Null records the missing proof rather than inventing a corner; this is the documented v0.4.2 upgrade contract."
+  },
+  {
+    "set": "dims",
+    "part": "m11512",
+    "subject": "f:chamfer:1",
+    "field": "parameters.corner",
+    "python": "[-0.000148,2.9316,14.862891]",
+    "rust": "null",
+    "verdict": "rust-correct",
+    "evidence": "quiddity-rust v0.4.2 (#160, features/bevel.rs proved_published_corner) withholds a virtual corner unless its published coordinates, legs and angle describe a consistent wedge with no material interior. The chamfer retains face 2 and its 3.598 mm legs; the old rounded at/corner pair implies 3.652 and 3.544 mm (0.054 mm discrepancy). The angled step retains faces 16 and 32, 6.121/2.685 mm legs and 23.68 degrees, but its optional corner also fails the published-wedge proof. Defining faces and measured feature sizes remain unchanged. Null records the missing proof rather than inventing a corner; this is the documented v0.4.2 upgrade contract."
   }
 ]

@@ -1340,9 +1340,12 @@ fn graphical_callouts_follow_drawn_or_refused_semantics_without_duplicate_findin
         .unwrap();
     assert!(
         semantic
-            .sources
-            .contains(&"graphical_callout:#900004".into())
+            .evidence
+            .as_ref()
+            .unwrap()
+            .contains("graphical_callout:#900004;")
     );
+    assert_eq!(semantic.sources, [refused]);
     assert!(semantic.message.contains("⌖ ⌀0.1 Ⓜ A"));
     assert!(lint.iter().all(|i| i.code != "pmi_graphical_not_drawn"));
 }
