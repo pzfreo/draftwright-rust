@@ -2047,6 +2047,56 @@ struct LinearWitness {
     view: &'static str,
 }
 
+/// A compound hole group can carry its central bore as well as surrounding bores.
+/// Prove that centre by half-turn symmetry of the finite cylindrical supports,
+/// and require an actual member axis there. Never choose an axis by the nominal,
+/// average unrelated faces, or invent an axis in a pattern's empty centre.
+fn central_bore_witnesses(cylinders: &[Cylinder]) -> Option<Vec<&Cylinder>> {
+    let first = cylinders.first()?;
+    let near =
+        |a: [f64; 3], b: [f64; 3], tolerance: f64| (0..3).all(|i| (a[i] - b[i]).abs() <= tolerance);
+    if cylinders
+        .iter()
+        .any(|c| !near(c.direction, first.direction, 1e-9))
+    {
+        return None;
+    }
+    if cylinders.iter().all(|c| near(c.origin, first.origin, 1e-6)) {
+        return Some(cylinders.iter().collect());
+    }
+    if cylinders.iter().any(|c| !c.internal) {
+        return None;
+    }
+    let centre = [0, 1, 2].map(|i| {
+        let lo = cylinders
+            .iter()
+            .map(|c| c.origin[i])
+            .fold(f64::INFINITY, f64::min);
+        let hi = cylinders
+            .iter()
+            .map(|c| c.origin[i])
+            .fold(f64::NEG_INFINITY, f64::max);
+        0.5 * (lo + hi)
+    });
+    let central: Vec<_> = cylinders
+        .iter()
+        .filter(|c| near(c.origin, centre, 1e-6))
+        .collect();
+    if central.is_empty()
+        || cylinders.iter().any(|c| {
+            let opposite = [0, 1, 2].map(|i| 2. * centre[i] - c.origin[i]);
+            !cylinders.iter().any(|other| {
+                near(other.origin, opposite, 1e-6)
+                    && (other.radius - c.radius).abs() <= 1e-6
+                    && (0..2).all(|i| (other.interval[i] - c.interval[i]).abs() <= 1e-6)
+            })
+        })
+    {
+        return None;
+    }
+    Some(central)
+}
+
 fn projected_plane_to_bore(
     part: &Part,
     groups: &[Vec<usize>],
@@ -2080,16 +2130,9 @@ fn projected_plane_to_bore(
         .map(|&f| cylinder(part, f))
         .collect::<Result<Vec<_>, _>>()
         .ok()?;
-    let first = cylinders.first()?;
+    let witnesses = central_bore_witnesses(&cylinders)?;
+    let first = witnesses.first()?;
     if (0..3).map(|i| n[i] * first.direction[i]).sum::<f64>().abs() > 1e-9 {
-        return None;
-    }
-    if cylinders.iter().any(|c| {
-        (0..3).any(|i| {
-            (c.origin[i] - first.origin[i]).abs() > 1e-6
-                || (c.direction[i] - first.direction[i]).abs() > 1e-9
-        })
-    }) {
         return None;
     }
     let pair = |p, q| if pi == 0 { [p, q] } else { [q, p] };
@@ -2102,7 +2145,7 @@ fn projected_plane_to_bore(
             .unwrap_or(if k == 1 { "side" } else { "front" }),
         None => projection_view(n)?,
     };
-    for c in &cylinders {
+    for c in witnesses {
         for t in [0.5, 0.1, 0.3, 0.7, 0.9] {
             let along = c.interval[0] + t * (c.interval[1] - c.interval[0]);
             let q = [0, 1, 2].map(|i| c.origin[i] + along * c.direction[i]);

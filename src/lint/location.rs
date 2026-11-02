@@ -671,6 +671,56 @@ pub(crate) fn identify(a: &Analysis, mark: &Mark, spans: Vec<Edge>) -> Vec<Edge>
                 };
                 e.a_feature = feature(0, e.a);
                 e.b_feature = feature(1, e.b);
+                // A proven compound bore endpoint can also locate an included
+                // pattern's centre. Require its entire native support and both
+                // radial coordinates; a coincident ordinate alone is no alias.
+                if let Some(g) = &r.geometry
+                    && g.reasons.is_empty()
+                    && g.sites.len() == 2
+                    && g.stations.len() == 2
+                {
+                    for side in 0..2 {
+                        let Some(group) = r.face_groups.get(side) else {
+                            continue;
+                        };
+                        let Some(axis) = group
+                            .first()
+                            .and_then(|&f| a.face_attachments.get(f).and_then(|f| f.exact_axis))
+                        else {
+                            continue;
+                        };
+                        if group.iter().any(|&f| {
+                            a.face_attachments.get(f).is_none_or(|f| {
+                                f.surface.as_deref() != Some("cylinder")
+                                    || f.exact_axis != Some(axis)
+                            })
+                        }) {
+                            continue;
+                        }
+                        for p in a.recognition.iter().flat_map(|r| &r.patterns) {
+                            if p.faces.is_empty()
+                                || !p.faces.iter().all(|f| group.contains(f))
+                                || node_feature(a, &p.id, e.axis).is_none()
+                                || (0..3).any(|k| {
+                                    k != axis
+                                        && station(a, &p.id, k)
+                                            .is_none_or(|at| (at - g.stations[side][k]).abs() > EPS)
+                                })
+                            {
+                                continue;
+                            }
+                            let mut alias = e.clone();
+                            if (g.stations[side][e.axis] - e.a).abs() <= EPS {
+                                alias.a_feature = Some(p.id.clone());
+                            } else if (g.stations[side][e.axis] - e.b).abs() <= EPS {
+                                alias.b_feature = Some(p.id.clone());
+                            } else {
+                                continue;
+                            }
+                            out.push(alias);
+                        }
+                    }
+                }
                 // A cap's virtual slot identity adds evidence; it must not
                 // replace the physical plane used by other source locations.
                 // Retain the other endpoint's native identity, including bores.

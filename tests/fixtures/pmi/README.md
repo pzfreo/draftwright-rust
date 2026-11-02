@@ -95,3 +95,20 @@ gzip packaging uses `mtime=0`.
   packages the supplied modified STEP as gzip.
 - `specify-main-GRM-02_shaft.step.gz`: **Paul Fremantle's (the maintainer's) own
   geometry**, with the Specify PMI modification stated above.
+
+`specify-017-mounting-plate.step.gz` is the supplied editor sample
+`mp-specify-017.step`, written by Specify main **3bb019e** (0.1.7 candidate,
+2026-11-02), with its defaults and material 6061-T6. It retains the compound
+central-bore/corner-hole endpoint of the basic datum locations. The supplied STEP
+is unchanged; gzip packaging uses `mtime=0` (47 KB compressed).
+Geometry comes from `pzfreo/dw-examples` commit
+`525e3f5cfd11ed55165fe5c290d139548a62f534`,
+`steps/text-to-cad/mounting-plate.step`, exported with build123d 0.13.0 from
+`amywork777/text-to-cad-upstream` commit
+`85d8fdbfb467ebd7e22994fe8bcd86afa6626ed3`,
+`models/examples/src/mounting_plate.py`; see also
+[the existing geometry provenance](../samples/mounting-plate.md).
+**Copyright (c) 2026 Thompson Labs LLC**, MIT licence; the required notice is
+[licenses/LICENSE-text-to-cad-MIT](licenses/LICENSE-text-to-cad-MIT).
+Changes from the upstream geometry: **PMI and material added by Specify main
+3bb019e**. This fixture has structural assertions, without Python reference captures.
