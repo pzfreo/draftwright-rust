@@ -6,11 +6,27 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
-Now on quiddity-rust **v0.4.3**.
+## 0.2.8 (2026-11-01)
+
+Now on quiddity-rust **v0.4.3** (from v0.2.6). Draftwright draws the PMI that Specify writes as
+authored (#281). Dimensions try other sides and references before crossing another feature, which clears the mounting plate's slot (#285). Graphical PMI is
+reported only when no drawn semantic requirement covers it, replacing the blanket
+presentation notice (#283). Feature control frames and
+labels use haecceity's shared notation (#274).
+
+Instructions retired to render draftwright-editor's samples, 0.2.7 → 0.2.8 (median of three,
+interleaved): demo bracket 3.60 → 3.85 G (+7.1%), mounting plate 10.97 → 10.77 G (−1.9%),
+NIST CTC-01 e1 42.71 → 39.95 G (−6.5%), spindle 4.43 → 4.42 G (−0.1%). Problems: demo bracket
+3 → 2, mounting plate 6 → 2 (no extension lines through features), CTC-01 e1 32 → 31, spindle
+3 → 3. All four keep their sheet and scale. Upgrading: plan and PMI JSON labels now write `⌀`
+and `S⌀`, and PMI deviation pairs print as `+u/l`. PMI readings gain `callouts` and
+`reader_problems` fields. New problem codes: `pmi_graphical_not_drawn` (warning, impact
+incomplete) and `pmi_read_nonconformance` (warning). `pmi_presentation_not_read` is now emitted
+only for saved readings without a callout inventory.
 
 ### Changed
 
-- Retry crossed linear extensions on alternate sides and physical references.
+- Retry crossed linear extensions on alternate sides and physical references (#285).
   Slot groups reserve clear local lanes, keep the length and end location
   together, and try opposite straight-wall width references. Full-round ends
   are witnessed at their actual extrema on the slot centreline. Grid pitches
@@ -20,16 +36,17 @@ Now on quiddity-rust **v0.4.3**.
   automatic slot-layout callouts get at most eight shoulder-only text alternatives
   without changing the joint-search budget. Failed ordinary crossing retries keep
   their existing lane unless they remove a foreign-feature contact. Measurements
-  and pins stay intact.
+  and pins stay intact. The FreeCAD gantry plate and the build123d NEMA-17 bracket
+  move from A4 1:1 to A3 2:1; the gantry plate keeps 10 reported crossings.
 
-- Pin haecceity and quiddity v0.4.3 (recognition /6, fingerprints /3, PMI reader /14).
+- Pin haecceity and quiddity v0.4.3 (#284; recognition /6, fingerprints /3, PMI reader /14).
   A constituent face aspect aliases its datum feature only when their complete face sets
   match; multi-face datum constituents retain their own feature and dimension references.
   The shared writer now bounds generated STEP strings and reports retained long strings,
   and generated presentation keeps sizes and frames together with reserved label ink.
   Draftwright continues to lay out drawings from semantic requirements.
 
-- Triage graphical PMI callouts by their part-qualified semantic links. Drawn semantic
+- Triage graphical PMI callouts by their part-qualified semantic links (#283). Drawn semantic
   requirements need no presentation notice; refused requirements retain the callout ID and
   decoded name on their existing findings. An annotation with no resolved requirement gets
   one incomplete warning, including when its links identify only supporting geometry.
@@ -58,13 +75,13 @@ Now on quiddity-rust **v0.4.3**.
   Interrupted torus groups change radius counts and run-local IDs; route audits retain
   their physical defining faces instead of pinning the provider's occurrence numbers.
 
-- For #258, pin quiddity-rust and haecceity v0.2.7. Imported PMI deviation pairs now print on
+- For #258 (#274), pin quiddity-rust and haecceity v0.2.7. Imported PMI deviation pairs now print on
   one line as `+u/l` (ISO 129-1:2004 §6.2), haecceity's shared notation, instead of `+u -l`
   (`⌀62 +0.03/0`); authored Spec tolerances keep their `+U -L` form. The quality parts'
   drawings are byte-identical. On PMI parts the slash, whose ink stands taller than the digits,
   moves some callouts: nist_ftc_07 wraps a callout after its size, nist_stc_09's two-hole
-  position frame stands over its holes' `2×` callout, string_post_tapped's `⌀1.7` callout goes
-  below the front view on a leader across the part, and nist_ctc_01's `⌀35` callouts go to the
+  position frame stands over its holes' `2×` callout, string_post_tapped's `⌀1.7` callout stays
+  with its frame (see #282), and nist_ctc_01's `⌀35` callouts go to the
   right of their leaders.
 
 - For #258, feature control frames, labels, surface texture symbols and material removal marks
@@ -74,10 +91,29 @@ Now on quiddity-rust **v0.4.3**.
   `title_block::removal_marks` and the fit class lists). Placement, label lanes, leaders and
   drawn-precision rounding stay Draftwright's. Drawings are byte-identical.
 
+- Draw the PMI Specify writes as authored (#281). Coplanar multi-face aspects are measured as
+  plane-normal distances, with witness lines on real trimmed faces, instead of between bounding-box
+  midpoints: spindle 19's 4.9 is no longer measured as 18.27. A nominal-only dimension measured
+  from a datum is drawn as authored, not restated as an engine chain, because restating it
+  would loosen the tolerance through stack-up; dimensions without a datum keep the #265
+  replanning. Specify's `specify pmi origin` record is read as bookkeeping. Characteristic numbers
+  attach to the dimension that draws them, and inclined-bore fits apply when face and axis
+  ownership is proven. On 21 parts written by specify-core, `pmi_not_lowered` falls from 22 to 0
+  and problems from 515 to 233. Legacy Specify 0.1.4 files follow the same datum rule, so the
+  legacy plate grows from A3 to A2; re-saving with current Specify avoids that.
+
 - For #258, an imported dimension's label states a diameter as `⌀` and a spherical one as `S⌀`
   (ISO 129-1:2004 §7.2), as haecceity does, where it wrote `ø` for both. Drawings are
   byte-identical (the sheet already drew `⌀`); the PMI and plan JSON labels and the problem
   messages quoting them change.
+
+### Fixed
+
+- A hole's size label stays stacked with its position frame (#282). The size label grew taller
+  with the slash deviations, and the late label solve then pulled it away from its frame onto
+  a long leader. It now searches up to 512 radial positions for the whole frame-and-label stack.
+  string_post_tapped's leader goes from 58.9 mm back to 24.5 mm; all 17 attached pairs stay
+  attached.
 
 ## 0.2.7 (2026-10-31)
 
