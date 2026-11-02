@@ -474,6 +474,64 @@ fn step_length(wants: &[Want], stations: &[P3], k: usize, value: f64) -> Option<
     (found.len() == 1).then(|| found[0])
 }
 
+/// Reuse a native centre ordinate only when it states the proven compound
+/// endpoint in full. This adds the authored basic box without a second layout
+/// item; a matching number or one coincident projected coordinate is insufficient.
+fn compound_bore_location(a: &Analysis, wants: &[Want], r: &Record, k: usize) -> Option<usize> {
+    let g = r.geometry.as_ref()?;
+    if g.sites.len() != 2 || g.stations.len() != 2 || r.face_groups.len() != 2 {
+        return None;
+    }
+    let side = r.face_groups.iter().position(|group| {
+        group.len() > 1
+            && group.iter().all(|&f| {
+                a.face_attachments
+                    .get(f)
+                    .is_some_and(|f| f.surface.as_deref() == Some("cylinder"))
+            })
+    })?;
+    let group = &r.face_groups[side];
+    let bore_axis = a.face_attachments[*group.first()?].exact_axis?;
+    let found: Vec<_> = wants
+        .iter()
+        .enumerate()
+        .filter(|(_, w)| {
+            let Shape::Linear {
+                a: p, b: q, axis, ..
+            } = &w.shape
+            else {
+                return false;
+            };
+            let owns = |id: &str| {
+                let faces = a
+                    .features
+                    .iter()
+                    .find(|f| f.id == id)
+                    .map(|f| &f.faces)
+                    .or_else(|| {
+                        a.recognition
+                            .as_ref()?
+                            .patterns
+                            .iter()
+                            .find(|p| p.id == id)
+                            .map(|p| &p.faces)
+                    });
+                faces.is_some_and(|fs| !fs.is_empty() && fs.iter().all(|f| group.contains(f)))
+            };
+            *axis == k
+                && !w.measurements.is_empty()
+                && w.measurements
+                    .iter()
+                    .all(|m| m.parameter.starts_with("location.") && owns(&m.feature))
+                && (0..3).all(|i| i == bore_axis || (q[i] - g.stations[side][i]).abs() < 1e-6)
+                && (p[k] - g.stations[1 - side][k]).abs() < 1e-6
+                && (w.value - r.value.unwrap_or(f64::NAN)).abs() < 1e-6
+        })
+        .map(|(i, _)| i)
+        .collect();
+    (found.len() == 1).then(|| found[0])
+}
+
 /// Whether a plain diameter's label is the size as a callout prints it: `⌀6`, or `⌀6 THRU`
 /// (draftwright's `_canonical_nominal_diameter_label`, which spells it `ø6`).
 fn canonical(r: &Record, value: f64) -> bool {
@@ -1147,6 +1205,16 @@ fn outcome(
                     ),
                 ));
             };
+            if r.basic
+                && band.is_none()
+                && r.label.trim() == fmt(value)
+                && let Some(i) = compound_bore_location(a, wants, r, k)
+            {
+                return Outcome::Stated(
+                    i,
+                    "basic datum-to-bore location on the same proven compound centre",
+                );
+            }
             if !r.basic
                 && band.is_none()
                 && r.label.trim() == fmt(value)

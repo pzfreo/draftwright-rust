@@ -2181,6 +2181,144 @@ fn specify_origin_is_dimension_owned_and_controls_general_replanning() {
 }
 
 #[test]
+fn compound_bore_basics_keep_their_physical_axis_datums_and_boxes() {
+    let bytes =
+        gunzip(&std::fs::read(fixtures().join("specify-017-mounting-plate.step.gz")).unwrap());
+    let (part, a) = analysed("specify-017-mounting-plate.step", &bytes);
+    let plan = cache::default_plan(&a, true);
+    for (id, value, datum, axis, start) in [
+        (2830, 50., "C", "X", [-50., 0., 4.]),
+        (2837, 35., "B", "Y", [0., -35., 4.]),
+    ] {
+        let r = records(&a).iter().find(|r| r.part21_id == id).unwrap();
+        assert!(r.basic);
+        assert!(r.fields.iter().any(|(key, field)| {
+            key == "reference datum" && *field == draftwright::pmi::Field::Text(datum.into())
+        }));
+        assert_eq!(
+            r.face_groups.iter().map(Vec::len).collect::<Vec<_>>(),
+            [1, 5]
+        );
+        let g = r.geometry.as_ref().unwrap();
+        assert!(g.reasons.is_empty(), "{g:?}");
+        assert_eq!(g.axis.as_deref(), Some(axis));
+        assert_eq!(g.view.as_deref(), Some("plan"));
+        assert_eq!(g.stations, [start, [0., 0., 4.]]);
+        // Independent native support: the group centre is the physical Ø28
+        // bore's axis, not an invented centroid between four empty holes.
+        let bore = records(&a)
+            .iter()
+            .find(|r| r.kind == "diameter" && r.value == Some(28.))
+            .unwrap();
+        let cy = &bore.geometry.as_ref().unwrap().cylinders[0];
+        assert_eq!(cy.radius, 14.);
+        let q = g.stations[1];
+        let t: f64 = (0..3)
+            .map(|k| (q[k] - cy.origin[k]) * cy.direction[k])
+            .sum();
+        assert!(cy.interval[0] <= t && t <= cy.interval[1]);
+        assert!((0..3).all(|k| (q[k] - cy.origin[k] - t * cy.direction[k]).abs() < 1e-6));
+        assert!(bore.faces.iter().all(|f| r.face_groups[1].contains(f)));
+        let plane = &part.faces[r.face_groups[0][0]].surface;
+        let (u, v) = plane.parameters(start, None).unwrap();
+        assert!(part.domain(r.face_groups[0][0]).unwrap().contains(u, v));
+        assert!((0..3).all(|k| (plane.value(u, v)[k] - start[k]).abs() < 1e-6));
+        let d = stating(&plan, &a, r).expect("the authored basic dimension draws");
+        assert!(d.placed.is_some());
+        assert_eq!(d.value, value);
+        assert!(
+            d.measurements
+                .iter()
+                .any(|m| m.parameter.ends_with(".basic"))
+        );
+        assert_eq!(
+            plan.dimensions
+                .iter()
+                .filter(|d| d.placed.is_some()
+                    && d.kind == "linear"
+                    && (d.value - value).abs() < 1e-6)
+                .count(),
+            1,
+            "engine centre locations must yield to the authored boxed dimension"
+        );
+        assert!(
+            !plan
+                .problems
+                .iter()
+                .any(|p| p.code == "pmi_not_lowered" && p.refs.contains(&r.source_id))
+        );
+    }
+    let position = records(&a)
+        .iter()
+        .find(|r| r.kind == "position" && r.value == Some(4.))
+        .unwrap();
+    assert!(
+        plan.gdt
+            .iter()
+            .any(|g| g.source == position.source_id && g.placed.is_some())
+    );
+}
+
+#[test]
+fn compound_bore_locations_still_require_a_supported_centre_and_matching_nominal() {
+    let bytes =
+        gunzip(&std::fs::read(fixtures().join("specify-017-mounting-plate.step.gz")).unwrap());
+    let (part, a) = analysed("specify-017-mounting-plate.step", &bytes);
+    for id in [2830, 2837] {
+        let r = records(&a).iter().find(|r| r.part21_id == id).unwrap();
+        let centre = records(&a)
+            .iter()
+            .find(|r| r.kind == "diameter" && r.value == Some(28.))
+            .unwrap()
+            .faces[0];
+        for removed in [
+            centre,
+            r.face_groups[1]
+                .iter()
+                .copied()
+                .find(|f| *f != centre)
+                .unwrap(),
+        ] {
+            let mut unproven = r.clone();
+            unproven.face_groups[1].retain(|f| *f != removed);
+            let g = draftwright::pmi_lowering::dimension_geometry(&part, &unproven);
+            assert!(
+                g.reasons
+                    .iter()
+                    .any(|s| s.contains("no proven face-supported axis witness")),
+                "neither an empty centre nor an asymmetric group is proven: {g:?}"
+            );
+        }
+        let mut inconsistent = a.clone();
+        if let Some(Reading::Read(report)) = &mut inconsistent.pmi {
+            let wrong = report
+                .records
+                .iter_mut()
+                .find(|r| r.part21_id == id)
+                .unwrap();
+            wrong.value = wrong.value.map(|v| v + 1.);
+            wrong.geometry = Some(draftwright::pmi_lowering::dimension_geometry(&part, wrong));
+            assert!(
+                wrong
+                    .geometry
+                    .as_ref()
+                    .unwrap()
+                    .reasons
+                    .iter()
+                    .any(|s| s.contains("differs from nominal"))
+            );
+        }
+        let refused = cache::default_plan(&inconsistent, true);
+        assert!(
+            refused
+                .problems
+                .iter()
+                .any(|p| p.code == "pmi_not_lowered" && p.refs.contains(&r.source_id))
+        );
+    }
+}
+
+#[test]
 fn specify_main_plane_and_axis_locations_use_geometric_directions() {
     for (name, ids) in [
         ("angle-bracket", vec![753, 774]),

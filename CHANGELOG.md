@@ -6,6 +6,11 @@ All notable changes to draftwright-rust are recorded here, in the style of
 
 ## Unreleased
 
+- Recover basic datum-to-bore locations on a compound hole group when its
+  symmetric cylindrical supports prove an actual central bore axis. Keep the
+  authored datum and boxed value, replacing duplicate engine centre locations;
+  asymmetric groups, empty pattern centres and inconsistent nominals stay refused.
+
 ## 0.2.8 (2026-11-01)
 
 Now on quiddity-rust **v0.4.3** (from v0.2.6). Draftwright draws the PMI that Specify writes as
